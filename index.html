@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flag Rally World Cup - Interactive Simulation Game</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Central Game Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Overlay UI Containers -->
+  <div id="ui-container">
+
+    <!-- 1. MAIN MENU -->
+    <div id="main-menu" class="panel glass-panel text-center">
+      <h1 class="neon-title text-glow">FLAG RALLY</h1>
+      <h2 class="sub-title text-glow">WORLD CUP</h2>
+      
+      <div class="menu-actions flex flex-col gap-4 mt-8">
+        <button onclick="app.showSetup('world_cup')" class="btn btn-primary text-glow">
+          <span class="btn-icon">🏆</span> World Cup Mode
+        </button>
+        <button onclick="app.showSetup('grand_prix')" class="btn btn-secondary text-glow">
+          <span class="btn-icon">🏎️</span> Grand Prix Mode
+        </button>
+        <button onclick="app.showSetup('knockout')" class="btn btn-secondary text-glow">
+          <span class="btn-icon">💀</span> Knockout Mode
+        </button>
+        <button onclick="app.showSetup('custom')" class="btn btn-secondary text-glow">
+          <span class="btn-icon">🔧</span> Custom Mode
+        </button>
+        <button onclick="app.togglePanel('settings-panel')" class="btn btn-tertiary">
+          <span class="btn-icon">⚙️</span> Settings
+        </button>
+        <button onclick="window.close()" class="btn btn-danger">
+          Exit Game
+        </button>
+      </div>
+      
+      <div class="footer-note mt-8">Designed for YouTube Content Creation & Marble Runs</div>
+    </div>
+
+    <!-- 2. GAME SETUP OVERLAY (Common for modes, dynamically adjusts) -->
+    <div id="setup-menu" class="panel glass-panel hidden flex flex-col">
+      <div class="setup-header flex justify-between items-center mb-4">
+        <button onclick="app.showMainMenu()" class="btn btn-small btn-tertiary">← Back</button>
+        <h2 id="setup-title" class="neon-subtitle">World Cup Setup</h2>
+        <div style="width: 70px;"></div> <!-- balance flex spacing -->
+      </div>
+
+      <!-- Scrollable customizer sections -->
+      <div class="setup-scroll-container flex-1">
+        
+        <!-- Target mode special rules notice -->
+        <div id="mode-badge-rule" class="alert-notice mb-4">
+          <span class="badge-tag">INFO</span>
+          <span id="mode-rule-text">Football nations receive strength bonuses in this mode.</span>
+        </div>
+
+        <!-- A. Track Map Selection -->
+        <div class="setup-section mb-6">
+          <h3 class="section-title">Select Racing Map</h3>
+          <div class="map-grid mt-2">
+            <div onclick="app.selectMap('desert')" class="map-card active" id="map-desert">
+              <div class="map-thumb desert-thumb"></div>
+              <span>Sahara Desert</span>
+            </div>
+            <div onclick="app.selectMap('snow')" class="map-card" id="map-snow">
+              <div class="map-thumb snow-thumb"></div>
+              <span>Glacier Summit</span>
+            </div>
+            <div onclick="app.selectMap('jungle')" class="map-card" id="map-jungle">
+              <div class="map-thumb jungle-thumb"></div>
+              <span>Amazon Canopy</span>
+            </div>
+            <div onclick="app.selectMap('volcano')" class="map-card" id="map-volcano">
+              <div class="map-thumb volcano-thumb"></div>
+              <span>Magma Crater</span>
+            </div>
+            <div onclick="app.selectMap('ocean')" class="map-card" id="map-ocean">
+              <div class="map-thumb ocean-thumb"></div>
+              <span>Mariana Depths</span>
+            </div>
+            <div onclick="app.selectMap('space')" class="map-card" id="map-space">
+              <div class="map-thumb space-thumb"></div>
+              <span>Nebula Cosmos</span>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-2">
+            <button onclick="app.randomizeMap()" class="btn btn-small btn-secondary flex-1">Random Map</button>
+          </div>
+        </div>
+
+        <!-- B. Countries Selector -->
+        <div class="setup-section mb-6">
+          <div class="flex justify-between items-center">
+            <h3 class="section-title">Select Countries</h3>
+            <span id="selected-count" class="counter-badge">0 Selected</span>
+          </div>
+
+          <!-- Quick selectors -->
+          <div class="quick-selectors flex gap-2 flex-wrap mt-2 mb-3">
+            <button onclick="app.loadPresetFIFA()" class="btn btn-small btn-primary" id="btn-fifa-preset">Load World Cup (48 Teams)</button>
+            <button onclick="app.selectCountriesAll()" class="btn btn-small btn-secondary">Select All</button>
+            <button onclick="app.selectCountriesRandom(16)" class="btn btn-small btn-secondary">Random 16</button>
+            <button onclick="app.selectCountriesRandom(32)" class="btn btn-small btn-secondary">Random 32</button>
+            <button onclick="app.clearCountriesSelection()" class="btn btn-small btn-tertiary">Clear All</button>
+            <button onclick="app.togglePanel('custom-country-creator')" class="btn btn-small btn-secondary bg-purple-glow">＋ Create Custom Ball</button>
+          </div>
+
+          <!-- Search database -->
+          <div class="search-box mb-2">
+            <input type="text" id="country-search" oninput="app.filterCountriesList()" placeholder="🔍 Search country name or code...">
+          </div>
+
+          <!-- List grid -->
+          <div class="countries-grid-wrapper">
+            <div id="countries-list" class="countries-list-grid">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+        
+        <!-- C. Custom Mode Physics settings (Only shown in Custom Mode) -->
+        <div id="custom-settings-sec" class="setup-section mb-6 hidden">
+          <h3 class="section-title">Custom Race Rules</h3>
+          
+          <div class="flex flex-col gap-3 mt-3">
+            <div class="setting-row">
+              <label for="custom-track-length">Race Distance</label>
+              <select id="custom-track-length">
+                <option value="50000">Short (approx. 60s)</option>
+                <option value="90000" selected>Medium (approx. 90s)</option>
+                <option value="130000">Long (approx. 120s)</option>
+                <option value="190000">Marathon (approx. 180s)</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label for="custom-obstacles">Obstacles Density</label>
+              <select id="custom-obstacles">
+                <option value="low">Sparse (High Speed)</option>
+                <option value="medium" selected>Balanced (Standard)</option>
+                <option value="high">Chaotic (Many spinners/pegs)</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label for="custom-events">Random Event Spawns</label>
+              <select id="custom-events">
+                <option value="0">Disabled (0)</option>
+                <option value="1">Rare (1)</option>
+                <option value="2" selected>Normal (1-2)</option>
+                <option value="3">Frequent (2-3)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Action Button footer -->
+      <div class="setup-footer flex gap-4 mt-4 pt-3 border-t">
+        <button onclick="app.startRace()" class="btn btn-primary btn-large text-glow flex-1">
+          🏁 START SIMULATION
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. MAIN SETTINGS MODAL -->
+    <div id="settings-panel" class="modal-panel hidden glass-panel">
+      <h2 class="neon-subtitle mb-4">Simulation Settings</h2>
+      <div class="flex flex-col gap-4">
+        
+        <div class="setting-row">
+          <label>Audio / Sound Effects</label>
+          <input type="checkbox" id="setting-sound" checked onchange="app.saveSettingSFX()">
+        </div>
+        
+        <div class="setting-row">
+          <label>Simulation Speed</label>
+          <select id="setting-speed" onchange="app.saveSettingSpeed()">
+            <option value="1.0" selected>1.0x (Normal speed)</option>
+            <option value="1.5">1.5x (Fast paced)</option>
+            <option value="2.0">2.0x (Hyper Speed for test)</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <label>Camera Tracking View</label>
+          <select id="setting-camera" onchange="app.saveSettingCamera()">
+            <option value="lead" selected>Auto-Follow Lead Pack</option>
+            <option value="average">Average Center of Mass</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <label>Aspect Ratio Preview</label>
+          <select id="setting-aspect" onchange="app.saveSettingAspect()">
+            <option value="auto" selected>Auto Responsive (Full Screen)</option>
+            <option value="16-9">Force 16:9 Landscape (YouTube Regular)</option>
+            <option value="9-16">Force 9:16 Vertical (YouTube Shorts)</option>
+          </select>
+        </div>
+
+        <div class="note-box text-sm text-gray mt-2">
+          Note: Sim speeds and aspect ratios can be updated mid-race through the pause menu. Settings are saved locally.
+        </div>
+
+        <button onclick="app.togglePanel('settings-panel')" class="btn btn-secondary mt-2">Close Settings</button>
+      </div>
+    </div>
+
+    <!-- 4. CUSTOM COUNTRY CREATOR POPUP -->
+    <div id="custom-country-creator" class="modal-panel hidden glass-panel">
+      <h2 class="neon-subtitle mb-3">Create Custom Country Ball</h2>
+      <div class="flex flex-col gap-3 text-left">
+        <div>
+          <label class="field-label">Ball Name</label>
+          <input type="text" id="cust-name" placeholder="e.g. Dreamland">
+        </div>
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <label class="field-label">2-Letter ISO Flag (from CDN)</label>
+            <input type="text" id="cust-code" placeholder="e.g. us, fr, ca, jp" maxlength="6">
+          </div>
+          <div style="width: 80px;">
+            <label class="field-label">Preview</label>
+            <div id="cust-flag-preview" class="flag-preview-circle">?</div>
+          </div>
+        </div>
+
+        <h4 class="field-section-title mt-2">Stats (1 to 100)</h4>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <label>Population (Weight)</label>
+            <input type="number" id="cust-pop" min="1" max="100" value="50">
+          </div>
+          <div>
+            <label>GDP (Consistency)</label>
+            <input type="number" id="cust-gdp" min="1" max="100" value="50">
+          </div>
+          <div>
+            <label>Military (Impact Power)</label>
+            <input type="number" id="cust-mil" min="1" max="100" value="50">
+          </div>
+          <div>
+            <label>Tourism (Speed)</label>
+            <input type="number" id="cust-tour" min="1" max="100" value="50">
+          </div>
+          <div class="col-span-2">
+            <label>Happiness Index / Luck</label>
+            <input type="number" id="cust-luck" min="1" max="100" value="50">
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-4">
+          <button onclick="app.saveCustomCountry()" class="btn btn-primary flex-1">Save & Add</button>
+          <button onclick="app.togglePanel('custom-country-creator')" class="btn btn-tertiary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. RACE HUD OVERLAYS (Shown when racing) -->
+    <div id="race-hud" class="hud-layer hidden">
+      <!-- Top Center: Race Timer -->
+      <div id="hud-timer-card" class="hud-card top-center-hud font-outfit">
+        <div class="hud-label">RACE TIME</div>
+        <div id="hud-timer" class="hud-value">0.0s</div>
+      </div>
+
+      <!-- Top right: Active Event Alert -->
+      <div id="hud-event-card" class="hud-card top-right-hud hidden">
+        <div class="hud-label blinking-dot">EVENT ACTIVE</div>
+        <div id="hud-event-name" class="hud-value color-warning">METEOR SHOWER</div>
+      </div>
+
+      <!-- Top Left: Live Leaderboard list -->
+      <div id="hud-leaderboard" class="top-left-hud glass-panel">
+        <h3 class="hud-list-title text-glow">LIVE LEADERBOARD</h3>
+        <div id="hud-leader-list" class="leaderboard-list">
+          <!-- Dynamically filled with top 5 rows -->
+        </div>
+      </div>
+
+      <!-- Bottom Center: Top 3 podium -->
+      <div id="hud-podium" class="bottom-center-hud glass-panel podium-panel">
+        <div id="hud-podium-list" class="podium-list">
+          <!-- Dynamically filled with top 3 names -->
+        </div>
+      </div>
+
+      <!-- Left Center: Action Pause Control Panel -->
+      <div id="hud-controls" class="left-center-hud flex flex-col gap-2">
+        <button id="btn-hud-pause" onclick="app.togglePauseRace()" class="btn btn-icon-round btn-primary">⏸</button>
+        <button onclick="app.resetRace()" class="btn btn-icon-round btn-secondary">🔄</button>
+        <button onclick="app.exitRace()" class="btn btn-icon-round btn-danger">🏠</button>
+        <div class="flex flex-col items-center select-speed-hud">
+          <span class="text-xs font-semibold text-white">Speed</span>
+          <button onclick="app.cycleSimSpeed()" id="btn-hud-speed" class="btn btn-small btn-secondary mt-1">1.0x</button>
+        </div>
+        <div class="flex flex-col items-center select-zoom-hud mt-2">
+          <span class="text-xs font-semibold text-white">Zoom</span>
+          <div class="flex gap-1 mt-1">
+            <button onclick="app.engine.zoomIn()" class="btn btn-icon-xxs btn-secondary">＋</button>
+            <button onclick="app.engine.zoomOut()" class="btn btn-icon-xxs btn-secondary">−</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Center: Country Camera Selector -->
+      <div class="hud-country-select">
+        <select id="hud-camera-select" class="country-dropdown-select" onchange="app.onCameraSelectChange()">
+          <option value="leader">🎯 Auto-Follow Leader</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 6. SIMPLIFIED WINNER SCREEN (cinematic overlay) -->
+    <div id="winner-screen" class="panel glass-panel hidden text-center">
+      <div class="trophy-badge text-glow">🏆</div>
+      <div class="winner-flag-box mt-3">
+        <img id="winner-flag" src="" alt="Champion Flag" class="large-winner-flag">
+      </div>
+      <h1 id="winner-name" class="winner-title-text mt-2 text-glow">Argentina</h1>
+      <h2 class="champion-subtitle">ARE THE CHAMPIONS!</h2>
+
+      <div id="winner-top3" class="winner-top3 mt-6">
+        <!-- Dynamically filled -->
+      </div>
+
+      <div class="winner-actions flex gap-4 mt-8">
+        <button onclick="app.resetRace()" class="btn btn-primary flex-1 text-glow">Play Again</button>
+        <button onclick="app.exitRace()" class="btn btn-secondary flex-1">New Setup</button>
+        <button onclick="app.showMainMenu()" class="btn btn-tertiary">Menu</button>
+      </div>
+    </div>
+
+    <!-- 7. CINEMATIC WORLD CUP CHAMPION SCREEN (simplified) -->
+    <div id="wc-champion-screen" class="panel glass-panel hidden text-center wc-cinematic-panel">
+      <div class="wc-banner text-glow">🏆 FIFA WORLD CUP CHAMPION 🏆</div>
+      
+      <div class="wc-winner-flag-box mt-3">
+        <img id="wc-flag" src="" alt="World Cup Flag" class="large-winner-flag wc-glow-border">
+      </div>
+      
+      <h1 id="wc-country" class="wc-country-title text-glow">FRANCE</h1>
+      <h2 class="champion-subtitle">ARE THE CHAMPIONS!</h2>
+
+      <div id="wc-top3" class="winner-top3 mt-6">
+        <!-- Dynamically filled -->
+      </div>
+
+      <div class="wc-actions flex gap-4 mt-8">
+        <button onclick="app.resetRace()" class="btn btn-primary btn-large text-glow flex-1">⚽ REMATCH</button>
+        <button onclick="app.exitRace()" class="btn btn-secondary btn-large flex-1">NEW TOURNAMENT</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Script Modules linking -->
+  <script src="countries.js"></script>
+  <script src="physics.js"></script>
+  <script src="game.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
