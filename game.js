@@ -205,6 +205,9 @@ class GameEngine {
     // Image pattern cache for country flags
     this.flagCache = {};
 
+    // Football image for meteor obstacles
+    this.footballImg = null;
+
     // Anti-jam system state
     this.obstacleReliefActive = false;
     this.obstacleZoneOccupancy = {};
@@ -217,8 +220,16 @@ class GameEngine {
   init(db) {
     this.countryDatabase = db;
     this.preloadFlags(db);
+    this.preloadFootballImage();
     this.startBackgroundLoop();
     this.setupClickToFocus();
+  }
+
+  preloadFootballImage() {
+    const img = new Image();
+    img.src = 'football_image-preview.png';
+    img.onload = () => { this.footballImg = img; };
+    img.onerror = () => { this.footballImg = 'failed'; };
   }
 
   // Pre-load flags asynchronously in the background
@@ -2341,12 +2352,10 @@ class GameEngine {
           }
           this.ctx.restore();
         } else if (obs.type === 'rock') {
-          // FIFA World Cup football — 2× size, motion blur, proper black-and-white pattern
           this.ctx.save();
           const r = obs.radius;
           const cx = obsX, cy = obs.y;
           if (obs.isMeteor) {
-            // Motion blur trail (vertical streak in direction of travel)
             const trailLen = Math.abs(obs.vy) * 4;
             const trailGrad = this.ctx.createLinearGradient(obsX, obs.y - trailLen, obsX, obs.y);
             trailGrad.addColorStop(0, 'rgba(0,0,0,0)');
@@ -2362,48 +2371,19 @@ class GameEngine {
             this.ctx.closePath();
             this.ctx.fill();
           }
-          // Football base (white sphere)
+          // Draw football from image
           this.ctx.beginPath();
           this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
-          this.ctx.fillStyle = '#ffffff';
-          this.ctx.fill();
-          // Subtle shadow gradient
-          const sGrad = this.ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
-          sGrad.addColorStop(0, 'rgba(0,0,0,0)');
-          sGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
-          this.ctx.fillStyle = sGrad;
-          this.ctx.beginPath();
-          this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
-          this.ctx.fill();
-          // Black pentagon patches
-          this.ctx.fillStyle = '#1a1a1a';
-          const pSize = r * 0.32;
-          const pAngle = Math.PI * 2 / 5;
-          // Center pentagon
-          this.drawPentagon(cx, cy, pSize, 0);
-          // 5 surrounding pentagons
-          for (let i = 0; i < 5; i++) {
-            const a = i * pAngle - Math.PI / 2;
-            const px = cx + Math.cos(a) * r * 0.55;
-            const py = cy + Math.sin(a) * r * 0.55;
-            this.drawPentagon(px, py, pSize * 0.75, a + Math.PI / 5);
-          }
-          // White hexagon connecting lines between pentagons
-          this.ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-          this.ctx.lineWidth = 1;
-          for (let i = 0; i < 5; i++) {
-            const a = i * pAngle - Math.PI / 2;
-            const px = cx + Math.cos(a) * r * 0.55;
-            const py = cy + Math.sin(a) * r * 0.55;
-            const nextA = ((i + 1) % 5) * pAngle - Math.PI / 2;
-            const nx = cx + Math.cos(nextA) * r * 0.55;
-            const ny = cy + Math.sin(nextA) * r * 0.55;
+          this.ctx.clip();
+          const footImg = this.footballImg;
+          if (footImg && footImg !== 'failed' && footImg.complete && footImg.naturalWidth > 0) {
+            this.ctx.drawImage(footImg, cx - r, cy - r, r * 2, r * 2);
+          } else {
+            this.ctx.fillStyle = '#ffffff';
             this.ctx.beginPath();
-            this.ctx.moveTo(px, py);
-            this.ctx.lineTo(nx, ny);
-            this.ctx.stroke();
+            this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            this.ctx.fill();
           }
-          // Outer glow
           if (obs.isMeteor) {
             this.ctx.shadowColor = 'rgba(255,255,255,0.4)';
             this.ctx.shadowBlur = 30;
