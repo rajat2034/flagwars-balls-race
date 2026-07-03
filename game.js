@@ -212,6 +212,15 @@ class GameEngine {
     this.obstacleReliefActive = false;
     this.obstacleZoneOccupancy = {};
 
+    // Camera Shake
+    this.shakeIntensity = 0;
+    this.shakeDecay = 0.92;
+
+    // Easing helper
+    this.easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    this.easeOutExpo = (t) => (t === 1) ? 1 : 1 - Math.pow(2, -10 * t);
+    this.easeOutBack = (t) => { const c1 = 1.70158; const c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+
     // Window Events
     window.addEventListener('resize', () => this.resizeCanvas());
     this.resizeCanvas();
@@ -828,6 +837,10 @@ class GameEngine {
       }
     }
 
+    // Decay camera shake
+    this.shakeIntensity *= this.shakeDecay;
+    if (this.shakeIntensity < 0.01) this.shakeIntensity = 0;
+
     // Render Frame
     this.render();
 
@@ -843,6 +856,17 @@ class GameEngine {
       if (!this.activeEvent || this.activeEvent.key !== 'gravity_flip') {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
+
+      // Camera shake on collisions
+      this.balls.forEach(ball => {
+        if (ball._hitWallThisFrame || ball._hitBarrierThisFrame) this.triggerShake(0.8);
+        if (ball._hitBallThisFrame) this.triggerShake(0.4);
+        if (ball._hitMeteorThisFrame) this.triggerShake(1.2);
+        if (ball._hitSpinnerThisFrame) this.triggerShake(0.6);
+        if (ball._hitHammerThisFrame) this.triggerShake(0.7);
+        if (ball._hitPunchFistThisFrame) this.triggerShake(1.4);
+        if (ball._hitBreakDoorThisFrame || ball._hitCardboardThisFrame) this.triggerShake(0.9);
+      });
 
       // Fast ball particle trails (visual quality)
       this.balls.forEach(ball => {
@@ -1132,6 +1156,18 @@ class GameEngine {
     });
   }
 
+  triggerShake(intensity) {
+    this.shakeIntensity = Math.min(this.shakeIntensity + intensity, 20);
+  }
+
+  getShakeOffset() {
+    if (this.shakeIntensity < 0.1) return { x: 0, y: 0 };
+    return {
+      x: (Math.random() - 0.5) * this.shakeIntensity * 2,
+      y: (Math.random() - 0.5) * this.shakeIntensity * 2
+    };
+  }
+
   zoomIn() {
     this.userZoomMultiplier = Math.min(3.0, this.userZoomMultiplier + 0.2);
   }
@@ -1331,6 +1367,21 @@ class GameEngine {
         });
       }
     }
+
+    // Ambient floating dust / micro-particles for all themes
+    if (Math.random() < 0.15 * dt) {
+      this.particles.push({
+        type: 'dust',
+        x: Math.random() * this.canvas.width,
+        y: Math.random() * this.canvas.height,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.2,
+        color: 'rgba(255,255,255,0.3)',
+        alpha: 0.1 + Math.random() * 0.15,
+        size: Math.random() * 1.5 + 0.5,
+        life: 120 + Math.floor(Math.random() * 120)
+      });
+    }
   }
 
   // Celebratory particles
@@ -1520,6 +1571,9 @@ class GameEngine {
     // Draw dynamic background elements (map-specific atmospheric effects)
     this.renderDynamicBackground(screenW, screenH);
 
+    // Apply camera shake offset
+    const shk = this.getShakeOffset();
+
     // Calculate scaling coordinates based on aspect ratio
     let baseZoom = 1;
     let trackOffset = 0;
@@ -1563,7 +1617,7 @@ class GameEngine {
 
     // 2. Render track contents (Walls, Pegs, Boosts, Balls) inside scaled wrapper
     this.ctx.save();
-    this.ctx.translate(trackOffset, 0);
+    this.ctx.translate(trackOffset + shk.x, shk.y);
     this.ctx.scale(zoom, zoom);
 
     const camX = this.cameraX;
@@ -2728,6 +2782,8 @@ class GameEngine {
         // Cull if offscreen
         if (bX + ball.radius < -100 || bX - ball.radius > screenW / zoom + 100) return;
 
+        const renderRadius = ball.radius * (1 + ball.z * 0.05);
+
         // 1) Draw speed trail (premium visual glow)
         if (ball.trail && ball.trail.length > 1) {
           this.ctx.save();
@@ -2749,20 +2805,37 @@ class GameEngine {
           this.ctx.restore();
         }
 
-        // 2) Shadows for jump altitude (Z-axis)
-        if (ball.z > 0) {
+        // 2) Soft shadow on ground under ball (always)
+        this.ctx.save();
+        const shadowScale = 1 + ball.z * 0.08;
+        this.ctx.globalAlpha = 0.35 - ball.z * 0.03;
+        this.ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        this.ctx.shadowBlur = 12 + ball.z * 2;
+        this.ctx.beginPath();
+        this.ctx.ellipse(bX, ball.y + renderRadius * 0.9 + ball.z * 1.5, renderRadius * shadowScale * 1.1, renderRadius * 0.35, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+
+        // 3) Bloom/glow behind fast balls
+        const spd = Math.hypot(ball.vx, ball.vy);
+        if (spd > 2) {
           this.ctx.save();
-          this.ctx.shadowColor = 'rgba(0,0,0,0.35)';
-          this.ctx.shadowBlur = 6 + ball.z * 1.0;
-          this.ctx.shadowOffsetX = 3 + ball.z * 0.5;
-          this.ctx.shadowOffsetY = 4 + ball.z * 0.8;
+          const glowIntensity = Math.min(0.5, (spd - 2) / 10 * 0.5);
+          this.ctx.globalAlpha = glowIntensity;
+          this.ctx.shadowColor = ball.primaryColorRGB ? `rgb(${ball.primaryColorRGB})` : '#ffffff';
+          this.ctx.shadowBlur = 30;
+          this.ctx.fillStyle = ball.primaryColorRGB ? `rgba(${ball.primaryColorRGB}, 0.1)` : 'rgba(255,255,255,0.05)';
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius * 1.8, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.restore();
         }
 
-        // 3) Flag ball body
+        // 4) Flag ball body
         this.ctx.save();
         this.ctx.beginPath();
 
-        const renderRadius = ball.radius * (1 + ball.z * 0.05);
         this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
         this.ctx.clip();
 
@@ -2780,7 +2853,7 @@ class GameEngine {
           this.ctx.fillText(ball.code.toUpperCase().substring(0, 3), bX, ball.y);
         }
 
-        // glossy overlay
+        // 5) Enhanced glossy + reflection overlay
         const radialGrad = this.ctx.createRadialGradient(
           bX - renderRadius * 0.3,
           ball.y - renderRadius * 0.3,
@@ -2789,20 +2862,23 @@ class GameEngine {
           ball.y,
           renderRadius
         );
-        radialGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
-        radialGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.05)');
-        radialGrad.addColorStop(0.85, 'rgba(0, 0, 0, 0.12)');
-        radialGrad.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
+        radialGrad.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
+        radialGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.12)');
+        radialGrad.addColorStop(0.6, 'rgba(255, 255, 255, 0.02)');
+        radialGrad.addColorStop(0.85, 'rgba(0, 0, 0, 0.08)');
+        radialGrad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
         this.ctx.fillStyle = radialGrad;
         this.ctx.beginPath();
         this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
         this.ctx.fill();
 
-        this.ctx.restore();
+        // 6) Top specular highlight (reflection)
+        this.ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(bX - renderRadius * 0.25, ball.y - renderRadius * 0.3, renderRadius * 0.3, renderRadius * 0.15, -0.5, 0, Math.PI * 2);
+        this.ctx.fill();
 
-        if (ball.z > 0) {
-          this.ctx.restore(); // restore jump shadow
-        }
+        this.ctx.restore();
 
         // 4) Country label
         this.ctx.save();
@@ -2874,55 +2950,123 @@ class GameEngine {
     }
   }
 
-    // Draw map-specific animated background elements
+    // Draw map-specific animated background elements — parallax stadium scene
     renderDynamicBackground(screenW, screenH) {
-      // Removed: no falling particles/dots. Clean scenic background only.
       const ctx = this.ctx;
       const theme = this.currentThemeKey;
       if (!theme) return;
       const time = Date.now() / 1000;
 
+      // ---- LAYER 1: Deep background gradient (ambient light) ----
+      ctx.save();
+      const ambGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.3, 0, screenW * 0.5, screenH * 0.3, screenH * 1.2);
+      ambGrad.addColorStop(0, 'rgba(255,255,255,0.03)');
+      ambGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = ambGrad;
+      ctx.fillRect(0, 0, screenW, screenH);
+      ctx.restore();
+
+      // ---- LAYER 2: Stadium crowd silhouettes (all themes) ----
+      ctx.save();
+      ctx.globalAlpha = 0.12;
+      const crowdWave = Math.sin(time * 0.8) * 3;
+      // Bottom crowd row
+      ctx.fillStyle = '#0a0a0f';
+      for (let i = 0; i < 30; i++) {
+        const cx = (i / 30) * screenW + Math.sin(time * 0.5 + i * 1.2) * 5;
+        const cy = screenH - 40 + Math.sin(time * 0.6 + i * 0.7) * 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy + crowdWave, 12, Math.PI, 0);
+        ctx.fill();
+        // Small body below head
+        ctx.fillRect(cx - 8, cy + 2, 16, 14);
+      }
+      // Second row (slightly higher, offset)
+      ctx.globalAlpha = 0.07;
+      for (let i = 0; i < 25; i++) {
+        const cx = ((i + 0.5) / 25) * screenW + Math.sin(time * 0.4 + i * 1.5) * 4;
+        const cy = screenH - 70 + Math.sin(time * 0.5 + i * 0.9) * 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 10, Math.PI, 0);
+        ctx.fill();
+        ctx.fillRect(cx - 6, cy + 2, 12, 11);
+      }
+      ctx.restore();
+
+      // ---- LAYER 3: Stadium light beams ----
+      ctx.save();
+      ctx.globalAlpha = 0.04 + Math.sin(time * 0.3) * 0.015;
+      const lightTilt = Math.sin(time * 0.2) * 5;
+      for (let i = 0; i < 4; i++) {
+        const lx = screenW * (0.15 + i * 0.25);
+        const ly = -10;
+        ctx.fillStyle = '#ffeeaa';
+        ctx.beginPath();
+        ctx.moveTo(lx - 15, ly);
+        ctx.lineTo(lx + 15, ly);
+        ctx.lineTo(lx + 80 + lightTilt, screenH * 0.6);
+        ctx.lineTo(lx - 80 + lightTilt, screenH * 0.6);
+        ctx.closePath();
+        ctx.fill();
+        // Light fixture body
+        ctx.fillStyle = '#1a1a2e';
+        ctx.globalAlpha = 0.3;
+        ctx.fillRect(lx - 12, ly - 4, 24, 8);
+      }
+      ctx.restore();
+
+      // ---- LAYER 4: Map-specific atmospheric effects (enhanced) ----
       if (theme === 'desert') {
         ctx.save();
-        ctx.fillStyle = 'rgba(186, 74, 0, 0.08)';
-        for (let i = 0; i < 5; i++) {
-          const dx = (i * screenW / 4 + Math.sin(time * 0.02 + i) * 30) % screenW;
-          const dh = 80 + Math.sin(i * 2.1 + time * 0.1) * 30;
+        ctx.fillStyle = 'rgba(186, 74, 0, 0.06)';
+        for (let i = 0; i < 6; i++) {
+          const dx = (i * screenW / 5 + Math.sin(time * 0.02 + i) * 40) % screenW;
+          const dh = 60 + Math.sin(i * 2.1 + time * 0.1) * 25;
           ctx.beginPath();
-          ctx.moveTo(dx - 120, screenH);
-          ctx.quadraticCurveTo(dx, screenH - dh, dx + 120, screenH);
+          ctx.moveTo(dx - 140, screenH);
+          ctx.quadraticCurveTo(dx, screenH - dh, dx + 140, screenH);
           ctx.fill();
         }
         ctx.restore();
       } else if (theme === 'snow') {
         ctx.save();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-        for (let i = 0; i < 4; i++) {
-          const mx = i * screenW / 3 + Math.sin(time * 0.01 + i * 1.5) * 20;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+        for (let i = 0; i < 5; i++) {
+          const mx = i * screenW / 4 + Math.sin(time * 0.01 + i * 1.5) * 30;
           ctx.beginPath();
-          ctx.moveTo(mx - 100, screenH);
-          ctx.lineTo(mx - 30, screenH * 0.4);
-          ctx.lineTo(mx + 30, screenH * 0.35);
-          ctx.lineTo(mx + 100, screenH);
+          ctx.moveTo(mx - 120, screenH);
+          ctx.lineTo(mx - 35, screenH * 0.35);
+          ctx.lineTo(mx + 35, screenH * 0.3);
+          ctx.lineTo(mx + 120, screenH);
           ctx.fill();
         }
         ctx.restore();
       } else if (theme === 'volcano') {
         ctx.save();
-        const lavaGlow = 0.08 + Math.sin(time * 0.5) * 0.04;
+        const lavaGlow = 0.1 + Math.sin(time * 0.5) * 0.05;
         ctx.globalAlpha = lavaGlow;
         ctx.fillStyle = '#e74c3c';
-        ctx.fillRect(0, screenH * 0.85, screenW, screenH * 0.15);
+        ctx.fillRect(0, screenH * 0.82, screenW, screenH * 0.18);
+        // Lava cracks
+        ctx.strokeStyle = 'rgba(255, 100, 0, 0.15)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 8; i++) {
+          const lx = (i / 8) * screenW + Math.sin(time * 0.1 + i) * 20;
+          ctx.beginPath();
+          ctx.moveTo(lx, screenH * 0.88);
+          ctx.quadraticCurveTo(lx + Math.sin(time + i) * 10, screenH * 0.9, lx + 15, screenH);
+          ctx.stroke();
+        }
         ctx.restore();
       } else if (theme === 'ocean') {
         ctx.save();
         ctx.strokeStyle = 'rgba(173, 216, 230, 0.04)';
         ctx.lineWidth = 2;
-        for (let w = 0; w < 5; w++) {
+        for (let w = 0; w < 6; w++) {
           ctx.beginPath();
-          const wy = screenH * (0.3 + w * 0.1);
+          const wy = screenH * (0.25 + w * 0.08);
           for (let wx = 0; wx < screenW; wx += 10) {
-            const wyOff = Math.sin(wx * 0.01 + time * 0.5 + w * 1.7) * 8;
+            const wyOff = Math.sin(wx * 0.008 + time * 0.4 + w * 1.7) * 10;
             if (wx === 0) ctx.moveTo(wx, wy + wyOff);
             else ctx.lineTo(wx, wy + wyOff);
           }
@@ -2931,27 +3075,49 @@ class GameEngine {
         ctx.restore();
       } else if (theme === 'space') {
         ctx.save();
-        ctx.globalAlpha = 0.03;
+        ctx.globalAlpha = 0.04;
         const grad = ctx.createRadialGradient(
-          screenW * 0.3 + Math.sin(time * 0.05) * 100, screenH * 0.4, 10,
-          screenW * 0.3, screenH * 0.4, 300
+          screenW * 0.3 + Math.sin(time * 0.05) * 120, screenH * 0.4, 10,
+          screenW * 0.3, screenH * 0.4, 350
         );
         grad.addColorStop(0, '#9b59b6');
         grad.addColorStop(1, 'transparent');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, screenW, screenH);
+        // Twinkling stars
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        for (let i = 0; i < 30; i++) {
+          const sx = ((i * 137.5 + 50) % screenW);
+          const sy = ((i * 97.3 + 20) % (screenH * 0.6));
+          const s = 0.5 + Math.sin(time * 2 + i * 7) * 0.5;
+          ctx.globalAlpha = s * 0.3;
+          ctx.beginPath();
+          ctx.arc(sx, sy, s * 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       } else if (theme === 'jungle') {
         ctx.save();
-        ctx.globalAlpha = 0.04;
-        for (let i = 0; i < 4; i++) {
-          const rx = (i * screenW / 4 + Math.sin(time * 0.05 + i) * 20) % screenW;
-          ctx.fillStyle = 'rgba(241, 196, 15, 0.3)';
+        ctx.globalAlpha = 0.05;
+        for (let i = 0; i < 5; i++) {
+          const rx = (i * screenW / 4 + Math.sin(time * 0.05 + i) * 30) % screenW;
+          ctx.fillStyle = 'rgba(241, 196, 15, 0.2)';
           ctx.beginPath();
-          ctx.moveTo(rx - 10, 0);
-          ctx.lineTo(rx + 15, 0);
-          ctx.lineTo(rx + 50, screenH);
-          ctx.lineTo(rx - 40, screenH);
+          ctx.moveTo(rx - 15, 0);
+          ctx.lineTo(rx + 20, 0);
+          ctx.lineTo(rx + 60, screenH);
+          ctx.lineTo(rx - 50, screenH);
+          ctx.fill();
+        }
+        // Fireflies
+        ctx.globalAlpha = 0.4;
+        for (let i = 0; i < 12; i++) {
+          const fx = ((i * 89.7 + 30) % screenW);
+          const fy = ((i * 53.1 + 100) % (screenH * 0.7) + screenH * 0.15);
+          const pulse = 0.3 + Math.sin(time * 1.5 + i * 2.3) * 0.3;
+          ctx.fillStyle = `rgba(200, 255, 100, ${pulse * 0.5})`;
+          ctx.beginPath();
+          ctx.arc(fx, fy, 2 + pulse, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
@@ -2959,6 +3125,22 @@ class GameEngine {
     }
 
     renderScreenOverlays(screenW, screenH) {
+      // A0. Vignette overlay around screen edges
+      if (this.state === 'racing' || this.state === 'finished' || this.state === 'champion_screen') {
+        this.ctx.save();
+        const vigGrad = this.ctx.createRadialGradient(
+          screenW / 2, screenH / 2, screenH * 0.3,
+          screenW / 2, screenH / 2, screenH * 0.9
+        );
+        vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        vigGrad.addColorStop(0.6, 'rgba(0,0,0,0)');
+        vigGrad.addColorStop(0.85, 'rgba(0,0,0,0.15)');
+        vigGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
+        this.ctx.fillStyle = vigGrad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        this.ctx.restore();
+      }
+
       // A. Flag Wars watermark (fixed top-right corner, screen-space, no scroll)
       this.ctx.save();
       this.ctx.globalAlpha = 0.12;
@@ -3268,8 +3450,10 @@ class GameEngine {
         this.ctx.shadowColor = '#000000';
         this.ctx.shadowBlur = 15;
 
-        // Growing size animation
-        const scale = 1 + (Date.now() % 1000) / 1000 * 0.3;
+        // Growing size animation with easing
+        const raw = (Date.now() % 1000) / 1000;
+        const eased = this.easeOutBack(raw);
+        const scale = 1 + eased * 0.35;
         const size = Math.round(90 * scale);
         this.ctx.font = `bold ${size}px Montserrat, sans-serif`;
 
@@ -3368,12 +3552,14 @@ class GameEngine {
         }
       }, 1000);
 
-      // Initialize HTML DOM states
-      document.getElementById('main-menu').classList.add('hidden');
-      document.getElementById('setup-menu').classList.add('hidden');
-      document.getElementById('race-hud').classList.remove('hidden');
-      document.getElementById('winner-screen').classList.add('hidden');
-      document.getElementById('wc-champion-screen').classList.add('hidden');
+      // Initialize HTML DOM states with fade transition
+      this.fadeTransition(() => {
+        document.getElementById('main-menu').classList.add('hidden');
+        document.getElementById('setup-menu').classList.add('hidden');
+        document.getElementById('race-hud').classList.remove('hidden');
+        document.getElementById('winner-screen').classList.add('hidden');
+        document.getElementById('wc-champion-screen').classList.add('hidden');
+      });
 
       // Start central animation tick
       requestAnimationFrame((t) => this.tick(t));
@@ -3543,6 +3729,19 @@ class GameEngine {
       this.startRace();
     }
 
+    fadeTransition(callback) {
+      const el = document.getElementById('race-transition');
+      if (!el) { if (callback) callback(); return; }
+      el.style.transition = 'opacity 0.5s cubic-bezier(0.16,1,0.3,1)';
+      el.style.opacity = '1';
+      el.style.pointerEvents = 'auto';
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.pointerEvents = 'none';
+        if (callback) callback();
+      }, 500);
+    }
+
     stopRace() {
       this.isRunning = false;
       this.state = 'menu';
@@ -3554,14 +3753,24 @@ class GameEngine {
       this._championWinner = null;
       this._championFlagImg = null;
 
-      // Show Main Menu, hide panels
-      document.getElementById('main-menu').classList.remove('hidden');
-      document.getElementById('setup-menu').classList.add('hidden');
-      document.getElementById('race-hud').classList.add('hidden');
-      document.getElementById('winner-screen').classList.add('hidden');
-      document.getElementById('wc-champion-screen').classList.add('hidden');
-
-      this.startBackgroundLoop();
+      if (document.getElementById('race-hud').classList.contains('hidden') === false) {
+        this.fadeTransition(() => {
+          // Show Main Menu, hide panels
+          document.getElementById('main-menu').classList.remove('hidden');
+          document.getElementById('setup-menu').classList.add('hidden');
+          document.getElementById('race-hud').classList.add('hidden');
+          document.getElementById('winner-screen').classList.add('hidden');
+          document.getElementById('wc-champion-screen').classList.add('hidden');
+          this.startBackgroundLoop();
+        });
+      } else {
+        document.getElementById('main-menu').classList.remove('hidden');
+        document.getElementById('setup-menu').classList.add('hidden');
+        document.getElementById('race-hud').classList.add('hidden');
+        document.getElementById('winner-screen').classList.add('hidden');
+        document.getElementById('wc-champion-screen').classList.add('hidden');
+        this.startBackgroundLoop();
+      }
     }
 
     // Helper: draw a filled pentagon centered at (cx, cy) with given size and rotation
