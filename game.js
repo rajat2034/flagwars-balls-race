@@ -170,6 +170,8 @@ class GameEngine {
     this.cameraZoom = 0.8;
     this.userZoomMultiplier = 1.0;
     this.trackOffset = 0;
+    this._dynamicZoom = 1.0;
+    this._camImpulse = 0;
 
     // Particles
     this.particles = [];
@@ -850,6 +852,18 @@ class GameEngine {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
 
+      // Localized camera impulses (major impacts only — hammer, high-speed wall, launch)
+      let maxImpulse = 0;
+      this.balls.forEach(b => {
+        if (b.finished) return;
+        if (b._hitHammerThisFrame || b._hitPunchFistThisFrame) maxImpulse = Math.max(maxImpulse, 3);
+        else if (b._hitMeteorThisFrame && Math.hypot(b.vx, b.vy) > 5) maxImpulse = Math.max(maxImpulse, 2.5);
+        else if (b._hitWallThisFrame && Math.hypot(b.vx, b.vy) > 6) maxImpulse = Math.max(maxImpulse, 2);
+        else if (b._hitBarrierThisFrame && Math.hypot(b.vx, b.vy) > 4) maxImpulse = Math.max(maxImpulse, 2);
+        else if (b._hitBarrelThisFrame && Math.hypot(b.vx, b.vy) > 5) maxImpulse = Math.max(maxImpulse, 1.5);
+      });
+      if (maxImpulse > this._camImpulse) this._camImpulse = maxImpulse;
+
       // Fast ball particle trails (visual quality)
       this.balls.forEach(ball => {
         if (ball.finished || ball.eliminated) return;
@@ -1190,10 +1204,33 @@ class GameEngine {
     }
   }
 
-  // Smooth lerp camera tracking the leader ball dynamically (switches on overtake)
+  // Broadcast camera — leader-centered, predictive, dynamic zoom, collision impulses
   updateCameraController(dt) {
     if (this.balls.length === 0) return;
 
+    // --- Dynamic zoom: adjust based on racer spread ---
+    const activeRacers = this.balls.filter(b => !b.finished);
+    if (activeRacers.length > 1 && (this.state === 'racing' || this.state === 'countdown')) {
+      const xs = activeRacers.map(b => b.x);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const spread = maxX - minX;
+      const screenWorld = this.canvas.width / this.cameraZoom;
+      let targetZoom = 1.0;
+      if (spread > screenWorld * 0.6) {
+        targetZoom = Math.max(0.85, 1.0 - (spread / screenWorld - 0.6) * 0.3);
+      } else if (spread < screenWorld * 0.25) {
+        targetZoom = Math.min(1.15, 1.0 + (0.25 - spread / screenWorld) * 0.3);
+      }
+      targetZoom = Math.max(0.85, Math.min(1.15, targetZoom));
+      const zoomLerp = 1 - Math.pow(1 - 0.025, dt);
+      this._dynamicZoom += (targetZoom - this._dynamicZoom) * zoomLerp;
+    } else {
+      const zoomLerp = 1 - Math.pow(1 - 0.02, dt);
+      this._dynamicZoom += (1.0 - this._dynamicZoom) * zoomLerp;
+    }
+
+    // --- Camera target ---
     let targetX = 0;
 
     if (this.state === 'countdown' || this.state === 'menu') {
@@ -1201,16 +1238,15 @@ class GameEngine {
     } else {
       if (this.panningOverride) return;
 
-      const activeRacers = this.balls.filter(b => !b.finished);
-
       if (activeRacers.length > 0) {
         if (this.selectedBallId === 'leader' || this.selectedBallId === null) {
-          // Find current leader (ball with highest x position)
           const leader = activeRacers.reduce((a, b) => a.x > b.x ? a : b);
-          // Position camera so the leader appears at ~30% from the left edge
-          // This shows trailing balls on the left and track ahead on the right
           const screenWorldWidth = this.canvas.width / this.cameraZoom;
-          targetX = leader.x - screenWorldWidth * 0.3;
+          // Leader at ~42% from left — well within center 35% (32.5%–67.5%)
+          const leaderOffset = screenWorldWidth * 0.42;
+          // Predictive look-ahead based on leader velocity
+          const prediction = Math.min(80, Math.max(-20, leader.vx * 12));
+          targetX = leader.x - leaderOffset + prediction;
         } else {
           const selected = this.balls.find(b => b.id === this.selectedBallId);
           if (selected) {
@@ -1231,14 +1267,24 @@ class GameEngine {
     const maxCamX = this.track ? Math.max(0, this.track.length - this.canvas.width / this.cameraZoom) : 0;
     targetX = Math.max(0, Math.min(targetX, maxCamX));
 
-    // Smooth camera follow — frame-rate independent lerp for buttery motion
+    // Smooth camera follow — frame-rate independent lerp
     const lerpFactor = 1 - Math.pow(1 - 0.06, dt);
     this.cameraX += (targetX - this.cameraX) * lerpFactor;
+
+    // --- Collision impulse (localized, short, ease-out) ---
+    if (this._camImpulse > 0.1) {
+      const impulseDecay = 1 - Math.pow(1 - 0.12, dt);
+      // Move camera by remaining impulse
+      this.cameraX += this._camImpulse * impulseDecay * 4;
+      // Decay the impulse
+      this._camImpulse *= (1 - impulseDecay * 2);
+      if (this._camImpulse < 0.05) this._camImpulse = 0;
+    }
 
     // Enforce finish line always visible on screen when any ball is near it
     if (this.track && this.track.finishLineX && this.balls.some(b => b.x > this.track.finishLineX - 1200 && !b.finished)) {
       const fX = this.track.finishLineX;
-      const margin = 40;
+      const margin = 80;
       const rightEdge = this.cameraX + this.canvas.width / this.cameraZoom;
       if (fX > rightEdge - margin) {
         this.cameraX = fX - this.canvas.width / this.cameraZoom + margin;
@@ -1585,8 +1631,9 @@ class GameEngine {
       trackOffset = 0;
     }
 
-    // Combine base zoom with user's zoom multiplier (buttons/wheel/keyboard)
-    const zoom = baseZoom * this.userZoomMultiplier;
+    // Combine base zoom + user multiplier + dynamic zoom (from camera controller)
+    const dynZoom = this._dynamicZoom || 1.0;
+    const zoom = baseZoom * this.userZoomMultiplier * dynZoom;
     this.cameraZoom = zoom;
     this.trackOffset = trackOffset;
 
