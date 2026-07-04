@@ -742,8 +742,8 @@ class GameEngine {
         isWorldCup: !!country.isWorldCup,
         isWCBonus: !!country.isWorldCup,
         isStrongFootball: !!country.isStrongFootball,
-        color: `hsl(${Math.random() * 360}, 85%, 60%)`,
-        primaryColorRGB: `${40 + Math.floor(Math.random() * 60)}, ${100 + Math.floor(Math.random() * 100)}, ${150 + Math.floor(Math.random() * 100)}`,
+        color: ['#e74c3c','#3498db','#ffd700','#2ecc71','#9b59b6','#f39c12'][idx % 6],
+        primaryColorRGB: ['200,60,60','50,120,220','220,180,50','46,204,113','155,89,182','243,156,18'][idx % 6],
         x: 50 + idx * 4,
         y: 300 + (idx % 2 === 0 ? -15 : 15),
         vx: 0,
@@ -2705,9 +2705,78 @@ class GameEngine {
           this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
           for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
           for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
-          // Close polygon explicitly (no closePath() to avoid diagonal line from last bottom point to first top)
           this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
           this.ctx.fill();
+
+          // Edge lighting — subtle gradient near track boundaries
+          const topEdgeY = visibleTop[0].y;
+          const botEdgeY = visibleBot[0].y;
+          const edgeLight = this.ctx.createLinearGradient(0, topEdgeY, 0, topEdgeY + 20);
+          edgeLight.addColorStop(0, 'rgba(255,255,255,0.04)');
+          edgeLight.addColorStop(1, 'rgba(255,255,255,0)');
+          this.ctx.fillStyle = edgeLight;
+          this.ctx.fillRect(visibleTop[0].x - 10, topEdgeY, visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20, 20);
+          const botEdgeLight = this.ctx.createLinearGradient(0, botEdgeY - 20, 0, botEdgeY);
+          botEdgeLight.addColorStop(0, 'rgba(0,0,0,0)');
+          botEdgeLight.addColorStop(1, 'rgba(0,0,0,0.06)');
+          this.ctx.fillStyle = botEdgeLight;
+          this.ctx.fillRect(visibleBot[0].x - 10, botEdgeY - 20, visibleBot[visibleBot.length - 1].x - visibleBot[0].x + 20, 20);
+
+          // Grass texture variation — small subtle streaks
+          this.ctx.strokeStyle = 'rgba(46,204,113,0.03)';
+          this.ctx.lineWidth = 1.5;
+          const grassSeed = Math.floor(camX / 30);
+          for (let g = 0; g < 12; g++) {
+            const gx = visibleTop[0].x + ((grassSeed * 137 + g * 97) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+            const gy = topEdgeY + 8 + ((grassSeed * 53 + g * 131) % (botEdgeY - topEdgeY - 16));
+            const glen = 3 + ((grassSeed * 71 + g * 43) % 6);
+            this.ctx.beginPath();
+            this.ctx.moveTo(gx, gy);
+            this.ctx.lineTo(gx + ((g * 29) % 7 - 3), gy - glen);
+            this.ctx.stroke();
+          }
+
+          // White painted boundary lines (at ~15% and ~85% of track width)
+          const lineY1 = topEdgeY + (botEdgeY - topEdgeY) * 0.15;
+          const lineY2 = topEdgeY + (botEdgeY - topEdgeY) * 0.85;
+          this.ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+          this.ctx.lineWidth = 1.5;
+          this.ctx.setLineDash([8, 12]);
+          this.ctx.beginPath();
+          this.ctx.moveTo(visibleTop[0].x, lineY1);
+          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY1);
+          this.ctx.stroke();
+          this.ctx.beginPath();
+          this.ctx.moveTo(visibleTop[0].x, lineY2);
+          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY2);
+          this.ctx.stroke();
+          this.ctx.setLineDash([]);
+
+          // Wear marks — subtle dark streaks
+          this.ctx.strokeStyle = 'rgba(0,0,0,0.04)';
+          this.ctx.lineWidth = 1;
+          const wearSeed = Math.floor(camX / 20);
+          for (let w = 0; w < 4; w++) {
+            const wx = visibleTop[0].x + ((wearSeed * 61 + w * 113) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+            const wy = topEdgeY + 15 + ((wearSeed * 43 + w * 79) % (botEdgeY - topEdgeY - 30));
+            this.ctx.beginPath();
+            this.ctx.moveTo(wx, wy);
+            this.ctx.quadraticCurveTo(wx + 10 + (w * 17) % 15, wy + 2, wx + 25 + (w * 11) % 10, wy - 1);
+            this.ctx.stroke();
+          }
+
+          // Small scattered pebbles
+          const pebSeed = Math.floor(camX / 15);
+          this.ctx.fillStyle = 'rgba(180,170,160,0.06)';
+          for (let p = 0; p < 8; p++) {
+            const px = visibleTop[0].x + ((pebSeed * 47 + p * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+            const py = topEdgeY + 5 + ((pebSeed * 73 + p * 89) % (botEdgeY - topEdgeY - 10));
+            const ps = 1 + ((pebSeed * 59 + p * 37) % 3);
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, ps, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
           // Thin top boundary line
           this.ctx.strokeStyle = wallRgba;
           this.ctx.lineWidth = 3;
@@ -2727,6 +2796,7 @@ class GameEngine {
             else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
           }
           this.ctx.stroke();
+          this.ctx.globalAlpha = 1;
         }
       }
       this.ctx.restore();
@@ -2802,47 +2872,44 @@ class GameEngine {
           this.ctx.restore();
         }
 
-        // 2) Soft shadow on ground under ball (always)
+        // 3) Flag ball body — redesigned with professional lighting
+        this.ctx.save();
+
+        // --- Antialiasing via sub-pixel offset ---
+        const aaX = Math.round(bX) + 0.5 - bX;
+        const aaY = Math.round(ball.y) + 0.5 - ball.y;
+
+        // Light direction: top-left (global consistent source)
+        const lx = -0.3;
+        const ly = -0.35;
+
+        // Ball body with sub-pixel offset for smoother edges
+        this.ctx.translate(aaX, aaY);
+
+        // Shadow on ground (consistent with global light)
         this.ctx.save();
         const shadowScale = 1 + ball.z * 0.08;
-        this.ctx.globalAlpha = 0.35 - ball.z * 0.03;
-        this.ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-        this.ctx.shadowBlur = 12 + ball.z * 2;
+        this.ctx.globalAlpha = 0.25 - ball.z * 0.025;
+        this.ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        this.ctx.shadowColor = 'rgba(0,0,0,0.25)';
+        this.ctx.shadowBlur = 10 + ball.z * 2;
         this.ctx.beginPath();
-        this.ctx.ellipse(bX, ball.y + renderRadius * 0.9 + ball.z * 1.5, renderRadius * shadowScale * 1.1, renderRadius * 0.35, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(bX, ball.y + renderRadius * 0.85 + ball.z * 1.5, renderRadius * shadowScale * 1.05, renderRadius * 0.3, 0, 0, Math.PI * 2);
         this.ctx.fill();
         this.ctx.restore();
 
-        // 3) Bloom/glow behind fast balls
-        const spd = Math.hypot(ball.vx, ball.vy);
-        if (spd > 2) {
-          this.ctx.save();
-          const glowIntensity = Math.min(0.5, (spd - 2) / 10 * 0.5);
-          this.ctx.globalAlpha = glowIntensity;
-          this.ctx.shadowColor = ball.primaryColorRGB ? `rgb(${ball.primaryColorRGB})` : '#ffffff';
-          this.ctx.shadowBlur = 30;
-          this.ctx.fillStyle = ball.primaryColorRGB ? `rgba(${ball.primaryColorRGB}, 0.1)` : 'rgba(255,255,255,0.05)';
-          this.ctx.beginPath();
-          this.ctx.arc(bX, ball.y, renderRadius * 1.8, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.restore();
-        }
-
-        // 4) Flag ball body
-        this.ctx.save();
+        // Draw ball
         this.ctx.beginPath();
-
         this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
         this.ctx.clip();
 
+        // Flag body
         const img = this.flagCache[ball.code];
         if (img && img !== 'failed' && img.complete) {
           this.ctx.drawImage(img, bX - renderRadius, ball.y - renderRadius, renderRadius * 2, renderRadius * 2);
         } else {
           this.ctx.fillStyle = ball.color;
           this.ctx.fillRect(bX - renderRadius, ball.y - renderRadius, renderRadius * 2, renderRadius * 2);
-
           this.ctx.fillStyle = '#ffffff';
           this.ctx.font = 'bold 12px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
@@ -2850,32 +2917,63 @@ class GameEngine {
           this.ctx.fillText(ball.code.toUpperCase().substring(0, 3), bX, ball.y);
         }
 
-        // 5) Enhanced glossy + reflection overlay
-        const radialGrad = this.ctx.createRadialGradient(
-          bX - renderRadius * 0.3,
-          ball.y - renderRadius * 0.3,
-          renderRadius * 0.1,
-          bX,
-          ball.y,
-          renderRadius
+        // Subtle ambient occlusion — darker near edges opposite light
+        const aoGrad = this.ctx.createRadialGradient(
+          bX + renderRadius * 0.25, ball.y + renderRadius * 0.25, 0,
+          bX, ball.y, renderRadius * 1.1
         );
-        radialGrad.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
-        radialGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.12)');
-        radialGrad.addColorStop(0.6, 'rgba(255, 255, 255, 0.02)');
-        radialGrad.addColorStop(0.85, 'rgba(0, 0, 0, 0.08)');
-        radialGrad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
-        this.ctx.fillStyle = radialGrad;
+        aoGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        aoGrad.addColorStop(0.6, 'rgba(0,0,0,0)');
+        aoGrad.addColorStop(0.85, 'rgba(0,0,0,0.12)');
+        aoGrad.addColorStop(1, 'rgba(0,0,0,0.25)');
+        this.ctx.fillStyle = aoGrad;
         this.ctx.beginPath();
         this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // 6) Top specular highlight (reflection)
-        this.ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        // Rim light — thin bright edge on light-facing side
+        const rimGrad = this.ctx.createRadialGradient(
+          bX + renderRadius * lx * 0.5, ball.y + renderRadius * ly * 0.5, renderRadius * 0.55,
+          bX, ball.y, renderRadius
+        );
+        rimGrad.addColorStop(0, 'rgba(255,255,255,0)');
+        rimGrad.addColorStop(0.75, 'rgba(255,255,255,0.03)');
+        rimGrad.addColorStop(0.92, 'rgba(255,255,255,0.15)');
+        rimGrad.addColorStop(1, 'rgba(255,255,255,0.25)');
+        this.ctx.fillStyle = rimGrad;
         this.ctx.beginPath();
-        this.ctx.ellipse(bX - renderRadius * 0.25, ball.y - renderRadius * 0.3, renderRadius * 0.3, renderRadius * 0.15, -0.5, 0, Math.PI * 2);
+        this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Very subtle glossy reflection (tone down from previous)
+        const glossyGrad = this.ctx.createRadialGradient(
+          bX - renderRadius * 0.3, ball.y - renderRadius * 0.3, renderRadius * 0.05,
+          bX, ball.y, renderRadius
+        );
+        glossyGrad.addColorStop(0, 'rgba(255,255,255,0.25)');
+        glossyGrad.addColorStop(0.25, 'rgba(255,255,255,0.08)');
+        glossyGrad.addColorStop(0.6, 'rgba(255,255,255,0.02)');
+        glossyGrad.addColorStop(0.85, 'rgba(0,0,0,0.05)');
+        glossyGrad.addColorStop(1, 'rgba(0,0,0,0.2)');
+        this.ctx.fillStyle = glossyGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Subtle specular dot (tone down, move with light direction)
+        this.ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(
+          bX + renderRadius * lx * 0.4,
+          ball.y + renderRadius * ly * 0.4,
+          renderRadius * 0.2, renderRadius * 0.1,
+          -0.5, 0, Math.PI * 2
+        );
         this.ctx.fill();
 
         this.ctx.restore();
+
+        // Remove old bloom — replaced by subtle speed glow only on finish line / winner
 
         // 4) Country label
         this.ctx.save();
@@ -3001,40 +3099,48 @@ class GameEngine {
       ctx.fillRect(0, 0, screenW, screenH);
       ctx.restore();
 
-      // ---- LAYER 2: Stadium crowd silhouettes (all themes) ----
+      // ---- LAYER 2: Crowd silhouettes (low contrast — support the race, never compete) ----
       ctx.save();
-      ctx.globalAlpha = 0.12;
-      const crowdWave = Math.sin(time * 0.8) * 3;
-      // Bottom crowd row
-      ctx.fillStyle = '#0a0a0f';
-      for (let i = 0; i < 30; i++) {
-        const cx = (i / 30) * screenW + Math.sin(time * 0.5 + i * 1.2) * 5;
-        const cy = screenH - 40 + Math.sin(time * 0.6 + i * 0.7) * 2;
-        ctx.beginPath();
-        ctx.arc(cx, cy + crowdWave, 12, Math.PI, 0);
-        ctx.fill();
-        // Small body below head
-        ctx.fillRect(cx - 8, cy + 2, 16, 14);
-      }
-      // Second row (slightly higher, offset)
       ctx.globalAlpha = 0.07;
-      for (let i = 0; i < 25; i++) {
-        const cx = ((i + 0.5) / 25) * screenW + Math.sin(time * 0.4 + i * 1.5) * 4;
-        const cy = screenH - 70 + Math.sin(time * 0.5 + i * 0.9) * 1.5;
+      const crowdWave = Math.sin(time * 0.8) * 2;
+      ctx.fillStyle = '#050508';
+      for (let i = 0; i < 30; i++) {
+        const cx = (i / 30) * screenW + Math.sin(time * 0.5 + i * 1.2) * 4;
+        const cy = screenH - 40 + Math.sin(time * 0.6 + i * 0.7) * 1.5;
         ctx.beginPath();
-        ctx.arc(cx, cy, 10, Math.PI, 0);
+        ctx.arc(cx, cy + crowdWave, 10, Math.PI, 0);
         ctx.fill();
-        ctx.fillRect(cx - 6, cy + 2, 12, 11);
+        ctx.fillRect(cx - 6, cy + 2, 12, 12);
+      }
+      ctx.globalAlpha = 0.04;
+      for (let i = 0; i < 25; i++) {
+        const cx = ((i + 0.5) / 25) * screenW + Math.sin(time * 0.4 + i * 1.5) * 3;
+        const cy = screenH - 68 + Math.sin(time * 0.5 + i * 0.9) * 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 8, Math.PI, 0);
+        ctx.fill();
+        ctx.fillRect(cx - 5, cy + 2, 10, 10);
       }
       ctx.restore();
 
-      // ---- LAYER 4: Map-specific atmospheric effects (enhanced) ----
+      // ---- LAYER 3: Focus gradient — saturate near track, darken edges ----
+      ctx.save();
+      const focusGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.5, screenH * 0.15, screenW * 0.5, screenH * 0.5, screenH * 0.7);
+      focusGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      focusGrad.addColorStop(0.5, 'rgba(0,0,0,0)');
+      focusGrad.addColorStop(0.85, 'rgba(0,0,0,0.04)');
+      focusGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
+      ctx.fillStyle = focusGrad;
+      ctx.fillRect(0, 0, screenW, screenH);
+      ctx.restore();
+
+      // ---- LAYER 4: Map-specific atmospheric effects (reduced opacity) ----
       if (theme === 'desert') {
         ctx.save();
-        ctx.fillStyle = 'rgba(186, 74, 0, 0.06)';
-        for (let i = 0; i < 6; i++) {
-          const dx = (i * screenW / 5 + Math.sin(time * 0.02 + i) * 40) % screenW;
-          const dh = 60 + Math.sin(i * 2.1 + time * 0.1) * 25;
+        ctx.fillStyle = 'rgba(186, 74, 0, 0.04)';
+        for (let i = 0; i < 5; i++) {
+          const dx = (i * screenW / 5 + Math.sin(time * 0.015 + i) * 30) % screenW;
+          const dh = 50 + Math.sin(i * 2.1 + time * 0.08) * 20;
           ctx.beginPath();
           ctx.moveTo(dx - 140, screenH);
           ctx.quadraticCurveTo(dx, screenH - dh, dx + 140, screenH);

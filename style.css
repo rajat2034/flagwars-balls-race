@@ -1,21 +1,22 @@
 /* Flag Rally World Cup - Custom Styling Sheet */
 
 :root {
-  --bg-dark: #0a0b14;
-  --bg-glass: rgba(12, 15, 22, 0.78);
-  --border-glow: rgba(102, 252, 241, 0.2);
+  --bg-dark: #0b1a0b;
+  --bg-glass: rgba(8, 18, 10, 0.82);
+  --border-glow: rgba(46, 204, 113, 0.15);
   
-  /* Premium Arcade Color Palette */
-  --accent-cyan: #45f0f0;
-  --accent-cyan-dim: #2a9d8f;
-  --accent-pink: #ff2a6d;
-  --accent-yellow: #f5c842;
-  --accent-green: #2ecc71;
+  /* Broadcast Sports Color Palette */
+  --pitch-green: #2ecc71;
+  --pitch-green-dim: #1a7a3a;
+  --pitch-green-dark: #0d3318;
   --accent-gold: #ffd700;
-  --accent-purple: #7b2ff7;
+  --accent-gold-dim: #b8860b;
+  --accent-blue: #3498db;
+  --accent-danger: #e74c3c;
+  --accent-warning: #f39c12;
   --text-white: #f0f0f5;
   --text-gray: #a0a5b5;
-  --text-dim: #606880;
+  --text-dim: #5a6a5a;
   
   /* Font families */
   --font-title: 'Outfit', 'Segoe UI', sans-serif;
@@ -27,7 +28,7 @@
   --radius-lg: 22px;
   --transition-fast: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   --transition-normal: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  --shadow-card: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 60px rgba(102, 252, 241, 0.04);
+  --shadow-card: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 60px rgba(46, 204, 113, 0.03);
 }
 
 * {
@@ -142,7 +143,7 @@ canvas.force-vertical {
   letter-spacing: 3px;
   color: var(--text-white);
   line-height: 1;
-  background: linear-gradient(180deg, #ffffff 30%, var(--accent-cyan) 100%);
+  background: linear-gradient(180deg, #ffffff 30%, var(--pitch-green) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -152,7 +153,7 @@ canvas.force-vertical {
   font-family: var(--font-title);
   font-size: 1.6rem;
   font-weight: 700;
-  color: var(--accent-cyan);
+  color: var(--pitch-green);
   letter-spacing: 5px;
   margin-top: 0.25rem;
   opacity: 0.9;
@@ -162,14 +163,14 @@ canvas.force-vertical {
   font-family: var(--font-title);
   font-size: 1.8rem;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-cyan-dim));
+  background: linear-gradient(135deg, var(--pitch-green), var(--pitch-green-dim));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .text-glow {
-  text-shadow: 0 0 15px rgba(102, 252, 241, 0.4), 0 0 40px rgba(102, 252, 241, 0.1);
+  text-shadow: 0 0 15px rgba(46, 204, 113, 0.35), 0 0 40px rgba(46, 204, 113, 0.08);
 }
 
 /* Button UI system */
@@ -199,7 +200,7 @@ canvas.force-vertical {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-cyan-dim), var(--accent-cyan));
+  background: linear-gradient(135deg, var(--pitch-green-dim), var(--pitch-green));
   color: var(--bg-dark);
   box-shadow: 0 4px 20px rgba(69, 240, 240, 0.2), 0 0 40px rgba(69, 240, 240, 0.05);
 }
@@ -222,7 +223,7 @@ canvas.force-vertical {
 
 .btn-secondary:hover {
   background: rgba(255, 255, 255, 0.12);
-  border-color: var(--accent-cyan);
+  border-color: var(--pitch-green);
   transform: scale(1.03) translateY(-1px);
   box-shadow: 0 6px 20px rgba(102, 252, 241, 0.15);
 }
@@ -314,7 +315,7 @@ canvas.force-vertical {
   width: 6px;
 }
 .setup-scroll-container::-webkit-scrollbar-thumb {
-  background: var(--accent-cyan-dim);
+  background: var(--pitch-green-dim);
   border-radius: 10px;
 }
 
@@ -322,7 +323,7 @@ canvas.force-vertical {
   font-family: var(--font-title);
   font-size: 1.15rem;
   font-weight: 700;
-  border-left: 3px solid var(--accent-cyan);
+  border-left: 3px solid var(--pitch-green);
   padding-left: 0.5rem;
   color: var(--text-white);
 }
@@ -367,13 +368,13 @@ canvas.force-vertical {
 
 .map-card.active {
   background: rgba(102, 252, 241, 0.08);
-  border-color: var(--accent-cyan);
+  border-color: var(--pitch-green);
   box-shadow: 0 0 15px rgba(102, 252, 241, 0.15), 0 4px 15px rgba(0,0,0,0.2);
   transform: translateY(-1px);
 }
 
 .map-card.active span {
-  color: var(--accent-cyan);
+  color: var(--pitch-green);
 }
 
 .map-thumb {
@@ -395,7 +396,7 @@ canvas.force-vertical {
 /* Notice badges */
 .alert-notice {
   background: rgba(102, 252, 241, 0.08);
-  border: 1px dashed var(--accent-cyan);
+  border: 1px dashed var(--pitch-green);
   border-radius: 8px;
   padding: 0.6rem 0.85rem;
   font-size: 0.75rem;
@@ -406,7 +407,7 @@ canvas.force-vertical {
 }
 
 .badge-tag {
-  background: var(--accent-cyan);
+  background: var(--pitch-green);
   color: var(--bg-dark);
   font-size: 0.65rem;
   font-weight: 800;
@@ -438,7 +439,7 @@ canvas.force-vertical {
 
 .search-box input:focus {
   outline: none;
-  border-color: var(--accent-cyan);
+  border-color: var(--pitch-green);
   box-shadow: 0 0 8px rgba(102, 252, 241, 0.25);
 }
 
@@ -484,7 +485,7 @@ canvas.force-vertical {
 
 .country-item.selected {
   background: linear-gradient(135deg, rgba(102, 252, 241, 0.08), rgba(69, 240, 240, 0.03));
-  border-color: var(--accent-cyan);
+  border-color: var(--pitch-green);
   box-shadow: 0 0 10px rgba(102, 252, 241, 0.08);
 }
 
@@ -506,7 +507,7 @@ canvas.force-vertical {
 }
 
 .cust-badge {
-  background: var(--accent-pink);
+  background: var(--accent-danger);
   color: white;
   font-size: 0.55rem;
   font-weight: 800;
@@ -541,7 +542,7 @@ canvas.force-vertical {
 
 .setting-row select:focus {
   outline: none;
-  border-color: var(--accent-cyan);
+  border-color: var(--pitch-green);
 }
 
 /* Custom creator details */
@@ -645,7 +646,7 @@ canvas.force-vertical {
 .top-right-hud {
   top: 20px;
   right: 20px;
-  border-color: var(--accent-pink);
+  border-color: var(--accent-danger);
   animation: alertPulse 1.5s infinite;
 }
 
@@ -656,7 +657,7 @@ canvas.force-vertical {
 }
 
 .color-warning {
-  color: var(--accent-pink);
+  color: var(--accent-danger);
 }
 
 .bottom-left-hud {
@@ -670,7 +671,7 @@ canvas.force-vertical {
 }
 
 .text-accent {
-  color: var(--accent-cyan);
+  color: var(--pitch-green);
 }
 
 .hud-list-title {
@@ -678,7 +679,7 @@ canvas.force-vertical {
   font-weight: 800;
   letter-spacing: 2px;
   margin-bottom: 0.35rem;
-  color: var(--accent-cyan);
+  color: var(--pitch-green);
 }
 
 .leaderboard-list {
@@ -735,7 +736,7 @@ canvas.force-vertical {
   background: rgba(46, 204, 113, 0.08);
 }
 .racer-finished .rank-badge {
-  color: var(--accent-green);
+  color: var(--pitch-green);
 }
 
 .racer-eliminated {
@@ -744,7 +745,7 @@ canvas.force-vertical {
 }
 .racer-eliminated .hud-country-name {
   text-decoration: line-through;
-  color: var(--accent-pink);
+  color: var(--accent-danger);
 }
 
 /* Left Center Controls HUD */
@@ -789,7 +790,7 @@ canvas.force-vertical {
   font-family: var(--font-title);
   font-size: 2.6rem;
   font-weight: 900;
-  color: var(--accent-yellow);
+  color: var(--accent-gold);
   letter-spacing: 2px;
   animation: floatUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -850,7 +851,7 @@ canvas.force-vertical {
   font-family: var(--font-title);
   font-size: 1.25rem;
   font-weight: 900;
-  color: var(--accent-yellow);
+  color: var(--accent-gold);
   letter-spacing: 2px;
 }
 
@@ -864,7 +865,7 @@ canvas.force-vertical {
 }
 
 .wc-glow-border {
-  border: 3px solid var(--accent-yellow);
+  border: 3px solid var(--accent-gold);
 }
 
 .wc-country-title {
@@ -1029,7 +1030,7 @@ canvas.force-vertical {
 
 .country-dropdown-select:focus {
   outline: none;
-  border-color: var(--accent-cyan);
+  border-color: var(--pitch-green);
   box-shadow: 0 0 8px rgba(102, 252, 241, 0.25);
 }
 
@@ -1046,11 +1047,11 @@ canvas.force-vertical {
   left: 50%;
   transform: translateX(-50%);
   background: rgba(102, 252, 241, 0.15);
-  border: 1px solid var(--accent-cyan);
+  border: 1px solid var(--pitch-green);
   border-radius: 6px;
   padding: 0.25rem 0.75rem;
   font-size: 0.7rem;
-  color: var(--accent-cyan);
+  color: var(--pitch-green);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s;
@@ -1093,7 +1094,7 @@ canvas.force-vertical {
 .podium-rank {
   font-weight: 900;
   font-size: 0.7rem;
-  color: var(--accent-cyan);
+  color: var(--pitch-green);
 }
 
 .podium-flag-icon {
