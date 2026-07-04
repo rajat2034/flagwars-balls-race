@@ -694,12 +694,7 @@ canvas.force-vertical {
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.25);
-  transition: background 0.2s, transform 0.3s ease;
-  animation: rowSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-@keyframes rowSlideIn {
-  from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0); }
+  transition: background 0.2s;
 }
 
 .rank-badge {
