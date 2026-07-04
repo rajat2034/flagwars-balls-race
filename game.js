@@ -212,10 +212,6 @@ class GameEngine {
     this.obstacleReliefActive = false;
     this.obstacleZoneOccupancy = {};
 
-    // Camera Shake
-    this.shakeIntensity = 0;
-    this.shakeDecay = 0.92;
-
     // Easing helper
     this.easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
     this.easeOutExpo = (t) => (t === 1) ? 1 : 1 - Math.pow(2, -10 * t);
@@ -761,7 +757,15 @@ class GameEngine {
         finishTime: 0,
         maxSpeed: 0,
         rank: 0,
-        trail: []
+        trail: [],
+        // Visual-only state (not gameplay)
+        rotation: 0,
+        squashX: 1,
+        squashY: 1,
+        wobblePhase: Math.random() * Math.PI * 2,
+        landBounceTime: 0,
+        hitFlashTime: 0,
+        _prevZ: 0
       };
       this.balls.push(ball);
     });
@@ -837,10 +841,6 @@ class GameEngine {
       }
     }
 
-    // Decay camera shake
-    this.shakeIntensity *= this.shakeDecay;
-    if (this.shakeIntensity < 0.01) this.shakeIntensity = 0;
-
     // Render Frame
     this.render();
 
@@ -856,17 +856,6 @@ class GameEngine {
       if (!this.activeEvent || this.activeEvent.key !== 'gravity_flip') {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
-
-      // Camera shake on collisions
-      this.balls.forEach(ball => {
-        if (ball._hitWallThisFrame || ball._hitBarrierThisFrame) this.triggerShake(0.8);
-        if (ball._hitBallThisFrame) this.triggerShake(0.4);
-        if (ball._hitMeteorThisFrame) this.triggerShake(1.2);
-        if (ball._hitSpinnerThisFrame) this.triggerShake(0.6);
-        if (ball._hitHammerThisFrame) this.triggerShake(0.7);
-        if (ball._hitPunchFistThisFrame) this.triggerShake(1.4);
-        if (ball._hitBreakDoorThisFrame || ball._hitCardboardThisFrame) this.triggerShake(0.9);
-      });
 
       // Fast ball particle trails (visual quality)
       this.balls.forEach(ball => {
@@ -936,6 +925,115 @@ class GameEngine {
             alpha: 1,
             size: Math.random() * 3 + 2,
             life: 20 + Math.floor(Math.random() * 15)
+          });
+        }
+      });
+
+      // ---- Visual ball state update (rotation, squash, wobble, particles) ----
+      this.balls.forEach(ball => {
+        if (ball.finished) return;
+
+        // Rotation based on horizontal velocity (ball rolls when moving)
+        ball.rotation += ball.vx * 0.025;
+
+        // Save previous z for landing detection
+        const wasAirborne = ball._prevZ > 0;
+        ball._prevZ = ball.z;
+
+        // Landing bounce
+        if (wasAirborne && ball.z === 0) {
+          ball.landBounceTime = 8;
+          ball.squashX = 0.75;
+          ball.squashY = 1.35;
+          // Landing dust puff
+          for (let p = 0; p < 3; p++) {
+            this.particles.push({
+              type: 'dust',
+              x: ball.x + (Math.random() - 0.5) * 12,
+              y: ball.y + ball.radius,
+              vx: (Math.random() - 0.5) * 1.5,
+              vy: -Math.random() * 1.5 - 0.5,
+              alpha: 0.5 + Math.random() * 0.3,
+              size: Math.random() * 4 + 2,
+              life: 12 + Math.floor(Math.random() * 8)
+            });
+          }
+        }
+
+        // Decay landing bounce
+        if (ball.landBounceTime > 0) ball.landBounceTime--;
+
+        // Collision squash triggers
+        let hitIntensity = 0;
+        if (ball._hitWallThisFrame || ball._hitBarrierThisFrame) hitIntensity = 1.2;
+        else if (ball._hitBallThisFrame) hitIntensity = 1.0;
+        else if (ball._hitMeteorThisFrame) hitIntensity = 1.4;
+        else if (ball._hitSpinnerThisFrame) hitIntensity = 0.8;
+        else if (ball._hitHammerThisFrame || ball._hitPunchFistThisFrame) hitIntensity = 1.5;
+        else if (ball._hitBreakDoorThisFrame || ball._hitCardboardThisFrame) hitIntensity = 1.0;
+        else if (ball._hitBarrelThisFrame) hitIntensity = 0.5;
+
+        if (hitIntensity > 0) {
+          // Squash on collision
+          ball.squashX = Math.max(0.5, 1 - hitIntensity * 0.25);
+          ball.squashY = Math.min(1.6, 1 + hitIntensity * 0.35);
+          ball.hitFlashTime = 6;
+
+          // Impact particles burst
+          const impactCount = Math.floor(3 + hitIntensity * 3);
+          for (let p = 0; p < impactCount; p++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1 + Math.random() * hitIntensity * 2;
+            this.particles.push({
+              type: 'spark',
+              x: ball.x + (Math.random() - 0.5) * 8,
+              y: ball.y + (Math.random() - 0.5) * 8,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              color: `rgba(${ball.primaryColorRGB}, 0.9)`,
+              alpha: 0.8 + Math.random() * 0.2,
+              size: Math.random() * 3 + 1.5,
+              life: 10 + Math.floor(Math.random() * 10)
+            });
+          }
+          // Impact ring particles (white flash)
+          for (let p = 0; p < 3; p++) {
+            const a = Math.random() * Math.PI * 2;
+            this.particles.push({
+              type: 'spark',
+              x: ball.x + Math.cos(a) * ball.radius,
+              y: ball.y + Math.sin(a) * ball.radius,
+              vx: Math.cos(a) * 0.5,
+              vy: Math.sin(a) * 0.5,
+              color: '#ffffff',
+              alpha: 0.9,
+              size: Math.random() * 2 + 1,
+              life: 6 + Math.floor(Math.random() * 4)
+            });
+          }
+        }
+
+        // Decay squash toward neutral
+        ball.squashX += (1 - ball.squashX) * 0.15;
+        ball.squashY += (1 - ball.squashY) * 0.15;
+
+        // Decay hit flash
+        if (ball.hitFlashTime > 0) ball.hitFlashTime -= 0.5;
+
+        // Advance wobble phase
+        ball.wobblePhase += 0.08 + Math.abs(ball.vx) * 0.002;
+
+        // Rolling dust particles (on ground, moving)
+        if (ball.z === 0 && Math.abs(ball.vx) > 0.5 && Math.random() < 0.08) {
+          this.particles.push({
+            type: 'dust',
+            x: ball.x + (Math.random() - 0.5) * 6,
+            y: ball.y + ball.radius * 0.8,
+            vx: ball.vx * 0.1 + (Math.random() - 0.5) * 0.3,
+            vy: -Math.random() * 0.5 - 0.2,
+            alpha: 0.3 + Math.random() * 0.15,
+            size: Math.random() * 2.5 + 1,
+            life: 15 + Math.floor(Math.random() * 10)
           });
         }
       });
@@ -1156,18 +1254,6 @@ class GameEngine {
     });
   }
 
-  triggerShake(intensity) {
-    this.shakeIntensity = Math.min(this.shakeIntensity + intensity, 20);
-  }
-
-  getShakeOffset() {
-    if (this.shakeIntensity < 0.1) return { x: 0, y: 0 };
-    return {
-      x: (Math.random() - 0.5) * this.shakeIntensity * 2,
-      y: (Math.random() - 0.5) * this.shakeIntensity * 2
-    };
-  }
-
   zoomIn() {
     this.userZoomMultiplier = Math.min(3.0, this.userZoomMultiplier + 0.2);
   }
@@ -1261,9 +1347,11 @@ class GameEngine {
 
       if (p.type === 'wind' || p.type === 'dust') {
         p.alpha -= 0.003 * dt;
+        if (p.life !== undefined) p.life -= dt;
       } else if (p.type === 'spark' || p.type === 'confetti' || p.type === 'jump_smoke') {
         p.vy += 0.08 * dt; // fall under gravity
         p.alpha -= 0.015 * dt;
+        if (p.type === 'spark' && p.life !== undefined) p.life -= dt;
       } else if (p.type === 'bubble' || p.type === 'ember') {
         p.alpha -= 0.005 * dt;
       } else if (p.type === 'text') {
@@ -1571,9 +1659,6 @@ class GameEngine {
     // Draw dynamic background elements (map-specific atmospheric effects)
     this.renderDynamicBackground(screenW, screenH);
 
-    // Apply camera shake offset
-    const shk = this.getShakeOffset();
-
     // Calculate scaling coordinates based on aspect ratio
     let baseZoom = 1;
     let trackOffset = 0;
@@ -1617,7 +1702,7 @@ class GameEngine {
 
     // 2. Render track contents (Walls, Pegs, Boosts, Balls) inside scaled wrapper
     this.ctx.save();
-    this.ctx.translate(trackOffset + shk.x, shk.y);
+    this.ctx.translate(trackOffset, 0);
     this.ctx.scale(zoom, zoom);
 
     const camX = this.cameraX;
@@ -2832,34 +2917,61 @@ class GameEngine {
           this.ctx.restore();
         }
 
-        // 4) Flag ball body
-        this.ctx.save();
-        this.ctx.beginPath();
+        // Wobble Y offset for rolling feel
+        const wobbleY = ball.z === 0 ? Math.sin(ball.wobblePhase) * 0.5 : 0;
+        const bY = ball.y + wobbleY;
 
-        this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+        // Landing bounce offset
+        const bounceY = ball.landBounceTime > 0
+          ? -Math.sin(ball.landBounceTime / 8 * Math.PI) * 2.5
+          : 0;
+
+        // Motion blur: ghost frames when fast
+        const absVx = Math.abs(ball.vx);
+        if (absVx > 3) {
+          const ghostAlpha = Math.min(0.15, (absVx - 3) / 15 * 0.12);
+          const ghostOffset = -Math.sign(ball.vx) * Math.min(6, absVx * 0.3);
+          for (let g = 0; g < 2; g++) {
+            const gx = ghostOffset * (g + 1) * 0.5;
+            this.ctx.save();
+            this.ctx.globalAlpha = ghostAlpha;
+            this.ctx.beginPath();
+            this.ctx.arc(bX + gx, bY + bounceY, renderRadius * 0.95, 0, Math.PI * 2);
+            this.ctx.fillStyle = ball.primaryColorRGB ? `rgba(${ball.primaryColorRGB}, 0.4)` : 'rgba(255,255,255,0.2)';
+            this.ctx.fill();
+            this.ctx.restore();
+          }
+        }
+
+        // 4) Flag ball body with squash/stretch
+        this.ctx.save();
+        this.ctx.translate(bX, bY + bounceY);
+        this.ctx.scale(ball.squashX, ball.squashY);
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, renderRadius, 0, Math.PI * 2);
         this.ctx.clip();
 
         const img = this.flagCache[ball.code];
         if (img && img !== 'failed' && img.complete) {
-          this.ctx.drawImage(img, bX - renderRadius, ball.y - renderRadius, renderRadius * 2, renderRadius * 2);
+          this.ctx.drawImage(img, -renderRadius, -renderRadius, renderRadius * 2, renderRadius * 2);
         } else {
           this.ctx.fillStyle = ball.color;
-          this.ctx.fillRect(bX - renderRadius, ball.y - renderRadius, renderRadius * 2, renderRadius * 2);
+          this.ctx.fillRect(-renderRadius, -renderRadius, renderRadius * 2, renderRadius * 2);
 
           this.ctx.fillStyle = '#ffffff';
           this.ctx.font = 'bold 12px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
-          this.ctx.fillText(ball.code.toUpperCase().substring(0, 3), bX, ball.y);
+          this.ctx.fillText(ball.code.toUpperCase().substring(0, 3), 0, 0);
         }
 
         // 5) Enhanced glossy + reflection overlay
         const radialGrad = this.ctx.createRadialGradient(
-          bX - renderRadius * 0.3,
-          ball.y - renderRadius * 0.3,
+          -renderRadius * 0.3,
+          -renderRadius * 0.3,
           renderRadius * 0.1,
-          bX,
-          ball.y,
+          0,
+          0,
           renderRadius
         );
         radialGrad.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
@@ -2869,16 +2981,32 @@ class GameEngine {
         radialGrad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
         this.ctx.fillStyle = radialGrad;
         this.ctx.beginPath();
-        this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+        this.ctx.arc(0, 0, renderRadius, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // 6) Top specular highlight (reflection)
+        // 6) Specular highlight — rotates based on ball.rotation
+        const rot = ball.rotation;
+        const hx = Math.sin(rot) * renderRadius * 0.3;
+        const hy = -Math.cos(rot) * renderRadius * 0.3;
         this.ctx.fillStyle = 'rgba(255,255,255,0.25)';
         this.ctx.beginPath();
-        this.ctx.ellipse(bX - renderRadius * 0.25, ball.y - renderRadius * 0.3, renderRadius * 0.3, renderRadius * 0.15, -0.5, 0, Math.PI * 2);
+        this.ctx.ellipse(hx, hy, renderRadius * 0.3, renderRadius * 0.15, rot, 0, Math.PI * 2);
         this.ctx.fill();
 
         this.ctx.restore();
+
+        // 7) Hit flash ring effect
+        if (ball.hitFlashTime > 0) {
+          this.ctx.save();
+          const flashAlpha = ball.hitFlashTime / 6;
+          this.ctx.globalAlpha = flashAlpha * 0.4;
+          this.ctx.strokeStyle = '#ffffff';
+          this.ctx.lineWidth = 2 + (6 - ball.hitFlashTime) * 0.5;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, bY + bounceY, renderRadius + (6 - ball.hitFlashTime) * 2, 0, Math.PI * 2);
+          this.ctx.stroke();
+          this.ctx.restore();
+        }
 
         // 4) Country label
         this.ctx.save();
@@ -2888,14 +3016,15 @@ class GameEngine {
         this.ctx.font = 'bold 9px Montserrat, sans-serif';
         this.ctx.textAlign = 'center';
 
+        const labelY = bY + bounceY + renderRadius * ball.squashY + 11;
         if (ball.eliminated) {
           this.ctx.fillStyle = '#e74c3c';
-          this.ctx.fillText('ELIMINATED', bX, ball.y + renderRadius + 11);
+          this.ctx.fillText('ELIMINATED', bX, labelY);
         } else {
           let labelName = ball.name;
           if (labelName.length > 12) labelName = labelName.substring(0, 10) + '..';
           const displayLabel = `${ball.rank}. ${labelName}`;
-          this.ctx.fillText(displayLabel, bX, ball.y + renderRadius + 11);
+          this.ctx.fillText(displayLabel, bX, labelY);
         }
 
         this.ctx.restore();
@@ -2927,6 +3056,16 @@ class GameEngine {
           this.ctx.arc(p.x - camX, p.y, p.size, 0, Math.PI * 2);
           this.ctx.fill();
           this.ctx.shadowBlur = 0;
+        } else if (p.type === 'dust') {
+          this.ctx.fillStyle = p.color || 'rgba(200,180,150,0.5)';
+          this.ctx.beginPath();
+          this.ctx.arc(p.x - camX, p.y, p.size, 0, Math.PI * 2);
+          this.ctx.fill();
+        } else if (p.type === 'spark') {
+          this.ctx.fillStyle = p.color || '#ffffff';
+          this.ctx.beginPath();
+          this.ctx.arc(p.x - camX, p.y, p.size, 0, Math.PI * 2);
+          this.ctx.fill();
         } else if (p.type === 'bubble') {
           this.ctx.strokeStyle = p.color;
           this.ctx.lineWidth = 1;
@@ -2990,28 +3129,6 @@ class GameEngine {
         ctx.arc(cx, cy, 10, Math.PI, 0);
         ctx.fill();
         ctx.fillRect(cx - 6, cy + 2, 12, 11);
-      }
-      ctx.restore();
-
-      // ---- LAYER 3: Stadium light beams ----
-      ctx.save();
-      ctx.globalAlpha = 0.04 + Math.sin(time * 0.3) * 0.015;
-      const lightTilt = Math.sin(time * 0.2) * 5;
-      for (let i = 0; i < 4; i++) {
-        const lx = screenW * (0.15 + i * 0.25);
-        const ly = -10;
-        ctx.fillStyle = '#ffeeaa';
-        ctx.beginPath();
-        ctx.moveTo(lx - 15, ly);
-        ctx.lineTo(lx + 15, ly);
-        ctx.lineTo(lx + 80 + lightTilt, screenH * 0.6);
-        ctx.lineTo(lx - 80 + lightTilt, screenH * 0.6);
-        ctx.closePath();
-        ctx.fill();
-        // Light fixture body
-        ctx.fillStyle = '#1a1a2e';
-        ctx.globalAlpha = 0.3;
-        ctx.fillRect(lx - 12, ly - 4, 24, 8);
       }
       ctx.restore();
 
