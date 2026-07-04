@@ -624,13 +624,22 @@ canvas.force-vertical {
   box-shadow: 0 10px 30px rgba(0,0,0,0.6);
 }
 
-/* Timer card at top-center */
+/* Timer card at top-center — broadcast-style */
 #hud-timer-card.top-center-hud {
   position: absolute;
-  top: 20px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
+  padding: 0.35rem 1.4rem;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+}
+#hud-timer {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
 }
 
 .top-right-hud {
@@ -682,17 +691,27 @@ canvas.force-vertical {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 0.7rem;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.25);
+  transition: background 0.2s, transform 0.3s ease;
+  animation: rowSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes rowSlideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .rank-badge {
   font-weight: 800;
-  width: 14px;
-  color: var(--accent-cyan);
+  width: 18px;
+  text-align: center;
+  transition: color 0.3s, background 0.3s;
 }
+.rank-top1 { color: #ffd700; }
+.rank-top2 { color: #c0c0c0; }
+.rank-top3 { color: #cd7f32; }
+.rank-other { color: rgba(255,255,255,0.4); }
 
 .hud-flag-icon {
   width: 18px;

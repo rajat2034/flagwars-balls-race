@@ -213,9 +213,6 @@ class GameEngine {
     this.obstacleZoneOccupancy = {};
 
     // Camera Shake
-    this.shakeIntensity = 0;
-    this.shakeDecay = 0.92;
-
     // Easing helper
     this.easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
     this.easeOutExpo = (t) => (t === 1) ? 1 : 1 - Math.pow(2, -10 * t);
@@ -837,10 +834,6 @@ class GameEngine {
       }
     }
 
-    // Decay camera shake
-    this.shakeIntensity *= this.shakeDecay;
-    if (this.shakeIntensity < 0.01) this.shakeIntensity = 0;
-
     // Render Frame
     this.render();
 
@@ -856,17 +849,6 @@ class GameEngine {
       if (!this.activeEvent || this.activeEvent.key !== 'gravity_flip') {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
-
-      // Camera shake on collisions
-      this.balls.forEach(ball => {
-        if (ball._hitWallThisFrame || ball._hitBarrierThisFrame) this.triggerShake(0.8);
-        if (ball._hitBallThisFrame) this.triggerShake(0.4);
-        if (ball._hitMeteorThisFrame) this.triggerShake(1.2);
-        if (ball._hitSpinnerThisFrame) this.triggerShake(0.6);
-        if (ball._hitHammerThisFrame) this.triggerShake(0.7);
-        if (ball._hitPunchFistThisFrame) this.triggerShake(1.4);
-        if (ball._hitBreakDoorThisFrame || ball._hitCardboardThisFrame) this.triggerShake(0.9);
-      });
 
       // Fast ball particle trails (visual quality)
       this.balls.forEach(ball => {
@@ -948,6 +930,23 @@ class GameEngine {
           ball.finishTime = this.raceTimer;
           this.sounds.playFinish();
 
+          // Finish line celebration confetti
+          for (let p = 0; p < 12; p++) {
+            const a = Math.random() * Math.PI * 2;
+            const spd = 1 + Math.random() * 3;
+            this.confetti.push({
+              x: ball.x + (Math.random() - 0.5) * 30,
+              y: ball.y + (Math.random() - 0.5) * 20,
+              vx: Math.cos(a) * spd,
+              vy: Math.sin(a) * spd - 2,
+              color: ['#ffd700','#ff2a6d','#45f0f0','#2ecc71','#f5c842','#ff6b35'][Math.floor(Math.random() * 6)],
+              alpha: 1,
+              size: 4 + Math.random() * 4,
+              angle: Math.random() * 360,
+              life: 40 + Math.floor(Math.random() * 30)
+            });
+          }
+
           // Show winner overlay immediately on first finish (race continues for others)
           if (!this._championOverlayShown) {
             this._championOverlayShown = true;
@@ -1025,19 +1024,31 @@ class GameEngine {
       target.finished = true; // treated as finished/dead
       target.finishTime = 999.99; // DNF
 
-      // Spark/fade particles at target coordinates
-      for (let p = 0; p < 15; p++) {
+      // Dramatic elimination burst
+      for (let p = 0; p < 25; p++) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = 1 + Math.random() * 5;
         this.particles.push({
           type: 'spark',
-          x: target.x,
-          y: target.y,
-          vx: (Math.random() - 0.5) * 5,
-          vy: (Math.random() - 0.5) * 5,
-          color: '#e74c3c',
+          x: target.x + (Math.random() - 0.5) * 10,
+          y: target.y + (Math.random() - 0.5) * 10,
+          vx: Math.cos(a) * spd,
+          vy: Math.sin(a) * spd,
+          color: Math.random() < 0.5 ? '#e74c3c' : '#ff6b35',
           alpha: 1,
           size: Math.random() * 4 + 2
         });
       }
+      // Screen shake text
+      this.particles.push({
+        type: 'text',
+        x: target.x,
+        y: target.y - 20,
+        text: 'ELIMINATED!',
+        color: '#e74c3c',
+        alpha: 1,
+        size: 20
+      });
 
       console.log(`[KNOCKOUT] ${target.name} eliminated!`);
     }
@@ -1156,18 +1167,6 @@ class GameEngine {
     });
   }
 
-  triggerShake(intensity) {
-    this.shakeIntensity = Math.min(this.shakeIntensity + intensity, 20);
-  }
-
-  getShakeOffset() {
-    if (this.shakeIntensity < 0.1) return { x: 0, y: 0 };
-    return {
-      x: (Math.random() - 0.5) * this.shakeIntensity * 2,
-      y: (Math.random() - 0.5) * this.shakeIntensity * 2
-    };
-  }
-
   zoomIn() {
     this.userZoomMultiplier = Math.min(3.0, this.userZoomMultiplier + 0.2);
   }
@@ -1232,10 +1231,9 @@ class GameEngine {
     const maxCamX = this.track ? Math.max(0, this.track.length - this.canvas.width / this.cameraZoom) : 0;
     targetX = Math.max(0, Math.min(targetX, maxCamX));
 
-    // Smooth lerp — faster response for overtakes (0.08 vs 0.05)
-    const lerpSpeed = 0.08 * dt;
-    this.cameraX += (targetX - this.cameraX) * lerpSpeed;
-    this.cameraX = Math.max(0, this.cameraX);
+    // Smooth camera follow — frame-rate independent lerp for buttery motion
+    const lerpFactor = 1 - Math.pow(1 - 0.06, dt);
+    this.cameraX += (targetX - this.cameraX) * lerpFactor;
 
     // Enforce finish line always visible on screen when any ball is near it
     if (this.track && this.track.finishLineX && this.balls.some(b => b.x > this.track.finishLineX - 1200 && !b.finished)) {
@@ -1264,6 +1262,7 @@ class GameEngine {
       } else if (p.type === 'spark' || p.type === 'confetti' || p.type === 'jump_smoke') {
         p.vy += 0.08 * dt; // fall under gravity
         p.alpha -= 0.015 * dt;
+        if (p.type === 'confetti' && p.life !== undefined) p.life -= dt;
       } else if (p.type === 'bubble' || p.type === 'ember') {
         p.alpha -= 0.005 * dt;
       } else if (p.type === 'text') {
@@ -1572,8 +1571,6 @@ class GameEngine {
     this.renderDynamicBackground(screenW, screenH);
 
     // Apply camera shake offset
-    const shk = this.getShakeOffset();
-
     // Calculate scaling coordinates based on aspect ratio
     let baseZoom = 1;
     let trackOffset = 0;
@@ -1617,7 +1614,7 @@ class GameEngine {
 
     // 2. Render track contents (Walls, Pegs, Boosts, Balls) inside scaled wrapper
     this.ctx.save();
-    this.ctx.translate(trackOffset + shk.x, shk.y);
+    this.ctx.translate(trackOffset, 0);
     this.ctx.scale(zoom, zoom);
 
     const camX = this.cameraX;
@@ -2899,6 +2896,44 @@ class GameEngine {
         }
 
         this.ctx.restore();
+
+        // 5) Top-3 colored ring (position indicator)
+        if (ball.rank <= 3 && !ball.finished) {
+          this.ctx.save();
+          const ringColors = ['#ffd700', '#c0c0c0', '#cd7f32'];
+          this.ctx.strokeStyle = ringColors[ball.rank - 1];
+          this.ctx.globalAlpha = 0.3 + Math.sin(Date.now() * 0.004 + ball.rank) * 0.1;
+          this.ctx.lineWidth = 2;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius + 3, 0, Math.PI * 2);
+          this.ctx.stroke();
+          this.ctx.restore();
+        }
+
+        // 6) Leader crown — gold star above 1st place
+        if (ball.rank === 1 && !ball.finished) {
+          this.ctx.save();
+          const crownY = ball.y - renderRadius - 18;
+          const pulse = Math.sin(Date.now() * 0.005) * 0.08 + 0.92;
+          this.ctx.translate(bX, crownY);
+          this.ctx.scale(pulse, pulse);
+          this.ctx.shadowColor = '#ffd700';
+          this.ctx.shadowBlur = 20;
+          // Gold star shape
+          this.ctx.fillStyle = '#ffd700';
+          this.ctx.beginPath();
+          const spikes = 5;
+          const outerR = 9;
+          const innerR = 4;
+          for (let i = 0; i < spikes * 2; i++) {
+            const r = i % 2 === 0 ? outerR : innerR;
+            const angle = (i * Math.PI) / spikes - Math.PI / 2;
+            i === 0 ? this.ctx.moveTo(Math.cos(angle) * r, Math.sin(angle) * r) : this.ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+          }
+          this.ctx.closePath();
+          this.ctx.fill();
+          this.ctx.restore();
+        }
       });
 
       // Draw track particles (dust/smoke/sparks)
@@ -2990,28 +3025,6 @@ class GameEngine {
         ctx.arc(cx, cy, 10, Math.PI, 0);
         ctx.fill();
         ctx.fillRect(cx - 6, cy + 2, 12, 11);
-      }
-      ctx.restore();
-
-      // ---- LAYER 3: Stadium light beams ----
-      ctx.save();
-      ctx.globalAlpha = 0.04 + Math.sin(time * 0.3) * 0.015;
-      const lightTilt = Math.sin(time * 0.2) * 5;
-      for (let i = 0; i < 4; i++) {
-        const lx = screenW * (0.15 + i * 0.25);
-        const ly = -10;
-        ctx.fillStyle = '#ffeeaa';
-        ctx.beginPath();
-        ctx.moveTo(lx - 15, ly);
-        ctx.lineTo(lx + 15, ly);
-        ctx.lineTo(lx + 80 + lightTilt, screenH * 0.6);
-        ctx.lineTo(lx - 80 + lightTilt, screenH * 0.6);
-        ctx.closePath();
-        ctx.fill();
-        // Light fixture body
-        ctx.fillStyle = '#1a1a2e';
-        ctx.globalAlpha = 0.3;
-        ctx.fillRect(lx - 12, ly - 4, 24, 8);
       }
       ctx.restore();
 
@@ -3141,17 +3154,26 @@ class GameEngine {
         this.ctx.restore();
       }
 
-      // A. Flag Wars watermark (fixed top-right corner, screen-space, no scroll)
+      // A. Broadcast bug (top-right corner, TV-style)
       this.ctx.save();
-      this.ctx.globalAlpha = 0.12;
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.font = 'bold 24px Montserrat, sans-serif';
-      this.ctx.textAlign = 'right';
-      this.ctx.textBaseline = 'top';
-      this.ctx.fillText('FLAG WARS', screenW - 20, 15);
-      this.ctx.globalAlpha = 0.06;
-      this.ctx.font = '11px Montserrat, sans-serif';
-      this.ctx.fillText('RALLY WORLD CUP', screenW - 20, 44);
+      const bugW = 130;
+      const bugH = 36;
+      const bugX = screenW - bugW - 12;
+      const bugY = 10;
+      // Dark pill background
+      this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      this.ctx.beginPath();
+      this.ctx.roundRect(bugX, bugY, bugW, bugH, 6);
+      this.ctx.fill();
+      // Text
+      this.ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      this.ctx.font = 'bold 13px Montserrat, sans-serif';
+      this.ctx.textAlign = 'left';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText('FLAG WARS', bugX + 10, bugY + 13);
+      this.ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      this.ctx.font = '9px Montserrat, sans-serif';
+      this.ctx.fillText('RALLY WORLD CUP', bugX + 10, bugY + 27);
       this.ctx.restore();
 
       // AA. Champion announcement overlay (on-canvas, cinematic)
@@ -3440,25 +3462,44 @@ class GameEngine {
 
       // B. Draw countdown overlay
       if (this.state === 'countdown') {
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        const cdText = this.countdownSeconds > 0 ? String(this.countdownSeconds) : "GO!";
+        const isGo = this.countdownSeconds <= 0;
+        const raw = (Date.now() % 1000) / 1000;
+        const eased = this.easeOutBack(raw);
+        const scale = 1 + eased * 0.4;
+        const size = Math.round(isGo ? 110 * scale : 95 * scale);
+        const flashAlpha = isGo ? Math.max(0, 1 - raw * 2) : 0;
+
+        // Dark overlay
+        this.ctx.fillStyle = `rgba(0, 0, 0, ${isGo ? 0.3 : 0.45})`;
         this.ctx.fillRect(0, 0, screenW, screenH);
+
+        // GO! white flash
+        if (flashAlpha > 0) {
+          this.ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha * 0.3})`;
+          this.ctx.fillRect(0, 0, screenW, screenH);
+        }
 
         this.ctx.save();
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillStyle = '#66fcf1';
         this.ctx.shadowColor = '#000000';
         this.ctx.shadowBlur = 15;
 
-        // Growing size animation with easing
-        const raw = (Date.now() % 1000) / 1000;
-        const eased = this.easeOutBack(raw);
-        const scale = 1 + eased * 0.35;
-        const size = Math.round(90 * scale);
+        // Color: gold for "GO!", cyan for numbers
+        this.ctx.fillStyle = isGo ? '#ffd700' : '#66fcf1';
         this.ctx.font = `bold ${size}px Montserrat, sans-serif`;
+        this.ctx.shadowBlur = isGo ? 30 : 15;
+        this.ctx.shadowColor = isGo ? 'rgba(255,215,0,0.6)' : '#000000';
+        this.ctx.fillText(cdText, screenW / 2, screenH / 2);
 
-        const secondsLabel = this.countdownSeconds > 0 ? this.countdownSeconds : "GO!";
-        this.ctx.fillText(secondsLabel, screenW / 2, screenH / 2);
+        // Sub-label under GO!
+        if (isGo) {
+          this.ctx.fillStyle = 'rgba(255,255,255,0.6)';
+          this.ctx.font = 'bold 24px Montserrat, sans-serif';
+          this.ctx.shadowBlur = 0;
+          this.ctx.fillText('RACE START', screenW / 2, screenH / 2 + 70);
+        }
         this.ctx.restore();
       }
 
@@ -3575,8 +3616,12 @@ class GameEngine {
         return;
       }
 
-      // Update timer text
-      document.getElementById('hud-timer').innerText = this.raceTimer.toFixed(1) + "s";
+      // Broadcast-style timer: M:SS.T
+      const mins = Math.floor(this.raceTimer / 60);
+      const secs = (this.raceTimer % 60).toFixed(1);
+      document.getElementById('hud-timer').innerText = mins > 0
+        ? `${mins}:${secs.padStart(4, '0')}`
+        : `${secs}s`;
 
       // Update map name (still update but hidden)
       const mapEl = document.getElementById('hud-map-name');
@@ -3639,17 +3684,33 @@ class GameEngine {
         if (b.finished) row.classList.add('racer-finished');
         if (b.eliminated) row.classList.add('racer-eliminated');
 
-        const gapText = b.finished
-          ? `${b.finishTime.toFixed(2)}s`
-          : (index === 0 ? "LEADER" : `-${Math.round((top5[0].x - b.x) / 10)}m`);
+        const gapPx = top5[0].x - b.x;
+        const gapTime = gapPx / 20; // rough time-in-seconds approximation
+        let gapText, gapColor;
+        if (b.finished) {
+          gapText = `${b.finishTime.toFixed(2)}s`;
+          gapColor = 'rgba(255,255,255,0.6)';
+        } else if (index === 0) {
+          gapText = 'LEADER';
+          gapColor = '#ffd700';
+        } else if (gapTime < 0.5) {
+          gapText = `+${gapTime.toFixed(2)}s`;
+          gapColor = '#2ecc71'; // green — close
+        } else if (gapTime < 2) {
+          gapText = `+${gapTime.toFixed(2)}s`;
+          gapColor = '#f5c842'; // yellow — mid
+        } else {
+          gapText = `+${gapTime.toFixed(2)}s`;
+          gapColor = '#e74c3c'; // red — far
+        }
 
         row.innerHTML = `
         <div class="flex items-center gap-2">
-          <span class="rank-badge">${b.rank}</span>
+          <span class="rank-badge rank-${b.rank <= 3 ? 'top' + b.rank : 'other'}">${b.rank}</span>
           <img class="hud-flag-icon" src="https://flagcdn.com/w40/${b.code}.png" alt="${b.name}" onerror="this.style.display='none'">
           <span class="hud-country-name">${b.name}</span>
         </div>
-        <span class="gap-badge">${b.finished ? gapText + ' ✓' : gapText}</span>
+        <span class="gap-badge" style="color:${gapColor}">${b.finished ? gapText + ' ✓' : gapText}</span>
       `;
         listContainer.appendChild(row);
       });
