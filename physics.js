@@ -100,7 +100,9 @@ class PhysicsEngine {
             }
             inBoost = true;
             if (ball.z === 0 && !ball._wasInBoost) {
-              ball.vx *= 1.5;
+              const boostMult = 1.7 + Math.random() * 0.3;
+              ball.vx *= boostMult;
+              ball.vy *= boostMult;
               ball._wasInBoost = true;
             }
           } else if (zone.type === 'slow' || zone.type === 'sand') {
@@ -222,12 +224,13 @@ class PhysicsEngine {
         }
       }
 
-      // Global speed cap: hard limit on all balls every frame
+      // Global speed cap: soft limit - gently reduce if over limit
       let spd = Math.hypot(ball.vx, ball.vy);
       if (spd > MAX_SPEED && spd > 0) {
-        const scale = MAX_SPEED / spd;
-        ball.vx *= scale;
-        ball.vy *= scale;
+        const excess = spd - MAX_SPEED;
+        const reduction = 1 - (excess / spd) * 0.3; // Only reduce excess by 30%
+        ball.vx *= reduction;
+        ball.vy *= reduction;
       }
 
       // Apply position updates with NaN guard
