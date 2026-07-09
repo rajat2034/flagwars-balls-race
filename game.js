@@ -1795,7 +1795,7 @@ class GameEngine {
 
     // Finish line zone - always visible at end of track
     const finishX = length - 400;
-    track.zones.push({ type: 'finish', x: finishX, y: 0, width: 80, height: 700 });
+    track.zones.push({ type: 'finish', x: finishX, y: 0, width: 120, height: 700 });
     track.finishLineX = finishX;
 
     // Zone-based obstacle placement
@@ -2834,6 +2834,23 @@ class GameEngine {
           this._watchdogSkipNext = true;
         }
       }
+
+      // Winner flash → champion overlay transition
+      if (this._winnerFlashActive && this._winnerFlashBall) {
+        if (performance.now() - this._winnerFlashStart >= 2000) {
+          this._championOverlayShown = true;
+          this._championWinner = this._winnerFlashBall;
+          this._winnerFlagReady = false;
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => { this._winnerFlagReady = true; };
+          img.src = `https://flagcdn.com/h240/${this._winnerFlashBall.code}.png`;
+          this._championFlagImg = img;
+          this._winnerFlashActive = false;
+          this._winnerFlashBall = null;
+          this._winnerFlashStart = 0;
+        }
+      }
     }
 
     // Render Frame
@@ -2987,22 +3004,14 @@ class GameEngine {
             });
           }
 
-          // Show winner overlay immediately on first finish (race continues for others)
-          if (!this._championOverlayShown) {
-            this._championOverlayShown = true;
-            this._championWinner = ball;
-            this._winnerFlagReady = false;
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => { this._winnerFlagReady = true; };
-            img.src = `https://flagcdn.com/h240/${ball.code}.png`;
-            this._championFlagImg = img;
+          // Winner flash sequence (delayed champion overlay)
+          if (!this._winnerFlashActive && !this._championOverlayShown) {
+            this._winnerFlashActive = true;
+            this._winnerFlashBall = ball;
+            this._winnerFlashStart = performance.now();
             this.triggerConfettiExplosion(ball.x, ball.y);
-            // Slow motion for 1 second
-            this.slowMoTimer = 60; // ~1 second at 60fps
-            // Focus camera on winner
+            this.slowMoTimer = 60;
             this.selectedBallId = ball.id;
-            // Trigger crowd cheer sound
             this.sounds.playFinish();
           }
 
@@ -3817,8 +3826,35 @@ class GameEngine {
           const fBot = bounds ? bounds.bottomY : 550;
           const fH = fBot - fTop;
           const time = Date.now() * 0.003;
+          const approachW = 150;
 
-          // Checkered strip (full track height, narrow)
+          // Approach zone — subtle gradient 150px before the finish line
+          this.ctx.save();
+          const approachGrad = this.ctx.createLinearGradient(finishX - approachW, 0, finishX, 0);
+          approachGrad.addColorStop(0, 'rgba(255,215,0,0)');
+          approachGrad.addColorStop(0.6, 'rgba(255,215,0,0.03)');
+          approachGrad.addColorStop(1, 'rgba(255,215,0,0.08)');
+          this.ctx.fillStyle = approachGrad;
+          this.ctx.fillRect(finishX - approachW, fTop, approachW, fH);
+          this.ctx.restore();
+
+          // "FINISH" painted on the track surface just before the checkered area
+          this.ctx.save();
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillStyle = 'rgba(255,255,255,0.12)';
+          this.ctx.font = 'bold 72px Outfit, Montserrat, sans-serif';
+          this.ctx.fillText('FINISH', finishX - 60, fTop + fH / 2);
+          this.ctx.restore();
+
+          // White border behind checkered strip
+          this.ctx.save();
+          this.ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+          this.ctx.lineWidth = 2;
+          this.ctx.strokeRect(finishX - 1, fTop - 1, zone.width + 2, fH + 2);
+          this.ctx.restore();
+
+          // Checkered strip (full track height, full zone width)
           const cs = 12;
           for (let by = fTop; by < fBot; by += cs) {
             for (let bx = 0; bx < zone.width; bx += cs) {
@@ -3827,6 +3863,16 @@ class GameEngine {
               this.ctx.fillRect(finishX + bx, by, cs, cs);
             }
           }
+
+          // Glowing outline behind checkered strip
+          this.ctx.save();
+          this.ctx.shadowColor = '#ffd700';
+          this.ctx.shadowBlur = 30;
+          this.ctx.strokeStyle = 'rgba(255,215,0,0.3)';
+          this.ctx.lineWidth = 3;
+          this.ctx.strokeRect(finishX - 2, fTop - 2, zone.width + 4, fH + 4);
+          this.ctx.shadowBlur = 0;
+          this.ctx.restore();
 
           // Gold shimmer overlay
           this.ctx.save();
@@ -3848,7 +3894,6 @@ class GameEngine {
           poleGrad.addColorStop(1, '#2c3e50');
           this.ctx.fillStyle = poleGrad;
           this.ctx.fillRect(poleX, fTop - 20, 6, fH + 40);
-          // Gold cap
           this.ctx.fillStyle = '#ffd700';
           this.ctx.shadowColor = '#ffd700';
           this.ctx.shadowBlur = 20;
@@ -3867,7 +3912,6 @@ class GameEngine {
           poleGrad2.addColorStop(1, '#2c3e50');
           this.ctx.fillStyle = poleGrad2;
           this.ctx.fillRect(poleX2, fTop - 20, 6, fH + 40);
-          // Gold cap
           this.ctx.fillStyle = '#ffd700';
           this.ctx.shadowColor = '#ffd700';
           this.ctx.shadowBlur = 20;
@@ -5083,7 +5127,18 @@ class GameEngine {
 
         this.ctx.restore();
 
-        // Remove old bloom — replaced by subtle speed glow only on finish line / winner
+        // Winner glow during flash sequence
+        if (this._winnerFlashActive && this._winnerFlashBall && ball.id === this._winnerFlashBall.id) {
+          this.ctx.save();
+          const pulseAlpha = 0.2 + 0.15 * Math.sin(performance.now() * 0.008);
+          this.ctx.shadowColor = '#ffd700';
+          this.ctx.shadowBlur = 50;
+          this.ctx.fillStyle = `rgba(255,215,0,${pulseAlpha})`;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius + 12, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.restore();
+        }
 
         // 4) Country label
         this.ctx.save();
@@ -5744,6 +5799,49 @@ class GameEngine {
         this.ctx.restore();
       });
 
+      // F. Winner Flash — shown for 2 seconds before champion overlay activates
+      if (this._winnerFlashActive && this._winnerFlashBall) {
+        this.ctx.save();
+        const flashElapsed = performance.now() - this._winnerFlashStart;
+        const t = Math.min(1, flashElapsed / 500);
+        const flashAlpha = t;
+        const flashScale = 1 + (1 - t) * 0.25;
+
+        this.ctx.globalAlpha = flashAlpha;
+
+        // Dark background strip behind text
+        const stripH = 120;
+        const stripY = screenH / 2 - stripH / 2;
+        this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        this.ctx.shadowColor = 'rgba(255,215,0,0.4)';
+        this.ctx.shadowBlur = 30;
+        this.ctx.fillRect(0, stripY, screenW, stripH);
+        this.ctx.shadowBlur = 0;
+
+        // Trophy emoji
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.font = '48px Montserrat, sans-serif';
+        this.ctx.fillText('\u{1F3C6}', screenW / 2, stripY + 35);
+
+        // "WINNER" label
+        this.ctx.font = 'bold 64px Outfit, Montserrat, sans-serif';
+        this.ctx.fillStyle = '#ffd700';
+        this.ctx.shadowColor = 'rgba(255,215,0,0.8)';
+        this.ctx.shadowBlur = 20;
+        this.ctx.fillText('WINNER', screenW / 2, stripY + stripH / 2);
+
+        // Country name below
+        this.ctx.font = 'bold 28px Montserrat, sans-serif';
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        this.ctx.shadowBlur = 8;
+        this.ctx.fillText(this._winnerFlashBall.name.toUpperCase(), screenW / 2, stripY + stripH - 20);
+
+        this.ctx.shadowBlur = 0;
+        this.ctx.restore();
+      }
+
       // D. Global Event Banner (animated near lower-center) — hide after race ends or when champion overlay shown
       if (this.state === 'racing' && !this._championOverlayShown) {
         this.eventBanner.render(this.ctx, screenW, screenH);
@@ -5816,6 +5914,9 @@ class GameEngine {
       this._championOverlayShown = false;
       this._championWinner = null;
       this._championFlagImg = null;
+      this._winnerFlashActive = false;
+      this._winnerFlashBall = null;
+      this._winnerFlashStart = 0;
       this._footballShowerActive = false;
       this.commentary.clear();
       this.commentary.lastLeaderCode = null;
