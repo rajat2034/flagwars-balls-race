@@ -35,6 +35,9 @@
         <button onclick="app.togglePanel('settings-panel')" class="btn btn-tertiary">
           <span class="btn-icon">⚙️</span> Settings
         </button>
+        <button onclick="app.togglePanel('diagnostic-panel')" class="btn btn-secondary text-glow" style="border: 1.5px solid #be2edd; box-shadow: 0 0 10px rgba(190, 46, 221, 0.35);">
+          <span class="btn-icon">🧪</span> Run Diagnostics (300 Tracks)
+        </button>
         <button onclick="window.close()" class="btn btn-danger">
           Exit Game
         </button>
@@ -262,18 +265,69 @@
       </div>
     </div>
 
+    <!-- 4b. DIAGNOSTICS MODAL -->
+    <div id="diagnostic-panel" class="modal-panel hidden glass-panel" style="width: 480px; max-width: 90vw;">
+      <h2 class="neon-subtitle mb-3" style="text-shadow: 0 0 10px rgba(190, 46, 221, 0.5); color: #be2edd;">Track Diagnostics (300 Runs)</h2>
+      
+      <div id="diag-progress-container" class="mb-4">
+        <div class="flex justify-between text-xs mb-1" style="display:flex; justify-content:space-between; margin-bottom: 4px;">
+          <span id="diag-status-text" class="text-white font-semibold" style="color: white; font-weight: bold;">Ready to run...</span>
+          <span id="diag-progress-pct" class="text-gray" style="color: #a0a5b5;">0%</span>
+        </div>
+        <div class="progress-bar-bg" style="background: rgba(255,255,255,0.1); border-radius: 4px; height: 10px; overflow: hidden;">
+          <div id="diag-progress-fill" style="background: #be2edd; width: 0%; height: 100%; transition: width 0.1s;"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 text-sm text-left mb-4" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; text-align: left;">
+        <div class="diag-metric-card" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+          <div class="text-xs text-gray" style="font-size: 0.75rem; color: #a0a5b5;">Races Simulated</div>
+          <div id="diag-val-runs" class="text-lg font-bold text-white" style="font-size: 1.25rem; font-weight: bold; color: white;">0 / 300</div>
+        </div>
+        <div class="diag-metric-card" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+          <div class="text-xs text-gray" style="font-size: 0.75rem; color: #a0a5b5;">Failed Tracks</div>
+          <div id="diag-val-failures" class="text-lg font-bold text-white" style="font-size: 1.25rem; font-weight: bold; color: white;">0</div>
+        </div>
+        <div class="diag-metric-card" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+          <div class="text-xs text-gray" style="font-size: 0.75rem; color: #a0a5b5;">Portal Loops</div>
+          <div id="diag-val-loops" class="text-lg font-bold text-white" style="font-size: 1.25rem; font-weight: bold; color: white;">0</div>
+        </div>
+        <div class="diag-metric-card" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+          <div class="text-xs text-gray" style="font-size: 0.75rem; color: #a0a5b5;">Outside Track</div>
+          <div id="diag-val-outside" class="text-lg font-bold text-white" style="font-size: 1.25rem; font-weight: bold; color: white;">0</div>
+        </div>
+        <div class="diag-metric-card" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+          <div class="text-xs text-gray" style="font-size: 0.75rem; color: #a0a5b5;">Blocked Boosts</div>
+          <div id="diag-val-blocked" class="text-lg font-bold text-white" style="font-size: 1.25rem; font-weight: bold; color: white;">0</div>
+        </div>
+        <div class="diag-metric-card" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+          <div class="text-xs text-gray" style="font-size: 0.75rem; color: #a0a5b5;">Overlapping Obs</div>
+          <div id="diag-val-overlaps" class="text-lg font-bold text-white" style="font-size: 1.25rem; font-weight: bold; color: white;">0</div>
+        </div>
+        <div class="diag-metric-card" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); grid-column: span 2;">
+          <div class="text-xs text-gray" style="font-size: 0.75rem; color: #a0a5b5;">Stuck Racers</div>
+          <div id="diag-val-stuck" class="text-lg font-bold text-white" style="font-size: 1.25rem; font-weight: bold; color: white;">0</div>
+        </div>
+      </div>
+
+      <div id="diag-verdict" class="alert-notice mb-4" style="background: rgba(46, 204, 113, 0.15); border: 1px solid #2ecc71; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: none;">
+        <span class="badge-tag" style="background: #2ecc71; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: bold; margin-right: 6px;">VERDICT</span>
+        <span id="diag-verdict-text" style="color: #2ecc71; font-weight: 600; font-size: 0.85rem;">Target achieved! 0 critical failures.</span>
+      </div>
+
+      <div class="flex gap-2" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 15px;">
+        <button id="btn-diag-start" onclick="app.startDiagnostics()" class="btn btn-primary" style="flex: 1;">Start Diagnostics</button>
+        <button id="btn-diag-cancel" onclick="app.cancelDiagnostics()" class="btn btn-secondary" style="display: none; flex: 1;">Cancel</button>
+        <button onclick="app.closeDiagnostics()" class="btn btn-tertiary">Close</button>
+      </div>
+    </div>
+
     <!-- 5. RACE HUD OVERLAYS (Shown when racing) -->
     <div id="race-hud" class="hud-layer hidden">
       <!-- Top Center: Race Timer -->
       <div id="hud-timer-card" class="hud-card top-center-hud font-outfit">
         <div class="hud-label">RACE TIME</div>
         <div id="hud-timer" class="hud-value">0.0s</div>
-      </div>
-
-      <!-- Top right: Active Event Alert -->
-      <div id="hud-event-card" class="hud-card top-right-hud hidden">
-        <div class="hud-label blinking-dot">EVENT ACTIVE</div>
-        <div id="hud-event-name" class="hud-value color-warning">METEOR SHOWER</div>
       </div>
 
       <!-- Top Left: Live Leaderboard list -->
@@ -314,6 +368,12 @@
         <select id="hud-camera-select" class="country-dropdown-select" onchange="app.onCameraSelectChange()">
           <option value="leader">🎯 Auto-Follow Leader</option>
         </select>
+      </div>
+
+      <!-- Bottom Right: Race Director Event Feed (replaces old Match Events) -->
+      <div id="hud-race-director-feed" class="rd-feed">
+        <div class="rd-feed-header">📢 MATCH EVENTS</div>
+        <div id="rd-feed-list" class="rd-feed-list"></div>
       </div>
     </div>
 
@@ -367,6 +427,7 @@
   <script src="countries.js"></script>
   <script src="physics.js"></script>
   <script src="game.js"></script>
+  <script src="diagnostics.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

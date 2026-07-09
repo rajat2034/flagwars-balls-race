@@ -137,6 +137,1439 @@ class SoundSynth {
   }
 }
 
+// Dynamic Commentary System — generates race event messages and manages Match Events panel
+class Commentary {
+  constructor() {
+    this.entries = [];
+    this.maxEntries = 20;
+    this.lastLeaderCode = null;
+    this.lastTop3Hash = '';
+    this._lastCommentaryTime = 0;
+  }
+
+  add(message, type = 'info') {
+    this.entries.unshift({
+      message,
+      type,
+      time: performance.now()
+    });
+    if (this.entries.length > this.maxEntries) this.entries.pop();
+    this.updateMatchEventsPanel();
+  }
+
+  getRecent(count = 5) {
+    return this.entries.slice(0, count);
+  }
+
+  updateMatchEventsPanel() {
+    const container = document.getElementById('hud-match-events-list');
+    if (!container) return;
+    const recent = this.getRecent(5);
+    container.innerHTML = '';
+    recent.forEach((entry, idx) => {
+      const el = document.createElement('div');
+      el.className = 'match-event-row';
+      const scale = 1 - idx * 0.12;
+      const opacity = 1 - idx * 0.18;
+      el.style.transform = `scale(${Math.max(0.5, scale)})`;
+      el.style.opacity = Math.max(0.3, opacity);
+      el.style.transformOrigin = 'right center';
+      const typeColors = {
+        leader: '#ffd700',
+        crash: '#e74c3c',
+        portal: '#9b59b6',
+        boost: '#2ecc71',
+        comeback: '#f39c12',
+        info: '#a0a5b5'
+      };
+      el.style.color = typeColors[entry.type] || typeColors.info;
+      el.textContent = entry.message;
+      container.appendChild(el);
+    });
+  }
+
+  clear() {
+    this.entries = [];
+    this.updateMatchEventsPanel();
+  }
+}
+
+// Global Event Banner — queue-based animated banner displayed on canvas near lower-center
+class GlobalEventBanner {
+  constructor() {
+    this.queue = [];
+    this.current = null;
+    this._startTime = 0;
+    this._holdDuration = 2500;
+    this._fadeIn = 300;
+    this._fadeOut = 400;
+  }
+
+  show(message, duration = 2500) {
+    this.queue.push({ message, duration });
+    if (!this.current) this._next();
+  }
+
+  _next() {
+    if (this.queue.length === 0) {
+      this.current = null;
+      return;
+    }
+    this.current = this.queue.shift();
+    this._startTime = performance.now();
+    this._holdDuration = this.current.duration;
+  }
+
+  update() {
+    if (!this.current) return;
+    const elapsed = performance.now() - this._startTime;
+    if (elapsed > this._holdDuration + this._fadeIn + this._fadeOut) {
+      this.current = null;
+      this._next();
+    }
+  }
+
+  render(ctx, screenW, screenH) {
+    if (!this.current) return;
+    const elapsed = performance.now() - this._startTime;
+    let alpha = 1;
+    let scale = 1;
+    // Fade in
+    if (elapsed < this._fadeIn) {
+      const t = elapsed / this._fadeIn;
+      alpha = t;
+      scale = 0.8 + t * 0.2;
+    }
+    // Hold
+    else if (elapsed < this._fadeIn + this._holdDuration) {
+      alpha = 1;
+      scale = 1;
+    }
+    // Fade out
+    else if (elapsed < this._fadeIn + this._holdDuration + this._fadeOut) {
+      const t = (elapsed - this._fadeIn - this._holdDuration) / this._fadeOut;
+      alpha = 1 - t;
+      scale = 1 - t * 0.1;
+    }
+    // Bounce animation during hold
+    const holdElapsed = Math.max(0, elapsed - this._fadeIn);
+    const bounce = Math.sin(holdElapsed * 0.003) * 0.03;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Measure text and size the pill to fit with padding
+    ctx.font = 'bold 26px Montserrat, sans-serif';
+    const textWidth = ctx.measureText(this.current.message).width;
+    const bannerW = Math.max(360, textWidth + 80);
+    const bannerH = Math.max(56, 46);
+    const bx = screenW / 2 - bannerW / 2;
+    const by = screenH * 0.72 - bannerH / 2;
+
+    ctx.translate(screenW / 2, by + bannerH / 2);
+    ctx.scale(scale + bounce, scale + bounce);
+
+    // Background pill
+    ctx.shadowColor = 'rgba(255, 200, 0, 0.4)';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+    ctx.beginPath();
+    ctx.roundRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 28);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Glow ring
+    ctx.strokeStyle = `rgba(255, 200, 0, ${0.2 + Math.sin(holdElapsed * 0.005) * 0.15})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-bannerW / 2 - 3, -bannerH / 2 - 3, bannerW + 6, bannerH + 6, 31);
+    ctx.stroke();
+
+    // Text
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(255, 200, 0, 0.3)';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(this.current.message, 0, 0);
+
+    ctx.restore();
+  }
+
+  clear() {
+    this.queue = [];
+    this.current = null;
+  }
+}
+
+// Race Director — TV-style producer that watches the race and presents exciting moments
+// Does NOT change gameplay, physics, or race balance
+class RaceDirector {
+  constructor() {
+    this._queue = [];
+    this._events = [];
+    this._eventIdCounter = 0;
+    this._eventElements = new Map();
+    this._currentRaceTimer = 0;
+    this._cooldowns = {};
+    this._prevPositions = {};
+    this._lastMessages = {};
+    this._lastLeaderCode = null;
+    this._prevTop3Hash = '';
+    this._boostCounts = {};
+    this._lastHitTimes = {};
+    this._raceLength = 0;
+    this._started = false;
+    this._observeInterval = 0;
+    this._observeCounter = 0;
+
+    // Priority levels (lower = more important)
+    this.PRIORITY = {
+      WINNER: 0, PHOTO_FINISH: 0, FINAL_SPRINT: 0, ELIMINATION: 0,
+      LEADER_CHANGE: 1, LARGE_COMEBACK: 1,
+      HAMMER: 2, PORTAL: 2, BOOST_CHAIN: 2,
+      SPINNER: 3, NEAR_MISS: 3, LUCKY_ESCAPE: 3,
+      POSITION_GAIN: 4, POSITION_LOSS: 4, AMBIENT: 5
+    };
+
+    this._eventColors = {
+      leaderChange: '#ffd700',
+      positionGainLarge: '#ffffff',
+      positionGain: '#ffffff',
+      positionLossLarge: '#ffffff',
+      positionLoss: '#ffffff',
+      top3Entry: '#ffd700',
+      top10Entry: '#ffffff',
+      hammer: '#e74c3c',
+      portal: '#9b59b6',
+      boost: '#00bcd4',
+      boostChain: '#00bcd4',
+      spinner: '#ffffff',
+      luckyEscape: '#2ecc71',
+      nearMiss: '#ffffff',
+      bigOvertake: '#ffffff',
+      comeback: '#ffd700',
+      multiCollision: '#e74c3c',
+      airtime: '#ffffff',
+      finalSprint: '#ffd700',
+      photoFinish: '#ffd700',
+      elimination: '#c0392b',
+      chaosStart: '#f39c12'
+    };
+
+    this._messageDB = {
+      leaderChange: {
+        priority: 1, duration: 3500, messages: [
+          '\u{1F451} {name} takes the lead!',
+          '\u{1F451} {name} storms into 1st!',
+          '\u{1F451} {name} seizes control!',
+          '\u{1F451} {name} powers to the front!',
+          '\u{1F451} {name} surges ahead!',
+          '\u{1F451} {name} moves to the front!'
+        ]
+      },
+      positionGainLarge: {
+        priority: 4, duration: 3000, messages: [
+          '\u{1F525} {name} charges into {pos}th!',
+          '\u{1F525} {name} storms through the field!',
+          '\u{1F525} {name} on a massive charge!',
+          '\u{1F525} {name} rockets up to {pos}th!',
+          '\u{1F525} {name} blazing through!',
+          '\u{1F525} {name} making moves!'
+        ]
+      },
+      positionGain: {
+        priority: 4, duration: 2500, messages: [
+          '\u{1F680} {name} gains {delta} positions!',
+          '\u{1F680} {name} on the move!',
+          '\u{1F680} {name} climbing the standings!'
+        ]
+      },
+      positionLoss: {
+        priority: 4, duration: 2500, messages: [
+          '\u{1F631} {name} drops {delta} spots!',
+          '\u{1F631} {name} is falling back!',
+          '\u{1F631} {name} loses ground!',
+          '\u{1F631} Trouble for {name}!'
+        ]
+      },
+      positionLossLarge: {
+        priority: 4, duration: 3000, messages: [
+          '\u{1F631} {name} is in trouble!',
+          '\u{1F631} Disaster for {name}!',
+          '\u{1F631} {name} is falling apart!',
+          '\u{1F631} {name} loses big!'
+        ]
+      },
+      top3Entry: {
+        priority: 3, duration: 3000, messages: [
+          '\u{1F3C6} {name} breaks into the top 3!',
+          '\u{1F3C6} {name} reaches podium contention!'
+        ]
+      },
+      top10Entry: {
+        priority: 4, duration: 2500, messages: [
+          '\u{1F4C8} {name} enters the top 10!',
+          '\u{1F4C8} {name} cracks the top 10!'
+        ]
+      },
+      hammer: {
+        priority: 2, duration: 3000, messages: [
+          '\u{1F4A5} {name} gets absolutely launched!',
+          '\u{1F4A5} Disaster for {name}!',
+          '\u{1F4A5} {name}\'s race just took a huge hit!',
+          '\u{1F4A5} {name} smashed by the hammer!',
+          '\u{1F4A5} Crushing blow for {name}!',
+          '\u{1F4A5} {name} sent flying!'
+        ]
+      },
+      portal: {
+        priority: 2, duration: 3000, messages: [
+          '\u{26A1} {name} disappears into a portal!',
+          '\u{26A1} {name} takes the portal gamble!',
+          '\u{26A1} {name} warps through!',
+          '\u{26A1} {name} vanishes!',
+          '\u{26A1} Portal magic for {name}!'
+        ]
+      },
+      boost: {
+        priority: 3, duration: 2500, messages: [
+          '\u{1F680} {name} finds incredible speed!',
+          '\u{1F680} {name} hits the boost!',
+          '\u{1F680} {name} accelerates away!',
+          '\u{1F680} {name} rockets forward!',
+          '\u{1F680} Speed boost for {name}!'
+        ]
+      },
+      boostChain: {
+        priority: 2, duration: 3000, messages: [
+          '\u{1F680} {name} on a boost chain!',
+          '\u{1F680} {name} chaining boosts together!',
+          '\u{1F680} Unstoppable {name}!'
+        ]
+      },
+      spinner: {
+        priority: 3, duration: 2500, messages: [
+          '\u{1F300} {name} gets spun around!',
+          '\u{1F300} {name} caught in the spinner!',
+          '\u{1F300} {name} spun out!',
+          '\u{1F300} The spinner catches {name}!'
+        ]
+      },
+      luckyEscape: {
+        priority: 3, duration: 2500, messages: [
+          '\u{1F340} {name} somehow survives!',
+          '\u{1F340} Lucky escape for {name}!',
+          '\u{1F340} {name} dodges disaster!',
+          '\u{1F340} {name} lives to race another corner!'
+        ]
+      },
+      nearMiss: {
+        priority: 3, duration: 2500, messages: [
+          '\u{1F62E} {name} narrowly avoids disaster!',
+          '\u{1F62E} Close call for {name}!',
+          '\u{1F62E} {name} dodges by inches!',
+          '\u{1F62E} That was close for {name}!'
+        ]
+      },
+      bigOvertake: {
+        priority: 3, duration: 3000, messages: [
+          '\u{1F525} {name} makes a big overtake!',
+          '\u{1F525} {name} passes multiple racers!',
+          '\u{1F525} {name} slicing through the pack!'
+        ]
+      },
+      comeback: {
+        priority: 1, duration: 3500, messages: [
+          '\u{1F525} {name} fights back into contention!',
+          '\u{1F525} What a comeback from {name}!',
+          '\u{1F525} {name} refuses to give up!',
+          '\u{1F525} {name} storms back!'
+        ]
+      },
+      multiCollision: {
+        priority: 3, duration: 3000, messages: [
+          '\u{1F4A5} {name} caught in a pile-up!',
+          '\u{1F4A5} {name} in the middle of chaos!',
+          '\u{1F4A5} Multi-racer collision for {name}!'
+        ]
+      },
+      airtime: {
+        priority: 3, duration: 2500, messages: [
+          '\u{1F4F8} {name} gets big air!',
+          '\u{1F4F8} {name} flying high!',
+          '\u{1F4F8} Airborne {name}!'
+        ]
+      },
+      finalSprint: {
+        priority: 0, duration: 3500, messages: [
+          '\u{1F3C1} Final Sprint! Anyone can still win!',
+          '\u{1F3C1} Down to the wire!',
+          '\u{1F3C1} It\'s not over yet!',
+          '\u{1F3C1} Final push to the line!'
+        ]
+      },
+      photoFinish: {
+        priority: 0, duration: 4000, messages: [
+          '\u{1F4F7} Photo finish! It\'s incredibly close!',
+          '\u{1F4F7} Too close to call!'
+        ]
+      },
+      elimination: {
+        priority: 0, duration: 3500, messages: [
+          '\u{1F480} {name} eliminated!',
+          '\u{1F480} {name} is out of the race!'
+        ]
+      },
+      chaosStart: {
+        priority: 1, duration: 3500, messages: [
+          '\u{1F4A5} Chaos event triggered!',
+          '\u{1F4A5} The track just got dangerous!'
+        ]
+      }
+    };
+  }
+
+  startRace(raceLength) {
+    this._queue = [];
+    this._events = [];
+    this._eventIdCounter = 0;
+    this._eventElements.forEach((el) => { if (el.parentNode) el.parentNode.removeChild(el); });
+    this._eventElements.clear();
+    this._cooldowns = {};
+    this._prevPositions = {};
+    this._lastMessages = {};
+    this._lastLeaderCode = null;
+    this._prevTop3Hash = '';
+    this._boostCounts = {};
+    this._lastHitTimes = {};
+    this._raceLength = raceLength;
+    this._finalSprintAnnounced = false;
+    this._started = true;
+    this._observeCounter = 0;
+    this._currentRaceTimer = 0;
+  }
+
+  // Called every simulation frame to observe race state
+  observe(balls, leaderboard, raceTimer, track) {
+    if (!this._started) return;
+    this._observeCounter++;
+    this._currentRaceTimer = raceTimer;
+
+    // Obstacle events need per-frame checking (collision flags reset each frame)
+    this._detectObstacleEvents(balls);
+
+    // Position-based events checked at ~6Hz to accumulate meaningful deltas
+    if (this._observeCounter % 10 === 0) {
+      this._detectLeaderChanges(leaderboard);
+      this._detectPositionChanges(balls, leaderboard);
+      this._detectFinalSprint(leaderboard, raceTimer, track);
+    }
+  }
+
+  // Process queue and update feed (called every frame)
+  update(dt) {
+    if (!this._started) return;
+
+    // Pull events from queue into the persistent feed
+    if (this._queue.length > 0) {
+      const next = this._queue.shift();
+      next.raceTime = this._currentRaceTimer;
+      this._addToFeed(next);
+    }
+  }
+
+  _detectLeaderChanges(leaderboard) {
+    if (leaderboard.length === 0) return;
+    const leader = leaderboard[0];
+    if (!leader || leader.finished) return;
+
+    if (this._lastLeaderCode && this._lastLeaderCode !== leader.code) {
+      this._enqueue('leaderChange', leader.name, leader.code, {});
+    }
+    this._lastLeaderCode = leader.code;
+
+    // Top 3 changes
+    const top3 = leaderboard.slice(0, 3).map(b => b.code).join(',');
+    if (top3 !== this._prevTop3Hash && this._prevTop3Hash !== '') {
+      // Check if someone new entered top 3
+      const prevCodes = this._prevTop3Hash ? this._prevTop3Hash.split(',') : [];
+      const currentCodes = top3.split(',');
+      for (const code of currentCodes) {
+        if (!prevCodes.includes(code)) {
+          const racer = leaderboard.find(b => b.code === code);
+          if (racer) {
+            this._enqueue('top3Entry', racer.name, racer.code, {});
+            break;
+          }
+        }
+      }
+    }
+    this._prevTop3Hash = top3;
+  }
+
+  _detectPositionChanges(balls, leaderboard) {
+    balls.forEach(ball => {
+      if (ball.finished || ball.eliminated) return;
+      const prevRank = this._prevPositions[ball.code];
+      const currentRank = ball.rank;
+      if (prevRank === undefined) {
+        this._prevPositions[ball.code] = currentRank;
+        return;
+      }
+
+      const delta = prevRank - currentRank; // positive = gained positions
+      if (Math.abs(delta) >= 5) {
+        if (delta > 0) {
+          this._enqueue('positionGainLarge', ball.name, ball.code, { pos: currentRank });
+        } else if (delta <= -3) {
+          this._enqueue('positionLossLarge', ball.name, ball.code, { pos: currentRank });
+        }
+      } else if (Math.abs(delta) >= 3) {
+        if (delta > 0) {
+          this._enqueue('positionGain', ball.name, ball.code, { delta });
+        } else {
+          this._enqueue('positionLoss', ball.name, ball.code, { delta: Math.abs(delta) });
+        }
+      }
+
+      // Detect big comebacks: racer was outside top 10, now inside top 5
+      if (prevRank > 10 && currentRank <= 5) {
+        this._enqueue('comeback', ball.name, ball.code, {});
+      }
+
+      this._prevPositions[ball.code] = currentRank;
+    });
+  }
+
+  _detectObstacleEvents(balls) {
+    balls.forEach(ball => {
+      if (ball.finished || ball.eliminated) return;
+
+      const now = performance.now();
+
+      // Hammer hit
+      if (ball._hitHammerThisFrame) {
+        this._enqueue('hammer', ball.name, ball.code, {});
+        this._lastHitTimes[ball.code + '_hammer'] = now;
+      }
+
+      // Portal use
+      if (ball._usedPortalThisFrame) {
+        this._enqueue('portal', ball.name, ball.code, {});
+        this._lastHitTimes[ball.code + '_portal'] = now;
+      }
+
+      // Boost entry
+      if (ball._enteredBoostThisFrame) {
+        this._boostCounts[ball.code] = (this._boostCounts[ball.code] || 0) + 1;
+        if (this._boostCounts[ball.code] >= 3) {
+          this._enqueue('boostChain', ball.name, ball.code, {});
+          this._boostCounts[ball.code] = 0;
+        } else {
+          this._enqueue('boost', ball.name, ball.code, {});
+        }
+      } else {
+        this._boostCounts[ball.code] = 0;
+      }
+
+      // Spinner hit
+      if (ball._hitSpinnerThisFrame) {
+        this._enqueue('spinner', ball.name, ball.code, {});
+      }
+    });
+  }
+
+  _detectFinalSprint(leaderboard, raceTimer, track) {
+    if (!track || !track.finishLineX) return;
+    const leader = leaderboard[0];
+    if (!leader || leader.finished) return;
+
+    const finishX = track.finishLineX;
+    const distToFinish = finishX - leader.x;
+
+    // Final sprint: within 100m (10000px) of finish
+    if (distToFinish > 0 && distToFinish < 10000 && !this._finalSprintAnnounced) {
+      this._finalSprintAnnounced = true;
+      this._enqueue('finalSprint', '', '', {});
+    }
+
+    // Photo finish: leader within 200px of finish and second within 100px
+    if (distToFinish > 0 && distToFinish < 200 && leaderboard.length > 1) {
+      const second = leaderboard[1];
+      if (second && !second.finished && leader.x - second.x < 100) {
+        this._enqueue('photoFinish', '', '', {});
+      }
+    }
+  }
+
+  _enqueue(eventType, racerName, racerCode, extra) {
+    const template = this._messageDB[eventType];
+    if (!template) return;
+
+    // Check cooldown
+    const cdKey = eventType + '_' + racerCode;
+    const now = performance.now();
+    if (this._cooldowns[cdKey] && now < this._cooldowns[cdKey]) return;
+
+    // Ignore same-type events within 1s
+    const globalCdKey = 'global_' + eventType;
+    if (this._cooldowns[globalCdKey] && now < this._cooldowns[globalCdKey]) return;
+
+    const message = this._pickMessage(eventType, racerName, extra);
+
+    // Don't add if same as last queued message
+    if (this._queue.length > 0 && this._queue[this._queue.length - 1].message === message) return;
+    // Don't add if same as last event in feed
+    if (this._events.length > 0 && this._events[this._events.length - 1].message === message) return;
+
+    const event = {
+      type: eventType,
+      message,
+      priority: template.priority,
+      duration: template.duration,
+      racerCode
+    };
+
+    // High-priority events preempt the queue
+    if (template.priority <= 1) {
+      this._queue = this._queue.filter(e => e.priority > template.priority);
+      this._queue.unshift(event);
+    } else {
+      this._queue.push(event);
+    }
+
+    // Cap queue length
+    if (this._queue.length > 10) this._queue.splice(10);
+
+    // Set cooldown
+    this._setCooldown(cdKey, template.duration * 2);
+    this._setCooldown(globalCdKey, 800);
+  }
+
+  _pickMessage(eventType, racerName, extra) {
+    const template = this._messageDB[eventType];
+    if (!template) return '';
+
+    const candidates = template.messages.filter(m => m !== this._lastMessages[eventType]);
+    const pool = candidates.length > 0 ? candidates : template.messages;
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
+    this._lastMessages[eventType] = chosen;
+
+    let msg = chosen.replace('{name}', racerName);
+    if (extra.pos) msg = msg.replace('{pos}', extra.pos);
+    if (extra.delta) msg = msg.replace('{delta}', extra.delta);
+    return msg;
+  }
+
+  _setCooldown(key, duration) {
+    this._cooldowns[key] = performance.now() + duration;
+  }
+
+  _addToFeed(event) {
+    event.id = ++this._eventIdCounter;
+    this._events.push(event);
+
+    // Render the new event as a DOM element
+    this._renderNewEntry(event);
+
+    // If we exceed 6 visible, fade-out the oldest
+    if (this._events.length > 6) {
+      const oldest = this._events.shift();
+      this._fadeOutEntry(oldest.id);
+    }
+  }
+
+  _renderNewEntry(event) {
+    const list = document.getElementById('rd-feed-list');
+    if (!list) return;
+
+    const el = document.createElement('div');
+    el.className = 'rd-entry';
+    el.dataset.id = event.id;
+
+    const color = this._eventColors[event.type] || '#ffffff';
+    const ts = this._formatTimestamp(event.raceTime || 0);
+
+    el.innerHTML = `<span class="rd-ts" style="color:${color}">${ts}</span><span class="rd-msg" style="color:${color}">${event.message}</span>`;
+    el.style.borderLeftColor = color;
+
+    // Insert at top (newest)
+    if (list.firstChild) {
+      list.insertBefore(el, list.firstChild);
+    } else {
+      list.appendChild(el);
+    }
+
+    this._eventElements.set(event.id, el);
+  }
+
+  _fadeOutEntry(id) {
+    const el = this._eventElements.get(id);
+    if (!el) return;
+    el.classList.add('rd-removing');
+    setTimeout(() => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+      this._eventElements.delete(id);
+    }, 400);
+  }
+
+  _formatTimestamp(seconds) {
+    if (seconds == null || isNaN(seconds)) return '00:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  stop() {
+    this._started = false;
+    this._queue = [];
+    this._events = [];
+    this._eventElements.forEach((el) => { if (el.parentNode) el.parentNode.removeChild(el); });
+    this._eventElements.clear();
+  }
+}
+
+// Broadcast Director — professional state-machine camera orchestration
+// Decides WHAT the camera should watch and at what zoom.
+// Camera simply executes the shots with smooth cinematic movement.
+// Follows a strict state machine: only one state active at any time.
+// States: LEADER_FOLLOW (default, ~85-90%), EVENT_FOCUS, CHAOS_OVERVIEW,
+//         ELIMINATION, FINISH_MODE.
+// Shot locking ensures no nervous re-decisions once a state begins.
+// Manual mode disables the director when the user selects a racer.
+class BroadcastDirector {
+  static STATE = Object.freeze({
+    LEADER_FOLLOW: 0,
+    EVENT_FOCUS: 1,
+    CHAOS_OVERVIEW: 2,
+    ELIMINATION: 3,
+    FINISH_MODE: 4,
+  });
+
+  constructor(engine) {
+    this._engine = engine;
+    this._state = BroadcastDirector.STATE.LEADER_FOLLOW;
+    this._stateTimer = 0;
+    this._cooldownTimer = 0;
+    this._eventThreshold = 5; // 1-10 — only events >= threshold trigger EVENT_FOCUS
+    this._targetBallId = 'leader';
+    this._targetZoom = 1.0;
+    this._manualOverride = false;
+
+    // Detection state
+    this._lastRanks = new Map();
+    this._lastActiveEvent = null;
+    this._boostCounts = {};
+  }
+
+  get state() { return this._state; }
+  get targetBallId() { return this._manualOverride ? this._engine.selectedBallId : this._targetBallId; }
+  get targetZoom() { return this._targetZoom; }
+  get isManualMode() { return this._manualOverride; }
+  get isFinalSprint() { return this._state === BroadcastDirector.STATE.FINISH_MODE; }
+
+  reset() {
+    this._state = BroadcastDirector.STATE.LEADER_FOLLOW;
+    this._stateTimer = 0;
+    this._cooldownTimer = 0;
+    this._targetBallId = 'leader';
+    this._targetZoom = 1.0;
+    this._manualOverride = false;
+    this._lastRanks.clear();
+    this._lastActiveEvent = null;
+    this._boostCounts = {};
+  }
+
+  update(dt) {
+    // Decay state timer (only non-leader states have timers)
+    if (this._state !== BroadcastDirector.STATE.LEADER_FOLLOW) {
+      this._stateTimer -= dt;
+      if (this._stateTimer <= 0) {
+        this._transitionTo(BroadcastDirector.STATE.LEADER_FOLLOW);
+      }
+    }
+
+    // Decay event cooldown
+    if (this._cooldownTimer > 0) {
+      this._cooldownTimer -= dt;
+    }
+  }
+
+  observe(balls, leaderboard, raceTimer, track, gameMode, activeEvent) {
+    if (!track || balls.length === 0) return;
+    if (this._engine.state !== 'racing') return;
+
+    // --- Manual mode ---
+    // If user clicked a specific ball, disable director entirely
+    if (this._engine.selectedBallId !== 'leader' && this._engine.selectedBallId !== null) {
+      this._manualOverride = true;
+      // If we were in a cut, abort it
+      if (this._state !== BroadcastDirector.STATE.LEADER_FOLLOW) {
+        this._state = BroadcastDirector.STATE.LEADER_FOLLOW;
+        this._stateTimer = 0;
+      }
+      this._targetBallId = 'leader'; // reset target for when manual mode ends
+      return;
+    }
+    this._manualOverride = false;
+
+    // --- FINISH MODE (highest priority, can override any locked shot) ---
+    const nearFinish = balls.some(b => !b.finished && !b.eliminated && b.x > track.length - 100);
+    if (nearFinish) {
+      if (this._state !== BroadcastDirector.STATE.FINISH_MODE) {
+        this._transitionTo(BroadcastDirector.STATE.FINISH_MODE);
+      }
+      return;
+    }
+
+    // --- ELIMINATION (can override EVENT_FOCUS / CHAOS_OVERVIEW) ---
+    if (gameMode === 'knockout') {
+      const remaining = balls.filter(b => !b.eliminated && !b.finished);
+      if (remaining.length <= 2 && remaining.length > 0) {
+        const lastPlace = remaining.sort((a, b) => a.x - b.x)[0];
+        if (this._state !== BroadcastDirector.STATE.ELIMINATION || this._targetBallId !== lastPlace.id) {
+          this._targetBallId = lastPlace.id;
+          this._transitionTo(BroadcastDirector.STATE.ELIMINATION);
+        }
+        return;
+      }
+    }
+
+    // If shot is locked (EVENT_FOCUS / CHAOS_OVERVIEW active), no new events
+    if (this._isShotLocked()) return;
+
+    // --- CHAOS OVERVIEW ---
+    if (activeEvent && this._lastActiveEvent !== activeEvent) {
+      const target = this._pickNonLeaderBall(balls);
+      if (target !== null) {
+        this._targetBallId = target;
+        this._transitionTo(BroadcastDirector.STATE.CHAOS_OVERVIEW);
+        this._lastActiveEvent = activeEvent;
+        return;
+      }
+    }
+    this._lastActiveEvent = activeEvent;
+
+    // --- EVENT FOCUS (only if cooldown has expired) ---
+    if (this._cooldownTimer <= 0) {
+      for (const ball of balls) {
+        if (ball.finished || ball.eliminated) continue;
+
+        let excitement = 0;
+
+        // Collision events
+        if (ball._hitHammerThisFrame || ball._hitPunchFistThisFrame) {
+          const speed = Math.hypot(ball.vx, ball.vy);
+          if (speed > 15) excitement = 9;
+          else if (speed > 10) excitement = 7;
+          else if (speed > 6) excitement = 5;
+          else excitement = 3;
+        }
+        if (ball._usedPortalThisFrame) {
+          excitement = Math.max(excitement, 6);
+        }
+        if (ball._enteredBoostThisFrame) {
+          // Track sequential boosts for chain detection
+          this._boostCounts[ball.code] = (this._boostCounts[ball.code] || 0) + 1;
+          if (this._boostCounts[ball.code] >= 3) {
+            excitement = Math.max(excitement, 8);
+          } else {
+            excitement = Math.max(excitement, 3);
+          }
+        }
+
+        if (excitement >= this._eventThreshold) {
+          this._targetBallId = ball.id;
+          this._transitionTo(BroadcastDirector.STATE.EVENT_FOCUS);
+          return;
+        }
+      }
+
+      // Reset boost counts for balls that didn't boost this frame
+      const boostedCodes = new Set();
+      balls.forEach(b => { if (b._enteredBoostThisFrame) boostedCodes.add(b.code); });
+      for (const code in this._boostCounts) {
+        if (!boostedCodes.has(code)) this._boostCounts[code] = 0;
+      }
+
+      // Large rank swings (5+ positions gained or lost)
+      if (leaderboard.length > 0) {
+        const currentRanks = new Map();
+        leaderboard.forEach((entry, idx) => {
+          const ball = balls.find(b => b.code === entry.code);
+          if (ball) currentRanks.set(ball.id, idx + 1);
+        });
+
+        for (const [ballId, currentRank] of currentRanks) {
+          const prevRank = this._lastRanks.get(ballId);
+          if (prevRank !== undefined) {
+            const gain = prevRank - currentRank;
+            if (gain >= 5) {
+              this._targetBallId = ballId;
+              this._transitionTo(BroadcastDirector.STATE.EVENT_FOCUS);
+              this._lastRanks = currentRanks;
+              return;
+            }
+            if (gain <= -5) {
+              this._targetBallId = ballId;
+              this._transitionTo(BroadcastDirector.STATE.EVENT_FOCUS);
+              this._lastRanks = currentRanks;
+              return;
+            }
+          }
+        }
+        this._lastRanks = currentRanks;
+      }
+    }
+  }
+
+  _transitionTo(newState) {
+    // LEADER_FOLLOW is always reachable (e.g., state timer expired)
+    // FINISH_MODE and ELIMINATION can override any locked shot
+    if (this._isShotLocked() &&
+        newState !== BroadcastDirector.STATE.LEADER_FOLLOW &&
+        newState !== BroadcastDirector.STATE.FINISH_MODE &&
+        newState !== BroadcastDirector.STATE.ELIMINATION) {
+      return;
+    }
+
+    const prevState = this._state;
+    this._state = newState;
+
+    switch (newState) {
+      case BroadcastDirector.STATE.LEADER_FOLLOW:
+        this._stateTimer = 0;
+        this._targetBallId = 'leader';
+        this._targetZoom = 1.0;
+        if (prevState === BroadcastDirector.STATE.EVENT_FOCUS) {
+          this._cooldownTimer = 8; // 8s cooldown after event
+        }
+        break;
+
+      case BroadcastDirector.STATE.EVENT_FOCUS:
+        this._stateTimer = 2.0;
+        this._targetZoom = 1.0;
+        break;
+
+      case BroadcastDirector.STATE.CHAOS_OVERVIEW:
+        this._stateTimer = 2.0;
+        this._targetZoom = 0.92;
+        break;
+
+      case BroadcastDirector.STATE.ELIMINATION:
+        this._stateTimer = 2.5;
+        this._targetZoom = 1.0;
+        break;
+
+      case BroadcastDirector.STATE.FINISH_MODE:
+        this._stateTimer = 0; // persists until race ends or no ball is within 100m
+        this._targetBallId = 'leader';
+        this._targetZoom = 0.95;
+        break;
+    }
+  }
+
+  _isShotLocked() {
+    // LEADER_FOLLOW is never locked
+    if (this._state === BroadcastDirector.STATE.LEADER_FOLLOW) return false;
+    // FINISH_MODE is always locked (can only be overridden by itself)
+    if (this._state === BroadcastDirector.STATE.FINISH_MODE) return true;
+    // ELIMINATION is locked while timer > 0
+    if (this._state === BroadcastDirector.STATE.ELIMINATION) return this._stateTimer > 0;
+    // EVENT_FOCUS and CHAOS_OVERVIEW are locked while timer > 0
+    return this._stateTimer > 0;
+  }
+
+  _pickNonLeaderBall(balls) {
+    const active = balls.filter(b => !b.finished && !b.eliminated);
+    if (active.length <= 1) return null;
+    const sorted = [...active].sort((a, b) => a.x - b.x);
+    const idx = 1 + Math.floor(Math.random() * Math.max(1, sorted.length - 2));
+    return sorted[Math.min(idx, sorted.length - 1)].id;
+  }
+}
+
+// Story Engine — continuously observes race data, identifies memorable narratives
+// Never changes gameplay. Produces Story Events for the Match Events UI.
+// Max one story per ~15-20s. Higher-priority stories override in a given frame.
+// Priority order: LeaderCrash > Comeback > Rivalry > Dominance > Underdog > Collapse
+class StoryEngine {
+  constructor(engine) {
+    this._engine = engine;
+    this._lastStoryTime = 0;
+    this._frameCounter = 0;
+    this._storyCooldown = 18; // seconds between stories
+    this._typeCooldowns = {};
+    this._typeCooldownDuration = {
+      dominance: 50,
+      comeback: 40,
+      collapse: 40,
+      rivalry: 80,
+      underdog: 100,
+      survival: 50,
+      leaderCrash: 50,
+      recordRun: 160,
+    };
+
+    // Detection state
+    this._dominanceStart = null; // { code, startTime }
+    this._currentLeaderCode = null;
+    this._prevPositions = {};
+    this._prevRanks = {};
+    this._rivalryCounts = {};
+    this._prevBottomTwo = [];
+    this._maxGainThisRace = 0;
+    this._prevRecordGain = 0;
+    this._initialOrder = [];
+    this._bottomThirdIds = new Set();
+    this._leaderHitTimestamps = [];
+    this._leaderBeforeFrame = null;
+    this._messagesUsed = {};
+
+    // DOM elements we injected into the feed
+    this._storyElements = [];
+    this._storyIdCounter = 0;
+  }
+
+  reset() {
+    this._lastStoryTime = 0;
+    this._frameCounter = 0;
+    this._typeCooldowns = {};
+    this._dominanceStart = null;
+    this._currentLeaderCode = null;
+    this._prevPositions = {};
+    this._prevRanks = {};
+    this._rivalryCounts = {};
+    this._prevBottomTwo = [];
+    this._maxGainThisRace = 0;
+    this._prevRecordGain = 0;
+    this._initialOrder = [];
+    this._bottomThirdIds = new Set();
+    this._leaderHitTimestamps = [];
+    this._leaderBeforeFrame = null;
+    this._messagesUsed = {};
+    this._clearStoryElements();
+  }
+
+  observe(balls, leaderboard, raceTimer, track, gameMode) {
+    if (!track || balls.length < 2 || this._engine.state !== 'racing') return;
+    if (this._initialOrder.length === 0) this._captureInitialOrder(balls);
+
+    // Track collisions every frame (flags are per-frame, can't be throttled)
+    this._trackCollisions(balls);
+
+    // Throttle detection to ~5Hz (every ~10 frames at 60fps)
+    this._frameCounter++;
+    if (this._frameCounter % 10 !== 0) return;
+
+    const active = balls.filter(b => !b.finished && !b.eliminated);
+    if (active.length < 2) return;
+
+    // Snapshot leader code before any detection runs (for leader crash check)
+    this._leaderBeforeFrame = active.reduce((a, b) => a.x > b.x ? a : b).code;
+
+    // Collect candidate stories this frame
+    const candidates = [];
+
+    // 1. DOMINANCE — same country leading for > 30s continuous
+    this._detectDominance(active, candidates);
+
+    // 2. COMEBACK — gain >= 8 positions
+    this._detectComeback(active, leaderboard, candidates);
+
+    // 3. COLLAPSE — lose >= 7 positions
+    this._detectCollapse(active, leaderboard, candidates);
+
+    // 4. RIVALRY — same pair exchange 3+ times
+    this._detectRivalry(active, leaderboard, candidates);
+
+    // 5. UNDERDOG — bottom-third racer enters top 5
+    this._detectUnderdog(active, leaderboard, candidates);
+
+    // 6. SURVIVAL — escapes bottom 2 in elimination mode
+    if (gameMode === 'knockout') {
+      this._detectSurvival(active, candidates);
+    }
+
+    // 7. LEADER CRASH — leader hit by obstacle then loses lead
+    this._detectLeaderCrash(active, candidates);
+
+    // 8. RECORD RUN — new max position gain
+    this._detectRecordRun(active, leaderboard, candidates);
+
+    // Update saved positions for next frame
+    this._prevPositions = {};
+    leaderboard.forEach((entry, idx) => {
+      this._prevPositions[entry.code] = idx + 1;
+    });
+
+    // Update rank order for rivalry exchange detection
+    this._prevRanks = {};
+    leaderboard.forEach((entry, idx) => {
+      this._prevRanks[entry.code] = idx + 1;
+    });
+
+    // Choose the best candidate and publish it
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => b.priority - a.priority);
+      const best = candidates[0];
+      this._publishStory(best.type, best.racerName, best.racerCode);
+    }
+  }
+
+  // Track collision hits every frame (flags reset each frame, can't throttle)
+  _trackCollisions(balls) {
+    const now = performance.now();
+    for (const ball of balls) {
+      if (ball.finished || ball.eliminated) continue;
+      if (ball._hitHammerThisFrame || ball._hitPunchFistThisFrame || ball._hitMeteorThisFrame) {
+        this._leaderHitTimestamps.push({ code: ball.code, time: now });
+      }
+    }
+    // Prune entries older than 2s
+    this._leaderHitTimestamps = this._leaderHitTimestamps.filter(h => now - h.time < 2000);
+  }
+
+  // ---- Detection Methods ----
+
+  _detectDominance(active, candidates) {
+    const leader = active.reduce((a, b) => a.x > b.x ? a : b);
+    const code = leader.code;
+    const raceTime = this._engine.raceTimer;
+
+    if (this._currentLeaderCode !== code) {
+      this._currentLeaderCode = code;
+      this._dominanceStart = { code, startTime: raceTime };
+    } else if (this._dominanceStart && (raceTime - this._dominanceStart.startTime) > 30) {
+      if (this._canStoryType('dominance')) {
+        candidates.push({
+          type: 'dominance',
+          racerName: leader.name,
+          racerCode: code,
+          priority: 4,
+        });
+      }
+      // Reset to avoid re-triggering every frame
+      this._dominanceStart.startTime = raceTime;
+    }
+  }
+
+  _detectComeback(active, leaderboard, candidates) {
+    if (!this._canStoryType('comeback')) return;
+    for (const ball of active) {
+      const prev = this._prevPositions[ball.code];
+      if (prev === undefined) continue;
+      const current = leaderboard.findIndex(e => e.code === ball.code) + 1;
+      if (current <= 0) continue;
+      const gain = prev - current;
+      if (gain >= 8) {
+        candidates.push({ type: 'comeback', racerName: ball.name, racerCode: ball.code, priority: 6 });
+        return; // one per frame
+      }
+    }
+  }
+
+  _detectCollapse(active, leaderboard, candidates) {
+    if (!this._canStoryType('collapse')) return;
+    for (const ball of active) {
+      const prev = this._prevPositions[ball.code];
+      if (prev === undefined) continue;
+      const current = leaderboard.findIndex(e => e.code === ball.code) + 1;
+      if (current <= 0) continue;
+      const loss = current - prev;
+      if (loss >= 7) {
+        candidates.push({ type: 'collapse', racerName: ball.name, racerCode: ball.code, priority: 2 });
+        return;
+      }
+    }
+  }
+
+  _detectRivalry(active, leaderboard, candidates) {
+    if (!this._canStoryType('rivalry')) return;
+    if (leaderboard.length < 2) return;
+
+    // Count actual position exchanges: when two racers swap order between frames
+    const ranks = {};
+    leaderboard.forEach((entry, idx) => { ranks[entry.code] = idx + 1; });
+
+    for (const code1 in ranks) {
+      for (const code2 in ranks) {
+        if (code1 >= code2) continue;
+        const r1 = ranks[code1];
+        const r2 = ranks[code2];
+        const pr1 = this._prevRanks[code1];
+        const pr2 = this._prevRanks[code2];
+        if (pr1 === undefined || pr2 === undefined) continue;
+        // Exchange: one was ahead, now the other is ahead
+        if ((r1 < r2 && pr1 > pr2) || (r1 > r2 && pr1 < pr2)) {
+          const key = code1 < code2 ? code1 + '|' + code2 : code2 + '|' + code1;
+          this._rivalryCounts[key] = (this._rivalryCounts[key] || 0) + 1;
+        }
+      }
+    }
+
+    // Check if any pair has exchanged 3+ times
+    for (const [key, count] of Object.entries(this._rivalryCounts)) {
+      if (count >= 3) {
+        const [code1, code2] = key.split('|');
+        const b1 = active.find(b => b.code === code1);
+        const b2 = active.find(b => b.code === code2);
+        if (b1 && b2) {
+          candidates.push({
+            type: 'rivalry',
+            racerName: b1.name + ' and ' + b2.name,
+            racerCode: code1 + ',' + code2,
+            priority: 5,
+          });
+          this._rivalryCounts[key] = 0;
+          return;
+        }
+      }
+    }
+  }
+
+  _detectUnderdog(active, leaderboard, candidates) {
+    if (!this._canStoryType('underdog')) return;
+    for (const ball of active) {
+      if (!this._bottomThirdIds.has(ball.id)) continue;
+      const rank = leaderboard.findIndex(e => e.code === ball.code) + 1;
+      if (rank > 0 && rank <= 5) {
+        candidates.push({ type: 'underdog', racerName: ball.name, racerCode: ball.code, priority: 3 });
+        return;
+      }
+    }
+  }
+
+  _detectSurvival(active, candidates) {
+    if (!this._canStoryType('survival')) return;
+    const sorted = [...active].sort((a, b) => a.x - b.x);
+    const currentBottom = sorted.slice(0, 2).map(b => b.id);
+
+    // Check if someone escaped the bottom
+    for (const prevId of this._prevBottomTwo) {
+      if (!currentBottom.includes(prevId)) {
+        const racer = active.find(b => b.id === prevId);
+        if (racer) {
+          candidates.push({ type: 'survival', racerName: racer.name, racerCode: racer.code, priority: 1 });
+          this._prevBottomTwo = currentBottom;
+          return;
+        }
+      }
+    }
+    this._prevBottomTwo = currentBottom;
+  }
+
+  _detectLeaderCrash(active, candidates) {
+    if (!this._canStoryType('leaderCrash')) return;
+    if (this._leaderHitTimestamps.length === 0) return;
+
+    // Check if the pre-frame leader (who was hit) has lost the lead
+    const currentLeaderCode = active.reduce((a, b) => a.x > b.x ? a : b).code;
+    for (const hit of this._leaderHitTimestamps) {
+      if (hit.code !== currentLeaderCode && hit.code === this._leaderBeforeFrame) {
+        const racer = active.find(b => b.code === hit.code);
+        if (racer) {
+          candidates.push({ type: 'leaderCrash', racerName: racer.name, racerCode: racer.code, priority: 7 });
+          this._leaderHitTimestamps = []; // clear to avoid re-trigger
+          return;
+        }
+      }
+    }
+  }
+
+  _detectRecordRun(active, leaderboard, candidates) {
+    if (!this._canStoryType('recordRun')) return;
+    for (const ball of active) {
+      const initialIdx = this._initialOrder.indexOf(ball.id);
+      if (initialIdx === -1) continue;
+      const current = leaderboard.findIndex(e => e.code === ball.code) + 1;
+      if (current <= 0) continue;
+      const initialPosition = initialIdx + 1;
+      const gain = initialPosition - current;
+      if (gain > this._maxGainThisRace) {
+        this._maxGainThisRace = gain;
+        if (gain >= 6 && gain > this._prevRecordGain) {
+          this._prevRecordGain = gain;
+          candidates.push({ type: 'recordRun', racerName: ball.name, racerCode: ball.code, priority: 0 });
+          return;
+        }
+      }
+    }
+  }
+
+  _captureInitialOrder(balls) {
+    this._initialOrder = balls.map(b => b.id);
+    const n = balls.length;
+    const third = Math.max(1, Math.floor(n / 3));
+    this._bottomThirdIds = new Set(balls.slice(-third).map(b => b.id));
+  }
+
+  // ---- Publishing ----
+
+  _publishStory(type, racerName, racerCode) {
+    const now = performance.now();
+    if (now - this._lastStoryTime < this._storyCooldown * 1000) return;
+    this._lastStoryTime = now;
+
+    // Pick a message
+    const msg = this._pickMessage(type, racerName);
+
+    // Show on canvas banner
+    this._engine.eventBanner.show(msg, 3200);
+
+    // Add to the DOM feed
+    this._addToDomFeed(type, msg, racerCode);
+
+    // Set type cooldown
+    this._typeCooldowns[type] = now + (this._typeCooldownDuration[type] || 45) * 1000;
+  }
+
+  _pickMessage(type, racerName) {
+    const templates = STORY_TEMPLATES[type];
+    if (!templates) return racerName + ' makes a move!';
+    const available = templates.filter(t => {
+      const key = type + ':' + t[1];
+      return !this._messagesUsed[key];
+    });
+    const pool = available.length > 0 ? available : templates;
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    const key = type + ':' + picked[1];
+    this._messagesUsed[key] = true;
+    // Replace {name} with the racer name
+    const text = picked[1].replace(/\{name\}/g, racerName);
+    return picked[0] + ' ' + text;
+  }
+
+  _addToDomFeed(type, message, racerCode) {
+    const list = document.getElementById('rd-feed-list');
+    if (!list) return;
+    const el = document.createElement('div');
+    el.className = 'rd-entry story-entry';
+    const color = STORY_COLORS[type] || '#ffd700';
+    const id = ++this._storyIdCounter;
+    el.dataset.id = 'story-' + id;
+    el.innerHTML = `<span class="rd-ts" style="color:${color}">★ STORY</span><span class="rd-msg" style="color:${color}">${message}</span>`;
+    el.style.borderLeftColor = color;
+
+    if (list.firstChild) {
+      list.insertBefore(el, list.firstChild);
+    } else {
+      list.appendChild(el);
+    }
+    this._storyElements.push({ id, el });
+
+    // Enforce max 6 entries total in the feed (including RaceDirector entries)
+    const allEntries = list.querySelectorAll('.rd-entry');
+    for (let i = 6; i < allEntries.length; i++) {
+      const old = allEntries[i];
+      if (!old.classList.contains('rd-removing')) {
+        old.classList.add('rd-removing');
+        setTimeout(() => {
+          if (old.parentNode) old.parentNode.removeChild(old);
+        }, 400);
+      }
+    }
+
+    // Auto-remove after 8 seconds
+    setTimeout(() => {
+      if (el.parentNode) {
+        el.classList.add('rd-removing');
+        setTimeout(() => {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        }, 400);
+      }
+      this._storyElements = this._storyElements.filter(s => s.id !== id);
+    }, 8000);
+  }
+
+  _clearStoryElements() {
+    this._storyElements.forEach(s => {
+      if (s.el.parentNode) s.el.parentNode.removeChild(s.el);
+    });
+    this._storyElements = [];
+    this._storyIdCounter = 0;
+  }
+
+  _canStoryType(type) {
+    const cooldownUntil = this._typeCooldowns[type] || 0;
+    return performance.now() >= cooldownUntil;
+  }
+}
+
+// Story message templates — each with an emoji prefix
+const STORY_TEMPLATES = {
+  dominance: [
+    ['👑', '{name} is dominating this race!'],
+    ['🔥', '{name} refuses to give up the lead!'],
+    ['👑', '{name} is in complete control!'],
+    ['🔥', 'Nobody can catch {name} today!'],
+    ['👑', '{name} makes it look easy!'],
+    ['🔥', '{name} is untouchable at the front!'],
+  ],
+  comeback: [
+    ['🚀', 'Incredible comeback by {name}!'],
+    ['🔥', '{name} is charging through the field!'],
+    ['⭐', '{name} stages an amazing recovery!'],
+    ['🚀', '{name} rockets up the standings!'],
+    ['🔥', 'What a fightback from {name}!'],
+    ['⭐', '{name} defies the odds!'],
+  ],
+  collapse: [
+    ['💥', "{name}'s race is falling apart!"],
+    ['😱', '{name} loses control!'],
+    ['💥', '{name} is tumbling down the order!'],
+    ['😱', 'Disaster for {name}!'],
+    ['💥', '{name} is in deep trouble!'],
+    ['😱', 'Things go from bad to worse for {name}!'],
+  ],
+  rivalry: [
+    ['⚔', '{name} are battling for every position!'],
+    ['🔥', '{name} refuse to back down!'],
+    ['⚔', '{name} are locked in battle!'],
+    ['🔥', '{name} are trading places!'],
+    ['⚔', '{name} won\'t give an inch!'],
+  ],
+  underdog: [
+    ['⭐', '{name} shocks the field!'],
+    ['🚀', '{name} joins the front runners!'],
+    ['⭐', '{name} is climbing the ranks!'],
+    ['🚀', '{name} is making a name for themselves!'],
+    ['⭐', '{name} rises to the occasion!'],
+  ],
+  survival: [
+    ['😮', '{name} survives elimination!'],
+    ['🍀', '{name} escapes at the last second!'],
+    ['😮', '{name} cheats elimination!'],
+    ['🍀', 'Lucky escape for {name}!'],
+    ['😮', '{name} clings on!'],
+  ],
+  leaderCrash: [
+    ['💥', 'The leader has been taken down!'],
+    ['🚨', 'Massive upset at the front!'],
+    ['💥', 'The leader is hit!'],
+    ['🚨', 'Chaos at the front of the race!'],
+    ['💥', 'The leader is in trouble!'],
+  ],
+  recordRun: [
+    ['🏆', 'Biggest comeback of today\'s stream by {name}!'],
+    ['🏆', '{name} sets a new record climb!'],
+    ['🏆', '{name} makes history with this charge!'],
+    ['🏆', 'Unbelievable run from {name}!'],
+  ],
+};
+
+const STORY_COLORS = {
+  dominance: '#ffd700',
+  comeback: '#00e676',
+  collapse: '#ff5252',
+  rivalry: '#ff9100',
+  underdog: '#00bcd4',
+  survival: '#69f0ae',
+  leaderCrash: '#ff1744',
+  recordRun: '#d500f9',
+};
+
 class GameEngine {
 
   constructor(canvas) {
@@ -171,14 +1604,11 @@ class GameEngine {
     this.userZoomMultiplier = 1.0;
     this.trackOffset = 0;
     this._dynamicZoom = 1.0;
-    this._camImpulse = 0;
 
     // Particles
     this.particles = [];
     this.selectedBallId = null;
-    this._meteorTimer = 30; // first meteor shower in 30 seconds
-    this._meteorShowerActive = false;
-    this._meteorShowerDuration = 0;
+    this._footballShowerActive = false;
     this.isPanning = false;
     this.panStartX = 0;
     this.panStartCamX = 0;
@@ -209,6 +1639,13 @@ class GameEngine {
 
     // Football image for meteor obstacles
     this.footballImg = null;
+
+    // Commentary & Event systems
+    this.commentary = new Commentary();
+    this.eventBanner = new GlobalEventBanner();
+    this.raceDirector = new RaceDirector();
+    this.broadcastDirector = new BroadcastDirector(this);
+    this.storyEngine = new StoryEngine(this);
 
     // Anti-jam system state
     this.obstacleReliefActive = false;
@@ -366,222 +1803,732 @@ class GameEngine {
     const clampY = (y, bounds, margin = 30) => {
       return Math.min(Math.max(y, bounds.topY + margin), bounds.bottomY - margin);
     };
-    const clampHalf = (y, bounds, half) => {
-      return Math.min(Math.max(y, bounds.topY + half + 8), bounds.bottomY - half - 8);
+
+    const ballR = 15; // average ball radius
+
+    // Spacing configuration for all obstacles and zones
+    const SPACING_CONFIG = {
+      boost: { min: 180, preferred: 260, recovery: 100, safeLanding: 120 },
+      boost_pipe: { min: 220, preferred: 320, recovery: 150, safeLanding: 120 },
+      portal: { min: 250, preferred: 350, recovery: 200, safeLanding: 200 },
+      hammer: { min: 280, preferred: 380, recovery: 250, safeLanding: 120 },
+      spinner: { min: 220, preferred: 300, recovery: 180, safeLanding: 120 },
+      sweep_arm: { min: 220, preferred: 300, recovery: 180, safeLanding: 120 },
+      c_bumper: { min: 240, preferred: 340, recovery: 200, safeLanding: 120 },
+      punchfist: { min: 200, preferred: 280, recovery: 150, safeLanding: 100 },
+      barrier: { min: 200, preferred: 280, recovery: 150, safeLanding: 100 },
+      breakdoor: { min: 160, preferred: 220, recovery: 100, safeLanding: 80 },
+      barrel: { min: 160, preferred: 220, recovery: 100, safeLanding: 80 },
+      peg: { min: 120, preferred: 180, recovery: 80, safeLanding: 50 },
+      slow: { min: 140, preferred: 200, recovery: 100, safeLanding: 80 },
+      wind: { min: 140, preferred: 200, recovery: 100, safeLanding: 80 },
+      launch: { min: 160, preferred: 220, recovery: 100, safeLanding: 150 }
     };
 
-    // 6-phase obstacle zones — all types distributed evenly across all phases
-    const allTypes = ['c_bumper', 'spinner', 'breakdoor', 'barrier', 'hammer', 'barrel', 'cardboard', 'punchfist', 'peg', 'boost', 'slow', 'wind', 'portal', 'launch'];
-    const phases = [
-      { start: 600, end: length * 0.18, spacing: 180, types: [...allTypes] },
-      { start: length * 0.18, end: length * 0.34, spacing: 160, types: [...allTypes] },
-      { start: length * 0.34, end: length * 0.50, spacing: 150, types: [...allTypes] },
-      { start: length * 0.50, end: length * 0.66, spacing: 140, types: [...allTypes] },
-      { start: length * 0.66, end: length * 0.82, spacing: 130, types: [...allTypes] },
-      { start: length * 0.82, end: length - 1500, spacing: 120, types: [...allTypes] }
+    // Zone-based pacing configuration (t = x / length)
+    const ZONE_CONFIG = [
+      { start: 0.00, end: 0.20, density: 1.20, breathSpace: 0.10,
+        types: ['peg', 'c_bumper'] },
+      { start: 0.20, end: 0.60, density: 0.78, breathSpace: 0.03,
+        types: ['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'barrel', 'c_bumper', 'breakdoor', 'slow', 'boost', 'wind'] },
+      { start: 0.60, end: 0.85, density: 0.95, breathSpace: 0.08,
+        types: ['portal', 'launch', 'slow', 'breakdoor', 'barrier', 'peg', 'boost', 'wind'] },
+      { start: 0.85, end: 1.00, density: 1.30, breathSpace: 0.12,
+        types: ['launch', 'barrier', 'breakdoor', 'peg', 'boost', 'wind'] }
     ];
 
-    // Track last placed x per type to avoid clustering
-    const lastX = {};
+    // Weighted obstacle combinations for memorable race moments
+    const COMBINATIONS = [
+      { weight: 4, types: ['boost', 'spinner'], gap: 30 },
+      { weight: 3, types: ['spinner', 'boost'], gap: 40 },
+      { weight: 3, types: ['boost', 'portal'], gap: 30 },
+      { weight: 3, types: ['hammer', 'boost'], gap: 50 },
+      { weight: 2, types: ['portal', 'spinner'], gap: 50 },
+      { weight: 2, types: ['barrier', 'boost'], gap: 30 },
+      { weight: 2, types: ['c_bumper', 'spinner'], gap: 40 },
+      { weight: 2, types: ['boost', 'breakdoor'], gap: 20 },
+      { weight: 1, types: ['punchfist', 'barrel'], gap: 20 },
+    ];
 
-    // Obstacle validation: ensures every obstacle has an escape route, doesn't fully block track
-    const validatePlacement = (obsBottom, obsTop, availH) => {
-      const gapTop = obsTop - bounds.topY;
-      const gapBottom = bounds.bottomY - obsBottom;
-      const minGap = ballR * 2.5; // ~2.5 ball diameters clearance
-      const maxBlockRatio = 0.70; // never block more than 70% of track height
-      const blockedRatio = (obsBottom - obsTop) / availH;
-      if (blockedRatio > maxBlockRatio) return false;
-      if (gapTop < minGap && gapBottom < minGap) return false;
-      return true;
+    // Per-race combo budget: 2-4 memorable sequences
+    let comboCount = 0;
+    const MAX_COMBOS = 2 + Math.floor(Math.random() * 3);
+    let usedCombos = [];
+
+    // Helper to get bounding box for validation
+    const getBB = (obs) => {
+      let minX = obs.x;
+      let maxX = obs.x;
+      let minY = obs.y || 300;
+      let maxY = obs.y || 300;
+
+      const w = obs.width || obs.length || (obs.radius * 2) || 40;
+      const h = obs.height || (obs.radius * 2) || 40;
+
+      if (obs.type === 'c_bumper' || obs.type === 'barrel' || obs.type === 'rock' || obs.type === 'peg') {
+        const r = obs.radius || 20;
+        minX = obs.x - r;
+        maxX = obs.x + r;
+        minY = obs.y - r;
+        maxY = obs.y + r;
+      } else if (obs.type === 'spinner') {
+        const halfLen = obs.length / 2;
+        minX = obs.x - halfLen;
+        maxX = obs.x + halfLen;
+        minY = obs.y - halfLen;
+        maxY = obs.y + halfLen;
+      } else if (obs.type === 'sweep_arm') {
+        const len = obs.length || 100;
+        minX = obs.x - len;
+        maxX = obs.x + len;
+        minY = obs.y - len;
+        maxY = obs.y + len;
+      } else if (obs.type === 'hammer') {
+        const armLen = obs.armLength || 100;
+        const r = obs.headRadius || 25;
+        minX = obs.x - armLen - r;
+        maxX = obs.x + armLen + r;
+        minY = obs.y - armLen - r;
+        maxY = obs.y + armLen + r;
+      } else if (obs.type === 'punchfist') {
+        const d = obs.direction || 1;
+        const ext = obs.extendDist || 120;
+        const r = obs.fistRadius || 32;
+        if (d > 0) {
+          minX = obs.x - r;
+          maxX = obs.x + ext + r;
+        } else {
+          minX = obs.x - ext - r;
+          maxX = obs.x + r;
+        }
+        minY = obs.y - r;
+        maxY = obs.y + r;
+      } else if (obs.type === 'portal') {
+        const r = obs.radius || 25;
+        minX = obs.x - r;
+        maxX = obs.x + r;
+        minY = obs.y - r;
+        maxY = obs.y + r;
+      } else {
+        const halfW = w / 2;
+        const halfH = h / 2;
+        minX = obs.x - halfW;
+        maxX = obs.x + halfW;
+        minY = obs.y - halfH;
+        maxY = obs.y + halfH;
+      }
+      return { minX, maxX, minY, maxY };
     };
 
-    for (const phase of phases) {
-      for (let x = phase.start; x < phase.end; x += phase.spacing + Math.random() * 100) {
-        const type = phase.types[Math.floor(Math.random() * phase.types.length)];
-        const bounds = getBounds(x);
+    // Helper: checks if two bounding boxes overlap
+    const boxesOverlap = (b1, b2, buffer = 10) => {
+      return !(
+        b1.maxX + buffer < b2.minX ||
+        b1.minX - buffer > b2.maxX ||
+        b1.maxY + buffer < b2.minY ||
+        b1.minY - buffer > b2.maxY
+      );
+    };
+
+    // Validation pass for a specific segment range
+    const validateSegment = (startX, endX) => {
+      let errors = 0;
+
+      // Extract all elements in this segment
+      const segmentObstacles = track.obstacles.filter(o => o.x >= startX && o.x < endX);
+      const segmentZones = track.zones.filter(z => z.x >= startX && z.x < endX && z.type !== 'finish');
+      const segmentPegs = track.pegs ? track.pegs.filter(p => p.x >= startX && p.x < endX) : [];
+
+      const elements = [];
+      segmentObstacles.forEach(o => elements.push({ item: o, isZone: false }));
+      segmentZones.forEach(z => elements.push({ item: z, isZone: true }));
+
+      // 1. Outside track boundaries check
+      for (const el of elements) {
+        const obs = el.item;
+        const bb = getBB(obs);
+        const steps = [bb.minX, (bb.minX + bb.maxX) / 2, bb.maxX];
+        for (const cx of steps) {
+          const bounds = getBounds(cx);
+          if (!bounds || bb.minY < bounds.topY - 4 || bb.maxY > bounds.bottomY + 4) {
+            errors++;
+            break;
+          }
+        }
+      }
+
+      // 2. Overlap checks
+      for (let i = 0; i < elements.length; i++) {
+        for (let j = i + 1; j < elements.length; j++) {
+          const el1 = elements[i];
+          const el2 = elements[j];
+
+          // Exceptions:
+          if (el1.item.type === 'boost_pipe' && el2.item.type === 'boost' && Math.abs(el1.item.x - el2.item.x) < 5) continue;
+          if (el2.item.type === 'boost_pipe' && el1.item.type === 'boost' && Math.abs(el1.item.x - el2.item.x) < 5) continue;
+          if (el1.item.type === 'portal' && el2.item.type === 'portal' && el1.item.pairId === el2.item.pairId) continue;
+
+          const bb1 = getBB(el1.item);
+          const bb2 = getBB(el2.item);
+
+          if (boxesOverlap(bb1, bb2, 10)) {
+            errors++;
+          }
+        }
+      }
+
+      // 3. Portal checks (paired distance + exit obstacle check + chain/cycle detection)
+      const allPortals = segmentZones.filter(z => z.type === 'portal');
+      const allTrackPortals = track.zones.filter(z => z.type === 'portal');
+      for (const p1 of allPortals) {
+        const p2 = allTrackPortals.find(p => p !== p1 && p.type === 'portal' && p.pairId === p1.pairId);
+        if (!p2) {
+          errors++;
+          continue;
+        }
+        const dist = Math.abs(p1.x - p2.x);
+        if (dist < 250) errors++; // Portal exits must be at least 250px away
+
+        // Portal exit must not overlap any obstacle
+        const exitBB = getBB(p2);
+        for (const el of elements) {
+          if (el.item.type === 'portal' && el.item.pairId === p1.pairId) continue;
+          if (el.item === p2) continue;
+          const elBB = getBB(el.item);
+          if (boxesOverlap(exitBB, elBB, 15)) {
+            errors++;
+          }
+        }
+      }
+
+      // 3b. Portal chain/cycle detection: check if portal exit leads into another portal entry
+      // Build adjacency: portal pair A -> B if A's exit is within B's entry radius
+      const portalPairs = [];
+      const seenPairIds = new Set();
+      for (const p of allTrackPortals) {
+        if (!seenPairIds.has(p.pairId)) {
+          seenPairIds.add(p.pairId);
+          const entry = p;
+          const exit = allTrackPortals.find(q => q !== p && q.pairId === p.pairId);
+          if (entry && exit) portalPairs.push({ entry, exit, pairId: p.pairId });
+        }
+      }
+      // Build graph: pair A's exit position vs pair B's entry zone
+      const adj = {};
+      for (let i = 0; i < portalPairs.length; i++) {
+        const a = portalPairs[i];
+        const exitCenterX = a.exit.x + a.exit.width / 2;
+        const exitCenterY = a.exit.y + a.exit.height / 2;
+        for (let j = 0; j < portalPairs.length; j++) {
+          if (i === j) continue;
+          const b = portalPairs[j];
+          const entryCenterX = b.entry.x + b.entry.width / 2;
+          const entryCenterY = b.entry.y + b.entry.height / 2;
+          const dx = exitCenterX - entryCenterX;
+          const dy = exitCenterY - entryCenterY;
+          const entryRadius = b.entry.width / 2 + 10; // trigger radius
+          if (dx * dx + dy * dy < entryRadius * entryRadius) {
+            if (!adj[i]) adj[i] = [];
+            adj[i].push(j);
+          }
+        }
+      }
+      // Detect cycles using DFS
+      const visited = new Set();
+      const recStack = new Set();
+      const dfs = (node) => {
+        if (recStack.has(node)) return true; // cycle found
+        if (visited.has(node)) return false;
+        visited.add(node);
+        recStack.add(node);
+        const neighbors = adj[node] || [];
+        for (const n of neighbors) {
+          if (dfs(n)) return true;
+        }
+        recStack.delete(node);
+        return false;
+      };
+      for (let i = 0; i < portalPairs.length; i++) {
+        if (dfs(i)) {
+          errors++;
+          break;
+        }
+      }
+
+      // 4. Blocked boost check
+      const boosts = [];
+      segmentZones.forEach(z => { if (z.type === 'boost') boosts.push(z); });
+      segmentObstacles.forEach(o => { if (o.type === 'boost_pipe') boosts.push(o); });
+
+      boosts.forEach(b => {
+        const bbBoost = getBB(b);
+        const checkXStart = bbBoost.maxX;
+        const checkXEnd = bbBoost.maxX + 220;
+
+        segmentObstacles.forEach(obs => {
+          if (obs.type === 'boost_pipe') return;
+          const bbObs = getBB(obs);
+          if (bbObs.minX >= checkXStart && bbObs.minX <= checkXEnd) {
+            // direct vertical alignment check
+            if (!(bbObs.maxY < bbBoost.minY || bbObs.minY > bbBoost.maxY)) {
+              errors++;
+            }
+          }
+        });
+      });
+
+      // 5. Dead end detection: check if obstacles fully block the lane at any X
+      const scanStep = 40;
+      for (let sx = startX + scanStep; sx < endX - scanStep; sx += scanStep) {
+        const bounds = getBounds(sx);
         if (!bounds) continue;
+        const laneTop = bounds.topY;
+        const laneBottom = bounds.bottomY;
+        const laneHeight = laneBottom - laneTop;
+
+        // Collect all obstacles spanning this X
+        const covering = [];
+        for (const el of elements) {
+          const bb = getBB(el.item);
+          if (bb.minX <= sx && bb.maxX >= sx) {
+            covering.push({ minY: bb.minY, maxY: bb.maxY });
+          }
+        }
+        // Merge intervals
+        covering.sort((a, b) => a.minY - b.minY);
+        let merged = [];
+        for (const c of covering) {
+          if (merged.length === 0) {
+            merged.push({ minY: c.minY, maxY: c.maxY });
+          } else {
+            const last = merged[merged.length - 1];
+            if (c.minY <= last.maxY + 5) {
+              last.maxY = Math.max(last.maxY, c.maxY);
+            } else {
+              merged.push({ minY: c.minY, maxY: c.maxY });
+            }
+          }
+        }
+        // Calculate total blocked height
+        let blocked = 0;
+        for (const m of merged) {
+          blocked += Math.min(m.maxY, laneBottom) - Math.max(m.minY, laneTop);
+        }
+        if (blocked > laneHeight * 0.88 && laneHeight > 50) {
+          errors++;
+          break;
+        }
+      }
+
+      // 6. Bouncing trap detection: opposing obstacles with narrow gap
+      for (let i = 0; i < segmentObstacles.length; i++) {
+        for (let j = i + 1; j < segmentObstacles.length; j++) {
+          const o1 = segmentObstacles[i];
+          const o2 = segmentObstacles[j];
+          const bb1 = getBB(o1);
+          const bb2 = getBB(o2);
+          // X overlap
+          if (bb1.maxX < bb2.minX - 10 || bb2.maxX < bb1.minX - 10) continue;
+          // One near top, one near bottom
+          const bounds = getBounds((bb1.minX + bb1.maxX) / 2);
+          if (!bounds) continue;
+          const laneMid = (bounds.topY + bounds.bottomY) / 2;
+          const o1Above = bb1.maxY < laneMid;
+          const o2Above = bb2.maxY < laneMid;
+          if ((o1Above && o2Above) || (!o1Above && !o2Above)) continue; // both same side, skip
+          // Check gap
+          const topMaxY = o1Above ? bb1.maxY : bb2.maxY;
+          const bottomMinY = o1Above ? bb2.minY : bb1.minY;
+          const gap = bottomMinY - topMaxY;
+          if (gap < 55 && gap > 0) {
+            errors++;
+          }
+        }
+      }
+
+      return errors;
+    };
+
+    // Helper: generates standard structured layout inside a segment
+    const generateSegmentObstacles = (segStart, segEnd) => {
+      let x = segStart + 50 + Math.random() * 50;
+      let lastPlacedType = null;
+      let secondLastPlacedType = null;
+      let recoveryRemaining = 0;
+
+      let densityFactor = 1.0;
+      if (densityStr === 'low') densityFactor = 1.3;
+      if (densityStr === 'medium') densityFactor = 0.80;
+      if (densityStr === 'high') densityFactor = 0.60;
+
+      const MAJOR_OBSTACLES = ['hammer', 'spinner', 'c_bumper', 'portal', 'punchfist', 'sweep_arm', 'barrier'];
+
+      const FORBIDDEN_NEXT = {
+        hammer: ['portal', 'hammer'],
+        portal: ['hammer', 'punchfist', 'spinner'],
+        spinner: ['hammer', 'portal'],
+        punchfist: ['hammer', 'portal'],
+        sweep_arm: ['hammer', 'portal'],
+        barrier: ['portal', 'hammer']
+      };
+
+      let comboNextType = null;
+
+      let _safety = 0;
+      while (x < segEnd - 150) {
+        if (++_safety > 500) { console.log('INFINITE LOOP in generateSegmentObstacles'); break; }
+        let forceSafe = recoveryRemaining > 0;
+
+        const t = x / length;
+
+        // Determine current pacing zone
+        const currentZone = ZONE_CONFIG.find(z => t >= z.start && t < z.end) || ZONE_CONFIG[ZONE_CONFIG.length - 1];
+        let allowedTypes = currentZone.types;
+        const zoneDensity = currentZone.density;
+        const breathSpaceChance = currentZone.breathSpace;
+
+        // Breathing space: occasional obstacle-free gaps for contrast
+        if (Math.random() < breathSpaceChance && !forceSafe && !comboNextType && lastPlacedType) {
+          x += 350 + Math.random() * 500;
+          lastPlacedType = null;
+          secondLastPlacedType = null;
+          continue;
+        }
+
+        // Combo sequence: if a combo partner is queued, force it
+        let type;
+        if (comboNextType) {
+          type = comboNextType;
+          comboNextType = null;
+        } else {
+          // Avoid immediate repeating or heavy clustering of same type
+          let filtered = allowedTypes.filter(type => type !== lastPlacedType && type !== secondLastPlacedType);
+          if (filtered.length === 0) filtered = allowedTypes;
+
+          // Forbidden sequence prevention
+          if (lastPlacedType && FORBIDDEN_NEXT[lastPlacedType]) {
+            filtered = filtered.filter(type => !FORBIDDEN_NEXT[lastPlacedType].includes(type));
+            if (filtered.length === 0) filtered = allowedTypes.filter(type => type !== lastPlacedType);
+          }
+
+          // Forced safe types during recovery period
+          if (forceSafe) {
+            const safeTypes = filtered.filter(type => !MAJOR_OBSTACLES.includes(type));
+            if (safeTypes.length > 0) filtered = safeTypes;
+            recoveryRemaining -= 1;
+          }
+
+          type = filtered[Math.floor(Math.random() * filtered.length)];
+        }
+
+        const bounds = getBounds(x);
+        if (!bounds) {
+          x += 200;
+          continue;
+        }
+
         const centerY = (bounds.topY + bounds.bottomY) / 2;
         const availH = bounds.bottomY - bounds.topY;
         const halfH = availH / 2;
 
-        // Avoid same-type clustering
-        if (lastX[type] && x - lastX[type] < 200) continue;
-        lastX[type] = x;
+        const cfg = SPACING_CONFIG[type] || { min: 150, preferred: 200, recovery: 0, safeLanding: 0 };
 
+        // 1. Position details & dynamic sizing based on available lane height
         if (type === 'c_bumper') {
-          // 75% chance of rotating C-bumper, 25% chance of boost pipe
-          if (Math.random() < 0.75) {
-            const midY = clampY(centerY, bounds, 50);
-            const radius = 65 + Math.random() * 15; // ~2.2-2.7 ball diameters
-            const spinSpeed = (0.05 + Math.random() * 0.05) * (Math.random() < 0.5 ? -1 : 1); // ±3-6 deg/s (slower)
+          // 70% chance rotating C-bumper, 30% chance boost pipe corridor
+          if (Math.random() < 0.70) {
+            const radius = Math.min(65 + Math.random() * 15, availH * 0.40);
+            const midY = clampY(centerY + (Math.random() - 0.5) * 20, bounds, radius + 8);
+            const spinSpeed = (0.04 + Math.random() * 0.04) * (Math.random() < 0.5 ? -1 : 1);
             track.obstacles.push({
               type: 'c_bumper', x, y: midY, radius, thickness: 8,
               rotation: Math.random() * Math.PI * 2, spinSpeed
             });
           } else {
-            // Boost pipe — horizontal corridor with exit boost
-            const pipeLen = 160 + Math.random() * 80; // 5.3–8 ball diameters
-            const pipeH = 46 + Math.random() * 10;   // 1.5–1.9 ball diameters
-            // Place pipe in upper or lower half of track with 50px wall gap
+            const pipeLen = 150 + Math.random() * 70;
+            const pipeH = 46 + Math.random() * 8;
             const onTop = Math.random() < 0.5;
-            const topBound = bounds.topY + 50;
-            const botBound = bounds.bottomY - 50;
             const pipeY = onTop
-              ? clampY(topBound + pipeH / 2, bounds)
-              : clampY(botBound - pipeH / 2, bounds);
+              ? clampY(bounds.topY + 50 + pipeH / 2, bounds, pipeH / 2 + 5)
+              : clampY(bounds.bottomY - 50 - pipeH / 2, bounds, pipeH / 2 + 5);
+
             track.obstacles.push({
               type: 'boost_pipe', x, y: pipeY,
               length: pipeLen, width: pipeH,
-              boostMultiplier: 1.3 + Math.random() * 0.3
+              boostMultiplier: 1.35 + Math.random() * 0.2
             });
-            // Boost zone covering entire pipe
+
             track.zones.push({
-              type: 'boost',
-              x: x,
-              y: pipeY - pipeH / 2,
-              width: pipeLen,
-              height: pipeH,
-              force: 0.40
+              type: 'boost', x: x, y: pipeY - pipeH / 2,
+              width: pipeLen, height: pipeH, force: 0.38
             });
           }
-          } else if (type === 'boost') {
-          track.zones.push({ type: 'boost', x: x - 37, y: clampY(centerY - halfH * 0.35, bounds) - 22, width: 75, height: 45, force: 0.20 });
+        } else if (type === 'boost') {
+          const w = 75;
+          const h = 45;
+          track.zones.push({
+            type: 'boost', x: x - w / 2,
+            y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
+            width: w, height: h, force: 0.20
+          });
         } else if (type === 'slow') {
-          track.zones.push({ type: 'slow', x: x - 30, y: clampY(centerY + halfH * 0.3, bounds) - 22, width: 60, height: 45 });
+          const w = 60;
+          const h = 45;
+          track.zones.push({
+            type: 'slow', x: x - w / 2,
+            y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
+            width: w, height: h
+          });
         } else if (type === 'wind') {
-          track.zones.push({ type: 'wind', x: x - 25, y: clampY(centerY - 35, bounds), width: 50, height: Math.min(70, availH * 0.6), force: (Math.random() - 0.5) * 0.08 });
+          const w = 50;
+          const h = Math.min(70, availH * 0.55);
+          const forceDir = Math.random() < 0.5 ? 1 : -1;
+          const forceMag = 0.018 + Math.random() * 0.018;
+          track.zones.push({
+            type: 'wind', x: x - w / 2,
+            y: clampY(centerY, bounds, h / 2 + 5) - h / 2,
+            width: w, height: h,
+            force: forceDir * forceMag
+          });
         } else if (type === 'punchfist') {
           const fistDir = Math.random() < 0.5 ? 1 : -1;
-          track.obstacles.push({ type: 'punchfist', x, y: clampY(centerY + (Math.random() - 0.5) * 30, bounds), direction: fistDir, extendDist: 120, fistRadius: 32, phase: Math.random(), cycleDuration: 60, fired: false, fistX: x, fistY: centerY });
+          const fistRadius = 32;
+          track.obstacles.push({
+            type: 'punchfist', x, y: clampY(centerY + (Math.random() - 0.5) * 20, bounds, fistRadius + 8),
+            direction: fistDir, extendDist: 110, fistRadius, phase: Math.random(),
+            cycleDuration: 60, fired: false, fistX: x, fistY: centerY
+          });
         } else if (type === 'portal') {
-            // Portal pair, ~800-1200px apart (20-30m)
-            const pairId = Math.random().toString(36).slice(2);
-            const distAhead = 800 + Math.random() * 400;
-            const portalSize = 50;
-            track.zones.push({ type: 'portal', x: x - portalSize / 2, y: clampY(centerY - portalSize / 2, bounds), width: portalSize, height: portalSize, pairId, radius: portalSize / 2 });
-            const x2 = Math.min(x + distAhead, phase.end - 100);
-            if (x2 > x + 200) {
-              track.zones.push({ type: 'portal', x: x2 - portalSize / 2, y: clampY(centerY - portalSize / 2, bounds), width: portalSize, height: portalSize, pairId, radius: portalSize / 2 });
-              lastX['portal'] = x2;
-            }
-          } else if (type === 'launch') {
-            // Bounce pad at bottom of track: launches ball upward
-            const padW = 50;
-            track.zones.push({ type: 'launch', x: x - padW / 2, y: bounds.bottomY - 20, width: padW, height: 20 });
-          } else if (type === 'barrier') {
-            // Vertical moving gate: purple/blue, narrow, slow movement
-            const bw = 16 + Math.random() * 6; // ~16-22px wide
-            const bh = 80 + Math.random() * 40; // ~80-120px tall
-            const bY = clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds);
-            // Movement range: at least barrier height total (half each direction)
-            const travelRange = Math.max(bh, (bounds.bottomY - bounds.topY) * 0.35);
-            const minY = clampY(bY - travelRange / 2, bounds);
-            const maxY = clampY(bY + travelRange / 2, bounds);
-            track.obstacles.push({
-              type: 'barrier', x, y: bY,
-              width: bw, height: bh,
-              isVertical: true,
-              direction: Math.random() < 0.5 ? 1 : -1,
-              speed: 0.3 + Math.random() * 0.3, // 0.3-0.6 px/frame (slow)
-              minY, maxY
+          const pairId = Math.random().toString(36).slice(2);
+          const distAhead = 750 + Math.random() * 350;
+          const portalSize = 50;
+          const p1Y = clampY(centerY + (Math.random() - 0.5) * 30, bounds, portalSize / 2 + 8);
+          
+          // Portal 1 (Entry)
+          track.zones.push({
+            type: 'portal', x: x - portalSize / 2, y: p1Y - portalSize / 2,
+            width: portalSize, height: portalSize, pairId, radius: portalSize / 2
+          });
+
+          // Portal 2 (Exit) - Ensure inside track boundaries
+          const x2 = Math.min(x + distAhead, segEnd - 100);
+          const bounds2 = getBounds(x2);
+          if (bounds2 && x2 > x + 250) {
+            const p2Y = clampY((bounds2.topY + bounds2.bottomY) / 2, bounds2, portalSize / 2 + 10);
+            track.zones.push({
+              type: 'portal', x: x2 - portalSize / 2, y: p2Y - portalSize / 2,
+              width: portalSize, height: portalSize, pairId, radius: portalSize / 2
             });
-          } else if (type === 'spinner') {
-            // Rotating bar with variable speed
-            const barLen = 80 + Math.random() * 40;
-            // Speed distribution: 25% each of 100%, 80%, 70%, 50%
-            const speedRoll = Math.random();
-            let speedPct;
-            if (speedRoll < 0.25) speedPct = 1.0;
-            else if (speedRoll < 0.50) speedPct = 0.8;
-            else if (speedRoll < 0.75) speedPct = 0.7;
-            else speedPct = 0.5;
-            const baseSpeed = 0.07;
-            const spinSpeed = baseSpeed * speedPct * (Math.random() < 0.5 ? 1 : -1);
-            track.obstacles.push({
-              type: 'spinner', x, y: clampY(centerY, bounds, 30),
-              length: barLen,
-              angle: Math.random() * Math.PI * 2,
-              speed: spinSpeed,
-              pins: []
+            // Skip spacing offset forward
+            x = x2 + 50;
+          }
+        } else if (type === 'launch') {
+          const padW = 50;
+          track.zones.push({
+            type: 'launch', x: x - padW / 2, y: bounds.bottomY - 20,
+            width: padW, height: 20
+          });
+        } else if (type === 'barrier') {
+          const bw = 16 + Math.random() * 4;
+          const bh = Math.min(75 + Math.random() * 30, availH * 0.55); // Dynamic size constraint
+          const bY = clampY(centerY + (Math.random() - 0.5) * availH * 0.25, bounds, bh / 2 + 5);
+          const travelRange = Math.max(bh, availH * 0.35);
+          const minY = clampY(bY - travelRange / 2, bounds, bh / 2 + 5);
+          const maxY = clampY(bY + travelRange / 2, bounds, bh / 2 + 5);
+          track.obstacles.push({
+            type: 'barrier', x, y: bY, width: bw, height: bh, isVertical: true,
+            direction: Math.random() < 0.5 ? 1 : -1, speed: 0.35 + Math.random() * 0.25,
+            minY, maxY
+          });
+        } else if (type === 'spinner') {
+          const barLen = Math.min(80 + Math.random() * 35, availH * 0.55); // Scaled
+          const baseSpeed = 0.065;
+          const speedPct = [1.0, 0.8, 0.7, 0.5][Math.floor(Math.random() * 4)];
+          const spinSpeed = baseSpeed * speedPct * (Math.random() < 0.5 ? 1 : -1);
+          track.obstacles.push({
+            type: 'spinner', x, y: clampY(centerY, bounds, barLen / 2 + 6),
+            length: barLen, angle: Math.random() * Math.PI * 2,
+            speed: spinSpeed, pins: []
+          });
+        } else if (type === 'sweep_arm') {
+          const armLen = Math.min(90 + Math.random() * 40, availH * 0.60);
+          const baseSpeed = 0.065;
+          const speedPct = [1.0, 0.8, 0.7, 0.5][Math.floor(Math.random() * 4)];
+          const physicsSpeed = baseSpeed * speedPct;
+          track.obstacles.push({
+            type: 'sweep_arm', x, y: clampY(centerY, bounds, 20),
+            length: armLen, angle: Math.random() * Math.PI * 2,
+            speed: physicsSpeed * 0.3, physicsSpeed,
+            direction: Math.random() < 0.5 ? 1 : -1
+          });
+        } else if (type === 'breakdoor') {
+          const doorW = 30 + Math.random() * 8;
+          const doorH = Math.min(80 + Math.random() * 30, availH * 0.55);
+          const hp = 5 + Math.floor(Math.random() * 6); // Set hp 5..10 as per TODO.md
+          const dY = clampY(centerY, bounds, doorH / 2 + 5);
+          track.obstacles.push({
+            type: 'breakdoor', x, y: dY, width: doorW, height: doorH,
+            hp, maxHp: hp, broken: false, _hitCooldown: 0, _crackLevel: 0
+          });
+        } else if (type === 'hammer') {
+          const armLen = Math.min(75 + Math.random() * 25, availH * 0.50);
+          const headRadius = 22 + Math.random() * 6;
+          const speed = 0.035 + Math.random() * 0.03;
+          const direction = Math.random() < 0.5 ? 1 : -1;
+          const initialAngle = Math.random() * Math.PI * 2;
+          const pivotChoice = Math.random();
+          let pivotY;
+          if (pivotChoice < 0.25) pivotY = bounds.topY + 12;
+          else if (pivotChoice < 0.5) pivotY = bounds.bottomY - 12;
+          else pivotY = centerY;
+
+          track.obstacles.push({
+            type: 'hammer', x, y: pivotY, armLength: armLen, headRadius,
+            speed, direction, angle: initialAngle,
+            headX: x + Math.cos(initialAngle) * armLen,
+            headY: pivotY + Math.sin(initialAngle) * armLen
+          });
+        } else if (type === 'barrel') {
+          const radius = 18 + Math.random() * 7;
+          track.obstacles.push({
+            type: 'barrel', x, y: clampY(centerY + (Math.random() - 0.5) * availH * 0.35, bounds, radius + 6),
+            radius, mass: radius * 0.09, vx: 0, vy: 0,
+            spin: Math.random() * Math.PI * 2, spinSpeed: 0
+          });
+        } else if (type === 'peg') {
+          if (!track.pegs) track.pegs = [];
+          const pegR = 4 + Math.random() * 2;
+          const count = 2 + Math.floor(Math.random() * 2);
+          const spacing = 40 + Math.random() * 8;
+          const startY = clampY(centerY - (count - 1) * spacing / 2 + (Math.random() - 0.5) * availH * 0.35, bounds, spacing / 2 + 5);
+          const pegX = x + (Math.random() - 0.5) * 15;
+          for (let pi = 0; pi < count; pi++) {
+            track.pegs.push({
+              x: pegX + (Math.random() - 0.5) * 4,
+              y: startY + pi * spacing,
+              radius: pegR, bouncy: true
             });
-          } else if (type === 'breakdoor') {
-            // Breakable barrier: red/orange with HP 3-5
-            const doorW = 30 + Math.random() * 10;
-            const doorH = 80 + Math.random() * 40;
-            const hp = 3 + Math.floor(Math.random() * 3); // 3-5 HP
-            const dY = clampY(centerY, bounds);
-            track.obstacles.push({
-              type: 'breakdoor', x, y: dY,
-              width: doorW, height: doorH,
-              hp, maxHp: hp,
-              broken: false, _hitCooldown: 0,
-              _crackLevel: 0
-            });
-          } else if (type === 'peg') {
-            // Small white circular blockers in vertical stacks of 2-3
-            if (!track.pegs) track.pegs = [];
-            const pegR = 4 + Math.random() * 2;
-            const count = 2 + Math.floor(Math.random() * 2); // 2-3 per stack
-            const spacing = 40 + Math.random() * 10;
-            const startY = clampY(centerY - (count - 1) * spacing / 2 + (Math.random() - 0.5) * availH * 0.4, bounds);
-            const pegX = x + (Math.random() - 0.5) * 20;
-            for (let pi = 0; pi < count; pi++) {
-              track.pegs.push({
-                x: pegX + (Math.random() - 0.5) * 6,
-                y: startY + pi * spacing,
-                radius: pegR,
-                bouncy: true
-              });
+          }
+        }
+
+        // Advance X by spacing values
+        secondLastPlacedType = lastPlacedType;
+        lastPlacedType = type;
+
+        const isDifficult = MAJOR_OBSTACLES.includes(type);
+        let nextSpacing = cfg.preferred;
+        if (type === 'boost' || isDifficult) nextSpacing += cfg.recovery;
+
+        if (type === 'portal') nextSpacing += cfg.safeLanding;
+
+        // Zone density multiplier shapes per-zone pacing
+        const xBeforeAdvance = x;
+        const normalAdvance = Math.max(cfg.min, nextSpacing * densityFactor * zoneDensity);
+        x += normalAdvance;
+
+        // Attempt to start a weighted combo after non-trivial placements
+        // If a combo starts, tighten the gap between the two paired obstacles
+        if (!comboNextType && !forceSafe && comboCount < MAX_COMBOS && lastPlacedType && Math.random() < 0.08) {
+          const compatible = COMBINATIONS.filter(c =>
+            c.types[0] === lastPlacedType &&
+            !usedCombos.includes(c) &&
+            // Second type must be allowed in the current zone (or nearby future zone)
+            (currentZone.types.includes(c.types[1]) ||
+             ZONE_CONFIG.some(z => t + 0.02 >= z.start && t + 0.02 < z.end && z.types.includes(c.types[1])))
+          );
+          if (compatible.length > 0) {
+            const totalWeight = compatible.reduce((s, c) => s + c.weight, 0);
+            let roll = Math.random() * totalWeight;
+            for (const combo of compatible) {
+              roll -= combo.weight;
+              if (roll <= 0) {
+                comboNextType = combo.types[1];
+                // Tighten x so second element lands close to the first
+                x = Math.max(xBeforeAdvance + 10, xBeforeAdvance + combo.gap);
+                usedCombos.push(combo);
+                comboCount++;
+                break;
+              }
             }
           }
+        }
+
+        if (isDifficult) {
+          recoveryRemaining = Math.max(recoveryRemaining, 2);
+        } else {
+          recoveryRemaining = Math.max(0, recoveryRemaining - 1);
+        }
+      }
+    };
+
+    // Helper: generates a safe backup layout when regeneration retries exhaust
+    const generateSparseSegment = (trackObj, startX, endX) => {
+      let x = startX + 150;
+      while (x < endX - 150) {
+        const bounds = getBounds(x);
+        if (bounds) {
+          const centerY = (bounds.topY + bounds.bottomY) / 2;
+          // Simple launch pad or peg stack
+          if (Math.random() < 0.5) {
+            trackObj.zones.push({
+              type: 'launch', x: x - 25, y: bounds.bottomY - 20,
+              width: 50, height: 20
+            });
+          } else {
+            if (!trackObj.pegs) trackObj.pegs = [];
+            trackObj.pegs.push({ x, y: centerY - 30, radius: 5, bouncy: true });
+            trackObj.pegs.push({ x, y: centerY + 30, radius: 5, bouncy: true });
+          }
+        }
+        x += 400; // very wide spacing
+      }
+    };
+
+    // Segment partition and loop
+    const numSegments = 10;
+    const segmentWidth = (finishX - 800) / numSegments;
+
+    for (let s = 0; s < numSegments; s++) {
+      const segStart = 800 + s * segmentWidth;
+      const segEnd = segStart + segmentWidth;
+
+      let retries = 0;
+      let valid = false;
+
+      while (retries < 10 && !valid) {
+        // Clear old items inside this segment range
+        track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
+        track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
+        if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
+
+        // Generate segment contents
+        generateSegmentObstacles(segStart, segEnd);
+
+        // Run validation pass
+        const errors = validateSegment(segStart, segEnd);
+        if (errors === 0) {
+          valid = true;
+        } else {
+          retries++;
+        }
+      }
+
+      // If segment keeps failing, fall back to safe spacing sparse layout
+      if (!valid) {
+        track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
+        track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
+        if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
+        generateSparseSegment(track, segStart, segEnd);
       }
     }
-
-    // Post-generation validation: remove obstacles that fully block the track or trap racers
-    const ballR = 15; // average ball radius
-    track.obstacles = track.obstacles.filter(obs => {
-      if (obs.type === 'c_bumper') {
-        const top = obs.y - obs.radius;
-        const bot = obs.y + obs.radius;
-        const bounds = getBounds(obs.x);
-        if (!bounds) return false;
-        const gapTop = top - bounds.topY;
-        const gapBot = bounds.bottomY - bot;
-        return gapTop > ballR * 2 && gapBot > ballR * 2;
-      }
-      if (obs.type === 'barrier' || obs.type === 'breakdoor') {
-        const halfH = (obs.height || 60) / 2;
-        const top = obs.y - halfH;
-        const bot = obs.y + halfH;
-        const bounds = getBounds(obs.x);
-        if (!bounds) return false;
-        const availH = bounds.bottomY - bounds.topY;
-        const blockedRatio = (bot - top) / availH;
-        const gapTop = top - bounds.topY;
-        const gapBot = bounds.bottomY - bot;
-        return blockedRatio < 0.70 && (gapTop > ballR * 2.5 || gapBot > ballR * 2.5);
-      }
-      if (obs.type === 'spinner') {
-        const halfLen = obs.length / 2;
-        const top = obs.y - halfLen;
-        const bot = obs.y + halfLen;
-        const bounds = getBounds(obs.x);
-        if (!bounds) return false;
-        const availH = bounds.bottomY - bounds.topY;
-        const gapTop = top - bounds.topY;
-        const gapBot = bounds.bottomY - bot;
-        return gapTop > ballR * 2.5 || gapBot > ballR * 2.5;
-      }
-      return true;
-    });
+    
+    // (final stretch boost placement removed — only launch pads and boost_pipe remain)
 
     this.track = track;
   }
 
   // Update dynamic obstacles (punchfist extension, breakdoor fragments, meteor cleanup)
   updateDynamicObstacles(dt) {
-    if (!this.track || !this.track.obstacles) return;
     this.track.obstacles.forEach(obs => {
       if (obs.type === 'punchfist') {
         obs.phase = (obs.phase || 0) + dt / (obs.cycleDuration || 60);
@@ -613,6 +2560,10 @@ class GameEngine {
       } else if (obs.type === 'spinner') {
         // Continuous 360 rotation
         obs.angle = (obs.angle || 0) + (obs.speed || 0.03) * dt;
+      } else if (obs.type === 'sweep_arm') {
+        // Rotate using physicsSpeed for consistent collision force, speed for visual
+        const physicsSpeed = obs.physicsSpeed || obs.speed || 0.07;
+        obs.angle = (obs.angle || 0) + physicsSpeed * obs.direction * dt;
       } else if (obs.type === 'trapdoor') {
         // Toggle open/close every 60 frames
         obs._trapTimer = (obs._trapTimer || 0) + dt;
@@ -635,6 +2586,21 @@ class GameEngine {
         obs.x += (obs.vx || 0) * dt;
         obs.vy = (obs.vy || 0) + 0.15 * dt; // gravity acceleration
         obs.y += obs.vy * dt;
+        // Footballs pass through walls (no bounce), but still have lifespan
+        if (obs._lifetime > 0) {
+          obs._lifetime -= dt;
+          if (obs._lifetime <= 0) obs._remove = true;
+        }
+        // Stopped detection: remove footballs that stop moving
+        if (obs._lifetime > 0 || obs._stoppedTimer !== undefined) {
+          const speed = Math.hypot(obs.vx || 0, obs.vy || 0);
+          if (speed < 0.3) {
+            obs._stoppedTimer = (obs._stoppedTimer || 0) + dt;
+            if (obs._stoppedTimer > 120) obs._remove = true;
+          } else {
+            obs._stoppedTimer = 0;
+          }
+        }
       } else if (obs.type === 'breakdoor') {
         if (obs.broken) {
           if (obs._fragments) {
@@ -657,6 +2623,29 @@ class GameEngine {
           else if (ratio <= 0.8) obs._crackLevel = 1;
           else obs._crackLevel = 0;
         }
+      } else if (obs.type === 'hammer') {
+        obs.angle = (obs.angle || 0) + (obs.speed || 0.03) * obs.direction * dt;
+        obs.headX = obs.x + Math.cos(obs.angle) * (obs.armLength || 100);
+        obs.headY = obs.y + Math.sin(obs.angle) * (obs.armLength || 100);
+      } else if (obs.type === 'barrel') {
+        obs.vx = obs.vx || 0;
+        obs.vy = obs.vy || 0;
+        obs.x += obs.vx * dt;
+        obs.y += obs.vy * dt;
+        obs.vx *= Math.pow(0.98, dt);
+        obs.vy *= Math.pow(0.98, dt);
+        const bounds = this.physics.getWallBoundaries(obs.x, this.track);
+        if (bounds) {
+          const r = obs.radius || 20;
+          if (obs.y - r < bounds.topY) {
+            obs.y = bounds.topY + r;
+            obs.vy = Math.abs(obs.vy) * 0.6;
+          } else if (obs.y + r > bounds.bottomY) {
+            obs.y = bounds.bottomY - r;
+            obs.vy = -Math.abs(obs.vy) * 0.6;
+          }
+        }
+        obs.spin = (obs.spin || 0) + (obs.vx * 0.05) * dt;
       }
     });
 
@@ -677,31 +2666,40 @@ class GameEngine {
     if (!this.track || !this.balls.length) return;
     const leadBall = [...this.balls].filter(b => !b.finished).sort((a, b) => b.x - a.x)[0];
     if (!leadBall) return;
-    const spawnX = leadBall.x + (Math.random() - 0.5) * 400;
+    const isFootball = this._footballShowerActive;
+    const range = isFootball ? 800 : 400;
+    const spawnX = leadBall.x + (Math.random() - 0.5) * range;
     const bounds = this.physics.getWallBoundaries(spawnX, this.track);
     if (!bounds) return;
     const spawnY = bounds.topY + 10;
+    const isFoot = isFootball;
     this.track.obstacles.push({
       type: 'rock', isMeteor: true,
       x: spawnX, y: spawnY,
-      radius: 14 + Math.random() * 8,
-      vx: (Math.random() - 0.5) * 0.5,
-      vy: 4 + Math.random() * 4,
-      mass: 3
+      radius: isFoot ? 20 + Math.random() * 11 : 14 + Math.random() * 8,
+      vx: (Math.random() - 0.5) * (isFoot ? 3 : 0.5),
+      vy: isFoot ? 2 + Math.random() * 6 : 4 + Math.random() * 4,
+      mass: isFoot ? 5 : 3,
+      bounce: 0, // footballs pass through walls, only collide with balls
+      _lifetime: isFoot ? 300 + Math.random() * 200 : 0,
+      _stoppedTimer: 0
     });
   }
 
-  // Trigger a random race event (meteor shower, gravity flip, etc.)
+  // Trigger alternate race events (football shower ↔ gravity flip)
   triggerRandomEvent() {
     if (this.activeEvent) return;
-    const events = [
-      { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240 },
-      { name: 'SPEED BOOM', key: 'speed_boom', duration: 180 }
-    ];
-    const evt = events[Math.floor(Math.random() * events.length)];
+    this._eventToggle = !this._eventToggle;
+    const evt = this._eventToggle
+      ? { name: '\u26BD FOOTBALL SHOWER!', key: 'football_shower', duration: 420 }
+      : { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240 };
     this.activeEvent = evt;
     this.eventTimer = evt.duration;
+    if (evt.key === 'football_shower') {
+      this._footballShowerActive = true;
+    }
     this.eventCount++;
+    this.commentary.add(evt.name + ' triggered!', 'info');
   }
 
   // Update random event continuous effects
@@ -711,6 +2709,9 @@ class GameEngine {
     if (this.eventTimer <= 0) {
       if (this.activeEvent.key === 'gravity_flip') {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
+      }
+      if (this.activeEvent.key === 'football_shower') {
+        this._footballShowerActive = false;
       }
       this.activeEvent = null;
       return;
@@ -726,6 +2727,19 @@ class GameEngine {
       this.balls.forEach(ball => {
         if (!ball.finished) {
           ball.vx *= 1 + 0.001 * dt;
+        }
+      });
+    } else if (this.activeEvent.key === 'low_gravity') {
+      this.balls.forEach(ball => {
+        if (!ball.finished && ball.z > 0) {
+          ball.vz += 0.02 * dt; // reduced gravity pull-down
+        }
+      });
+    } else if (this.activeEvent.key === 'chaos_winds') {
+      this.balls.forEach(ball => {
+        if (!ball.finished) {
+          ball.vx += (Math.random() - 0.5) * 0.015 * dt;
+          ball.vy += (Math.random() - 0.5) * 0.015 * dt;
         }
       });
     }
@@ -794,27 +2808,13 @@ class GameEngine {
       if (this.state === 'racing') {
         this.raceTimer += (16.666 * dt) / 1000;
 
-        // Random event trigger chance: every ~15s
-        if (this.eventCount < this.maxEvents && this.activeEvent === null) {
-          const nextEventChance = 0.0012 * dt; // increased chance
-          if (Math.random() < nextEventChance && this.raceTimer > 10) {
-            this.triggerRandomEvent();
-          }
+        // Timed event trigger: every 20 race-seconds
+        if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime) {
+          this.triggerRandomEvent();
+          this._nextEventRaceTime += 20;
         }
 
-        // Periodic meteor shower every 25 seconds
-        this._meteorTimer -= dt / 60;
-        if (this._meteorTimer <= 0 && this.state === 'racing') {
-          this._meteorShowerActive = true;
-          this._meteorShowerDuration = 300; // 5 seconds (300 frames at 60fps)
-          this._meteorTimer = 30;
-        }
-        if (this._meteorShowerActive) {
-          this._meteorShowerDuration -= dt;
-          if (this._meteorShowerDuration <= 0) {
-            this._meteorShowerActive = false;
-          }
-        }
+
       }
 
       // Watchdog timer: skip physics if previous frame took >100ms
@@ -852,17 +2852,43 @@ class GameEngine {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
 
-      // Localized camera impulses (major impacts only — hammer, high-speed wall, launch)
-      let maxImpulse = 0;
+      // Meteor/football collision particles
       this.balls.forEach(b => {
-        if (b.finished) return;
-        if (b._hitHammerThisFrame || b._hitPunchFistThisFrame) maxImpulse = Math.max(maxImpulse, 3);
-        else if (b._hitMeteorThisFrame && Math.hypot(b.vx, b.vy) > 5) maxImpulse = Math.max(maxImpulse, 2.5);
-        else if (b._hitWallThisFrame && Math.hypot(b.vx, b.vy) > 6) maxImpulse = Math.max(maxImpulse, 2);
-        else if (b._hitBarrierThisFrame && Math.hypot(b.vx, b.vy) > 4) maxImpulse = Math.max(maxImpulse, 2);
-        else if (b._hitBarrelThisFrame && Math.hypot(b.vx, b.vy) > 5) maxImpulse = Math.max(maxImpulse, 1.5);
+        if (b._hitMeteorThisFrame && !b.finished) {
+          const isFootballHit = this._footballShowerActive;
+          const count = isFootballHit ? 12 + Math.floor(Math.random() * 8) : 4 + Math.floor(Math.random() * 4);
+          for (let p = 0; p < count; p++) {
+            const a = Math.random() * Math.PI * 2;
+            const spd = isFootballHit ? 2 + Math.random() * 4 : 1 + Math.random() * 2;
+            this.particles.push({
+              type: 'sparkle',
+              x: b.x + (Math.random() - 0.5) * 10,
+              y: b.y + (Math.random() - 0.5) * 10,
+              vx: Math.cos(a) * spd,
+              vy: Math.sin(a) * spd,
+              alpha: 1,
+              size: isFootballHit ? 3 + Math.random() * 4 : 1 + Math.random() * 2,
+              life: isFootballHit ? 20 + Math.floor(Math.random() * 15) : 10 + Math.floor(Math.random() * 10),
+              color: isFootballHit ? '#ffffff' : '#ff8800'
+            });
+          }
+          if (isFootballHit) {
+            for (let p = 0; p < 3; p++) {
+              this.particles.push({
+                type: 'sparkle',
+                x: b.x + (Math.random() - 0.5) * 6,
+                y: b.y + (Math.random() - 0.5) * 6,
+                vx: (Math.random() - 0.5) * 2,
+                vy: (Math.random() - 0.5) * 2,
+                alpha: 0.8,
+                size: 2 + Math.random() * 3,
+                life: 8 + Math.floor(Math.random() * 6),
+                color: '#ffdd00'
+              });
+            }
+          }
+        }
       });
-      if (maxImpulse > this._camImpulse) this._camImpulse = maxImpulse;
 
       // Fast ball particle trails (visual quality)
       this.balls.forEach(ball => {
@@ -889,9 +2915,9 @@ class GameEngine {
       // Update random event continuous forces
       this.updateRandomEvents(dt);
 
-      // Periodic meteor shower spawning
-      if (this._meteorShowerActive && this.state === 'racing') {
-        if (Math.random() < 0.06 * dt) {
+      // Football shower spawning
+      if (this._footballShowerActive && this.state === 'racing') {
+        if (Math.random() < 0.18 * dt) {
           this.spawnMeteor();
         }
       }
@@ -1004,6 +3030,73 @@ class GameEngine {
       // Live Leaderboard calculation
       this.calculateLiveLeaderboard();
 
+      // Commentary: detect leader changes (immediate DOM feed)
+      if (this.leaderboard.length > 0) {
+        const currentLeader = this.leaderboard[0];
+        if (currentLeader && !currentLeader.finished) {
+          if (this.commentary.lastLeaderCode && this.commentary.lastLeaderCode !== currentLeader.code) {
+            this.commentary.add(currentLeader.name.toUpperCase() + ' takes the lead!', 'leader');
+          }
+          this.commentary.lastLeaderCode = currentLeader.code;
+        }
+      }
+
+      // Sustained leader tracking for event banner (avoids queue buildup from rapid changes)
+      {
+        const now = performance.now();
+        const leadLeader = this.leaderboard.length > 0 ? this.leaderboard[0] : null;
+        if (leadLeader && !leadLeader.finished) {
+          if (this._sustainedLeaderCode !== leadLeader.code) {
+            this._sustainedLeaderCode = leadLeader.code;
+            this._sustainedLeaderStartTime = now;
+            this._sustainedLeaderBannerShown = false;
+          } else if (!this._sustainedLeaderBannerShown) {
+            if ((now - this._sustainedLeaderStartTime) >= 5000) {
+              this.eventBanner.clear();
+              this.eventBanner.show('\u{1F3C6} ' + leadLeader.name.toUpperCase() + ' LEADING!', 3500);
+              this._sustainedLeaderBannerShown = true;
+              this._sustainedLeaderLastBannerTime = now;
+            }
+          } else if ((now - this._sustainedLeaderLastBannerTime) >= 10000) {
+            this.eventBanner.show('\u{1F3C6} ' + leadLeader.name.toUpperCase() + ' STILL LEADS!', 3500);
+            this._sustainedLeaderLastBannerTime = now;
+          }
+        }
+      }
+
+      // Commentary: detect collisions and events
+      this.balls.forEach(b => {
+        if (b.finished || b.eliminated) return;
+        if (b._hitSweepArmThisFrame && Math.random() < 0.15) {
+          this.commentary.add(b.name + ' hit by sweep arm!', 'crash');
+        }
+        if (b._hitHammerThisFrame && Math.random() < 0.2) {
+          this.commentary.add(b.name + ' smashed by hammer!', 'crash');
+        }
+        if (b._hitPunchFistThisFrame && Math.random() < 0.2) {
+          this.commentary.add(b.name + ' punched!', 'crash');
+        }
+        if (b._hitBarrelThisFrame && Math.random() < 0.15) {
+          this.commentary.add(b.name + ' hit a barrel!', 'crash');
+        }
+        if (b._usedPortalThisFrame) {
+          this.commentary.add(b.name + ' used a portal!', 'portal');
+        }
+        if (b._enteredBoostThisFrame && Math.random() < 0.3) {
+          this.commentary.add(b.name + ' hit a boost!', 'boost');
+        }
+        if (b._hitMeteorThisFrame && Math.random() < 0.1) {
+          this.commentary.add(b.name + ' struck by meteor!', 'crash');
+        }
+      });
+
+      // Race Director observation
+      this.raceDirector.observe(this.balls, this.leaderboard, this.raceTimer, this.track);
+
+      // Update event systems
+      this.eventBanner.update();
+      this.raceDirector.update(dt);
+
       // Check end game criteria
       const activeUnfinished = this.balls.filter(b => !b.finished);
       if (activeUnfinished.length === 0 || (this.gameMode === 'knockout' && this.balls.filter(b => !b.finished).length === 1)) {
@@ -1019,7 +3112,14 @@ class GameEngine {
       }
     }
 
-    // Update Camera Target position (lerping)
+    // Broadcast Director — observe and decide camera state
+    this.broadcastDirector.observe(this.balls, this.leaderboard, this.raceTimer, this.track, this.gameMode, this.activeEvent);
+    this.broadcastDirector.update(dt);
+
+    // Story Engine — observe race data, produce narratives for the event feed
+    this.storyEngine.observe(this.balls, this.leaderboard, this.raceTimer, this.track, this.gameMode);
+
+    // Camera executes the Broadcast Director's shot with smooth movement
     this.updateCameraController(dt);
 
     // Update decorative particles
@@ -1204,33 +3304,10 @@ class GameEngine {
     }
   }
 
-  // Broadcast camera — leader-centered, predictive, dynamic zoom, collision impulses
+  // Smooth camera follow — leader-centered, lerp-based
   updateCameraController(dt) {
     if (this.balls.length === 0) return;
 
-    // --- Dynamic zoom: adjust based on racer spread ---
-    const activeRacers = this.balls.filter(b => !b.finished);
-    if (activeRacers.length > 1 && (this.state === 'racing' || this.state === 'countdown')) {
-      const xs = activeRacers.map(b => b.x);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const spread = maxX - minX;
-      const screenWorld = this.canvas.width / this.cameraZoom;
-      let targetZoom = 1.0;
-      if (spread > screenWorld * 0.6) {
-        targetZoom = Math.max(0.85, 1.0 - (spread / screenWorld - 0.6) * 0.3);
-      } else if (spread < screenWorld * 0.25) {
-        targetZoom = Math.min(1.15, 1.0 + (0.25 - spread / screenWorld) * 0.3);
-      }
-      targetZoom = Math.max(0.85, Math.min(1.15, targetZoom));
-      const zoomLerp = 1 - Math.pow(1 - 0.025, dt);
-      this._dynamicZoom += (targetZoom - this._dynamicZoom) * zoomLerp;
-    } else {
-      const zoomLerp = 1 - Math.pow(1 - 0.02, dt);
-      this._dynamicZoom += (1.0 - this._dynamicZoom) * zoomLerp;
-    }
-
-    // --- Camera target ---
     let targetX = 0;
 
     if (this.state === 'countdown' || this.state === 'menu') {
@@ -1238,15 +3315,16 @@ class GameEngine {
     } else {
       if (this.panningOverride) return;
 
+      const activeRacers = this.balls.filter(b => !b.finished);
+
       if (activeRacers.length > 0) {
         if (this.selectedBallId === 'leader' || this.selectedBallId === null) {
+          // Find current leader (ball with highest x position)
           const leader = activeRacers.reduce((a, b) => a.x > b.x ? a : b);
+          // Position camera so the leader appears at ~30% from the left edge
+          // This shows trailing balls on the left and track ahead on the right
           const screenWorldWidth = this.canvas.width / this.cameraZoom;
-          // Leader at ~42% from left — well within center 35% (32.5%–67.5%)
-          const leaderOffset = screenWorldWidth * 0.42;
-          // Predictive look-ahead based on leader velocity
-          const prediction = Math.min(80, Math.max(-20, leader.vx * 12));
-          targetX = leader.x - leaderOffset + prediction;
+          targetX = leader.x - screenWorldWidth * 0.3;
         } else {
           const selected = this.balls.find(b => b.id === this.selectedBallId);
           if (selected) {
@@ -1267,24 +3345,14 @@ class GameEngine {
     const maxCamX = this.track ? Math.max(0, this.track.length - this.canvas.width / this.cameraZoom) : 0;
     targetX = Math.max(0, Math.min(targetX, maxCamX));
 
-    // Smooth camera follow — frame-rate independent lerp
+    // Smooth camera follow — frame-rate independent lerp for buttery motion
     const lerpFactor = 1 - Math.pow(1 - 0.06, dt);
     this.cameraX += (targetX - this.cameraX) * lerpFactor;
-
-    // --- Collision impulse (localized, short, ease-out) ---
-    if (this._camImpulse > 0.1) {
-      const impulseDecay = 1 - Math.pow(1 - 0.12, dt);
-      // Move camera by remaining impulse
-      this.cameraX += this._camImpulse * impulseDecay * 4;
-      // Decay the impulse
-      this._camImpulse *= (1 - impulseDecay * 2);
-      if (this._camImpulse < 0.05) this._camImpulse = 0;
-    }
 
     // Enforce finish line always visible on screen when any ball is near it
     if (this.track && this.track.finishLineX && this.balls.some(b => b.x > this.track.finishLineX - 1200 && !b.finished)) {
       const fX = this.track.finishLineX;
-      const margin = 80;
+      const margin = 40;
       const rightEdge = this.cameraX + this.canvas.width / this.cameraZoom;
       if (fX > rightEdge - margin) {
         this.cameraX = fX - this.canvas.width / this.cameraZoom + margin;
@@ -2283,52 +4351,47 @@ class GameEngine {
             this.ctx.stroke();
           }
           this.ctx.restore();
-        } else if (obs.type === 'cardboard') {
-          if (obs.broken) return;
+        } else if (obs.type === 'sweep_arm') {
           this.ctx.save();
-          const cW = obs.width;
-          const cH = obs.height;
-          const cX = obsX;
-          const cY = obs.y;
-          // Cardboard body — pink/yellow gradient tint
-          const cbGrad = this.ctx.createLinearGradient(cX - cW / 2, cY, cX + cW / 2, cY);
-          cbGrad.addColorStop(0, '#ff7675');
-          cbGrad.addColorStop(0.3, '#fd79a8');
-          cbGrad.addColorStop(0.5, '#fdcb6e');
-          cbGrad.addColorStop(0.7, '#ffeaa7');
-          cbGrad.addColorStop(1, '#fd79a8');
-          this.ctx.fillStyle = cbGrad;
+          const armLen = obs.length || 120;
+          const armAngle = obs.angle || 0;
+          this.ctx.translate(obsX, obs.y);
+          this.ctx.rotate(armAngle);
+          // Pivot hub
+          this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
+          this.ctx.shadowBlur = 8;
+          this.ctx.fillStyle = '#34495e';
+          this.ctx.beginPath();
+          this.ctx.arc(0, 0, 8, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+          // Arm bar
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
           this.ctx.shadowBlur = 6;
-          this.ctx.fillRect(cX - cW / 2, cY - cH / 2, cW, cH);
+          const armGrad = this.ctx.createLinearGradient(0, -4, 0, 4);
+          armGrad.addColorStop(0, '#e67e22');
+          armGrad.addColorStop(0.5, '#f39c12');
+          armGrad.addColorStop(1, '#d35400');
+          this.ctx.fillStyle = armGrad;
+          this.ctx.fillRect(0, -4, armLen, 8);
           this.ctx.shadowBlur = 0;
-          // Dark border frame
-          this.ctx.strokeStyle = '#2d3436';
-          this.ctx.lineWidth = 2;
-          this.ctx.strokeRect(cX - cW / 2, cY - cH / 2, cW, cH);
-          // Window cross (+ sign)
-          this.ctx.strokeStyle = '#2d3436';
-          this.ctx.lineWidth = 2;
+          // Stripe pattern on arm
+          this.ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          for (let s = 10; s < armLen; s += 20) {
+            this.ctx.fillRect(s, -4, 6, 8);
+          }
+          // End cap
+          this.ctx.fillStyle = '#c0392b';
           this.ctx.beginPath();
-          this.ctx.moveTo(cX - cW / 2 + 5, cY);
-          this.ctx.lineTo(cX + cW / 2 - 5, cY);
-          this.ctx.moveTo(cX, cY - cH / 2 + 5);
-          this.ctx.lineTo(cX, cY + cH / 2 - 5);
-          this.ctx.stroke();
-          // Corner brackets
-          this.ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-          this.ctx.lineWidth = 1;
-          const bracket = (x, y, flipX, flipY) => {
-            this.ctx.beginPath();
-            this.ctx.moveTo(x + (flipX ? -4 : 4), y);
-            this.ctx.lineTo(x, y);
-            this.ctx.lineTo(x, y + (flipY ? -4 : 4));
-            this.ctx.stroke();
-          };
-          bracket(cX - cW / 2 + 3, cY - cH / 2 + 3, false, false);
-          bracket(cX + cW / 2 - 3, cY - cH / 2 + 3, true, false);
-          bracket(cX - cW / 2 + 3, cY + cH / 2 - 3, false, true);
-          bracket(cX + cW / 2 - 3, cY + cH / 2 - 3, true, true);
+          this.ctx.arc(armLen, 0, 6, 0, Math.PI * 2);
+          this.ctx.fill();
+          // Glow at tip
+          this.ctx.shadowColor = 'rgba(231,76,60,0.5)';
+          this.ctx.shadowBlur = 15;
+          this.ctx.fillStyle = 'rgba(231,76,60,0.2)';
+          this.ctx.beginPath();
+          this.ctx.arc(armLen, 0, 12, 0, Math.PI * 2);
+          this.ctx.fill();
           this.ctx.restore();
         } else if (obs.type === 'c_bumper') {
           // Rotating C-bumper — small semicircular arc like a pinball bumper
@@ -3680,6 +5743,61 @@ class GameEngine {
         this.ctx.fillRect(-c.size / 2, -c.size / 4, c.size, c.size / 2);
         this.ctx.restore();
       });
+
+      // D. Global Event Banner (animated near lower-center) — hide after race ends or when champion overlay shown
+      if (this.state === 'racing' && !this._championOverlayShown) {
+        this.eventBanner.render(this.ctx, screenW, screenH);
+      }
+
+      // E. Top-Middle Event Capsule — prominent active event display below timer
+      if ((this.state === 'racing' || this.state === 'finished') && !this._championOverlayShown) {
+        if (this.activeEvent) {
+          this.ctx.save();
+          const eventText = this.activeEvent.name;
+          const textWidth = this.ctx.measureText(eventText).width;
+          const capsuleW = Math.max(420, textWidth + 80);
+          const capsuleH = 56;
+          const cx = screenW / 2;
+          const cy = screenH * 0.10;
+          const pulse = 0.6 + 0.4 * Math.sin(this.raceTimer * 4);
+
+          // Outer glow
+          this.ctx.shadowColor = 'rgba(255, 200, 0, 0.5)';
+          this.ctx.shadowBlur = 25 * pulse;
+
+          // Background pill
+          this.ctx.fillStyle = 'rgba(20, 10, 0, 0.85)';
+          this.ctx.beginPath();
+          this.ctx.roundRect(cx - capsuleW / 2, cy - capsuleH / 2, capsuleW, capsuleH, 28);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+
+          // Pulsing gold border
+          this.ctx.strokeStyle = 'rgba(255, 200, 0, ' + (0.5 * pulse) + ')';
+          this.ctx.lineWidth = 3;
+          this.ctx.beginPath();
+          this.ctx.roundRect(cx - capsuleW / 2 - 3, cy - capsuleH / 2 - 3, capsuleW + 6, capsuleH + 6, 30);
+          this.ctx.stroke();
+
+          // Inner highlight line
+          this.ctx.strokeStyle = 'rgba(255, 220, 80, ' + (0.2 * pulse) + ')';
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+          this.ctx.roundRect(cx - capsuleW / 2, cy - capsuleH / 2, capsuleW, capsuleH, 28);
+          this.ctx.stroke();
+
+          // Text with glow
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillStyle = '#ffd700';
+          this.ctx.font = 'bold 22px Montserrat, sans-serif';
+          this.ctx.shadowColor = 'rgba(255, 200, 0, 0.6)';
+          this.ctx.shadowBlur = 12;
+          this.ctx.fillText(eventText, cx, cy);
+
+          this.ctx.restore();
+        }
+      }
     }
 
     // Prepares data and starts countdown
@@ -3698,7 +5816,20 @@ class GameEngine {
       this._championOverlayShown = false;
       this._championWinner = null;
       this._championFlagImg = null;
+      this._footballShowerActive = false;
+      this.commentary.clear();
+      this.commentary.lastLeaderCode = null;
+      this.eventBanner.clear();
+      this._sustainedLeaderCode = null;
+      this._sustainedLeaderStartTime = 0;
+      this._sustainedLeaderBannerShown = false;
+      this._sustainedLeaderLastBannerTime = 0;
+      this.raceDirector.startRace(this.raceLength);
+      this.broadcastDirector.reset();
+      this.storyEngine.reset();
 
+      this._eventToggle = false;
+      this._nextEventRaceTime = 20;
       this.raceTimer = 0;
       this.countdownSeconds = 3;
       this.state = 'countdown';
@@ -3780,16 +5911,7 @@ class GameEngine {
       const mapEl = document.getElementById('hud-map-name');
       if (mapEl) mapEl.innerText = this.currentTheme.name;
 
-      // Update event panel
-      const eventText = document.getElementById('hud-event-name');
-      if (this.activeEvent) {
-        eventText.innerText = this.activeEvent.name;
-        eventText.parentElement.classList.remove('hidden');
-        eventText.parentElement.classList.add('alert-active');
-      } else {
-        eventText.parentElement.classList.add('hidden');
-        eventText.parentElement.classList.remove('alert-active');
-      }
+
 
       // Populate country camera selector dropdown
       const camSelect = document.getElementById('hud-camera-select');
@@ -3872,6 +5994,9 @@ class GameEngine {
     endRace() {
       this.state = 'finished';
       this.isPaused = false;
+
+      // Stop Race Director
+      this.raceDirector.stop();
 
       // Stop HUD update intervals
       clearInterval(this.hudUpdateTimer);
@@ -3959,6 +6084,8 @@ class GameEngine {
     stopRace() {
       this.isRunning = false;
       this.state = 'menu';
+      this.broadcastDirector.reset();
+      this.storyEngine.reset();
 
       if (this.countdownTimer) clearInterval(this.countdownTimer);
       clearInterval(this.hudUpdateTimer);
@@ -3999,5 +6126,283 @@ class GameEngine {
       }
       this.ctx.closePath();
       this.ctx.fill();
+    }
+
+    // Auto-simulation harness: generates N tracks and validates them, reporting statistics
+    // Run in console via: game.runTrackGenerationValidation(300)
+    runTrackGenerationValidation(numTracks = 300) {
+      const themes = Object.keys(MAP_THEMES);
+      const densities = ['low', 'medium', 'high'];
+      const totalStats = {
+        generated: 0,
+        succeeded: 0,
+        portalLoops: 0,
+        outsideTrack: 0,
+        blockedBoosts: 0,
+        overlapping: 0,
+        deadEnds: 0,
+        bouncingTraps: 0,
+        errorsPerTrack: []
+      };
+
+      const trackKey = this.currentThemeKey;
+
+      for (let i = 0; i < numTracks; i++) {
+        const theme = themes[i % themes.length];
+        const density = densities[i % densities.length];
+        const length = 80000 + Math.floor(Math.random() * 40000);
+
+        this.currentThemeKey = theme;
+        this.currentTheme = MAP_THEMES[theme];
+
+        try {
+          this.generateProceduralTrack(theme, length, density);
+          totalStats.generated++;
+
+          if (!this.track || !this.track.obstacles) {
+            totalStats.errorsPerTrack.push({ track: i, error: 'No track generated' });
+            continue;
+          }
+
+          // Independent validation on the generated track
+          const tErrors = this._validateGeneratedTrack(length);
+          if (tErrors === 0) {
+            totalStats.succeeded++;
+          } else {
+            totalStats.errorsPerTrack.push({ track: i, errors: tErrors, theme, density });
+          }
+        } catch (e) {
+          totalStats.errorsPerTrack.push({ track: i, error: e.message });
+        }
+      }
+
+      // Aggregate error types
+      for (const entry of totalStats.errorsPerTrack) {
+        if (entry.errors) {
+          if (entry.errors.portalLoop) totalStats.portalLoops++;
+          if (entry.errors.outsideTrack) totalStats.outsideTrack++;
+          if (entry.errors.blockedBoost) totalStats.blockedBoosts++;
+          if (entry.errors.overlap) totalStats.overlapping++;
+          if (entry.errors.deadEnd) totalStats.deadEnds++;
+          if (entry.errors.bouncingTrap) totalStats.bouncingTraps++;
+        }
+      }
+
+      // Restore track key
+      this.currentThemeKey = trackKey;
+      this.currentTheme = MAP_THEMES[trackKey];
+
+      const report = [
+        `=== Track Generation Validation Report ===`,
+        `Tracks generated: ${totalStats.generated}`,
+        `Clean tracks: ${totalStats.succeeded}`,
+        `Tracks with errors: ${totalStats.generated - totalStats.succeeded}`,
+        `Critical failures:`,
+        `  Portal loops: ${totalStats.portalLoops}`,
+        `  Outside-track obstacles: ${totalStats.outsideTrack}`,
+        `  Blocked boosts: ${totalStats.blockedBoosts}`,
+        `  Overlapping obstacles: ${totalStats.overlapping}`,
+        `  Dead ends: ${totalStats.deadEnds}`,
+        `  Bouncing traps: ${totalStats.bouncingTraps}`,
+        `=== End Report ===`
+      ];
+
+      console.log(report.join('\n'));
+      console.log('Detailed errors:', totalStats.errorsPerTrack.filter(e => e.errors || e.error));
+
+      // Return stats for programmatic inspection
+      return totalStats;
+    }
+
+    // Validates a generated track from outside generateProceduralTrack (standalone check)
+    _validateGeneratedTrack(length) {
+      const track = this.track;
+      if (!track) return null;
+      const errors = { portalLoop: 0, outsideTrack: 0, blockedBoost: 0, overlap: 0, deadEnd: 0, bouncingTrap: 0 };
+
+      const getBounds = (x) => this.physics.getWallBoundaries(x, track);
+
+      const getBB = (obs) => {
+        let minX = obs.x, maxX = obs.x, minY = obs.y || 300, maxY = obs.y || 300;
+        const w = obs.width || obs.length || (obs.radius * 2) || 40;
+        const h = obs.height || (obs.radius * 2) || 40;
+        if (obs.type === 'c_bumper' || obs.type === 'barrel' || obs.type === 'rock' || obs.type === 'peg') {
+          const r = obs.radius || 20;
+          minX = obs.x - r; maxX = obs.x + r;
+          minY = obs.y - r; maxY = obs.y + r;
+        } else if (obs.type === 'spinner' || obs.type === 'sweep_arm') {
+          const halfLen = (obs.length || 80) / 2;
+          minX = obs.x - halfLen; maxX = obs.x + halfLen;
+          minY = obs.y - halfLen; maxY = obs.y + halfLen;
+        } else if (obs.type === 'hammer') {
+          const armLen = obs.armLength || 100;
+          const r = obs.headRadius || 25;
+          minX = obs.x - armLen - r; maxX = obs.x + armLen + r;
+          minY = obs.y - armLen - r; maxY = obs.y + armLen + r;
+        } else if (obs.type === 'punchfist') {
+          const d = obs.direction || 1;
+          const ext = obs.extendDist || 120;
+          const r = obs.fistRadius || 32;
+          if (d > 0) { minX = obs.x - r; maxX = obs.x + ext + r; }
+          else { minX = obs.x - ext - r; maxX = obs.x + r; }
+          minY = obs.y - r; maxY = obs.y + r;
+        } else if (obs.type === 'portal') {
+          const r = obs.radius || 25;
+          minX = obs.x - r; maxX = obs.x + r;
+          minY = obs.y - r; maxY = obs.y + r;
+        } else {
+          const halfW = w / 2, halfH = h / 2;
+          minX = obs.x - halfW; maxX = obs.x + halfW;
+          minY = obs.y - halfH; maxY = obs.y + halfH;
+        }
+        return { minX, maxX, minY, maxY };
+      };
+
+      const boxesOverlap = (b1, b2, buffer = 10) => {
+        return !(b1.maxX + buffer < b2.minX || b1.minX - buffer > b2.maxX ||
+                 b1.maxY + buffer < b2.minY || b1.minY - buffer > b2.maxY);
+      };
+
+      const elements = [];
+      track.obstacles.forEach(o => elements.push({ item: o, isZone: false }));
+      track.zones.forEach(z => { if (z.type !== 'finish') elements.push({ item: z, isZone: true }); });
+      if (track.pegs) track.pegs.forEach(p => elements.push({ item: p, isZone: false }));
+
+      // Outside track
+      for (const el of elements) {
+        const bb = getBB(el.item);
+        const steps = [bb.minX, (bb.minX + bb.maxX) / 2, bb.maxX];
+        for (const cx of steps) {
+          const bounds = getBounds(cx);
+          if (!bounds || bb.minY < bounds.topY - 4 || bb.maxY > bounds.bottomY + 4) {
+            errors.outsideTrack++;
+            break;
+          }
+        }
+      }
+
+      // Overlap
+      for (let i = 0; i < elements.length; i++) {
+        for (let j = i + 1; j < elements.length; j++) {
+          const el1 = elements[i], el2 = elements[j];
+          if (el1.item.type === 'boost_pipe' && el2.item.type === 'boost' && Math.abs(el1.item.x - el2.item.x) < 5) continue;
+          if (el2.item.type === 'boost_pipe' && el1.item.type === 'boost' && Math.abs(el1.item.x - el2.item.x) < 5) continue;
+          if (el1.item.type === 'portal' && el2.item.type === 'portal' && el1.item.pairId === el2.item.pairId) continue;
+          if (boxesOverlap(getBB(el1.item), getBB(el2.item), 10)) errors.overlap++;
+        }
+      }
+
+      // Portal checks
+      const allPortals = track.zones.filter(z => z.type === 'portal');
+      for (const p1 of allPortals) {
+        const p2 = allPortals.find(p => p !== p1 && p.pairId === p1.pairId);
+        if (!p2) { errors.portalLoop++; continue; }
+        if (Math.abs(p1.x - p2.x) < 250) errors.portalLoop++;
+        // Portal exit overlap check
+        const exitBB = getBB(p2);
+        for (const el of elements) {
+          if (el.item === p2 || (el.item.type === 'portal' && el.item.pairId === p1.pairId)) continue;
+          if (boxesOverlap(exitBB, getBB(el.item), 15)) { errors.portalLoop++; break; }
+        }
+      }
+      // Portal chain/cycle
+      const portalPairs = [];
+      const seen = new Set();
+      for (const p of allPortals) {
+        if (!seen.has(p.pairId)) {
+          seen.add(p.pairId);
+          const exit = allPortals.find(q => q !== p && q.pairId === p.pairId);
+          if (p && exit) portalPairs.push({ entry: p, exit });
+        }
+      }
+      const adj = {};
+      for (let i = 0; i < portalPairs.length; i++) {
+        const a = portalPairs[i];
+        const exCX = a.exit.x + a.exit.width / 2, exCY = a.exit.y + a.exit.height / 2;
+        for (let j = 0; j < portalPairs.length; j++) {
+          if (i === j) continue;
+          const b = portalPairs[j];
+          const enCX = b.entry.x + b.entry.width / 2, enCY = b.entry.y + b.entry.height / 2;
+          const dx = exCX - enCX, dy = exCY - enCY;
+          const entryR = b.entry.width / 2 + 10;
+          if (dx * dx + dy * dy < entryR * entryR) {
+            if (!adj[i]) adj[i] = [];
+            adj[i].push(j);
+          }
+        }
+      }
+      const dfs = (node, vis, rec) => {
+        if (rec.has(node)) return true;
+        if (vis.has(node)) return false;
+        vis.add(node); rec.add(node);
+        for (const n of (adj[node] || [])) { if (dfs(n, vis, rec)) return true; }
+        rec.delete(node);
+        return false;
+      };
+      for (let i = 0; i < portalPairs.length; i++) {
+        if (dfs(i, new Set(), new Set())) { errors.portalLoop++; break; }
+      }
+
+      // Blocked boost
+      const boosts = [];
+      track.zones.forEach(z => { if (z.type === 'boost') boosts.push(z); });
+      track.obstacles.forEach(o => { if (o.type === 'boost_pipe') boosts.push(o); });
+      for (const b of boosts) {
+        const bbB = getBB(b);
+        for (const obs of track.obstacles) {
+          if (obs.type === 'boost_pipe') continue;
+          const bbO = getBB(obs);
+          if (bbO.minX >= bbB.maxX && bbO.minX <= bbB.maxX + 220) {
+            if (!(bbO.maxY < bbB.minY || bbO.minY > bbB.maxY)) {
+              errors.blockedBoost++;
+            }
+          }
+        }
+      }
+
+      // Dead end
+      for (let sx = 800; sx < length - 500; sx += 80) {
+        const bounds = getBounds(sx);
+        if (!bounds) continue;
+        const lh = bounds.bottomY - bounds.topY;
+        if (lh < 50) continue;
+        const covering = [];
+        for (const el of elements) {
+          const bb = getBB(el.item);
+          if (bb.minX <= sx && bb.maxX >= sx) covering.push({ minY: bb.minY, maxY: bb.maxY });
+        }
+        covering.sort((a, b) => a.minY - b.minY);
+        const merged = [];
+        for (const c of covering) {
+          if (merged.length === 0) merged.push({ minY: c.minY, maxY: c.maxY });
+          else {
+            const last = merged[merged.length - 1];
+            if (c.minY <= last.maxY + 5) last.maxY = Math.max(last.maxY, c.maxY);
+            else merged.push({ minY: c.minY, maxY: c.maxY });
+          }
+        }
+        let blocked = 0;
+        for (const m of merged) blocked += Math.min(m.maxY, bounds.bottomY) - Math.max(m.minY, bounds.topY);
+        if (blocked > lh * 0.88) { errors.deadEnd++; break; }
+      }
+
+      // Bouncing trap
+      for (let i = 0; i < track.obstacles.length; i++) {
+        for (let j = i + 1; j < track.obstacles.length; j++) {
+          const o1 = track.obstacles[i], o2 = track.obstacles[j];
+          const bb1 = getBB(o1), bb2 = getBB(o2);
+          if (bb1.maxX < bb2.minX - 10 || bb2.maxX < bb1.minX - 10) continue;
+          const bounds = getBounds((bb1.minX + bb1.maxX) / 2);
+          if (!bounds) continue;
+          const mid = (bounds.topY + bounds.bottomY) / 2;
+          const o1A = bb1.maxY < mid, o2A = bb2.maxY < mid;
+          if ((o1A && o2A) || (!o1A && !o2A)) continue;
+          const gap = (o1A ? bb2.minY : bb1.minY) - (o1A ? bb1.maxY : bb2.maxY);
+          if (gap < 55 && gap > 0) errors.bouncingTrap++;
+        }
+      }
+
+      const total = errors.portalLoop + errors.outsideTrack + errors.blockedBoost + errors.overlap + errors.deadEnd + errors.bouncingTrap;
+      return total === 0 ? 0 : errors;
     }
   }

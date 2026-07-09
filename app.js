@@ -499,6 +499,80 @@ class AppController {
     this.engine.stopRace();
     this.showSetup(this.selectedMode);
   }
+
+  startDiagnostics() {
+    if (!this.diagnostics) {
+      this.diagnostics = new TrackDiagnostics(this);
+    }
+    
+    // UI elements update
+    document.getElementById('btn-diag-start').classList.add('hidden');
+    document.getElementById('btn-diag-cancel').classList.remove('hidden');
+    document.getElementById('diag-verdict').style.display = 'none';
+    
+    const fill = document.getElementById('diag-progress-fill');
+    const pct = document.getElementById('diag-progress-pct');
+    const status = document.getElementById('diag-status-text');
+    
+    fill.style.width = '0%';
+    pct.innerText = '0%';
+    status.innerText = 'Simulating tracks...';
+    
+    this.diagnostics.runSuite(
+      (res, current, total) => {
+        // Progress callback
+        const percent = Math.round((current / total) * 100);
+        fill.style.width = `${percent}%`;
+        pct.innerText = `${percent}%`;
+        status.innerText = `Simulating track ${current} / ${total}...`;
+
+        document.getElementById('diag-val-runs').innerText = `${current} / ${total}`;
+        document.getElementById('diag-val-failures').innerText = res.failures;
+        document.getElementById('diag-val-loops').innerText = res.portalLoops;
+        document.getElementById('diag-val-outside').innerText = res.outsideTrack;
+        document.getElementById('diag-val-blocked').innerText = res.blockedBoosts;
+        document.getElementById('diag-val-overlaps').innerText = res.overlapping;
+        document.getElementById('diag-val-stuck').innerText = res.stuckRacers;
+      },
+      (res) => {
+        // Completion callback
+        document.getElementById('btn-diag-start').classList.remove('hidden');
+        document.getElementById('btn-diag-cancel').classList.add('hidden');
+        
+        const verdict = document.getElementById('diag-verdict');
+        const verdictText = document.getElementById('diag-verdict-text');
+        
+        verdict.style.display = 'block';
+        if (res.failures === 0 && res.stuckRacers === 0) {
+          status.innerText = 'Completed successfully!';
+          verdict.style.background = 'rgba(46, 204, 113, 0.15)';
+          verdict.style.borderColor = '#2ecc71';
+          verdictText.style.color = '#2ecc71';
+          verdictText.innerText = 'Target achieved: ZERO critical failures!';
+        } else {
+          status.innerText = 'Completed with issues.';
+          verdict.style.background = 'rgba(231, 76, 60, 0.15)';
+          verdict.style.borderColor = '#e74c3c';
+          verdictText.style.color = '#e74c3c';
+          verdictText.innerText = `Finished. Found ${res.failures} failure tracks.`;
+        }
+      }
+    );
+  }
+
+  cancelDiagnostics() {
+    if (this.diagnostics) {
+      this.diagnostics.cancel();
+    }
+    document.getElementById('btn-diag-start').classList.remove('hidden');
+    document.getElementById('btn-diag-cancel').classList.add('hidden');
+    document.getElementById('diag-status-text').innerText = 'Cancelled.';
+  }
+
+  closeDiagnostics() {
+    this.cancelDiagnostics();
+    this.togglePanel('diagnostic-panel');
+  }
 }
 
 // Global entry initialization

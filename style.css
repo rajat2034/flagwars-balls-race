@@ -1103,3 +1103,100 @@ canvas.force-vertical {
   border-radius: 2px;
   object-fit: cover;
 }
+
+/* Race Director Event Feed — broadcast timeline, bottom-right */
+.rd-feed {
+  position: fixed;
+  bottom: 100px;
+  right: 15px;
+  width: 320px;
+  max-width: calc(100vw - 300px);
+  max-height: calc(100vh - 280px);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  z-index: 200;
+  pointer-events: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.rd-feed-header {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 8px 14px 5px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.rd-feed-list {
+  padding: 3px 0;
+  overflow: hidden;
+  max-height: 210px; /* ~6 entries */
+  flex: none;
+}
+
+/* Individual event entry — slides in from right */
+.rd-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 14px 4px 10px;
+  margin-left: 6px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #ffffff;
+  border-left: 3px solid rgba(255, 255, 255, 0.25);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  line-height: 1.35;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  animation: rd-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: right center;
+  transition: opacity 0.35s ease;
+}
+/* Opacity gradient: newest brightest, oldest dimmest */
+.rd-entry:nth-child(1) { opacity: 1; }
+.rd-entry:nth-child(2) { opacity: 0.9; }
+.rd-entry:nth-child(3) { opacity: 0.8; }
+.rd-entry:nth-child(4) { opacity: 0.7; }
+.rd-entry:nth-child(5) { opacity: 0.6; }
+.rd-entry:nth-child(6) { opacity: 0.5; }
+
+.rd-entry.rd-removing {
+  opacity: 0 !important;
+  transform: translateX(40px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  animation: none;
+}
+.rd-ts {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-top: 1px;
+  min-width: 2.8em;
+}
+.rd-msg {
+  flex: 1;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+@keyframes rd-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

@@ -24,8 +24,8 @@ class PhysicsEngine {
       b._hitBarrierThisFrame = false;
       b._hitSpinnerThisFrame = false;
       b._hitBreakDoorThisFrame = false;
-      b._hitCardboardThisFrame = false;
       b._hitMeteorThisFrame = false;
+      b._hitSweepArmThisFrame = false;
       b._hitPunchFistThisFrame = false;
       b._hitBarrelThisFrame = false;
       b._hitHammerThisFrame = false;
@@ -88,8 +88,6 @@ class PhysicsEngine {
       ball._wasInBoost = ball._wasInBoost || false;
       ball._wasInSlow = ball._wasInSlow || false;
       ball._wasInWind = ball._wasInWind || false;
-      ball._windTimer = ball._windTimer || 0;
-      ball._windMult = ball._windMult || 1.0;
 
       track.zones.forEach(zone => {
         if (
@@ -119,14 +117,12 @@ class PhysicsEngine {
             currentDamping = 0.97;
             ball.vy += (Math.random() - 0.5) * 0.08;
           } else if (zone.type === 'wind' && ball.z === 0) {
+            // Apply continuous wind force while in zone
+            ball.vx += zone.force * dt;
             if (!ball._wasInWind) {
-              const windMult = zone.force > 0 ? 1.5 : 0.7;
-              ball.vx *= windMult;
-              ball._windMult = windMult;
-              ball._windTimer = 120; // 2 seconds (60fps)
-              ball._wasInWind = true;
               ball._enteredWindThisFrame = true;
             }
+            ball._wasInWind = true;
           } else if (zone.type === 'launch' && ball.z === 0 && !ball._launchCooldown) {
             // Bounce pad: launch upward and boost forward
             ball.vz = -5;
@@ -173,16 +169,6 @@ class PhysicsEngine {
       if (track.zones.filter(z => z.type === 'wind').every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
         ball._wasInWind = false;
       }
-      // Wind timer: revert multiplier after 2 seconds
-      if (ball._windTimer > 0) {
-        ball._windTimer -= dt;
-        if (ball._windTimer <= 0) {
-          ball.vx /= ball._windMult;
-          ball._windMult = 1.0;
-          ball._windTimer = 0;
-        }
-      }
-
       // Decrement portal cooldown
       if (ball._portalCooldown > 0) {
         ball._portalCooldown -= dt;
@@ -610,27 +596,36 @@ class PhysicsEngine {
               }
             }
           }
-        } else if (obs.type === 'cardboard' && !obs.broken) {
-          // Cardboard barrier — AABB block
-          const halfW = obs.width / 2;
-          const halfH = obs.height / 2;
-          const cx = Math.max(obs.x - halfW, Math.min(ball.x, obs.x + halfW));
-          const cy = Math.max(obs.y - halfH, Math.min(ball.y, obs.y + halfH));
-          const dx = ball.x - cx;
-          const dy = ball.y - cy;
-          const dist = Math.hypot(dx, dy);
-          if (dist < ball.radius && dist > 0) {
-            const overlap = ball.radius - dist;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            ball.x += nx * overlap;
-            ball.y += ny * overlap;
-            const vn = ball.vx * nx + ball.vy * ny;
-            if (vn < 0) {
-              ball.vx -= vn * nx * 0.5;
-              ball.vy -= vn * ny * 0.5;
-              ball._hitCardboardThisFrame = true;
+        } else if (obs.type === 'sweep_arm') {
+          // Rotating sweep arm — line segment collision with push force
+          const armLen = obs.length || 120;
+          const angle = obs.angle || 0;
+          const cosA = Math.cos(angle);
+          const sinA = Math.sin(angle);
+          const ex = obs.x + cosA * armLen;
+          const ey = obs.y + sinA * armLen;
+          const dx = ex - obs.x;
+          const dy = ey - obs.y;
+          const lenSq = dx * dx + dy * dy;
+          if (lenSq < 0.01) return;
+          const t = Math.max(0, Math.min(1, ((ball.x - obs.x) * dx + (ball.y - obs.y) * dy) / lenSq));
+          const closestX = obs.x + t * dx;
+          const closestY = obs.y + t * dy;
+          const dist = Math.hypot(ball.x - closestX, ball.y - closestY);
+          if (dist < ball.radius + 6) {
+            const nx = (ball.x - closestX) / dist;
+            const ny = (ball.y - closestY) / dist;
+            if (dist > 0.001) {
+              ball.x = closestX + nx * (ball.radius + 6);
+              ball.y = closestY + ny * (ball.radius + 6);
             }
+            const physicsSpeed = obs.physicsSpeed || obs.speed || 0.07;
+            const tipVx = -sinA * physicsSpeed * armLen * obs.direction;
+            const tipVy = cosA * physicsSpeed * armLen * obs.direction;
+            const pushFactor = (1 - t) * 0.8 + 0.2;
+            ball.vx += tipVx * pushFactor * 0.15;
+            ball.vy += tipVy * pushFactor * 0.15;
+            ball._hitSweepArmThisFrame = true;
           }
         } else if (obs.type === 'c_bumper') {
           // Rotating C-bumper — semicircular arc collision with tangential spin push
