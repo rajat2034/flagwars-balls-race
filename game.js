@@ -1627,14 +1627,17 @@ class GameEngine {
     this.selectedBallId = null;
     this._footballShowerActive = false;
     this._speedSurgeActive = false;
-this._speedSurgeMultipliers = new Map();
-    this._windStormActive = false;
-    this._windStormTime = 0;
-    this._trackShakeActive = false;
-    this._trackShakeTime = 0;
-    this._trackShakeOffset = 0;
-    this._tornado = null;
-    this._tornadoTime = 0;
+    this._speedSurgeMultipliers = new Map();
+    this._blackoutActive = false;
+    this._blackoutFadeLevel = 0;
+    this._blackoutFlickerTimer = 0;
+    this._blackoutDuration = 0;
+    this._blackoutPhase = null;
+    this._teleportState = null;
+    this._teleportTimer = 0;
+    this._teleportPairs = [];
+    this._teleportPostPairs = [];
+    this._whiteFlashAlpha = 0;
     this.isPanning = false;
     this.panStartX = 0;
     this.panStartCamX = 0;
@@ -1820,7 +1823,7 @@ this._speedSurgeMultipliers = new Map();
     }
 
     // Finish line zone - always visible at end of track
-    const finishX = length - 400;
+    const finishX = length - 520;
     track.zones.push({ type: 'finish', x: finishX, y: 0, width: 120, height: 700 });
     track.finishLineX = finishX;
 
@@ -2712,17 +2715,16 @@ this._speedSurgeMultipliers = new Map();
     });
   }
 
-// Trigger alternate race events (football shower, gravity flip, speed surge, wind storm, track shake, hurricane)
+// Trigger alternate race events (football shower, gravity flip, speed surge, blackout, teleportation)
   triggerRandomEvent() {
     if (this.activeEvent) return;
 
     const events = [
-      { name: '\u26BD FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.', weight: 0.50 },
-      { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.', weight: 0.125 },
-      { name: '\u26A1 SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.', weight: 0.125 },
-      { name: '\u{1F32A} WIND STORM', key: 'wind_storm', duration: 420, description: 'Strong crosswinds push racers sideways across the track.', weight: 0.125 },
-      { name: '\u{1F30E} TRACK SHAKE', key: 'track_shake', duration: 360, description: 'The racing surface shifts unexpectedly, changing racer trajectories.', weight: 0.125 },
-      { name: '\u{1F32A} TORNADO', key: 'tornado', duration: 480, description: 'A massive tornado moves along the track. Avoid its path!', weight: 0.125 },
+      { name: '\u26BD FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.', weight: 0.25 },
+      { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.', weight: 0.15 },
+      { name: '\u26A1 SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.', weight: 0.20 },
+      { name: '\u26A1 BLACKOUT', key: 'blackout', duration: 0, description: 'Stadium lights have gone out. Anything can happen...', weight: 0.20 },
+      { name: '\u26A1 TELEPORTATION', key: 'teleportation', duration: 360, description: 'Ten countries suddenly swapped positions!', weight: 0.20 },
     ];
 
     // Weighted random selection
@@ -2751,34 +2753,36 @@ this._speedSurgeMultipliers = new Map();
           ball.vy *= mult;
         }
       });
-    } else if (evt.key === 'wind_storm') {
-      this._windStormActive = true;
-    } else if (evt.key === 'track_shake') {
-      this._trackShakeActive = true;
-      this._trackShakeTime = 0;
-      this._trackShakeOffset = 0;
-    } else if (evt.key === 'tornado') {
-      // Spawn single tornado ahead of lead racer
-      const leadBall = [...this.balls].filter(b => !b.finished).sort((a, b) => b.x - a.x)[0];
-      if (leadBall) {
-        const spawnX = leadBall.x + 400 + Math.random() * 300;
-        const bounds = this.physics.getWallBoundaries(spawnX, this.track);
-        if (bounds) {
-          const centerY = (bounds.topY + bounds.bottomY) / 2;
-          this._tornado = {
-            x: spawnX,
-            y: centerY,
-            baseWidth: 35,
-            topWidth: 160,
-            height: 220,
-            rotation: 0,
-            rotationSpeed: 0.025 + Math.random() * 0.015,
-            direction: Math.random() < 0.5 ? 1 : -1,
-            intensity: 0.9 + Math.random() * 0.3,
-            trappedBalls: new Set(),
-            ballOrbitData: new Map()
-          };
+    } else if (evt.key === 'blackout') {
+      this._blackoutActive = true;
+      this._blackoutFadeLevel = 0;
+      this._blackoutFlickerTimer = 0;
+      this._blackoutDuration = 180 + Math.random() * 120;
+      this._blackoutPhase = 'active';
+      this.eventTimer = this._blackoutDuration + 60;
+    } else if (evt.key === 'teleportation') {
+      const activeBalls = this.balls.filter(b => !b.finished && !b.eliminated);
+      if (activeBalls.length >= 10) {
+        const sortedByPos = [...activeBalls].sort((a, b) => b.x - a.x);
+        const top5 = sortedByPos.slice(0, 5);
+        const rest = sortedByPos.slice(5);
+        const leaders = top5.sort(() => Math.random() - 0.5).slice(0, 2);
+        const others = [...top5.filter(b => !leaders.includes(b)), ...rest].sort(() => Math.random() - 0.5);
+        const remaining = others.slice(0, 8);
+        const selected = [...leaders, ...remaining];
+        this._teleportPairs = [];
+        for (let i = 0; i < 5; i++) {
+          this._teleportPairs.push({ ball1: selected[i], ball2: selected[i + 5] });
         }
+        this._teleportState = 'warning';
+        this._teleportTimer = 48;
+        this._teleportPostPairs = [];
+        this._teleportPairs.forEach(pair => {
+          this.commentary.add(pair.ball1.name + ' switched with ' + pair.ball2.name + '!', 'info');
+        });
+      } else {
+        this.activeEvent = null;
+        return;
       }
     }
 
@@ -2802,21 +2806,15 @@ if (this.activeEvent.key === 'speed_surge') {
       this._speedSurgeActive = false;
       this._speedSurgeMultipliers.clear();
     }
-      if (this.activeEvent.key === 'wind_storm') {
-        this._windStormActive = false;
+      if (this.activeEvent.key === 'blackout') {
+        this._blackoutFadeLevel = 0;
+        this._blackoutActive = false;
+        this._blackoutPhase = null;
       }
-      if (this.activeEvent.key === 'track_shake') {
-        this._trackShakeActive = false;
-        this._trackShakeOffset = 0;
-      }
-      if (this.activeEvent.key === 'hurricane') {
-        this._tornado = null;
-        this.balls.forEach(ball => {
-          ball._tornadoOrbitTime = 0;
-          ball._tornadoOrbitAngle = 0;
-          ball._tornadoOrbitRadius = 0;
-          ball._tornadoReleased = false;
-        });
+      if (this.activeEvent.key === 'teleportation') {
+        this._teleportState = null;
+        this._teleportPairs = [];
+        this._teleportPostPairs = [];
       }
       this.activeEvent = null;
       return;
@@ -2849,205 +2847,109 @@ if (this.activeEvent.key === 'speed_surge') {
     } else if (this.activeEvent.key === 'speed_surge') {
       // Multiplier already applied at event start in triggerRandomEvent
       // No continuous application needed - velocity naturally decays via physics
-    } else if (this.activeEvent.key === 'wind_storm') {
-      this._windStormTime += dt;
-      this.balls.forEach(ball => {
-        if (!ball.finished && !ball.eliminated) {
-          const gustPhase = this._windStormTime * 0.002;
-          const baseForce = 0.008;
-          const gustVariation = Math.sin(gustPhase + ball.id * 1.7) * 0.004;
-          const force = (baseForce + gustVariation) * (Math.random() < 0.5 ? 1 : -1);
-          ball.vy += force * dt;
-
-          const bounds = this.physics.getWallBoundaries(ball.x, this.track);
-          if (bounds) {
-            const margin = 20;
-            if (ball.y < bounds.topY + margin) ball.vy += 0.01 * dt;
-            if (ball.y > bounds.bottomY - margin) ball.vy -= 0.01 * dt;
-          }
+    } else if (this.activeEvent.key === 'blackout') {
+      if (this.eventTimer > 60) {
+        this._blackoutPhase = 'active';
+      } else if (this._blackoutPhase === 'active') {
+        this._blackoutPhase = 'fade_out';
+      }
+      if (this._blackoutPhase === 'active') {
+        this._blackoutFlickerTimer += dt;
+        const flickerInterval = 30 + Math.random() * 42;
+        if (this._blackoutFlickerTimer > flickerInterval) {
+          this._blackoutFlickerTimer = 0;
         }
-      });
-    } else if (this.activeEvent.key === 'track_shake') {
-      this._trackShakeTime += dt;
-      const shakeFrequency = 0.012; // Faster oscillation
-      const shakeAmplitude = 28;    // Much larger vertical movement (was 12)
-      const prevOffset = this._trackShakeOffset;
-      this._trackShakeOffset = Math.sin(this._trackShakeTime * shakeFrequency) * shakeAmplitude;
-      const trackVelocity = (this._trackShakeOffset - prevOffset) / dt;
-
-      this.balls.forEach(ball => {
-        if (!ball.finished && !ball.eliminated) {
-          // Apply strong vertical track momentum to balls - they should visibly bounce
-          ball.vy += trackVelocity * 0.8;
-          // Add horizontal shake
-          ball.vx += (Math.random() - 0.5) * 0.04 * dt;
-        }
-      });
-
-      // Add dust particles at track edges during strong shakes
-      if (Math.abs(trackVelocity) > 5 && Math.random() < 0.3 * dt) {
-        const leadBall = [...this.balls].filter(b => !b.finished).sort((a, b) => b.x - a.x)[0];
-        if (leadBall) {
-          const bounds = this.physics.getWallBoundaries(leadBall.x, this.track);
-          if (bounds) {
+        const targetFade = 0.99;
+        this._blackoutFadeLevel += (targetFade - this._blackoutFadeLevel) * 0.02 * dt;
+      } else {
+        this._blackoutFadeLevel *= 0.97;
+        if (this._blackoutFadeLevel < 0.01) this._blackoutFadeLevel = 0;
+      }
+    } else if (this.activeEvent.key === 'teleportation') {
+      if (this._teleportState === 'warning') {
+        this._teleportTimer -= dt;
+        this._teleportPairs.forEach(pair => {
+          if (Math.random() < 0.2 * dt) {
             this.particles.push({
-              type: 'dust',
-              x: leadBall.x + (Math.random() - 0.5) * 100,
-              y: bounds.topY + 10,
+              type: 'sparkle',
+              x: pair.ball1.x + (Math.random() - 0.5) * 30,
+              y: pair.ball1.y + (Math.random() - 0.5) * 30,
               vx: (Math.random() - 0.5) * 2,
               vy: -1 - Math.random() * 2,
-              alpha: 0.4 + Math.random() * 0.3,
-              size: 4 + Math.random() * 6,
-              life: 30 + Math.random() * 40,
-              color: '#aaa'
+              alpha: 0.8,
+              size: 2 + Math.random() * 3,
+              life: 15 + Math.random() * 15,
+              color: '#88ccff'
             });
             this.particles.push({
-              type: 'dust',
-              x: leadBall.x + (Math.random() - 0.5) * 100,
-              y: bounds.bottomY - 10,
+              type: 'sparkle',
+              x: pair.ball2.x + (Math.random() - 0.5) * 30,
+              y: pair.ball2.y + (Math.random() - 0.5) * 30,
               vx: (Math.random() - 0.5) * 2,
-              vy: 1 + Math.random() * 2,
-              alpha: 0.4 + Math.random() * 0.3,
-              size: 4 + Math.random() * 6,
-              life: 30 + Math.random() * 40,
-              color: '#aaa'
+              vy: -1 - Math.random() * 2,
+              alpha: 0.8,
+              size: 2 + Math.random() * 3,
+              life: 15 + Math.random() * 15,
+              color: '#88ccff'
             });
           }
-        }
-      }
-    } else if (this.activeEvent.key === 'hurricane') {
-      const t = this._tornado;
-      if (!t) return;
-
-      // Move tornado forward along track
-      const tornadoSpeed = 3.5; // Moderate speed - reaches leaders but allows interaction
-      t.x += tornadoSpeed * dt;
-      t.rotation += t.rotationSpeed * t.direction * dt;
-
-      // Get track bounds at tornado position for vertical following
-      const bounds = this.physics.getWallBoundaries(t.x, this.track);
-      if (bounds) {
-        const trackCenterY = (bounds.topY + bounds.bottomY) / 2;
-        // Smoothly follow track center
-        t.y += (trackCenterY - t.y) * 0.02 * dt;
-      }
-
-      // Despawn if reaches end of track
-      if (t.x > this.track.length - 500) {
-        this.activeEvent = null;
-        this._tornado = null;
-        this.balls.forEach(ball => {
-          ball._tornadoOrbitTime = 0;
-          ball._tornadoOrbitAngle = 0;
-          ball._tornadoOrbitRadius = 0;
-          ball._tornadoReleased = false;
         });
-        return;
-      }
-
-      // Physics for balls interacting with tornado
-      const influenceRadius = Math.max(t.topWidth, t.baseWidth) * 1.8;
-      this.balls.forEach(ball => {
-        if (ball.finished || ball.eliminated) return;
-
-        const dx = t.x - ball.x;
-        const dy = t.y - ball.y;
-        const dist = Math.hypot(dx, dy);
-
-        if (dist < influenceRadius && dist > 10) {
-          // Phase 1: Gentle pull toward center
-          const pullStrength = t.intensity * 0.04 * (1 - dist / influenceRadius);
-          ball.vx += (dx / dist) * pullStrength * dt;
-          ball.vy += (dy / dist) * pullStrength * dt;
-
-          // Phase 2: Orbit when close to tornado center
-          const closeDist = Math.max(t.baseWidth * 1.5, 50);
-          if (dist < closeDist) {
-            if (!t.trappedBalls.has(ball.id)) {
-              t.trappedBalls.add(ball.id);
-              t.ballOrbitData.set(ball.id, {
-                angle: Math.atan2(-dx, -dy) * t.direction, // Start orbiting opposite to position
-                radius: dist,
-                startTime: 0
-              });
-            }
-            const orbitData = t.ballOrbitData.get(ball.id);
-            if (orbitData) {
-              orbitData.startTime += dt;
-              // Complete ~1 revolution over 1.5-2.5 seconds
-              const orbitDuration = 1500 + Math.random() * 1000;
-              const progress = Math.min(1, orbitData.startTime / orbitDuration);
-              const targetAngle = orbitData.angle + Math.PI * 2 * progress * t.direction;
-              orbitData.radius = Math.max(orbitData.radius, closeDist * 0.8); // Don't get too close
-
-              // Apply orbital velocity - ADD to existing velocity to preserve momentum
-              const orbitalSpeed = (Math.PI * 2 / orbitDuration) * orbitData.radius;
-              const tx = -Math.sin(targetAngle);
-              const ty = Math.cos(targetAngle);
-              ball.vx += tx * orbitalSpeed * t.direction;
-              ball.vy += ty * orbitalSpeed * t.direction;
-              ball.vy += (Math.random() - 0.5) * 0.5 * dt; // Slight vertical variation
-
-              // Release after one revolution
-              if (progress >= 1 && !ball._tornadoReleased) {
-                ball._tornadoReleased = true;
-                const releaseAngle = Math.random() * Math.PI * 2;
-                const releaseSpeed = 9 + Math.random() * 7;
-                ball.vx += Math.cos(releaseAngle) * releaseSpeed;
-                ball.vy += Math.sin(releaseAngle) * releaseSpeed;
-              }
-            }
-          } else if (t.trappedBalls.has(ball.id)) {
-            // Left close range - start pull phase again
-            t.trappedBalls.delete(ball.id);
-            t.ballOrbitData.delete(ball.id);
-            ball._tornadoReleased = false;
+        if (this._teleportTimer <= 0) {
+          this._teleportState = 'swap';
+        }
+      } else if (this._teleportState === 'swap') {
+        this._teleportPairs.forEach(pair => {
+          const swapMessages = [
+            pair.ball1.name + ' suddenly disappears!',
+            pair.ball2.name + ' appears out of nowhere!',
+            pair.ball1.name + ' just switched with ' + pair.ball2.name + '!'
+          ];
+          this.commentary.add(swapMessages[Math.floor(Math.random() * swapMessages.length)], 'info');
+          const bx1 = pair.ball1.x;
+          const by1 = pair.ball1.y;
+          const bx2 = pair.ball2.x;
+          const by2 = pair.ball2.y;
+          pair.ball1.x = bx2;
+          pair.ball1.y = by2;
+          pair.ball2.x = bx1;
+          pair.ball2.y = by1;
+          this._teleportPostPairs.push({
+            ball: pair.ball1,
+            name: pair.ball2.name,
+            timer: 300
+          });
+          this._teleportPostPairs.push({
+            ball: pair.ball2,
+            name: pair.ball1.name,
+            timer: 300
+          });
+          for (let i = 0; i < 10; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const r = 20 + Math.random() * 15;
+            this.particles.push({
+              type: 'sparkle', x: bx1 + Math.cos(a) * r, y: by1 + Math.sin(a) * r,
+              vx: Math.cos(a) * (1 + Math.random() * 2), vy: Math.sin(a) * (1 + Math.random() * 2),
+              alpha: 1, size: 3 + Math.random() * 3, life: 20 + Math.random() * 10, color: '#88ccff'
+            });
+            this.particles.push({
+              type: 'sparkle', x: bx2 + Math.cos(a) * r, y: by2 + Math.sin(a) * r,
+              vx: Math.cos(a) * (1 + Math.random() * 2), vy: Math.sin(a) * (1 + Math.random() * 2),
+              alpha: 1, size: 3 + Math.random() * 3, life: 20 + Math.random() * 10, color: '#88ccff'
+            });
           }
-
-          // Light drag
-          ball.vx *= 0.995;
-          ball.vy *= 0.995;
-        } else if (t.trappedBalls.has(ball.id)) {
-          // Left influence radius - clean up
-          t.trappedBalls.delete(ball.id);
-          t.ballOrbitData.delete(ball.id);
-          ball._tornadoReleased = false;
+        });
+        this._whiteFlashAlpha = 1;
+        this._teleportState = 'post';
+        this._teleportTimer = 300;
+      } else if (this._teleportState === 'post') {
+        this._teleportTimer -= dt;
+        this._teleportPostPairs.forEach(p => { p.timer -= dt; });
+        this._teleportPostPairs = this._teleportPostPairs.filter(p => p.timer > 0);
+        if (this._teleportTimer <= 0) {
+          this._teleportState = null;
+          this._teleportPairs = [];
+          this._teleportPostPairs = [];
         }
-      });
-
-      // Visual particles
-      if (Math.random() < 0.5 * dt) {
-        const angle = Math.random() * Math.PI * 2;
-        const r = t.baseWidth + Math.random() * (t.topWidth - t.baseWidth);
-        const spiralAngle = angle + t.direction * Math.PI / 2;
-        this.particles.push({
-          type: 'tornado_dust',
-          x: t.x + Math.cos(angle) * r,
-          y: t.y + Math.sin(angle) * r - t.height * 0.3,
-          vx: Math.cos(spiralAngle) * (4 + Math.random() * 5),
-          vy: Math.sin(spiralAngle) * (4 + Math.random() * 5) - 2,
-          alpha: 0.5 + Math.random() * 0.4,
-          size: 4 + Math.random() * 7,
-          life: 40 + Math.random() * 50,
-          color: '#ccc'
-        });
-      }
-
-      // Base dust
-      if (Math.random() < 0.3 * dt) {
-        const angle = Math.random() * Math.PI * 2;
-        const r = t.baseWidth * (0.5 + Math.random() * 0.8);
-        this.particles.push({
-          type: 'tornado_dust',
-          x: t.x + Math.cos(angle) * r,
-          y: t.y + Math.sin(angle) * r * 0.3,
-          vx: Math.cos(angle + t.direction * Math.PI/2) * (2 + Math.random() * 3),
-          vy: Math.sin(angle + t.direction * Math.PI/2) * (2 + Math.random() * 3),
-          alpha: 0.3 + Math.random() * 0.3,
-          size: 3 + Math.random() * 5,
-          life: 20 + Math.random() * 30,
-          color: '#aaa'
-        });
       }
     }
   }
@@ -4045,9 +3947,7 @@ if (this.activeEvent.key === 'speed_surge') {
 
 // 2. Render track contents (Walls, Pegs, Boosts, Balls) inside scaled wrapper
     this.ctx.save();
-    const shakeX = this._trackShakeOffset || 0;
-    const shakeY = (this.activeEvent && this.activeEvent.key === 'track_shake') ? this._trackShakeOffset : 0;
-    this.ctx.translate(trackOffset + shakeX, shakeY);
+    this.ctx.translate(trackOffset, 0);
     this.ctx.scale(zoom, zoom);
 
     const camX = this.cameraX;
@@ -5141,132 +5041,7 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
       });
- 
-       // Draw Tornado - Side-view funnel visual
-       if (this._tornado) {
-         const t = this._tornado;
-         const hx = t.x - camX;
-         const cullBuf = 500;
-         if (hx > -cullBuf && hx < screenW / zoom + cullBuf) {
- 
-           this.ctx.save();
-           this.ctx.translate(hx, t.y);
- 
-           const time = Date.now() * 0.001;
- 
-           // ===== FUNNEL SHAPE - Wide top, narrow base =====
-           const baseWidth = t.baseWidth;
-           const topWidth = t.topWidth;
-           const funnelHeight = t.height;
- 
-           // Draw funnel as layered trapezoids (back to front for depth)
-           const layers = 8;
-           for (let layer = layers - 1; layer >= 0; layer--) {
-             const tp = layer / (layers - 1);
-             const y = -funnelHeight * tp;
-             const width = baseWidth + (topWidth - baseWidth) * tp;
- 
-             // Spiral offset for this layer
-             const spiralSpeed = 0.8 + tp * 1.5;
-             const spiralOffset = time * spiralSpeed * t.direction + layer * 0.4;
- 
-             // Left and right edges with spiral wobble
-             const leftWobble = Math.sin(spiralOffset * 2) * width * 0.08;
-             const rightWobble = Math.sin(spiralOffset * 2 + 1.5) * width * 0.08;
- 
-             // Funnel wall gradient (semi-transparent grey/white)
-             const grad = this.ctx.createLinearGradient(-width, y, width, y);
-             const alpha = 0.12 + tp * 0.18;
-             grad.addColorStop(0, `rgba(160, 160, 170, ${alpha * 0.6})`);
-             grad.addColorStop(0.3, `rgba(190, 190, 200, ${alpha})`);
-             grad.addColorStop(0.7, `rgba(190, 190, 200, ${alpha})`);
-             grad.addColorStop(1, `rgba(160, 160, 170, ${alpha * 0.6})`);
- 
-             this.ctx.fillStyle = grad;
-             this.ctx.beginPath();
-             this.ctx.moveTo(-width / 2 + leftWobble, y);
-             this.ctx.lineTo(-width / 2 + leftWobble - width * 0.05, y + funnelHeight / layers);
-             this.ctx.lineTo(width / 2 + rightWobble + width * 0.05, y + funnelHeight / layers);
-             this.ctx.lineTo(width / 2 + rightWobble, y);
-             this.ctx.closePath();
-             this.ctx.fill();
- 
-             // Inner highlight edge
-             this.ctx.strokeStyle = `rgba(220, 220, 230, ${0.08 + tp * 0.1})`;
-             this.ctx.lineWidth = 1.5;
-             this.ctx.beginPath();
-             this.ctx.moveTo(-width * 0.3, y);
-             this.ctx.lineTo(-width * 0.3, y + funnelHeight / layers);
-             this.ctx.stroke();
-             this.ctx.beginPath();
-             this.ctx.moveTo(width * 0.3, y);
-             this.ctx.lineTo(width * 0.3, y + funnelHeight / layers);
-             this.ctx.stroke();
-           }
- 
-           // ===== SPOUT - central rotating core =====
-           this.ctx.save();
-           this.ctx.rotate(time * 2.5 * t.direction);
-           for (let i = 0; i < 6; i++) {
-             const a = (i / 6) * Math.PI * 2;
-             const r = baseWidth * 0.4;
-             const sx = Math.cos(a) * r;
-             const sy = -funnelHeight * 0.15 + Math.sin(time * 8 + i) * 4;
-             this.ctx.beginPath();
-             this.ctx.arc(sx, sy, 3 + Math.sin(time * 6 + i) * 2, 0, Math.PI * 2);
-             this.ctx.fillStyle = `rgba(140, 140, 150, ${0.4 + Math.sin(time * 4 + i) * 0.2})`;
-             this.ctx.fill();
-           }
-           this.ctx.restore();
- 
-           // ===== DEBRIS PARTICLES - rotating around and rising =====
-           this.ctx.save();
-           this.ctx.rotate(time * 1.8 * t.direction);
-           for (let i = 0; i < 18; i++) {
-             const a = (i / 18) * Math.PI * 2;
-             // Particles at varying heights and radii
-             const heightRatio = (i % 3) / 2; // 0, 0.5, 1
-             const radius = baseWidth * (0.5 + heightRatio * 0.8) + Math.sin(time * 3 + i) * 6;
-             const y = -funnelHeight * heightRatio + Math.sin(time * 4 + i * 1.3) * 8;
-             const sx = Math.cos(a) * radius;
-             const sy = y;
- 
-             // Debris size varies
-             const size = 2 + (i % 4) * 1.5;
-             this.ctx.beginPath();
-             this.ctx.arc(sx, sy, size, 0, Math.PI * 2);
-             this.ctx.fillStyle = `rgba(120, 120, 130, ${0.5 + Math.sin(time * 5 + i) * 0.3})`;
-             this.ctx.fill();
-           }
-           this.ctx.restore();
- 
-           // ===== GROUND DUST CLOUD at base =====
-           const dustTime = time * 3;
-           for (let i = 0; i < 12; i++) {
-             const a = (i / 12) * Math.PI * 2 + dustTime;
-             const r = baseWidth * (0.6 + Math.sin(dustTime * 2 + i) * 0.3);
-             const sx = Math.cos(a) * r;
-             const sy = Math.sin(a) * r * 0.3;
-             const size = 4 + Math.sin(dustTime * 1.5 + i) * 3;
-             this.ctx.beginPath();
-             this.ctx.arc(sx, sy, size, 0, Math.PI * 2);
-             this.ctx.fillStyle = `rgba(150, 150, 160, ${0.25 + Math.sin(dustTime + i) * 0.15})`;
-             this.ctx.fill();
-           }
- 
-           // ===== OUTER GLOW =====
-           this.ctx.shadowColor = '#aaa';
-           this.ctx.shadowBlur = 30;
-           this.ctx.strokeStyle = 'rgba(180, 180, 190, 0.3)';
-           this.ctx.lineWidth = 4;
-           this.ctx.beginPath();
-           this.ctx.ellipse(0, -funnelHeight * 0.4, topWidth * 0.6, funnelHeight * 0.5, 0, 0, Math.PI * 2);
-           this.ctx.stroke();
-           this.ctx.shadowBlur = 0;
- 
-           this.ctx.restore();
-         }
-       }
+  
 
       // Draw Track Surface as filled shape with thin boundaries
       const wallAlpha = 0.35;
@@ -5660,15 +5435,6 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.arc(p.x - camX, p.y, p.size, 0, Math.PI * 2);
           this.ctx.fill();
           this.ctx.shadowBlur = 0;
-        } else if (p.type === 'tornado_dust') {
-          this.ctx.globalAlpha = p.alpha;
-          this.ctx.fillStyle = p.color || '#ccc';
-          this.ctx.shadowColor = p.color || '#ccc';
-          this.ctx.shadowBlur = 6;
-          this.ctx.beginPath();
-          this.ctx.arc(p.x - camX, p.y, p.size, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.shadowBlur = 0;
         } else if (p.type === 'bubble') {
           this.ctx.strokeStyle = p.color;
           this.ctx.lineWidth = 1;
@@ -5684,6 +5450,34 @@ if (this.activeEvent.key === 'speed_surge') {
 
         this.ctx.restore();
       });
+
+      // Teleportation warning glow on selected balls
+      if (this._teleportState === 'warning') {
+        this._teleportPairs.forEach(pair => {
+          [pair.ball1, pair.ball2].forEach(ball => {
+            const bx = ball.x - camX;
+            const by = ball.y;
+            // White glow ring
+            const glowAlpha = 0.3 + 0.3 * Math.sin(performance.now() * 0.008);
+            this.ctx.save();
+            this.ctx.shadowColor = '#88ccff';
+            this.ctx.shadowBlur = 25;
+            this.ctx.strokeStyle = `rgba(136, 204, 255, ${glowAlpha})`;
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.arc(bx, by, ball.radius + 6, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+            // "SWITCHING..." text
+            this.ctx.fillStyle = '#88ccff';
+            this.ctx.font = 'bold 11px Montserrat, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'bottom';
+            this.ctx.fillText('SWITCHING...', bx, by - ball.radius - 10);
+            this.ctx.restore();
+          });
+        });
+      }
 
       this.ctx.restore(); // restore translate and scale zoom
 
@@ -5866,6 +5660,63 @@ if (this.activeEvent.key === 'speed_surge') {
         vigGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
         this.ctx.fillStyle = vigGrad;
         this.ctx.fillRect(0, 0, screenW, screenH);
+        this.ctx.restore();
+      }
+
+      // A0a. Blackout visual overlay
+      if (this._blackoutActive && this.state === 'racing') {
+        this.ctx.save();
+        const darkAlpha = Math.min(0.99, this._blackoutFadeLevel);
+        // Enhanced vignette darkness
+        const vig = this.ctx.createRadialGradient(
+          screenW / 2, screenH / 2, screenH * 0.15,
+          screenW / 2, screenH / 2, screenH * 0.9
+        );
+        vig.addColorStop(0, `rgba(0,0,0,${darkAlpha * 0.3})`);
+        vig.addColorStop(0.3, `rgba(0,0,0,${darkAlpha * 0.5})`);
+        vig.addColorStop(0.7, `rgba(0,0,0,${darkAlpha * 0.75})`);
+        vig.addColorStop(1, `rgba(0,0,0,${darkAlpha})`);
+        this.ctx.fillStyle = vig;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        // Random subtle flicker
+        if (this._blackoutFlickerTimer > 20 && Math.random() < 0.4) {
+          this.ctx.fillStyle = `rgba(255,255,200,${0.02 + Math.random() * 0.04})`;
+          this.ctx.fillRect(0, 0, screenW, screenH);
+        }
+        this.ctx.restore();
+      }
+
+      // A0b. Teleportation white flash
+      if (this._whiteFlashAlpha > 0) {
+        this.ctx.save();
+        this.ctx.fillStyle = `rgba(255,255,255,${this._whiteFlashAlpha})`;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        this._whiteFlashAlpha -= 0.05;
+        if (this._whiteFlashAlpha < 0) this._whiteFlashAlpha = 0;
+        this.ctx.restore();
+      }
+
+      // A0c. Teleportation "SWAPPED WITH" text (screen-space)
+      if (this._teleportState === 'post' && this._teleportPostPairs.length > 0) {
+        this.ctx.save();
+        const zoom = this.cameraZoom;
+        const trackOff = this.trackOffset;
+        this._teleportPostPairs.forEach(p => {
+          const bx = trackOff + (p.ball.x - this.cameraX) * zoom;
+          const by = p.ball.y * zoom;
+          const alpha = Math.min(1, p.timer / 30);
+          this.ctx.globalAlpha = alpha;
+          this.ctx.fillStyle = '#88ccff';
+          this.ctx.font = 'bold 10px Montserrat, sans-serif';
+          this.ctx.textAlign = 'center';
+          this.ctx.shadowColor = '#88ccff';
+          this.ctx.shadowBlur = 10;
+          this.ctx.fillText('SWAPPED WITH', bx, by - 25);
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.font = 'bold 13px Montserrat, sans-serif';
+          this.ctx.fillText(p.name.toUpperCase(), bx, by - 10);
+          this.ctx.shadowBlur = 0;
+        });
         this.ctx.restore();
       }
 
@@ -6364,11 +6215,13 @@ if (this.activeEvent.key === 'speed_surge') {
       this._footballShowerActive = false;
       this._speedSurgeActive = false;
       this._speedSurgeMultipliers = new Map();
-      this._windStormActive = false;
-      this._trackShakeActive = false;
-      this._trackShakeOffset = 0;
-      this._trackShakeTime = 0;
-      this._tornado = null;
+      this._blackoutActive = false;
+      this._blackoutFadeLevel = 0;
+      this._blackoutPhase = null;
+      this._teleportState = null;
+      this._teleportPairs = [];
+      this._teleportPostPairs = [];
+      this._whiteFlashAlpha = 0;
       this.commentary.clear();
       this.commentary.lastLeaderCode = null;
       this.eventBanner.clear();
