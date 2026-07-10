@@ -1823,7 +1823,7 @@ class GameEngine {
     }
 
     // Finish line zone - always visible at end of track
-    const finishX = length - 520;
+    const finishX = length - 570;
     track.zones.push({ type: 'finish', x: finishX, y: 0, width: 120, height: 700 });
     track.finishLineX = finishX;
 
