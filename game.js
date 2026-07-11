@@ -2342,6 +2342,19 @@ class GameEngine {
           continue;
         }
 
+        // Skip placement near restricted zones (barrier gaps, rotating circles)
+        let nearRestricted = false;
+        for (const _r of track.obstacles) {
+          if (_r.type === 'barrier' && Math.abs(x - _r.x) < 100) { nearRestricted = true; break; }
+          if (_r.type === 'c_bumper' && Math.abs(x - _r.x) < (_r.radius || 55) + 50) { nearRestricted = true; break; }
+        }
+        if (nearRestricted) {
+          if (type === 'peg' || type === 'barrier' || type === 'spinner' || type === 'hammer' || type === 'punchfist' || type === 'sweep_arm' || type === 'c_bumper') {
+            x += 80;
+            continue;
+          }
+        }
+
         // Start Alternating Hammer Corridor?
         if (_hammerCorridorsUsed < MAX_HAMMER_CORRIDORS && type === 'hammer' && !forceSafe && t >= 0.20 && t < 0.85 && segEnd - x > 700 && Math.random() < 0.18) {
           _hammerCorridorRemaining = 5 + Math.floor(Math.random() * 4);
@@ -2682,9 +2695,9 @@ class GameEngine {
       }
     };
 
-    // Segment partition and loop
+    // Segment partition and loop (leave last 1000px before finish obstacle-free)
     const numSegments = 10;
-    const segmentWidth = (finishX - 800) / numSegments;
+    const segmentWidth = (finishX - 1800) / numSegments;
 
     for (let s = 0; s < numSegments; s++) {
       const segStart = 800 + s * segmentWidth;
@@ -2720,8 +2733,8 @@ class GameEngine {
       }
     }
     
-    // Ensure minimum counts: at least 10 of each major type per race
-    const MIN_COUNT = 10;
+    // Ensure minimum counts: at least 30 of each major type per race
+    const MIN_COUNT = 30;
     const TYPE_COUNTS = {
       hammer: 0, spinner: 0, barrier: 0, sweep_arm: 0, punchfist: 0,
       c_bumper: 0, boost: 0, slow: 0,
@@ -2730,10 +2743,21 @@ class GameEngine {
     track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
     track.zones.forEach(z => { if (z.type !== 'finish' && TYPE_COUNTS[z.type] !== undefined) TYPE_COUNTS[z.type]++; });
     const underTypes = Object.keys(TYPE_COUNTS).filter(t => TYPE_COUNTS[t] < MIN_COUNT);
+    const _isRestricted = (px) => {
+      if (Math.abs(px - finishX) < 1000) return true;
+      for (const _r of track.obstacles) {
+        if (_r.type === 'barrier' && Math.abs(px - _r.x) < 100) return true;
+        if (_r.type === 'c_bumper' && Math.abs(px - _r.x) < (_r.radius || 55) + 50) return true;
+      }
+      return false;
+    };
     for (const ut of underTypes) {
       const needed = MIN_COUNT - TYPE_COUNTS[ut];
       for (let n = 0; n < needed; n++) {
-        const tryX = 800 + Math.random() * (finishX - 1600);
+        let tryX = 800 + Math.random() * (finishX - 1800);
+        let _attempts = 0;
+        while (_isRestricted(tryX) && _attempts < 20) { tryX = 800 + Math.random() * (finishX - 1800); _attempts++; }
+        if (_attempts >= 20) continue;
         const b = getBounds(tryX);
         if (!b) continue;
         const cY = (b.topY + b.bottomY) / 2;
@@ -2825,6 +2849,30 @@ class GameEngine {
           });
         }
       }
+    }
+
+    // Remove obstacles/pegs in restricted zones (near finish, barrier gaps, rotating circles)
+    {
+      const _restrictedObs = new Set();
+      track.obstacles.forEach((o, i) => {
+        if (Math.abs(o.x - finishX) < 1000) { _restrictedObs.add(i); return; }
+        for (const _r of track.obstacles) {
+          if (_r === o) continue;
+          if (_r.type === 'barrier' && Math.abs(o.x - _r.x) < 100) { _restrictedObs.add(i); break; }
+          if (_r.type === 'c_bumper' && Math.abs(o.x - _r.x) < (_r.radius || 55) + 50) { _restrictedObs.add(i); break; }
+        }
+      });
+      if (track.pegs) {
+        track.pegs = track.pegs.filter(p => {
+          if (Math.abs(p.x - finishX) < 1000) return false;
+          for (const _r of track.obstacles) {
+            if (_r.type === 'barrier' && Math.abs(p.x - _r.x) < 100) return false;
+            if (_r.type === 'c_bumper' && Math.abs(p.x - _r.x) < (_r.radius || 55) + 50) return false;
+          }
+          return true;
+        });
+      }
+      if (_restrictedObs.size > 0) track.obstacles = track.obstacles.filter((_, i) => !_restrictedObs.has(i));
     }
 
     // Final overlap cleanup: remove later elements that overlap earlier ones
