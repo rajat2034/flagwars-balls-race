@@ -86,6 +86,30 @@ class AppController {
     }
   }
 
+  // Remove a custom country from in-memory array + localStorage + selected list, then re-render
+  deleteCustomCountry(code) {
+    // Remove from in-memory countries list
+    this.countries = this.countries.filter(c => c.code !== code);
+
+    // Remove from selectedCountries if present
+    this.engine.selectedCountries = this.engine.selectedCountries.filter(c => c.code !== code);
+
+    // Remove from localStorage
+    try {
+      const stored = localStorage.getItem(this.STORAGE_CUSTOM_KEY);
+      if (stored) {
+        const customs = JSON.parse(stored);
+        const filtered = customs.filter(c => c.code !== code);
+        localStorage.setItem(this.STORAGE_CUSTOM_KEY, JSON.stringify(filtered));
+      }
+    } catch (e) {
+      console.error("Failed removing custom nation from storage", e);
+    }
+
+    this.updateSelectedCountText();
+    this.renderCountriesGrid();
+  }
+
   loadSettings() {
     // SFX
     const soundVal = localStorage.getItem('setting-sound') !== 'false';
@@ -204,7 +228,17 @@ class AppController {
         <img class="item-flag" src="https://flagcdn.com/w40/${c.code}.png" alt="${c.name}" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2226%22><rect width=%22100%25%22 height=%22100%25%22 fill=%22%232c3e50%22/><text x=%2250%25%22 y=%2260%25%22 fill=%22white%22 font-size=%2210%22 text-anchor=%22middle%22>${c.code.toUpperCase()}</text></svg>'">
         <span class="item-name">${c.name}</span>
         ${isCustom}
+        ${c.custom ? `<span class="cust-delete" data-code="${c.code}">×</span>` : ''}
       `;
+
+      // Bind delete click for custom entries (stopPropagation so it doesn't toggle selection)
+      const delBtn = item.querySelector('.cust-delete');
+      if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.deleteCustomCountry(c.code);
+        });
+      }
 
       container.appendChild(item);
     });
