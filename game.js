@@ -2415,17 +2415,16 @@ class GameEngine {
           const portalSize = 50;
           const p1Y = clampY(centerY + (Math.random() - 0.5) * 30, bounds, portalSize / 2 + 8);
           
-          // Portal 1 (Entry)
-          track.zones.push({
-            type: 'portal', x: x - portalSize / 2, y: p1Y - portalSize / 2,
-            width: portalSize, height: portalSize, pairId, radius: portalSize / 2
-          });
-
-          // Portal 2 (Exit) - Ensure inside track boundaries
+          // Exit portal — must be placeable for the pair to exist
           const x2 = Math.min(x + distAhead, segEnd - 100);
           const bounds2 = getBounds(x2);
           if (bounds2 && x2 > x + 250) {
             const p2Y = clampY((bounds2.topY + bounds2.bottomY) / 2, bounds2, portalSize / 2 + 10);
+            // Both portals confirmed — push entry then exit
+            track.zones.push({
+              type: 'portal', x: x - portalSize / 2, y: p1Y - portalSize / 2,
+              width: portalSize, height: portalSize, pairId, radius: portalSize / 2
+            });
             track.zones.push({
               type: 'portal', x: x2 - portalSize / 2, y: p2Y - portalSize / 2,
               width: portalSize, height: portalSize, pairId, radius: portalSize / 2
@@ -2848,6 +2847,13 @@ class GameEngine {
       }
       if (_removeObs.size > 0) track.obstacles = track.obstacles.filter((_, i) => !_removeObs.has(i));
       if (_removeZone.size > 0) track.zones = track.zones.filter((_, i) => !_removeZone.has(i) || track.zones[i].type === 'finish');
+    }
+
+    // Remove orphan portal zones (no matching pair — entry whose exit couldn't be placed)
+    {
+      const portalCounts = new Map();
+      track.zones.filter(z => z.type === 'portal').forEach(z => portalCounts.set(z.pairId, (portalCounts.get(z.pairId) || 0) + 1));
+      track.zones = track.zones.filter(z => z.type !== 'portal' || (portalCounts.get(z.pairId) || 0) >= 2);
     }
 
     this.track = track;
@@ -4530,12 +4536,16 @@ if (this.activeEvent.key === 'speed_surge') {
             }
             this.ctx.stroke();
           }
-          // Portal label
-          this.ctx.fillStyle = 'rgba(155,89,182,0.8)';
-          this.ctx.font = 'bold 10px Montserrat, sans-serif';
-          this.ctx.textAlign = 'center';
-          this.ctx.textBaseline = 'middle';
-          this.ctx.fillText('PORTAL', cx, cy + pr + 16);
+          // Direction arrow — shows whether paired portal is ahead (→) or behind (←)
+          const pairPortal = this.track.zones.find(z => z !== zone && z.type === 'portal' && z.pairId === zone.pairId);
+          if (pairPortal) {
+            const arrow = pairPortal.x > zone.x ? '→' : '←';
+            this.ctx.fillStyle = 'rgba(200,160,255,0.75)';
+            this.ctx.font = 'bold 20px Montserrat, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(arrow, cx, cy + pr + 16);
+          }
           this.ctx.restore();
         } else if (zone.type === 'shortcutEntry') {
           // Removed shortcut label — replaced with wind zone logic
@@ -5343,8 +5353,8 @@ if (this.activeEvent.key === 'speed_surge') {
           return;
         }
 
-        // Cull if offscreen
-        if (bX + ball.radius < -100 || bX - ball.radius > screenW / zoom + 100) return;
+        // Cull only when fully outside viewport (must match obstacle buffer)
+        if (bX + ball.radius < -400 || bX - ball.radius > screenW / zoom + 400) return;
 
         const renderRadius = ball.radius * (1 + ball.z * 0.05);
 

@@ -87,6 +87,24 @@ class PhysicsEngine {
       ball._wasInSlow = ball._wasInSlow || false;
 
       track.zones.forEach(zone => {
+        // Portal zones use circle-rectangle overlap for reliable entry (ball center need not be inside tiny 50×50 zone)
+        if (zone.type === 'portal') {
+          const cx = Math.max(zone.x, Math.min(ball.x, zone.x + zone.width));
+          const cy = Math.max(zone.y, Math.min(ball.y, zone.y + zone.height));
+          const dx = ball.x - cx;
+          const dy = ball.y - cy;
+          if (dx * dx + dy * dy < ball.radius * ball.radius && !ball._portalCooldown) {
+            const pair = track.zones.find(z => z !== zone && z.type === 'portal' && z.pairId === zone.pairId);
+            if (pair) {
+              ball.x = pair.x + pair.width / 2;
+              ball.y = pair.y + pair.height / 2;
+              ball._portalCooldown = 30;
+              ball._usedPortalThisFrame = true;
+            }
+          }
+          return; // portal uses its own collision — skip AABB
+        }
+
         if (
           ball.x >= zone.x && ball.x <= zone.x + zone.width &&
           ball.y >= zone.y && ball.y <= zone.y + zone.height
@@ -121,17 +139,6 @@ class PhysicsEngine {
             ball.vx *= 1.4;
             ball._launchCooldown = 30;
             ball._usedLaunchThisFrame = true;
-          } else if (zone.type === 'portal' && !ball._portalCooldown) {
-            const pair = track.zones.find(z => z !== zone && z.type === 'portal' && z.pairId === zone.pairId);
-            if (pair) {
-              const targetX = pair.x + pair.width / 2;
-              const targetY = pair.y + pair.height / 2;
-              ball.x = targetX;
-              ball.y = targetY;
-              // Preserve exact momentum — no direction change
-              ball._portalCooldown = 30;
-              ball._usedPortalThisFrame = true;
-            }
           } else if (zone.type === 'shortcutEntry' && !ball._shortcutCooldown) {
             ball._inShortcut = true;
             ball._shortcutExitX = zone.x + zone.shortcutLen + 20;
@@ -427,17 +434,14 @@ class PhysicsEngine {
             }
           });
         } else if (obs.type === 'barrier') {
-          const halfGap = (obs.currentGap || 100) / 2;
+          const halfGap = (obs.currentGap != null ? obs.currentGap : 100) / 2;
           const halfW = obs.width / 2;
-          const halfH = obs.height / 2;
           const midY = obs.y;
-          // Top gate half
-          const topCY = midY - halfGap - halfH;
-          const topBox = { x: obs.x, y: topCY, width: obs.width, height: obs.height };
+          // Top gate half — centred on obs.x, flush against gap (matches rendering box)
+          const topBox = { x: obs.x - halfW, y: midY - halfGap - obs.height, width: obs.width, height: obs.height };
           this.resolveBallBoxCollision(ball, topBox);
-          // Bottom gate half
-          const botCY = midY + halfGap + halfH;
-          const botBox = { x: obs.x, y: botCY, width: obs.width, height: obs.height };
+          // Bottom gate half — centred on obs.x, flush against gap (matches rendering box)
+          const botBox = { x: obs.x - halfW, y: midY + halfGap, width: obs.width, height: obs.height };
           this.resolveBallBoxCollision(ball, botBox);
           ball._hitBarrierThisFrame = true;
         } else if (obs.type === 'flap') {
