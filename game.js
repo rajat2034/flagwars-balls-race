@@ -1643,6 +1643,13 @@ class GameEngine {
     this._asteroidTimer = 1800 + Math.random() * 600;
     this._activeAsteroid = null;
     this._spaceObjects = [];
+
+    // Director Mode (hidden developer overlay)
+    this.directorMode = null;
+    this._directorInput = '';
+    this._directorSuggestions = [];
+    this._directorSelectedIndex = 0;
+    this._directorFlashBalls = [];
     this.isPanning = false;
     this.panStartX = 0;
     this.panStartCamX = 0;
@@ -3779,6 +3786,17 @@ if (this.activeEvent.key === 'speed_surge') {
 
     // Keyboard shortcuts
     window.addEventListener('keydown', (e) => {
+      // Director Mode takes full priority when active
+      if (this.directorMode) {
+        if (e.key === 'r' || e.key === 'R' || e.key === 'Escape') { this.directorMode = null; return; }
+        if (e.key === 'Enter') { this._executeDirectorAction(); return; }
+        if (e.key === 'ArrowUp') { this._directorSelectedIndex = Math.max(0, this._directorSelectedIndex - 1); return; }
+        if (e.key === 'ArrowDown') { this._directorSelectedIndex = Math.min(this._directorSuggestions.length - 1, Math.max(0, this._directorSelectedIndex + 1)); return; }
+        if (e.key === 'Backspace') { this._directorInput = this._directorInput.slice(0, -1); this._updateDirectorSuggestions(); return; }
+        if (e.key.length === 1 && e.key.match(/[a-zA-Z ]/)) { this._directorInput += e.key; this._updateDirectorSuggestions(); return; }
+        return;
+      }
+
       if (e.key === 'Shift') this.isShiftDown = true;
       if (e.key === '=' || e.key === '+') {
         if (this.state === 'racing' || this.state === 'finished') {
@@ -3790,10 +3808,13 @@ if (this.activeEvent.key === 'speed_surge') {
           this.userZoomMultiplier = Math.max(0.15, this.userZoomMultiplier - 0.15);
         }
       }
-      // R key to reset camera zoom
+      // R key to open Director Mode (during racing)
       if (e.key === 'r' || e.key === 'R') {
-        if (this.state === 'racing' || this.state === 'finished') {
-          this.userZoomMultiplier = 1.0;
+        if (this.state === 'racing') {
+          this.directorMode = true;
+          this._directorInput = '';
+          this._directorSuggestions = [];
+          this._directorSelectedIndex = 0;
         }
       }
     });
@@ -5621,6 +5642,33 @@ if (this.activeEvent.key === 'speed_surge') {
         this.ctx.restore();
       });
 
+      // Director Mode teleport flash on balls
+      if (this._directorFlashBalls.length > 0) {
+        this._directorFlashBalls = this._directorFlashBalls.filter(f => f.timer > 0);
+        this._directorFlashBalls.forEach(f => {
+          const ball = this.balls.find(b => b.id === f.id);
+          if (!ball) return;
+          const bx = ball.x - camX;
+          const by = ball.y;
+          const alpha = f.timer / 18;
+          this.ctx.save();
+          this.ctx.globalAlpha = alpha * 0.6;
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.beginPath();
+          this.ctx.arc(bx, by, ball.radius * 1.2, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.globalAlpha = alpha * 0.3;
+          this.ctx.shadowColor = '#60a5fa';
+          this.ctx.shadowBlur = 20;
+          this.ctx.beginPath();
+          this.ctx.arc(bx, by, ball.radius * 0.8, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+          this.ctx.restore();
+          f.timer -= 1;
+        });
+      }
+
       // Teleportation warning glow on selected balls
       if (this._teleportState === 'warning') {
         this._teleportPairs.forEach(pair => {
@@ -5653,6 +5701,11 @@ if (this.activeEvent.key === 'speed_surge') {
 
       // Full screen UI overlays (canvas overlay space)
       this.renderScreenOverlays(screenW, screenH);
+
+      // Director Mode overlay (tiny, bottom-left, semi-transparent)
+      if (this.directorMode) {
+        this._renderDirectorOverlay(screenW, screenH);
+      }
     }
   }
 
@@ -6250,6 +6303,230 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         ctx.restore();
       }
+    }
+
+    // ---- Director Mode Methods (hidden developer overlay) ----
+
+    _updateDirectorSuggestions() {
+      if (!this._directorInput || !this.countryDatabase) {
+        this._directorSuggestions = [];
+        this._directorSelectedIndex = 0;
+        return;
+      }
+      const input = this._directorInput.toLowerCase();
+      this._directorSuggestions = this.countryDatabase
+        .filter(c => c.name.toLowerCase().includes(input))
+        .slice(0, 4)
+        .map(c => ({ code: c.code, name: c.name }));
+      this._directorSelectedIndex = 0;
+    }
+
+    _executeDirectorAction() {
+      if (this._directorSuggestions.length === 0) return;
+      const selected = this._directorSuggestions[this._directorSelectedIndex];
+      if (!selected) return;
+
+      const existingBall = this.balls && this.balls.find(b => b.code === selected.code);
+      if (existingBall) {
+        this._teleportRacer(existingBall);
+      } else {
+        this._spawnNewRacer(selected.code, selected.name);
+      }
+      this.directorMode = null;
+    }
+
+    _teleportRacer(ball) {
+      const camCenter = this._getCameraCenterWorld();
+      const safePos = this._findSafePositionNear(camCenter.x, camCenter.y);
+      ball.x = safePos.x;
+      ball.y = safePos.y;
+
+      this._directorFlashBalls.push({ id: ball.id, timer: 18 });
+      if (this.particles) {
+        for (let i = 0; i < 12; i++) {
+          this.particles.push({
+            type: 'spark', x: ball.x, y: ball.y,
+            vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
+            life: 20 + Math.random() * 10, age: 0, size: 2 + Math.random() * 2,
+            color: `hsl(210, 100%, ${50 + Math.random() * 30}%)`,
+          });
+        }
+      }
+    }
+
+    _spawnNewRacer(code, name) {
+      const country = this.countryDatabase.find(c => c.code === code);
+      if (!country) return;
+
+      const camCenter = this._getCameraCenterWorld();
+      const safePos = this._findSafePositionNear(camCenter.x, camCenter.y);
+
+      const newId = this.balls ? this.balls.reduce((max, b) => Math.max(max, b.id), -1) + 1 : 0;
+      const idx = this.balls ? this.balls.length : 0;
+
+      // Normalize attributes like the game does (see countries.js getCountryDatabase)
+      const rawSpeed = (country.stats ? (country.stats.gdp || 50) / 100 : 0.5);
+      const rawAcc = (country.stats ? (country.stats.hap || 50) / 100 : 0.5);
+      const rawColl = (country.stats ? (country.stats.mil || 50) / 100 : 0.5);
+
+      const ball = {
+        id: newId,
+        code: country.code,
+        name: country.name,
+        attributes: {
+          speed: 0.5 + rawSpeed * 0.5,
+          acceleration: 0.3 + rawAcc * 0.45,
+          collisionPower: 0.3 + rawColl * 0.7,
+          recovery: 0.5,
+          consistency: 0.5,
+        },
+        stats: country.stats ? { ...country.stats } : { pop: 50, gdp: 50, mil: 50, tour: 50, hap: 50, luck: 50 },
+        isWorldCup: false,
+        isWCBonus: false,
+        isStrongFootball: false,
+        color: ['#e74c3c', '#3498db', '#ffd700', '#2ecc71', '#9b59b6', '#f39c12'][idx % 6],
+        primaryColorRGB: ['200,60,60', '50,120,220', '220,180,50', '46,204,113', '155,89,182', '243,156,18'][idx % 6],
+        x: safePos.x,
+        y: safePos.y,
+        vx: 2 + Math.random() * 2,
+        vy: (Math.random() - 0.5) * 1,
+        vz: 0,
+        z: 0,
+        radius: 15,
+        mass: 0.8 + Math.random() * 0.4,
+        restitution: 0.3,
+        finished: false,
+        eliminated: false,
+        finishTime: 0,
+        maxSpeed: 0,
+        rank: 0,
+        trail: [],
+      };
+
+      this.balls.push(ball);
+      this.calculateLiveLeaderboard();
+
+      // Ensure flag is preloaded
+      if (this.flagCache && !this.flagCache[code]) {
+        const img = new Image();
+        img.src = `https://flagcdn.com/w80/${code}.png`;
+        img.onload = () => { this.flagCache[code] = img; };
+        img.onerror = () => { this.flagCache[code] = 'failed'; };
+      }
+
+      // Spawn portal particles
+      if (this.particles) {
+        for (let i = 0; i < 20; i++) {
+          const ang = (i / 20) * Math.PI * 2;
+          this.particles.push({
+            type: 'spark', x: ball.x + Math.cos(ang) * 18, y: ball.y + Math.sin(ang) * 18,
+            vx: Math.cos(ang) * (1 + Math.random() * 2), vy: Math.sin(ang) * (1 + Math.random() * 2),
+            life: 25 + Math.random() * 15, age: 0, size: 2 + Math.random() * 2,
+            color: `hsl(180, 100%, ${50 + Math.random() * 30}%)`,
+          });
+        }
+      }
+
+      this._directorFlashBalls.push({ id: ball.id, timer: 30 });
+    }
+
+    _getCameraCenterWorld() {
+      const screenW = this.canvas ? this.canvas.width : 500;
+      const screenH = this.canvas ? this.canvas.height : 400;
+      const zoom = this.cameraZoom || 1;
+      const trackOff = this.trackOffset || 0;
+      return {
+        x: (screenW / 2 - trackOff) / zoom + this.cameraX,
+        y: screenH / (2 * zoom),
+      };
+    }
+
+    _findSafePositionNear(cx, cy) {
+      const radius = 30;
+      let x = cx;
+      let y = cy;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        let occupied = false;
+        if (this.balls) {
+          for (const b of this.balls) {
+            if (Math.hypot(b.x - x, b.y - y) < radius) {
+              occupied = true;
+              break;
+            }
+          }
+        }
+        if (!occupied) return { x, y };
+        x = cx + (Math.random() - 0.5) * 60;
+        y = cy + (Math.random() - 0.5) * 60;
+      }
+      return { x, y };
+    }
+
+    _renderDirectorOverlay(screenW, screenH) {
+      const ctx = this.ctx;
+      const ox = 10;
+      const oy = screenH - 140;
+      const ow = 220;
+      const oh = 130;
+
+      ctx.save();
+      // Background
+      ctx.fillStyle = 'rgba(10,10,20,0.85)';
+      ctx.strokeStyle = 'rgba(6,182,212,0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(ox, oy, ow, oh, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      // Title
+      ctx.fillStyle = 'rgba(6,182,212,0.6)';
+      ctx.font = 'bold 11px Montserrat, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('DIRECTOR MODE', ox + 8, oy + 6);
+
+      // Input label
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '10px Montserrat, sans-serif';
+      ctx.fillText('Country:', ox + 8, oy + 24);
+
+      // Input field
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(ox + 8, oy + 36, ow - 16, 16);
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.font = '11px Montserrat, sans-serif';
+      ctx.fillText(this._directorInput + (Date.now() % 1000 < 500 ? '|' : ' '), ox + 11, oy + 38);
+
+      // Suggestions
+      let sy = oy + 56;
+      this._directorSuggestions.forEach((s, i) => {
+        const isSelected = i === this._directorSelectedIndex;
+        const existing = this.balls && this.balls.find(b => b.code === s.code);
+        if (isSelected) {
+          ctx.fillStyle = 'rgba(6,182,212,0.2)';
+          ctx.fillRect(ox + 8, sy, ow - 16, 14);
+        }
+        ctx.fillStyle = isSelected ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.5)';
+        ctx.font = '10px Montserrat, sans-serif';
+        ctx.fillText(s.name, ox + 11, sy + 2);
+        if (existing) {
+          ctx.fillStyle = 'rgba(6,182,212,0.4)';
+          ctx.font = '8px Montserrat, sans-serif';
+          ctx.fillText('TELEPORT', ox + ow - 43, sy + 3);
+        } else {
+          ctx.fillStyle = 'rgba(251,191,36,0.4)';
+          ctx.font = '8px Montserrat, sans-serif';
+          ctx.fillText('SPAWN', ox + ow - 35, sy + 3);
+        }
+        sy += 15;
+      });
+
+      // Info line
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.font = '8px Montserrat, sans-serif';
+      ctx.fillText('ENTER=Execute  ESC=Close', ox + 8, oy + oh - 12);
+      ctx.restore();
     }
 
     renderScreenOverlays(screenW, screenH) {
