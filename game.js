@@ -1638,12 +1638,10 @@ class GameEngine {
     this._teleportPairs = [];
     this._teleportPostPairs = [];
     this._whiteFlashAlpha = 0;
-    this._shootingStarTimer = 600 + Math.random() * 600;
-    this._activeShootingStar = null;
-    this._cometTimer = 1200 + Math.random() * 1200;
-    this._activeComet = null;
-    this._meteorShowerTimer = 1800 + Math.random() * 1800;
+    this._meteorTimer = 600 + Math.random() * 600;
     this._activeMeteors = [];
+    this._asteroidTimer = 1800 + Math.random() * 600;
+    this._activeAsteroid = null;
     this._spaceObjects = [];
     this.isPanning = false;
     this.panStartX = 0;
@@ -5903,128 +5901,172 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         ctx.restore();
 
-        // ---- LAYER 4f: Shooting stars (quick, elegant, every 10-20s) ----
-        this._shootingStarTimer -= 1;
-        if (this._shootingStarTimer <= 0) {
-          this._shootingStarTimer = 600 + Math.random() * 600;
-          this._activeShootingStar = {
-            x: Math.random() * screenW * 0.8 + screenW * 0.1,
-            y: Math.random() * screenH * 0.35,
-            speed: 10 + Math.random() * 8,
-            length: 50 + Math.random() * 80,
-            angle: Math.PI * 0.1 + Math.random() * 0.25,
-            life: 20 + Math.random() * 15,
-            age: 0
-          };
-        }
-        if (this._activeShootingStar && this._activeShootingStar.age < this._activeShootingStar.life) {
-          const ss = this._activeShootingStar;
-          ctx.save();
-          const fade = Math.max(0, 1 - ss.age / ss.life);
-          ctx.globalAlpha = fade * 0.6;
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.moveTo(ss.x, ss.y);
-          ctx.lineTo(ss.x - Math.cos(ss.angle) * ss.length, ss.y + Math.sin(ss.angle) * ss.length);
-          ctx.stroke();
-          ctx.fillStyle = '#ffffff';
-          ctx.globalAlpha = fade * 0.8;
-          ctx.beginPath();
-          ctx.arc(ss.x, ss.y, 2, 0, Math.PI * 2);
-          ctx.fill();
-          ss.x += Math.cos(ss.angle) * ss.speed;
-          ss.y -= Math.sin(ss.angle) * ss.speed;
-          ss.age += 1;
-          ctx.restore();
-        }
-
-        // ---- LAYER 4g: Comets (glowing head + long light trail, every 20-40s) ----
-        this._cometTimer -= 1;
-        if (this._cometTimer <= 0) {
-          this._cometTimer = 1200 + Math.random() * 1200;
-          const fromLeft = Math.random() > 0.5;
-          this._activeComet = {
-            x: fromLeft ? -100 : screenW + 100,
-            y: Math.random() * screenH * 0.4,
-            vx: fromLeft ? 4 + Math.random() * 3 : -(4 + Math.random() * 3),
-            vy: 1.5 + Math.random() * 2,
-            trail: [],
-            maxTrail: 20 + Math.floor(Math.random() * 10),
-            life: 80 + Math.random() * 40,
-            age: 0,
-            hue: 20 + Math.random() * 20
-          };
-        }
-        if (this._activeComet && this._activeComet.age < this._activeComet.life) {
-          const c = this._activeComet;
-          c.trail.push({ x: c.x, y: c.y });
-          if (c.trail.length > c.maxTrail) c.trail.shift();
-          ctx.save();
-          // Trail
-          for (let t = 0; t < c.trail.length; t++) {
-            const tf = t / c.trail.length;
-            ctx.globalAlpha = tf * 0.35 * Math.max(0, 1 - c.age / c.life);
-            ctx.fillStyle = `hsl(${c.hue}, 100%, ${60 + tf * 30}%)`;
-            ctx.beginPath();
-            ctx.arc(c.trail[t].x, c.trail[t].y, 1 + tf * 2.5, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          // Head glow
-          const headFade = Math.max(0, 1 - c.age / c.life);
-          ctx.globalAlpha = headFade * 0.6;
-          ctx.shadowColor = `hsl(${c.hue}, 100%, 70%)`;
-          ctx.shadowBlur = 15;
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(c.x, c.y, 3, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.restore();
-          c.x += c.vx;
-          c.y += c.vy;
-          c.age += 1;
-          if (c.age >= c.life) this._activeComet = null;
-        }
-
-        // ---- LAYER 4h: Meteor showers (tiny orange streaks, fast, distant) ----
-        this._meteorShowerTimer -= 1;
-        if (this._meteorShowerTimer <= 0) {
-          this._meteorShowerTimer = 1800 + Math.random() * 1800;
-          const count = 3 + Math.floor(Math.random() * 4);
+        // ---- LAYER 4f: Meteors (tiny bright head, thin colorful trail, very fast, every 10-20s) ----
+        this._meteorTimer -= 1;
+        if (this._meteorTimer <= 0) {
+          this._meteorTimer = 600 + Math.random() * 600;
+          const count = Math.random() > 0.35 ? 1 : 2;
           this._activeMeteors = [];
+          const meteorColors = ['#22d3ee', '#60a5fa', '#f472b6', '#c084fc', '#4ade80', '#ffffff'];
           for (let m = 0; m < count; m++) {
+            const fromLeft = Math.random() > 0.5;
             this._activeMeteors.push({
-              x: Math.random() * screenW * 1.2 - screenW * 0.1,
-              y: -20 - Math.random() * 40,
-              vx: 3 + Math.random() * 4,
-              vy: 5 + Math.random() * 4,
-              life: 15 + Math.random() * 10,
-              age: Math.floor(Math.random() * 5),
-              size: 0.5 + Math.random() * 1,
+              x: fromLeft ? -30 : screenW + 30,
+              y: Math.random() * screenH * 0.55 + screenH * 0.05,
+              vx: fromLeft ? 18 + Math.random() * 12 : -(18 + Math.random() * 12),
+              vy: (5 + Math.random() * 7) * (Math.random() > 0.5 ? 1 : -1),
+              life: 12 + Math.random() * 12,
+              age: 0,
+              color: meteorColors[Math.floor(Math.random() * meteorColors.length)],
             });
           }
         }
         this._activeMeteors = this._activeMeteors.filter(m => m.age < m.life);
         for (const m of this._activeMeteors) {
           ctx.save();
-          const mFade = Math.max(0, 1 - m.age / m.life);
-          ctx.globalAlpha = mFade * 0.35;
-          ctx.strokeStyle = '#f97316';
-          ctx.lineWidth = m.size;
+          const mf = Math.max(0, 1 - m.age / m.life);
+          ctx.globalAlpha = mf * 0.4;
+          ctx.strokeStyle = m.color;
+          ctx.lineWidth = 0.8 + mf * 0.5;
+          ctx.shadowColor = m.color;
+          ctx.shadowBlur = 4;
           ctx.beginPath();
           ctx.moveTo(m.x, m.y);
-          ctx.lineTo(m.x - m.vx * 2.5, m.y - m.vy * 2.5);
+          ctx.lineTo(m.x - m.vx * 4, m.y - m.vy * 4);
           ctx.stroke();
-          ctx.fillStyle = '#fb923c';
-          ctx.globalAlpha = mFade * 0.5;
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = mf * 0.8;
           ctx.beginPath();
-          ctx.arc(m.x, m.y, m.size + 0.5, 0, Math.PI * 2);
+          ctx.arc(m.x, m.y, 1.2, 0, Math.PI * 2);
           ctx.fill();
           m.x += m.vx;
           m.y += m.vy;
           m.age += 1;
           ctx.restore();
+        }
+
+        // ---- LAYER 4g: Asteroid (large flaming rock, every 30-40s) ----
+        this._asteroidTimer -= 1;
+        if (this._asteroidTimer <= 0) {
+          this._asteroidTimer = 1800 + Math.random() * 600;
+          const fromLeft = Math.random() > 0.5;
+          const size = 12 + Math.random() * 8;
+          this._activeAsteroid = {
+            x: fromLeft ? -200 : screenW + 200,
+            y: screenH * 0.05 + Math.random() * screenH * 0.5,
+            vx: fromLeft ? 1 + Math.random() * 0.7 : -(1 + Math.random() * 0.7),
+            vy: 0.3 + Math.random() * 0.5,
+            trail: [],
+            maxTrail: 45,
+            life: 180 + Math.random() * 80,
+            age: 0,
+            size,
+            sparks: [],
+            rot: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 0.015,
+            verts: this._generateAsteroidShape(7 + Math.floor(Math.random() * 4)),
+            sparkTimer: 0,
+          };
+        }
+        if (this._activeAsteroid && this._activeAsteroid.age < this._activeAsteroid.life) {
+          const a = this._activeAsteroid;
+          a.rot += a.rotSpeed;
+          a.trail.push({ x: a.x, y: a.y });
+          if (a.trail.length > a.maxTrail) a.trail.shift();
+          ctx.save();
+          // --- Draw trail (segments: blue-grey smoke → white → yellow → orange) ---
+          if (a.trail.length > 2) {
+            for (let t = 1; t < a.trail.length; t++) {
+              const tf = t / a.trail.length;
+              const alpha = tf * 0.3;
+              const width = 1 + tf * a.size * 0.25;
+              let r, g, b;
+              if (tf < 0.25) { r = 148; g = 163; b = 184; }
+              else if (tf < 0.5) { r = 255; g = 255; b = 255; }
+              else if (tf < 0.75) { r = 251; g = 191; b = 36; }
+              else { r = 249; g = 115; b = 22; }
+              ctx.globalAlpha = alpha;
+              ctx.strokeStyle = `rgb(${r},${g},${b})`;
+              ctx.lineWidth = width;
+              ctx.beginPath();
+              ctx.moveTo(a.trail[t - 1].x, a.trail[t - 1].y);
+              ctx.lineTo(a.trail[t].x, a.trail[t].y);
+              ctx.stroke();
+            }
+          }
+          // --- Sparks breaking from trail ---
+          a.sparkTimer++;
+          if (a.sparkTimer % 4 === 0 && a.trail.length > 5) {
+            const idx = Math.floor(a.trail.length * (0.5 + Math.random() * 0.3));
+            const sp = a.trail[idx];
+            a.sparks.push({
+              x: sp.x + (Math.random() - 0.5) * 6,
+              y: sp.y + (Math.random() - 0.5) * 6,
+              vx: (Math.random() - 0.5) * 1.5,
+              vy: (Math.random() - 0.5) * 1.5,
+              life: 15 + Math.random() * 10,
+              age: 0,
+              size: 1 + Math.random() * 0.8,
+            });
+          }
+          a.sparks = a.sparks.filter(s => s.age < s.life);
+          for (const s of a.sparks) {
+            const sf = 1 - s.age / s.life;
+            ctx.globalAlpha = sf * 0.35;
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.size * sf, 0, Math.PI * 2);
+            ctx.fill();
+            s.x += s.vx;
+            s.y += s.vy;
+            s.age += 1;
+          }
+          // --- Orange glow around asteroid ---
+          ctx.globalAlpha = 0.15;
+          ctx.shadowColor = '#f97316';
+          ctx.shadowBlur = 25;
+          ctx.fillStyle = '#f97316';
+          ctx.beginPath();
+          ctx.arc(a.x, a.y, a.size * 1.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          // --- Fiery front (world space, always points in travel direction) ---
+          const fAng = Math.atan2(a.vy, a.vx);
+          const fx = a.x + Math.cos(fAng) * a.size * 0.7;
+          const fy = a.y + Math.sin(fAng) * a.size * 0.7;
+          ctx.globalAlpha = 0.4;
+          ctx.fillStyle = '#f97316';
+          ctx.beginPath();
+          ctx.arc(fx, fy, a.size * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fbbf24';
+          ctx.globalAlpha = 0.25;
+          ctx.beginPath();
+          ctx.arc(fx, fy, a.size * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+          // --- Rocky body (local space, rotating) ---
+          ctx.translate(a.x, a.y);
+          ctx.rotate(a.rot);
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = '#57534e';
+          ctx.shadowColor = '#000';
+          ctx.shadowBlur = 3;
+          ctx.beginPath();
+          for (let v = 0; v < a.verts.length; v++) {
+            const px = Math.cos(a.verts[v].a) * a.size * a.verts[v].r;
+            const py = Math.sin(a.verts[v].a) * a.size * a.verts[v].r;
+            if (v === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.restore();
+          a.x += a.vx;
+          a.y += a.vy;
+          a.age += 1;
+          if (a.age >= a.life) this._activeAsteroid = null;
         }
 
         // ---- LAYER 4i: Distant aurora-like light band ----
