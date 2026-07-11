@@ -5809,38 +5809,44 @@ if (this.activeEvent.key === 'speed_surge') {
         ctx.fillRect(0, 0, screenW, screenH);
         ctx.restore();
 
-        // ---- LAYER 4b: Faint distant galaxies (2-4, blurred, very subtle) ----
+        // ---- LAYER 4b: Distant galaxies (3, more visible, color-matched to nebula) ----
         const galTime = time * 0.008;
         for (let g = 0; g < 3; g++) {
           ctx.save();
-          ctx.globalAlpha = 0.012 + Math.sin(galTime * 0.5 + g * 2) * 0.004;
-          const gx = screenW * (0.2 + g * 0.3) + Math.sin(galTime + g * 1.5) * 30;
+          ctx.globalAlpha = 0.05 + Math.sin(galTime * 0.5 + g * 2) * 0.015;
+          const gx = screenW * (0.15 + g * 0.35) + Math.sin(galTime + g * 1.5) * 30;
           const gy = screenH * (0.25 + (g % 2) * 0.4);
-          const gRad = 120 + g * 40;
+          const gRad = 130 + g * 50;
           const galGrad = ctx.createRadialGradient(gx, gy, 0, gx, gy, gRad);
           const galColors = ['#7c3aed', '#3b82f6', '#a855f7'];
-          galGrad.addColorStop(0, galColors[g] + '33');
-          galGrad.addColorStop(0.3, galColors[g] + '1a');
-          galGrad.addColorStop(0.6, galColors[g] + '0d');
+          galGrad.addColorStop(0, galColors[g] + '55');
+          galGrad.addColorStop(0.3, galColors[g] + '33');
+          galGrad.addColorStop(0.6, galColors[g] + '18');
           galGrad.addColorStop(1, 'transparent');
           ctx.fillStyle = galGrad;
           ctx.beginPath();
-          ctx.ellipse(gx, gy, gRad, gRad * 0.35, 0.3 + g * 0.5, 0, Math.PI * 2);
+          ctx.ellipse(gx, gy, gRad, gRad * 0.3, 0.3 + g * 0.5, 0, Math.PI * 2);
           ctx.fill();
-          // Faint spiral hint
-          ctx.strokeStyle = galColors[g] + '15';
-          ctx.lineWidth = 1;
+          // Spiral arms (more visible)
+          ctx.strokeStyle = galColors[g] + '30';
+          ctx.lineWidth = 1.5;
           for (let a = 0; a < 2; a++) {
             ctx.beginPath();
-            for (let r = 0; r < gRad * 0.8; r += 3) {
-              const sa = r * 0.015 + a * Math.PI + galTime * 0.1;
+            for (let r = 5; r < gRad * 0.8; r += 3) {
+              const sa = r * 0.018 + a * Math.PI + galTime * 0.1;
               const sx = gx + Math.cos(sa) * r;
-              const sy = gy + Math.sin(sa) * r * 0.35;
-              if (r === 0) ctx.moveTo(sx, sy);
+              const sy = gy + Math.sin(sa) * r * 0.3;
+              if (r === 5) ctx.moveTo(sx, sy);
               else ctx.lineTo(sx, sy);
             }
             ctx.stroke();
           }
+          // Brighter core
+          ctx.globalAlpha = 0.08;
+          ctx.fillStyle = galColors[g];
+          ctx.beginPath();
+          ctx.arc(gx, gy, gRad * 0.08, 0, Math.PI * 2);
+          ctx.fill();
           ctx.restore();
         }
 
@@ -6062,14 +6068,24 @@ if (this.activeEvent.key === 'speed_surge') {
     }
 
     // Generate decorative celestial objects for Nebula Cosmos — no collisions, pure atmosphere
+    _generateAsteroidShape(numVerts) {
+      const verts = [];
+      for (let i = 0; i < numVerts; i++) {
+        const a = (i / numVerts) * Math.PI * 2;
+        const r = 0.7 + Math.random() * 0.3;
+        verts.push({ a, r });
+      }
+      return verts;
+    }
+
     _initSpaceObjects(track) {
       this._spaceObjects = [];
       if (this.currentThemeKey !== 'space' || !track) return;
       const length = track.length || 10000;
-      const types = ['planet', 'moon', 'gas_giant', 'station', 'satellite', 'asteroid', 'debris', 'beacon', 'ancient_probe', 'debris_field'];
-      for (let i = 0; i < 24; i++) {
+      const types = ['asteroid', 'large_asteroid', 'meteorite', 'debris', 'debris_field', 'beacon', 'ancient_probe', 'asteroid', 'debris', 'asteroid'];
+      for (let i = 0; i < 30; i++) {
         const t = types[i % types.length];
-        const x = (i / 24) * length + Math.random() * 400;
+        const x = (i / 30) * length + Math.random() * 400;
         const side = Math.random() > 0.5 ? 1 : -1;
         this._spaceObjects.push({
           type: t,
@@ -6077,12 +6093,12 @@ if (this.activeEvent.key === 'speed_surge') {
           trackOffset: (Math.random() - 0.5) * 600,
           yOffset: side * (200 + Math.random() * 300),
           parallax: 0.02 + Math.random() * 0.08,
-          size: t === 'planet' || t === 'gas_giant' ? 15 + Math.random() * 20 : t === 'moon' ? 6 + Math.random() * 6 : 3 + Math.random() * 8,
+          size: t === 'large_asteroid' ? 10 + Math.random() * 10 : t === 'meteorite' ? 5 + Math.random() * 6 : 2 + Math.random() * 5,
           phase: Math.random() * 100,
-          color: ['#7c3aed', '#3b82f6', '#a855f7', '#06b6d4', '#8b5cf6', '#6366f1', '#c084fc', '#38bdf8'][i % 8],
-          hasRing: t === 'planet' && Math.random() > 0.5,
-          ringAngle: Math.random() * Math.PI,
-          lightPhase: Math.random() * Math.PI * 2,
+          color: t === 'beacon' ? '#fbbf24' : t === 'ancient_probe' ? '#94a3b8' : ['#64748b', '#475569', '#94a3b8', '#78716c', '#57534e', '#a8a29e'][i % 6],
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.02,
+          vertices: t === 'asteroid' || t === 'large_asteroid' || t === 'meteorite' ? this._generateAsteroidShape(5 + Math.floor(Math.random() * 4)) : null,
         });
       }
     }
@@ -6097,45 +6113,70 @@ if (this.activeEvent.key === 'speed_surge') {
         const vy = obj.yOffset;
         if (vx < -400 || vx > 800) continue;
         ctx.save();
-        ctx.globalAlpha = 0.25 + Math.sin(time * 0.1 + obj.phase) * 0.05;
-        if (obj.type === 'planet' && obj.hasRing) {
-          ctx.strokeStyle = obj.color;
-          ctx.lineWidth = 1.5;
-          ctx.globalAlpha *= 0.3;
+        obj.rotation = (obj.rotation || 0) + (obj.rotSpeed || 0);
+        const rot = obj.rotation || 0;
+        ctx.translate(vx, vy);
+        ctx.rotate(rot);
+        ctx.globalAlpha = 0.3 + Math.sin(time * 0.15 + obj.phase) * 0.08;
+        if (obj.type === 'asteroid' || obj.type === 'large_asteroid' || obj.type === 'meteorite') {
+          // Irregular rocky shape using pre-generated vertices
+          const verts = obj.vertices;
+          if (verts) {
+            ctx.fillStyle = obj.color;
+            ctx.shadowColor = '#000000';
+            ctx.shadowBlur = 3;
+            ctx.beginPath();
+            for (let v = 0; v < verts.length; v++) {
+              const x = Math.cos(verts[v].a) * obj.size * verts[v].r;
+              const y = Math.sin(verts[v].a) * obj.size * verts[v].r;
+              if (v === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+            // Surface highlight
+            ctx.fillStyle = '#ffffff';
+            ctx.globalAlpha *= 0.08;
+            ctx.beginPath();
+            ctx.arc(-obj.size * 0.15, -obj.size * 0.15, obj.size * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            // Meteorite tail hint
+            if (obj.type === 'meteorite') {
+              ctx.globalAlpha = 0.15;
+              ctx.strokeStyle = '#f97316';
+              ctx.lineWidth = 0.8;
+              ctx.beginPath();
+              ctx.moveTo(obj.size * 0.5, 0);
+              ctx.lineTo(obj.size * 1.8, -obj.size * 0.3);
+              ctx.stroke();
+            }
+          }
+        } else if (obj.type === 'debris') {
+          // Tiny irregular fragment
+          ctx.fillStyle = obj.color;
           ctx.beginPath();
-          ctx.ellipse(vx, vy, obj.size * 1.8, obj.size * 0.3, obj.ringAngle + Math.sin(time * 0.05) * 0.1, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.globalAlpha = 0.3;
-        }
-        ctx.fillStyle = obj.color;
-        ctx.shadowColor = obj.color;
-        ctx.shadowBlur = obj.type === 'station' || obj.type === 'satellite' ? 4 : obj.size > 15 ? 12 : 6;
-        ctx.beginPath();
-        ctx.arc(vx, vy, obj.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        if (obj.type === 'station') {
-          ctx.strokeStyle = '#94a3b8';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(vx - obj.size * 0.5, vy - obj.size * 0.5);
-          ctx.lineTo(vx + obj.size * 0.5, vy + obj.size * 0.5);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(vx + obj.size * 0.5, vy - obj.size * 0.5);
-          ctx.lineTo(vx - obj.size * 0.5, vy + obj.size * 0.5);
-          ctx.stroke();
-          ctx.fillStyle = '#fbbf24';
-          ctx.globalAlpha = 0.5 + Math.sin(time * 3 + obj.phase) * 0.5;
-          ctx.beginPath();
-          ctx.arc(vx, vy - obj.size * 0.3, 1.5, 0, Math.PI * 2);
+          for (let d = 0; d < 4; d++) {
+            const da = (d / 4) * Math.PI * 2;
+            const dr = obj.size * (0.7 + (d % 2) * 0.3);
+            const dx = Math.cos(da) * dr;
+            const dy = Math.sin(da) * dr;
+            if (d === 0) ctx.moveTo(dx, dy);
+            else ctx.lineTo(dx, dy);
+          }
+          ctx.closePath();
           ctx.fill();
-        } else if (obj.type === 'satellite') {
-          ctx.fillStyle = '#cbd5e1';
-          ctx.fillRect(vx - obj.size * 0.3, vy - obj.size * 0.8, obj.size * 0.6, obj.size * 1.6);
-          ctx.fillStyle = '#3b82f6';
-          ctx.globalAlpha *= 0.3;
-          ctx.fillRect(vx - obj.size * 2, vy - obj.size * 0.15, obj.size * 4, obj.size * 0.3);
+        } else if (obj.type === 'debris_field') {
+          // Scattered debris: several tiny fragments
+          for (let d = 0; d < 5; d++) {
+            const da = d * 1.3 + obj.phase;
+            const dr = obj.size * (0.3 + (d % 3) * 0.2);
+            ctx.fillStyle = ['#94a3b8', '#64748b', '#475569', '#78716c', '#a8a29e'][d];
+            ctx.globalAlpha = 0.15 + Math.sin(time * 0.5 + da) * 0.05;
+            ctx.beginPath();
+            ctx.arc(Math.cos(da) * dr, Math.sin(da) * dr, 0.8 + (d % 3) * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
         } else if (obj.type === 'beacon') {
           // Alien beacon: pulsing diamond shape
           const bp = 0.3 + Math.sin(time * 1.5 + obj.phase) * 0.3;
@@ -6144,10 +6185,10 @@ if (this.activeEvent.key === 'speed_surge') {
           ctx.shadowColor = obj.color;
           ctx.shadowBlur = 10 + bp * 8;
           ctx.beginPath();
-          ctx.moveTo(vx, vy - obj.size);
-          ctx.lineTo(vx + obj.size, vy);
-          ctx.lineTo(vx, vy + obj.size);
-          ctx.lineTo(vx - obj.size, vy);
+          ctx.moveTo(0, -obj.size);
+          ctx.lineTo(obj.size, 0);
+          ctx.lineTo(0, obj.size);
+          ctx.lineTo(-obj.size, 0);
           ctx.closePath();
           ctx.fill();
           ctx.shadowBlur = 0;
@@ -6155,26 +6196,15 @@ if (this.activeEvent.key === 'speed_surge') {
           // Broken probe: irregular shape with blinking light
           ctx.fillStyle = '#64748b';
           ctx.beginPath();
-          ctx.arc(vx - obj.size * 0.3, vy + obj.size * 0.2, obj.size * 0.6, 0, Math.PI * 2);
+          ctx.arc(-obj.size * 0.3, obj.size * 0.2, obj.size * 0.6, 0, Math.PI * 2);
           ctx.fill();
           ctx.fillStyle = '#475569';
-          ctx.fillRect(vx - obj.size * 0.1, vy - obj.size * 0.5, obj.size * 0.4, obj.size * 0.8);
+          ctx.fillRect(-obj.size * 0.1, -obj.size * 0.5, obj.size * 0.4, obj.size * 0.8);
           ctx.fillStyle = '#fbbf24';
           ctx.globalAlpha = 0.3 + Math.sin(time * 2.5 + obj.phase) * 0.3;
           ctx.beginPath();
-          ctx.arc(vx + obj.size * 0.2, vy - obj.size * 0.4, 1, 0, Math.PI * 2);
+          ctx.arc(obj.size * 0.2, -obj.size * 0.4, 1, 0, Math.PI * 2);
           ctx.fill();
-        } else if (obj.type === 'debris_field') {
-          // Scattered debris: several tiny fragments
-          for (let d = 0; d < 5; d++) {
-            const da = d * 1.3 + obj.phase;
-            const dr = obj.size * (0.3 + (d % 3) * 0.2);
-            ctx.fillStyle = ['#94a3b8', '#64748b', '#475569', '#cbd5e1', '#94a3b8'][d];
-            ctx.globalAlpha = 0.15 + Math.sin(time * 0.5 + da) * 0.05;
-            ctx.beginPath();
-            ctx.arc(vx + Math.cos(da) * dr, vy + Math.sin(da) * dr, 0.8 + (d % 3) * 0.5, 0, Math.PI * 2);
-            ctx.fill();
-          }
         }
         ctx.restore();
       }
