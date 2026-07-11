@@ -3787,6 +3787,18 @@ if (this.activeEvent.key === 'speed_surge') {
       const clickX = (e.clientX - rect.left - this.trackOffset) / this.cameraZoom + this.cameraX;
       const clickY = (e.clientY - rect.top) / this.cameraZoom;
 
+      // Director Mode Remove button hit-test (screen-space)
+      if (this.directorMode && this._directorRemoveButtons) {
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        for (const btn of this._directorRemoveButtons) {
+          if (sx >= btn.x && sx <= btn.x + btn.w && sy >= btn.y && sy <= btn.y + btn.h) {
+            this._removeCustomBall(btn.id);
+            return;
+          }
+        }
+      }
+
       let closestDist = Infinity;
       let closestBall = null;
       this.balls.forEach(ball => {
@@ -5604,6 +5616,15 @@ if (this.activeEvent.key === 'speed_surge') {
           let labelName = ball.name;
           if (labelName.length > 12) labelName = labelName.substring(0, 10) + '..';
           const displayLabel = `${ball.rank}. ${labelName}`;
+          if (ball.isCustom) {
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.shadowColor = '#FFD700';
+            this.ctx.shadowBlur = 6;
+          } else {
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.shadowColor = '#000000';
+            this.ctx.shadowBlur = 4;
+          }
           this.ctx.fillText(displayLabel, bX, ball.y + renderRadius + 11);
         }
 
@@ -6361,7 +6382,14 @@ if (this.activeEvent.key === 'speed_surge') {
         this._directorSelectedIndex = 0;
         return;
       }
-      const input = this._directorInput.toLowerCase();
+      const dashIdx = this._directorInput.indexOf('-');
+      const query = dashIdx !== -1 ? this._directorInput.substring(0, dashIdx).trim() : this._directorInput;
+      if (!query) {
+        this._directorSuggestions = [];
+        this._directorSelectedIndex = 0;
+        return;
+      }
+      const input = query.toLowerCase();
       this._directorSuggestions = this.countryDatabase
         .filter(c => c.name.toLowerCase().includes(input))
         .slice(0, 4)
@@ -6374,7 +6402,17 @@ if (this.activeEvent.key === 'speed_surge') {
       const selected = this._directorSuggestions[this._directorSelectedIndex];
       if (!selected) return;
 
-      const existingBall = this.balls && this.balls.find(b => b.code === selected.code);
+      const dashIdx = this._directorInput.indexOf('-');
+      if (dashIdx !== -1) {
+        const customName = this._directorInput.substring(dashIdx + 1).trim();
+        if (customName) {
+          this._spawnNewRacer(selected.code, selected.name, true, customName.toUpperCase());
+          this.directorMode = null;
+          return;
+        }
+      }
+
+      const existingBall = this.balls && this.balls.find(b => b.code === selected.code && !b.isCustom);
       if (existingBall) {
         this._teleportRacer(existingBall);
       } else {
@@ -6402,7 +6440,7 @@ if (this.activeEvent.key === 'speed_surge') {
       }
     }
 
-    _spawnNewRacer(code, name) {
+    _spawnNewRacer(code, name, isCustom = false, customName = '') {
       const country = this.countryDatabase.find(c => c.code === code);
       if (!country) return;
 
@@ -6420,7 +6458,9 @@ if (this.activeEvent.key === 'speed_surge') {
       const ball = {
         id: newId,
         code: country.code,
-        name: country.name,
+        name: isCustom ? customName : country.name,
+        isCustom,
+        customName: isCustom ? customName : '',
         attributes: {
           speed: 0.5 + rawSpeed * 0.5,
           acceleration: 0.3 + rawAcc * 0.45,
@@ -6510,12 +6550,22 @@ if (this.activeEvent.key === 'speed_surge') {
       return { x, y };
     }
 
+    _removeCustomBall(id) {
+      if (!this.balls) return;
+      const idx = this.balls.findIndex(b => b.id === id && b.isCustom);
+      if (idx === -1) return;
+      this.balls.splice(idx, 1);
+      this.calculateLiveLeaderboard();
+    }
+
     _renderDirectorOverlay(screenW, screenH) {
       const ctx = this.ctx;
+      const customBalls = this.balls ? this.balls.filter(b => b.isCustom) : [];
+      const customSectionH = customBalls.length > 0 ? 18 + customBalls.length * 18 : 0;
+      const oh = 108 + customSectionH;
+      const oy = screenH - oh - 12;
       const ox = 10;
-      const oy = screenH - 140;
       const ow = 220;
-      const oh = 130;
 
       ctx.save();
       // Background
@@ -6547,10 +6597,11 @@ if (this.activeEvent.key === 'speed_surge') {
       ctx.fillText(this._directorInput + (Date.now() % 1000 < 500 ? '|' : ' '), ox + 11, oy + 38);
 
       // Suggestions
+      this._directorRemoveButtons = [];
       let sy = oy + 56;
       this._directorSuggestions.forEach((s, i) => {
         const isSelected = i === this._directorSelectedIndex;
-        const existing = this.balls && this.balls.find(b => b.code === s.code);
+        const existing = this.balls && this.balls.find(b => b.code === s.code && !b.isCustom);
         if (isSelected) {
           ctx.fillStyle = 'rgba(6,182,212,0.2)';
           ctx.fillRect(ox + 8, sy, ow - 16, 14);
@@ -6569,6 +6620,36 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         sy += 15;
       });
+
+      // Custom Balls section
+      if (customBalls.length > 0) {
+        sy += 4;
+        ctx.fillStyle = 'rgba(255,215,0,0.5)';
+        ctx.font = 'bold 10px Montserrat, sans-serif';
+        ctx.fillText('CUSTOM BALLS', ox + 8, sy);
+        sy += 16;
+        customBalls.forEach((b, i) => {
+          if (i >= 5) return;
+          ctx.fillStyle = 'rgba(255,255,255,0.7)';
+          ctx.font = '10px Montserrat, sans-serif';
+          ctx.fillText(b.customName || b.name, ox + 11, sy + 1);
+          const rmvX = ox + ow - 48;
+          const rmvY = sy;
+          const rmvW = 38;
+          const rmvH = 14;
+          ctx.fillStyle = 'rgba(231,76,60,0.3)';
+          ctx.beginPath();
+          ctx.roundRect(rmvX, rmvY, rmvW, rmvH, 3);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(231,76,60,0.7)';
+          ctx.font = '8px Montserrat, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('Remove', rmvX + rmvW / 2, rmvY + 4);
+          ctx.textAlign = 'left';
+          this._directorRemoveButtons.push({ id: b.id, x: rmvX, y: rmvY, w: rmvW, h: rmvH });
+          sy += 18;
+        });
+      }
 
       // Info line
       ctx.fillStyle = 'rgba(255,255,255,0.2)';
