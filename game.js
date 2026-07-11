@@ -59,12 +59,12 @@ const MAP_THEMES = {
   },
   space: {
     name: "Nebula Cosmos",
-    bgGrad: ["#0b0c10", "#1f2833"],
-    wallColor: "#66fcf1", // Neon blue
-    pegColor: "#c5c6c7",
-    pegBouncyColor: "#45a29e",
+    bgGrad: ["#040308", "#0a0e1a"],
+    wallColor: "#66fcf1",
+    pegColor: "#8ab4f8",
+    pegBouncyColor: "#c084fc",
     particleColor: "#66fcf1",
-    particleType: "star",
+    particleType: "cosmic",
     forwardForce: 0.014,
     density: 0.8
   }
@@ -1638,6 +1638,9 @@ class GameEngine {
     this._teleportPairs = [];
     this._teleportPostPairs = [];
     this._whiteFlashAlpha = 0;
+    this._shootingStarTimer = 600 + Math.random() * 600;
+    this._activeShootingStar = null;
+    this._spaceObjects = [];
     this.isPanning = false;
     this.panStartX = 0;
     this.panStartCamX = 0;
@@ -2856,6 +2859,9 @@ class GameEngine {
       track.zones = track.zones.filter(z => z.type !== 'portal' || (portalCounts.get(z.pairId) || 0) >= 2);
     }
 
+    // Generate decorative celestial objects for space theme
+    this._initSpaceObjects(track);
+
     this.track = track;
   }
 
@@ -3921,7 +3927,7 @@ if (this.activeEvent.key === 'speed_surge') {
     // 2. Generate new weather/ambient particles based on map theme
     if (!this.track) return;
 
-    const count = this.currentTheme.particleType === 'star' ? 1.0 : 0.4;
+    const count = this.currentTheme.particleType === 'star' || this.currentTheme.particleType === 'cosmic' ? 0.6 : 0.4;
     if (Math.random() < count * dt) {
       const pType = this.currentTheme.particleType;
       const col = this.currentTheme.particleColor;
@@ -3987,17 +3993,17 @@ if (this.activeEvent.key === 'speed_surge') {
           alpha: 0.4,
           size: Math.random() * 3 + 1
         });
-      } else if (pType === 'star') {
-        // Space cosmic stars drifting slowly up (showing down motion)
+      } else if (pType === 'cosmic' || pType === 'star') {
+        // Cosmic space dust — tiny, slow, ethereal
         this.particles.push({
           type: 'dust',
           x: spawnX,
           y: spawnY,
-          vx: 0,
-          vy: 0.2, // very slow
-          color: '#ffffff',
-          alpha: Math.random() * 0.5 + 0.3,
-          size: Math.random() * 2 + 0.5
+          vx: (Math.random() - 0.5) * 0.15,
+          vy: -0.1 - Math.random() * 0.15,
+          color: ['#ffffff', '#a5d8ff', '#d8b4fe', '#99f6e4'][Math.floor(Math.random() * 4)],
+          alpha: Math.random() * 0.25 + 0.1,
+          size: Math.random() * 1.2 + 0.3
         });
       }
     }
@@ -4226,29 +4232,7 @@ if (this.activeEvent.key === 'speed_surge') {
     this.cameraZoom = zoom;
     this.trackOffset = trackOffset;
 
-    // Draw environment/background grid lines in space theme across full width
-    if (this.currentThemeKey === 'space') {
-      this.ctx.save();
-      this.ctx.strokeStyle = 'rgba(102, 252, 241, 0.04)';
-      this.ctx.lineWidth = 1;
-      const gridSpacing = 40 * zoom;
-      const offsetScroll = -(this.cameraX * zoom) % gridSpacing;
-      for (let x = offsetScroll; x < screenW; x += gridSpacing) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(x, 0);
-        this.ctx.lineTo(x, screenH);
-        this.ctx.stroke();
-      }
-      for (let y = 0; y < screenH; y += gridSpacing) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, y);
-        this.ctx.lineTo(screenW, y);
-        this.ctx.stroke();
-      }
-      this.ctx.restore();
-    }
-
-// 2. Render track contents (Walls, Pegs, Boosts, Balls) inside scaled wrapper
+    // 2. Render track contents (Walls, Pegs, Boosts, Balls) inside scaled wrapper
     this.ctx.save();
     this.ctx.translate(trackOffset, 0);
     this.ctx.scale(zoom, zoom);
@@ -5303,6 +5287,31 @@ if (this.activeEvent.key === 'speed_surge') {
             else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
           }
           this.ctx.stroke();
+          // Decorative celestial objects + track glow (space theme)
+          if (this.currentThemeKey === 'space') {
+            this._renderSpaceObjects(camX);
+            // Subtle cyan energy pulse along wall boundaries
+            this.ctx.save();
+            const pulse = 0.12 + Math.sin(Date.now() * 0.003) * 0.06;
+            this.ctx.strokeStyle = `rgba(102,252,241,${pulse})`;
+            this.ctx.shadowColor = '#66fcf1';
+            this.ctx.shadowBlur = 8;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleTop.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
+              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleBot.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
+              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+            this.ctx.restore();
+          }
           this.ctx.globalAlpha = 1;
         }
       }
@@ -5739,27 +5748,126 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         ctx.restore();
       } else if (theme === 'space') {
+        // ---- LAYER 4a: Deep nebula clouds (slowly drifting) ----
         ctx.save();
-        ctx.globalAlpha = 0.04;
-        const grad = ctx.createRadialGradient(
-          screenW * 0.3 + Math.sin(time * 0.05) * 120, screenH * 0.4, 10,
-          screenW * 0.3, screenH * 0.4, 350
+        ctx.globalAlpha = 0.035;
+        const nebTime = time * 0.02;
+        const neb1 = ctx.createRadialGradient(
+          screenW * 0.25 + Math.sin(nebTime * 0.7) * 80, screenH * 0.3 + Math.cos(nebTime * 0.5) * 50, 10,
+          screenW * 0.25, screenH * 0.3, 400
         );
-        grad.addColorStop(0, '#9b59b6');
-        grad.addColorStop(1, 'transparent');
-        ctx.fillStyle = grad;
+        neb1.addColorStop(0, '#7c3aed');
+        neb1.addColorStop(0.4, '#6d28d9');
+        neb1.addColorStop(1, 'transparent');
+        ctx.fillStyle = neb1;
         ctx.fillRect(0, 0, screenW, screenH);
-        // Twinkling stars
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        for (let i = 0; i < 30; i++) {
-          const sx = ((i * 137.5 + 50) % screenW);
-          const sy = ((i * 97.3 + 20) % (screenH * 0.6));
-          const s = 0.5 + Math.sin(time * 2 + i * 7) * 0.5;
-          ctx.globalAlpha = s * 0.3;
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.025;
+        const neb2 = ctx.createRadialGradient(
+          screenW * 0.7 + Math.sin(nebTime * 0.6 + 2) * 100, screenH * 0.6 + Math.cos(nebTime * 0.4 + 1) * 60, 10,
+          screenW * 0.7, screenH * 0.6, 350
+        );
+        neb2.addColorStop(0, '#a855f7');
+        neb2.addColorStop(0.5, '#7c3aed');
+        neb2.addColorStop(1, 'transparent');
+        ctx.fillStyle = neb2;
+        ctx.fillRect(0, 0, screenW, screenH);
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.015;
+        const neb3 = ctx.createRadialGradient(
+          screenW * 0.5 + Math.sin(nebTime * 0.4 + 4) * 60, screenH * 0.2 + Math.cos(nebTime * 0.3 + 2) * 40, 10,
+          screenW * 0.5, screenH * 0.2, 500
+        );
+        neb3.addColorStop(0, '#06b6d4');
+        neb3.addColorStop(0.4, '#0891b2');
+        neb3.addColorStop(1, 'transparent');
+        ctx.fillStyle = neb3;
+        ctx.fillRect(0, 0, screenW, screenH);
+        ctx.restore();
+
+        // ---- LAYER 4b: Deep star field (200+ tiny stars with parallax twinkle) ----
+        const starSeed = Math.floor(this.cameraX * 0.01);
+        ctx.save();
+        for (let i = 0; i < 160; i++) {
+          const sx = ((i * 137.5 + starSeed * 3) % screenW);
+          const sy = ((i * 97.3 + 50) % (screenH * 0.85));
+          const twinkle = 0.4 + Math.sin(time * (1.5 + (i % 5) * 0.3) + i * 2.7) * 0.3;
+          const size = 0.5 + (i % 3) * 0.4;
+          ctx.globalAlpha = twinkle * 0.25;
+          ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(sx, sy, s * 1.5, 0, Math.PI * 2);
+          ctx.arc(sx, sy, size, 0, Math.PI * 2);
           ctx.fill();
         }
+        ctx.restore();
+
+        // ---- LAYER 4c: Mid-field brighter stars (sparse, more twinkle) ----
+        ctx.save();
+        for (let i = 0; i < 40; i++) {
+          const sx = ((i * 211.7 + starSeed * 7 + 100) % screenW);
+          const sy = ((i * 173.5 + 80) % (screenH * 0.7));
+          const twinkle = 0.3 + Math.sin(time * (2 + (i % 4) * 0.4) + i * 3.1) * 0.35;
+          const size = 0.8 + (i % 5) * 0.5;
+          ctx.globalAlpha = twinkle * 0.5;
+          ctx.fillStyle = i % 3 === 0 ? '#a5d8ff' : i % 3 === 1 ? '#d8b4fe' : '#ffffff';
+          ctx.beginPath();
+          ctx.arc(sx, sy, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ---- LAYER 4d: Shooting star (occasional meteor streak) ----
+        this._shootingStarTimer -= 1;
+        if (this._shootingStarTimer <= 0) {
+          // Random next shooting star in 20-40 seconds
+          this._shootingStarTimer = 1200 + Math.random() * 1200;
+          this._activeShootingStar = {
+            x: Math.random() * screenW * 0.8 + screenW * 0.1,
+            y: Math.random() * screenH * 0.3,
+            speed: 8 + Math.random() * 6,
+            length: 40 + Math.random() * 60,
+            angle: Math.PI * 0.15 + Math.random() * 0.15,
+            life: 30 + Math.random() * 15,
+            age: 0
+          };
+        }
+        if (this._activeShootingStar && this._activeShootingStar.age < this._activeShootingStar.life) {
+          const ss = this._activeShootingStar;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 1 - ss.age / ss.life) * 0.5;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(ss.x, ss.y);
+          ctx.lineTo(ss.x - Math.cos(ss.angle) * ss.length, ss.y + Math.sin(ss.angle) * ss.length);
+          ctx.stroke();
+          // Bright head
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = Math.max(0, 1 - ss.age / ss.life) * 0.7;
+          ctx.beginPath();
+          ctx.arc(ss.x, ss.y, 2, 0, Math.PI * 2);
+          ctx.fill();
+          ss.x += Math.cos(ss.angle) * ss.speed;
+          ss.y -= Math.sin(ss.angle) * ss.speed;
+          ss.age += 1;
+          ctx.restore();
+        }
+
+        // ---- LAYER 4e: Distant aurora-like light band ----
+        ctx.save();
+        ctx.globalAlpha = 0.02 + Math.sin(time * 0.008) * 0.008;
+        const auroraGrad = ctx.createLinearGradient(0, screenH * 0.05, 0, screenH * 0.35);
+        auroraGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        auroraGrad.addColorStop(0.3, 'rgba(6,182,212,0.03)');
+        auroraGrad.addColorStop(0.5, 'rgba(168,85,247,0.04)');
+        auroraGrad.addColorStop(0.7, 'rgba(6,182,212,0.03)');
+        auroraGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = auroraGrad;
+        ctx.fillRect(0, 0, screenW, screenH);
         ctx.restore();
       } else if (theme === 'jungle') {
         ctx.save();
@@ -5784,6 +5892,86 @@ if (this.activeEvent.key === 'speed_surge') {
           ctx.beginPath();
           ctx.arc(fx, fy, 2 + pulse, 0, Math.PI * 2);
           ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    // Generate decorative celestial objects for Nebula Cosmos — no collisions, pure atmosphere
+    _initSpaceObjects(track) {
+      this._spaceObjects = [];
+      if (this.currentThemeKey !== 'space' || !track) return;
+      const length = track.length || 10000;
+      const types = ['planet', 'moon', 'gas_giant', 'station', 'satellite', 'asteroid', 'debris'];
+      for (let i = 0; i < 20; i++) {
+        const t = types[i % types.length];
+        const x = (i / 20) * length + Math.random() * 400;
+        const side = Math.random() > 0.5 ? 1 : -1;
+        this._spaceObjects.push({
+          type: t,
+          x,
+          trackOffset: (Math.random() - 0.5) * 600,
+          yOffset: side * (200 + Math.random() * 300),
+          parallax: 0.02 + Math.random() * 0.08,
+          size: t === 'planet' || t === 'gas_giant' ? 15 + Math.random() * 20 : t === 'moon' ? 6 + Math.random() * 6 : 3 + Math.random() * 8,
+          phase: Math.random() * 100,
+          color: ['#7c3aed', '#3b82f6', '#a855f7', '#06b6d4', '#8b5cf6', '#6366f1', '#c084fc', '#38bdf8'][i % 8],
+          hasRing: t === 'planet' && Math.random() > 0.5,
+          ringAngle: Math.random() * Math.PI,
+          lightPhase: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+
+    // Render celestial objects with parallax — called inside scaled draw section (virtual coordinates)
+    _renderSpaceObjects(camX) {
+      if (this.currentThemeKey !== 'space' || !this._spaceObjects) return;
+      const ctx = this.ctx;
+      const time = Date.now() / 1000;
+      for (const obj of this._spaceObjects) {
+        const vx = (obj.x - camX) * obj.parallax;
+        const vy = obj.yOffset;
+        if (vx < -400 || vx > 800) continue;
+        ctx.save();
+        ctx.globalAlpha = 0.25 + Math.sin(time * 0.1 + obj.phase) * 0.05;
+        if (obj.type === 'planet' && obj.hasRing) {
+          ctx.strokeStyle = obj.color;
+          ctx.lineWidth = 1.5;
+          ctx.globalAlpha *= 0.3;
+          ctx.beginPath();
+          ctx.ellipse(vx, vy, obj.size * 1.8, obj.size * 0.3, obj.ringAngle + Math.sin(time * 0.05) * 0.1, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 0.3;
+        }
+        ctx.fillStyle = obj.color;
+        ctx.shadowColor = obj.color;
+        ctx.shadowBlur = obj.type === 'station' || obj.type === 'satellite' ? 4 : obj.size > 15 ? 12 : 6;
+        ctx.beginPath();
+        ctx.arc(vx, vy, obj.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        if (obj.type === 'station') {
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(vx - obj.size * 0.5, vy - obj.size * 0.5);
+          ctx.lineTo(vx + obj.size * 0.5, vy + obj.size * 0.5);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(vx + obj.size * 0.5, vy - obj.size * 0.5);
+          ctx.lineTo(vx - obj.size * 0.5, vy + obj.size * 0.5);
+          ctx.stroke();
+          ctx.fillStyle = '#fbbf24';
+          ctx.globalAlpha = 0.5 + Math.sin(time * 3 + obj.phase) * 0.5;
+          ctx.beginPath();
+          ctx.arc(vx, vy - obj.size * 0.3, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (obj.type === 'satellite') {
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillRect(vx - obj.size * 0.3, vy - obj.size * 0.8, obj.size * 0.6, obj.size * 1.6);
+          ctx.fillStyle = '#3b82f6';
+          ctx.globalAlpha *= 0.3;
+          ctx.fillRect(vx - obj.size * 2, vy - obj.size * 0.15, obj.size * 4, obj.size * 0.3);
         }
         ctx.restore();
       }
