@@ -3788,7 +3788,7 @@ if (this.activeEvent.key === 'speed_surge') {
     window.addEventListener('keydown', (e) => {
       // Director Mode takes full priority when active
       if (this.directorMode) {
-        if (e.key === 'r' || e.key === 'R' || e.key === 'Escape') { this.directorMode = null; return; }
+        if (e.key === 'Escape') { this.directorMode = null; return; }
         if (e.key === 'Enter') { this._executeDirectorAction(); return; }
         if (e.key === 'ArrowUp') { this._directorSelectedIndex = Math.max(0, this._directorSelectedIndex - 1); return; }
         if (e.key === 'ArrowDown') { this._directorSelectedIndex = Math.min(this._directorSuggestions.length - 1, Math.max(0, this._directorSelectedIndex + 1)); return; }
