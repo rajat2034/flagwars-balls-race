@@ -2240,11 +2240,39 @@ class GameEngine {
       let consecutiveClusters = 0;
       let _lastPunchHigh = false;
       let _lastHammerTop = false;
+      let _hammerCorridorRemaining = 0;
+      let _hammerCorridorsUsed = 0;
+      const MAX_HAMMER_CORRIDORS = 1 + Math.floor(Math.random() * 3);
 
       let _safety = 0;
       while (x < segEnd - 150) {
         if (++_safety > 500) { console.log('INFINITE LOOP in generateSegmentObstacles'); break; }
         let forceSafe = recoveryRemaining > 0;
+
+        // Hammer corridor mode: place alternating hammers directly
+        if (_hammerCorridorRemaining > 0) {
+          const cBounds = getBounds(x);
+          if (!cBounds) { x += 200; continue; }
+          const cAvail = cBounds.bottomY - cBounds.topY;
+          if (cAvail < 160) { _hammerCorridorRemaining = 0; x += 200; continue; }
+          const cArmLen = Math.min(70 + Math.random() * 20, cAvail * 0.45);
+          const cHeadRad = 22 + Math.random() * 6;
+          const cTop = !_lastHammerTop;
+          _lastHammerTop = cTop;
+          const cPY = cTop ? cBounds.topY + 8 : cBounds.bottomY - 8;
+          const cAngle = Math.random() * Math.PI * 2;
+          track.obstacles.push({
+            type: 'hammer', x, y: cPY, armLength: cArmLen, headRadius: cHeadRad,
+            angle: cAngle, speed: 0.160 + Math.random() * 0.040,
+            direction: Math.random() < 0.5 ? 1 : -1, pivotTop: cTop,
+            headX: x + Math.cos(cAngle) * cArmLen,
+            headY: cPY + Math.sin(cAngle) * cArmLen
+          });
+          segObstaclePositions.push(x);
+          _hammerCorridorRemaining--;
+          x += 140 + Math.random() * 30;
+          if (_hammerCorridorRemaining > 0) continue;
+        }
 
         const t = x / length;
 
@@ -2300,6 +2328,12 @@ class GameEngine {
         if ((type === 'hammer' || type === 'punchfist') && availH < 160) {
           x += 200;
           continue;
+        }
+
+        // Start Alternating Hammer Corridor?
+        if (_hammerCorridorsUsed < MAX_HAMMER_CORRIDORS && type === 'hammer' && !forceSafe && t >= 0.20 && t < 0.85 && segEnd - x > 700 && Math.random() < 0.18) {
+          _hammerCorridorRemaining = 5 + Math.floor(Math.random() * 4);
+          _hammerCorridorsUsed++;
         }
 
         const cfg = SPACING_CONFIG[type] || { min: 150, preferred: 200, recovery: 0, safeLanding: 0 };
