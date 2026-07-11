@@ -3853,7 +3853,7 @@ if (this.activeEvent.key === 'speed_surge') {
         if (e.key === 'ArrowUp') { this._directorSelectedIndex = Math.max(0, this._directorSelectedIndex - 1); return; }
         if (e.key === 'ArrowDown') { this._directorSelectedIndex = Math.min(this._directorSuggestions.length - 1, Math.max(0, this._directorSelectedIndex + 1)); return; }
         if (e.key === 'Backspace') { this._directorInput = this._directorInput.slice(0, -1); this._updateDirectorSuggestions(); return; }
-        if (e.key.length === 1 && e.key.match(/[a-zA-Z ]/)) { this._directorInput += e.key; this._updateDirectorSuggestions(); return; }
+        if (e.key.length === 1 && e.key.match(/[a-zA-Z -]/)) { this._directorInput += e.key; this._updateDirectorSuggestions(); return; }
         return;
       }
 
