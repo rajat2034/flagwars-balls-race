@@ -1823,7 +1823,7 @@ class GameEngine {
     }
 
     // Finish line zone - always visible at end of track
-    const finishX = length - 620;
+    const finishX = length - 670;
     track.zones.push({ type: 'finish', x: finishX, y: 0, width: 120, height: 700 });
     track.finishLineX = finishX;
 
@@ -1841,47 +1841,70 @@ class GameEngine {
       boost_pipe: { min: 220, preferred: 320, recovery: 150, safeLanding: 120 },
       portal: { min: 250, preferred: 350, recovery: 200, safeLanding: 200 },
       hammer: { min: 280, preferred: 380, recovery: 250, safeLanding: 120 },
-      spinner: { min: 220, preferred: 300, recovery: 180, safeLanding: 120 },
-      sweep_arm: { min: 220, preferred: 300, recovery: 180, safeLanding: 120 },
-      c_bumper: { min: 240, preferred: 340, recovery: 200, safeLanding: 120 },
-      punchfist: { min: 200, preferred: 280, recovery: 150, safeLanding: 100 },
-      barrier: { min: 200, preferred: 280, recovery: 150, safeLanding: 100 },
-      breakdoor: { min: 160, preferred: 220, recovery: 100, safeLanding: 80 },
-      barrel: { min: 160, preferred: 220, recovery: 100, safeLanding: 80 },
-      peg: { min: 120, preferred: 180, recovery: 80, safeLanding: 50 },
-      slow: { min: 140, preferred: 200, recovery: 100, safeLanding: 80 },
-      wind: { min: 140, preferred: 200, recovery: 100, safeLanding: 80 },
-      launch: { min: 160, preferred: 220, recovery: 100, safeLanding: 150 }
+      spinner: { min: 150, preferred: 220, recovery: 120, safeLanding: 80 },
+      sweep_arm: { min: 150, preferred: 220, recovery: 120, safeLanding: 80 },
+      c_bumper: { min: 160, preferred: 240, recovery: 130, safeLanding: 80 },
+      punchfist: { min: 180, preferred: 260, recovery: 130, safeLanding: 80 },
+      barrier: { min: 140, preferred: 200, recovery: 100, safeLanding: 80 },
+
+      peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
+      slow: { min: 100, preferred: 160, recovery: 80, safeLanding: 60 },
+      launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 }
     };
 
-    // Zone-based pacing configuration (t = x / length)
+    // Zone-based pacing configuration (t = x / length) — higher density, intentional rhythm
     const ZONE_CONFIG = [
-      { start: 0.00, end: 0.20, density: 1.20, breathSpace: 0.10,
-        types: ['peg', 'c_bumper'] },
-      { start: 0.20, end: 0.60, density: 0.78, breathSpace: 0.03,
-        types: ['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'barrel', 'c_bumper', 'breakdoor', 'slow', 'boost', 'wind'] },
-      { start: 0.60, end: 0.85, density: 0.95, breathSpace: 0.08,
-        types: ['portal', 'launch', 'slow', 'breakdoor', 'barrier', 'peg', 'boost', 'wind'] },
-      { start: 0.85, end: 1.00, density: 1.30, breathSpace: 0.12,
-        types: ['launch', 'barrier', 'breakdoor', 'peg', 'boost', 'wind'] }
+      { start: 0.00, end: 0.20, density: 0.45,
+        types: ['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm'] },
+      { start: 0.20, end: 0.60, density: 0.35,
+        types: ['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal'] },
+      { start: 0.60, end: 0.85, density: 0.40,
+        types: ['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist'] },
+      { start: 0.85, end: 1.00, density: 0.45,
+        types: ['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner'] }
     ];
 
     // Weighted obstacle combinations for memorable race moments
     const COMBINATIONS = [
-      { weight: 4, types: ['boost', 'spinner'], gap: 30 },
-      { weight: 3, types: ['spinner', 'boost'], gap: 40 },
-      { weight: 3, types: ['boost', 'portal'], gap: 30 },
-      { weight: 3, types: ['hammer', 'boost'], gap: 50 },
-      { weight: 2, types: ['portal', 'spinner'], gap: 50 },
-      { weight: 2, types: ['barrier', 'boost'], gap: 30 },
-      { weight: 2, types: ['c_bumper', 'spinner'], gap: 40 },
-      { weight: 2, types: ['boost', 'breakdoor'], gap: 20 },
-      { weight: 1, types: ['punchfist', 'barrel'], gap: 20 },
+      { weight: 5, types: ['boost', 'hammer'], gap: 45 },
+      { weight: 5, types: ['spinner', 'hammer'], gap: 45 },
+      { weight: 5, types: ['hammer', 'boost'], gap: 45 },
+      { weight: 4, types: ['boost', 'spinner'], gap: 40 },
+      { weight: 4, types: ['barrier', 'hammer'], gap: 40 },
+      { weight: 3, types: ['boost', 'portal'], gap: 50 },
+      { weight: 3, types: ['hammer', 'spinner'], gap: 45 },
+      { weight: 3, types: ['sweep_arm', 'hammer'], gap: 40 },
+      { weight: 2, types: ['portal', 'boost'], gap: 50 },
+      { weight: 2, types: ['barrier', 'boost'], gap: 40 },
+      { weight: 2, types: ['boost', 'sweep_arm'], gap: 40 },
+      { weight: 2, types: ['boost', 'punchfist'], gap: 40 },
+      { weight: 2, types: ['spinner', 'punchfist'], gap: 40 },
+      { weight: 2, types: ['punchfist', 'hammer'], gap: 40 },
+      { weight: 1, types: ['hammer', 'portal'], gap: 50 },
+      { weight: 1, types: ['c_bumper', 'spinner'], gap: 40 },
     ];
 
-    // Per-race combo budget: 2-4 memorable sequences
+    // 3-obstacle templates that shuffle per race for variety
+    const TEMPLATES = [
+      ['boost', 'spinner', 'hammer'],
+      ['boost', 'hammer', 'portal'],
+      ['hammer', 'boost', 'barrier'],
+      ['barrier', 'hammer', 'sweep_arm'],
+      ['boost', 'spinner', 'punchfist'],
+      ['portal', 'hammer', 'boost'],
+      ['sweep_arm', 'hammer', 'spinner'],
+      ['barrier', 'boost', 'sweep_arm'],
+      ['portal', 'boost', 'spinner'],
+      ['hammer', 'barrier', 'boost'],
+      ['hammer', 'hammer', 'hammer'],
+    ];
+    // Shuffle templates once per race
+    const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
+    let templateIndex = 0;
+
+    // Per-race combo budget: 4-7 memorable sequences
     let comboCount = 0;
-    const MAX_COMBOS = 2 + Math.floor(Math.random() * 3);
+    const MAX_COMBOS = 3 + Math.floor(Math.random() * 3);
     let usedCombos = [];
 
     // Helper to get bounding box for validation
@@ -1894,7 +1917,7 @@ class GameEngine {
       const w = obs.width || obs.length || (obs.radius * 2) || 40;
       const h = obs.height || (obs.radius * 2) || 40;
 
-      if (obs.type === 'c_bumper' || obs.type === 'barrel' || obs.type === 'rock' || obs.type === 'peg') {
+        if (obs.type === 'c_bumper' || obs.type === 'rock' || obs.type === 'peg') {
         const r = obs.radius || 20;
         minX = obs.x - r;
         maxX = obs.x + r;
@@ -1920,18 +1943,23 @@ class GameEngine {
         minY = obs.y - armLen - r;
         maxY = obs.y + armLen + r;
       } else if (obs.type === 'punchfist') {
-        const d = obs.direction || 1;
         const ext = obs.extendDist || 120;
-        const r = obs.fistRadius || 32;
-        if (d > 0) {
-          minX = obs.x - r;
-          maxX = obs.x + ext + r;
-        } else {
-          minX = obs.x - ext - r;
-          maxX = obs.x + r;
-        }
-        minY = obs.y - r;
-        maxY = obs.y + r;
+        const r = obs.punchRadius || 30;
+        const angle = obs.angle || 0;
+        const tipX = obs.x + Math.cos(angle) * ext;
+        const tipY = obs.y + Math.sin(angle) * ext;
+        minX = Math.min(obs.x, tipX) - r;
+        maxX = Math.max(obs.x, tipX) + r;
+        minY = Math.min(obs.y, tipY) - r;
+        maxY = Math.max(obs.y, tipY) + r;
+      } else if (obs.type === 'barrier') {
+        const hw = (obs.width || 18) / 2;
+        const hh = (obs.height || 80) / 2;
+        const maxGap = obs.gapMax || 200;
+        minX = obs.x - hw;
+        maxX = obs.x + hw;
+        minY = (obs.y || 300) - maxGap / 2 - hh;
+        maxY = (obs.y || 300) + maxGap / 2 + hh;
       } else if (obs.type === 'portal') {
         const r = obs.radius || 25;
         minX = obs.x - r;
@@ -2183,25 +2211,35 @@ class GameEngine {
       let x = segStart + 50 + Math.random() * 50;
       let lastPlacedType = null;
       let secondLastPlacedType = null;
+      let thirdLastPlacedType = null;
       let recoveryRemaining = 0;
+      let clusterRemaining = 0;
+      let gapUntil = x;
+      const segObstaclePositions = [];
 
-      let densityFactor = 1.0;
-      if (densityStr === 'low') densityFactor = 1.3;
-      if (densityStr === 'medium') densityFactor = 0.80;
-      if (densityStr === 'high') densityFactor = 0.60;
+      let densityFactor = 0.55;
+      if (densityStr === 'low') densityFactor = 0.70;
+      if (densityStr === 'medium') densityFactor = 0.55;
+      if (densityStr === 'high') densityFactor = 0.40;
 
       const MAJOR_OBSTACLES = ['hammer', 'spinner', 'c_bumper', 'portal', 'punchfist', 'sweep_arm', 'barrier'];
 
       const FORBIDDEN_NEXT = {
         hammer: ['portal', 'hammer'],
-        portal: ['hammer', 'punchfist', 'spinner'],
+        portal: ['hammer', 'punchfist', 'spinner', 'portal'],
         spinner: ['hammer', 'portal'],
         punchfist: ['hammer', 'portal'],
         sweep_arm: ['hammer', 'portal'],
-        barrier: ['portal', 'hammer']
+        barrier: ['portal', 'hammer'],
+        boost: ['slow', 'boost'],
+        slow: ['boost', 'slow']
       };
 
       let comboNextType = null;
+      let comboNextType2 = null;
+      let consecutiveClusters = 0;
+      let _lastPunchHigh = false;
+      let _lastHammerTop = false;
 
       let _safety = 0;
       while (x < segEnd - 150) {
@@ -2214,35 +2252,33 @@ class GameEngine {
         const currentZone = ZONE_CONFIG.find(z => t >= z.start && t < z.end) || ZONE_CONFIG[ZONE_CONFIG.length - 1];
         let allowedTypes = currentZone.types;
         const zoneDensity = currentZone.density;
-        const breathSpaceChance = currentZone.breathSpace;
 
-        // Breathing space: occasional obstacle-free gaps for contrast
-        if (Math.random() < breathSpaceChance && !forceSafe && !comboNextType && lastPlacedType) {
-          x += 350 + Math.random() * 500;
-          lastPlacedType = null;
-          secondLastPlacedType = null;
-          continue;
+        // Cluster/gap alternation: if in a gap, skip ahead until gap ends
+        if (gapUntil > x && !comboNextType) {
+          x += Math.min(gapUntil - x, 200);
+          if (x < gapUntil) continue;
         }
 
         // Combo sequence: if a combo partner is queued, force it
         let type;
         if (comboNextType) {
           type = comboNextType;
-          comboNextType = null;
+          comboNextType = comboNextType2;
+          comboNextType2 = null;
         } else {
-          // Avoid immediate repeating or heavy clustering of same type
-          let filtered = allowedTypes.filter(type => type !== lastPlacedType && type !== secondLastPlacedType);
-          if (filtered.length === 0) filtered = allowedTypes;
+          // No 3 identical obstacles in a row
+          let filtered = allowedTypes.filter(t => t !== lastPlacedType || t !== secondLastPlacedType || t !== thirdLastPlacedType);
+          if (filtered.length === 0) filtered = allowedTypes.filter(t => t !== lastPlacedType);
 
           // Forbidden sequence prevention
           if (lastPlacedType && FORBIDDEN_NEXT[lastPlacedType]) {
-            filtered = filtered.filter(type => !FORBIDDEN_NEXT[lastPlacedType].includes(type));
-            if (filtered.length === 0) filtered = allowedTypes.filter(type => type !== lastPlacedType);
+            filtered = filtered.filter(t => !FORBIDDEN_NEXT[lastPlacedType].includes(t));
+            if (filtered.length === 0) filtered = allowedTypes.filter(t => t !== lastPlacedType);
           }
 
           // Forced safe types during recovery period
           if (forceSafe) {
-            const safeTypes = filtered.filter(type => !MAJOR_OBSTACLES.includes(type));
+            const safeTypes = filtered.filter(t => !MAJOR_OBSTACLES.includes(t));
             if (safeTypes.length > 0) filtered = safeTypes;
             recoveryRemaining -= 1;
           }
@@ -2260,7 +2296,15 @@ class GameEngine {
         const availH = bounds.bottomY - bounds.topY;
         const halfH = availH / 2;
 
+        // Skip hammer & punchfist in narrow track sections
+        if ((type === 'hammer' || type === 'punchfist') && availH < 160) {
+          x += 200;
+          continue;
+        }
+
         const cfg = SPACING_CONFIG[type] || { min: 150, preferred: 200, recovery: 0, safeLanding: 0 };
+        const _prevObsLen = track.obstacles.length;
+        const _prevZoneLen = track.zones.length;
 
         // 1. Position details & dynamic sizing based on available lane height
         if (type === 'c_bumper') {
@@ -2293,6 +2337,8 @@ class GameEngine {
             });
           }
         } else if (type === 'boost') {
+          const boostClose = track.zones.some(z => z.type === 'slow' && Math.abs(z.x + z.width / 2 - x) < 400);
+          if (boostClose) { x += 200; continue; }
           const w = 75;
           const h = 45;
           track.zones.push({
@@ -2301,6 +2347,8 @@ class GameEngine {
             width: w, height: h, force: 0.20
           });
         } else if (type === 'slow') {
+          const slowClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - x) < 400);
+          if (slowClose) { x += 200; continue; }
           const w = 60;
           const h = 45;
           track.zones.push({
@@ -2308,24 +2356,24 @@ class GameEngine {
             y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
             width: w, height: h
           });
-        } else if (type === 'wind') {
-          const w = 50;
-          const h = Math.min(70, availH * 0.55);
-          const forceDir = Math.random() < 0.5 ? 1 : -1;
-          const forceMag = 0.018 + Math.random() * 0.018;
-          track.zones.push({
-            type: 'wind', x: x - w / 2,
-            y: clampY(centerY, bounds, h / 2 + 5) - h / 2,
-            width: w, height: h,
-            force: forceDir * forceMag
-          });
+
         } else if (type === 'punchfist') {
-          const fistDir = Math.random() < 0.5 ? 1 : -1;
-          const fistRadius = 32;
+          const punchAngle = Math.random() * Math.PI * 2;
+          const punchRadius = 28 + Math.random() * 6;
+          if (lastPlacedType === 'punchfist') _lastPunchHigh = !_lastPunchHigh;
+          else _lastPunchHigh = Math.random() < 0.5;
+          const punchY = _lastPunchHigh
+            ? clampY(centerY - availH * 0.25, bounds, punchRadius + 10)
+            : clampY(centerY + availH * 0.25, bounds, punchRadius + 10);
           track.obstacles.push({
-            type: 'punchfist', x, y: clampY(centerY + (Math.random() - 0.5) * 20, bounds, fistRadius + 8),
-            direction: fistDir, extendDist: 110, fistRadius, phase: Math.random(),
-            cycleDuration: 60, fired: false, fistX: x, fistY: centerY
+            type: 'punchfist', x, y: punchY,
+            angle: punchAngle, extendDist: 90 + Math.random() * 30,
+            punchRadius, state: 'retracted', stateTimer: 0,
+            extendSpeed: 12 + Math.random() * 6,
+            retractSpeed: 6 + Math.random() * 3,
+            holdDuration: 5 + Math.floor(Math.random() * 10),
+            waitDuration: 10 + Math.floor(Math.random() * 15),
+            punchX: x, punchY: centerY
           });
         } else if (type === 'portal') {
           const pairId = Math.random().toString(36).slice(2);
@@ -2358,16 +2406,17 @@ class GameEngine {
             width: padW, height: 20
           });
         } else if (type === 'barrier') {
-          const bw = 16 + Math.random() * 4;
-          const bh = Math.min(75 + Math.random() * 30, availH * 0.55); // Dynamic size constraint
-          const bY = clampY(centerY + (Math.random() - 0.5) * availH * 0.25, bounds, bh / 2 + 5);
-          const travelRange = Math.max(bh, availH * 0.35);
-          const minY = clampY(bY - travelRange / 2, bounds, bh / 2 + 5);
-          const maxY = clampY(bY + travelRange / 2, bounds, bh / 2 + 5);
+          const gateW = 18 + Math.random() * 4;
+          const gateH = Math.min(80 + Math.random() * 20, availH * 0.55);
+          const gapMax = availH * 0.55;
           track.obstacles.push({
-            type: 'barrier', x, y: bY, width: bw, height: bh, isVertical: true,
-            direction: Math.random() < 0.5 ? 1 : -1, speed: 0.35 + Math.random() * 0.25,
-            minY, maxY
+            type: 'barrier', x, y: centerY, width: gateW, height: gateH,
+            isVertical: true, gapMin: 0, gapMax,
+            state: 'opening', stateTimer: 0,
+            openDuration: 20 + Math.floor(Math.random() * 20),
+            closeDuration: 15 + Math.floor(Math.random() * 15),
+            currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.0,
+            topY: bounds.topY, bottomY: bounds.bottomY
           });
         } else if (type === 'spinner') {
           const barLen = Math.min(80 + Math.random() * 35, availH * 0.55); // Scaled
@@ -2381,49 +2430,32 @@ class GameEngine {
           });
         } else if (type === 'sweep_arm') {
           const armLen = Math.min(90 + Math.random() * 40, availH * 0.60);
-          const baseSpeed = 0.065;
-          const speedPct = [1.0, 0.8, 0.7, 0.5][Math.floor(Math.random() * 4)];
-          const physicsSpeed = baseSpeed * speedPct;
+          const slowSpeed = 0.090 + Math.random() * 0.035;
           track.obstacles.push({
             type: 'sweep_arm', x, y: clampY(centerY, bounds, 20),
             length: armLen, angle: Math.random() * Math.PI * 2,
-            speed: physicsSpeed * 0.3, physicsSpeed,
+            speed: slowSpeed * 0.3, physicsSpeed: slowSpeed,
             direction: Math.random() < 0.5 ? 1 : -1
-          });
-        } else if (type === 'breakdoor') {
-          const doorW = 30 + Math.random() * 8;
-          const doorH = Math.min(80 + Math.random() * 30, availH * 0.55);
-          const hp = 5 + Math.floor(Math.random() * 6); // Set hp 5..10 as per TODO.md
-          const dY = clampY(centerY, bounds, doorH / 2 + 5);
-          track.obstacles.push({
-            type: 'breakdoor', x, y: dY, width: doorW, height: doorH,
-            hp, maxHp: hp, broken: false, _hitCooldown: 0, _crackLevel: 0
           });
         } else if (type === 'hammer') {
           const armLen = Math.min(75 + Math.random() * 25, availH * 0.50);
           const headRadius = 22 + Math.random() * 6;
-          const speed = 0.035 + Math.random() * 0.03;
-          const direction = Math.random() < 0.5 ? 1 : -1;
-          const initialAngle = Math.random() * Math.PI * 2;
-          const pivotChoice = Math.random();
-          let pivotY;
-          if (pivotChoice < 0.25) pivotY = bounds.topY + 12;
-          else if (pivotChoice < 0.5) pivotY = bounds.bottomY - 12;
-          else pivotY = centerY;
-
+          let topPivot;
+          if (lastPlacedType === 'hammer') topPivot = !_lastHammerTop;
+          else topPivot = Math.random() < 0.5;
+          _lastHammerTop = topPivot;
+          const pivotY = topPivot ? bounds.topY + 8 : bounds.bottomY - 8;
+          const startAngle = Math.random() * Math.PI * 2;
           track.obstacles.push({
             type: 'hammer', x, y: pivotY, armLength: armLen, headRadius,
-            speed, direction, angle: initialAngle,
-            headX: x + Math.cos(initialAngle) * armLen,
-            headY: pivotY + Math.sin(initialAngle) * armLen
+            angle: startAngle,
+            speed: 0.140 + Math.random() * 0.060,
+            direction: Math.random() < 0.5 ? 1 : -1,
+            pivotTop: topPivot,
+            headX: x + Math.cos(startAngle) * armLen,
+            headY: pivotY + Math.sin(startAngle) * armLen
           });
-        } else if (type === 'barrel') {
-          const radius = 18 + Math.random() * 7;
-          track.obstacles.push({
-            type: 'barrel', x, y: clampY(centerY + (Math.random() - 0.5) * availH * 0.35, bounds, radius + 6),
-            radius, mass: radius * 0.09, vx: 0, vy: 0,
-            spin: Math.random() * Math.PI * 2, spinSpeed: 0
-          });
+
         } else if (type === 'peg') {
           if (!track.pegs) track.pegs = [];
           const pegR = 4 + Math.random() * 2;
@@ -2440,52 +2472,144 @@ class GameEngine {
           }
         }
 
-        // Advance X by spacing values
+        // Track last 3 types to prevent triplicates
+        thirdLastPlacedType = secondLastPlacedType;
         secondLastPlacedType = lastPlacedType;
         lastPlacedType = type;
+
+        if (clusterRemaining > 0) clusterRemaining--;
+        segObstaclePositions.push(x);
+
+        // Overlap prevention: check new elements against ALL existing obstacle/zone BBs
+        let _overlap = false;
+        for (let _oi = _prevObsLen; _oi < track.obstacles.length && !_overlap; _oi++) {
+          const _newBB = getBB(track.obstacles[_oi]);
+          for (let _oj = 0; _oj < _prevObsLen; _oj++) {
+            if (boxesOverlap(_newBB, getBB(track.obstacles[_oj]), 40)) { _overlap = true; break; }
+          }
+          if (!_overlap) {
+            for (let _zj = 0; _zj < _prevZoneLen; _zj++) {
+              if (boxesOverlap(_newBB, getBB(track.zones[_zj]), 40)) { _overlap = true; break; }
+            }
+          }
+        }
+        for (let _zi = _prevZoneLen; _zi < track.zones.length && !_overlap; _zi++) {
+          const _newBB = getBB(track.zones[_zi]);
+          for (let _oj = 0; _oj < _prevObsLen; _oj++) {
+            if (boxesOverlap(_newBB, getBB(track.obstacles[_oj]), 40)) { _overlap = true; break; }
+          }
+          if (!_overlap) {
+            for (let _zj = 0; _zj < _prevZoneLen; _zj++) {
+              if (boxesOverlap(_newBB, getBB(track.zones[_zj]), 40)) { _overlap = true; break; }
+            }
+          }
+        }
+        if (_overlap) {
+          while (track.obstacles.length > _prevObsLen) track.obstacles.pop();
+          while (track.zones.length > _prevZoneLen) track.zones.pop();
+          lastPlacedType = secondLastPlacedType;
+          secondLastPlacedType = thirdLastPlacedType;
+          continue;
+        }
 
         const isDifficult = MAJOR_OBSTACLES.includes(type);
         let nextSpacing = cfg.preferred;
         if (type === 'boost' || isDifficult) nextSpacing += cfg.recovery;
-
+        if (type === 'boost') nextSpacing += 120;
         if (type === 'portal') nextSpacing += cfg.safeLanding;
 
-        // Zone density multiplier shapes per-zone pacing
         const xBeforeAdvance = x;
-        const normalAdvance = Math.max(cfg.min, nextSpacing * densityFactor * zoneDensity);
+
+        // Dynamic density: variable spacing creates organic feel
+        const variability = 0.75 + Math.random() * 0.25;
+        const normalAdvance = Math.max(cfg.min, nextSpacing * densityFactor * zoneDensity * variability);
         x += normalAdvance;
 
-        // Attempt to start a weighted combo after non-trivial placements
-        // If a combo starts, tighten the gap between the two paired obstacles
-        if (!comboNextType && !forceSafe && comboCount < MAX_COMBOS && lastPlacedType && Math.random() < 0.08) {
-          const compatible = COMBINATIONS.filter(c =>
-            c.types[0] === lastPlacedType &&
-            !usedCombos.includes(c) &&
-            // Second type must be allowed in the current zone (or nearby future zone)
-            (currentZone.types.includes(c.types[1]) ||
-             ZONE_CONFIG.some(z => t + 0.02 >= z.start && t + 0.02 < z.end && z.types.includes(c.types[1])))
-          );
-          if (compatible.length > 0) {
-            const totalWeight = compatible.reduce((s, c) => s + c.weight, 0);
-            let roll = Math.random() * totalWeight;
-            for (const combo of compatible) {
-              roll -= combo.weight;
-              if (roll <= 0) {
-                comboNextType = combo.types[1];
-                // Tighten x so second element lands close to the first
-                x = Math.max(xBeforeAdvance + 10, xBeforeAdvance + combo.gap);
-                usedCombos.push(combo);
-                comboCount++;
-                break;
+        // Attempt to start a combo or template (clusters of 2-3)
+        const clusterComboChance = consecutiveClusters >= 2 ? 0.40 : 0.75;
+        if (!comboNextType && !forceSafe && comboCount < MAX_COMBOS && lastPlacedType && Math.random() < clusterComboChance) {
+          consecutiveClusters++;
+          if (templateIndex < shuffledTemplates.length && Math.random() < 0.4) {
+            const template = shuffledTemplates[templateIndex];
+            if (template[0] === lastPlacedType && currentZone.types.includes(template[1]) && currentZone.types.includes(template[2])) {
+              comboNextType = template[1];
+              comboNextType2 = template[2];
+              x = Math.max(xBeforeAdvance + 80, xBeforeAdvance + 100);
+              comboCount++;
+              templateIndex++;
+              clusterRemaining = 2;
+            }
+          }
+          if (!comboNextType) {
+            const compatible = COMBINATIONS.filter(c =>
+              c.types[0] === lastPlacedType &&
+              !usedCombos.includes(c) &&
+              currentZone.types.includes(c.types[1])
+            );
+            if (compatible.length > 0) {
+              const totalWeight = compatible.reduce((s, c) => s + c.weight, 0);
+              let roll = Math.random() * totalWeight;
+              for (const combo of compatible) {
+                roll -= combo.weight;
+                if (roll <= 0) {
+                  comboNextType = combo.types[1];
+                  x = Math.max(xBeforeAdvance + 80, xBeforeAdvance + combo.gap * 2);
+                  usedCombos.push(combo);
+                  comboCount++;
+                  clusterRemaining = 1;
+                  break;
+                }
               }
             }
           }
+          // If no compatible combo found, revert the consecutive counter
+          if (!comboNextType) consecutiveClusters--;
+        }
+
+        // If not in a combo and cluster done, schedule next gap
+        if (!comboNextType && clusterRemaining <= 0) {
+          const gapLen = consecutiveClusters > 0
+            ? 120 + Math.random() * 160
+            : 80 + Math.random() * 100;
+          consecutiveClusters = 0;
+          lastPlacedType = null;
+          secondLastPlacedType = null;
+          thirdLastPlacedType = null;
+          gapUntil = x + gapLen;
         }
 
         if (isDifficult) {
-          recoveryRemaining = Math.max(recoveryRemaining, 2);
+          recoveryRemaining = Math.max(recoveryRemaining, 3);
         } else {
           recoveryRemaining = Math.max(0, recoveryRemaining - 1);
+        }
+      }
+
+      // Dead-space validation: fill gaps > 800px within this segment
+      if (segObstaclePositions.length > 1) {
+        for (let i = 1; i < segObstaclePositions.length; i++) {
+          const gap = segObstaclePositions[i] - segObstaclePositions[i - 1];
+          if (gap > 600) {
+            const insX = segObstaclePositions[i - 1] + gap / 2;
+            if (insX < segEnd - 150) {
+              const ib = getBounds(insX);
+              if (ib) {
+                const icY = (ib.topY + ib.bottomY) / 2;
+                const iAvail = ib.bottomY - ib.topY;
+                const fb = ['boost', 'spinner', 'barrier'];
+                const ft = fb[Math.floor(Math.random() * fb.length)];
+                if (ft === 'boost') {
+                  const bClose = track.zones.some(z => z.type === 'slow' && Math.abs(z.x + z.width / 2 - insX) < 400);
+                  if (bClose) continue;
+                  track.zones.push({ type: 'boost', x: insX - 37, y: clampY(icY - 22, ib, 27), width: 75, height: 45, force: 0.20 });
+                } else if (ft === 'spinner') {
+                  track.obstacles.push({ type: 'spinner', x: insX, y: clampY(icY, ib, 40), length: Math.min(80, iAvail * 0.4), angle: 0, speed: 0.04, pins: [] });
+                } else {
+                  track.obstacles.push({ type: 'barrier', x: insX, y: icY, width: 18, height: Math.min(80, iAvail * 0.5), isVertical: true, gapMin: 0, gapMax: iAvail * 0.5, state: 'opening', stateTimer: 0, openDuration: 100, closeDuration: 100, currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: ib.topY, bottomY: ib.bottomY });
+                }
+              }
+            }
+          }
         }
       }
     };
@@ -2551,41 +2675,217 @@ class GameEngine {
       }
     }
     
-    // (final stretch boost placement removed — only launch pads and boost_pipe remain)
+    // Ensure minimum counts: at least 10 of each major type per race
+    const MIN_COUNT = 10;
+    const TYPE_COUNTS = {
+      hammer: 0, spinner: 0, barrier: 0, sweep_arm: 0, punchfist: 0,
+      c_bumper: 0, boost: 0, slow: 0,
+      portal: 0, launch: 0
+    };
+    track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
+    track.zones.forEach(z => { if (z.type !== 'finish' && TYPE_COUNTS[z.type] !== undefined) TYPE_COUNTS[z.type]++; });
+    const underTypes = Object.keys(TYPE_COUNTS).filter(t => TYPE_COUNTS[t] < MIN_COUNT);
+    for (const ut of underTypes) {
+      const needed = MIN_COUNT - TYPE_COUNTS[ut];
+      for (let n = 0; n < needed; n++) {
+        const tryX = 800 + Math.random() * (finishX - 1600);
+        const b = getBounds(tryX);
+        if (!b) continue;
+        const cY = (b.topY + b.bottomY) / 2;
+        const aH = b.bottomY - b.topY;
+        if (ut === 'hammer') {
+          const topPivot = Math.random() < 0.5;
+          const startAngle = Math.random() * Math.PI * 2;
+          const armLen = 60 + Math.random() * 30;
+          track.obstacles.push({
+            type: 'hammer', x: tryX, y: topPivot ? b.topY + 8 : b.bottomY - 8,
+            armLength: armLen, headRadius: 22 + Math.random() * 6,
+            angle: startAngle, speed: 0.140 + Math.random() * 0.060,
+            direction: Math.random() < 0.5 ? 1 : -1, pivotTop: topPivot,
+            headX: tryX + Math.cos(startAngle) * armLen,
+            headY: (topPivot ? b.topY + 8 : b.bottomY - 8) + Math.sin(startAngle) * armLen
+          });
+        } else if (ut === 'spinner') {
+          track.obstacles.push({
+            type: 'spinner', x: tryX, y: clampY(cY, b, 45),
+            length: Math.min(80, aH * 0.5), angle: 0, speed: 0.04 + Math.random() * 0.03, pins: []
+          });
+        } else if (ut === 'barrier') {
+          track.obstacles.push({
+            type: 'barrier', x: tryX, y: cY, width: 18, height: Math.min(80, aH * 0.5),
+            isVertical: true, gapMin: 0, gapMax: aH * 0.5,
+            state: 'opening', stateTimer: 0,
+            openDuration: 20, closeDuration: 15,
+            currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: b.topY, bottomY: b.bottomY
+          });
+        } else if (ut === 'sweep_arm') {
+          track.obstacles.push({
+            type: 'sweep_arm', x: tryX, y: clampY(cY, b, 20),
+            length: 80 + Math.random() * 30, angle: 0,
+            speed: 0.030, physicsSpeed: 0.090 + Math.random() * 0.035,
+            direction: Math.random() < 0.5 ? 1 : -1
+          });
+        } else if (ut === 'punchfist') {
+          const pAngle = Math.random() * Math.PI * 2;
+          track.obstacles.push({
+            type: 'punchfist', x: tryX, y: clampY(cY, b, 35),
+            angle: pAngle, extendDist: 100,
+            punchRadius: 30, state: 'retracted', stateTimer: 0,
+            extendSpeed: 12, retractSpeed: 6,
+            holdDuration: 8, waitDuration: 15,
+            punchX: tryX, punchY: cY
+          });
+        } else if (ut === 'c_bumper') {
+          track.obstacles.push({
+            type: 'c_bumper', x: tryX, y: clampY(cY, b, 35),
+            radius: Math.min(55, aH * 0.35), thickness: 8,
+            rotation: 0, spinSpeed: 0.04
+          });
+
+        } else if (ut === 'boost') {
+          const tooClose = track.zones.some(z => z.type === 'slow' && Math.abs(z.x + z.width / 2 - tryX) < 400);
+          if (tooClose) continue;
+          track.zones.push({
+            type: 'boost', x: tryX - 37, y: clampY(cY - 22, b, 27),
+            width: 75, height: 45, force: 0.20
+          });
+        } else if (ut === 'slow') {
+          const tooClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - tryX) < 400);
+          if (tooClose) continue;
+          track.zones.push({
+            type: 'slow', x: tryX - 30, y: clampY(cY - 22, b, 27),
+            width: 60, height: 45
+          });
+
+        } else if (ut === 'launch') {
+          track.zones.push({
+            type: 'launch', x: tryX - 25, y: b.bottomY - 20,
+            width: 50, height: 20
+          });
+        } else if (ut === 'portal') {
+          const portalSize = 50;
+          const p2x = Math.min(tryX + 800 + Math.random() * 300, finishX - 100);
+          const b2 = getBounds(p2x);
+          if (!b2 || p2x <= tryX + 250) continue;
+          const pairId = Math.random().toString(36).slice(2);
+          track.zones.push({
+            type: 'portal', x: tryX - portalSize / 2,
+            y: clampY(cY, b, portalSize / 2 + 8) - portalSize / 2,
+            width: portalSize, height: portalSize, pairId, radius: portalSize / 2
+          });
+          track.zones.push({
+            type: 'portal', x: p2x - portalSize / 2,
+            y: clampY((b2.topY + b2.bottomY) / 2, b2, portalSize / 2 + 10) - portalSize / 2,
+            width: portalSize, height: portalSize, pairId, radius: portalSize / 2
+          });
+        }
+      }
+    }
+
+    // Final overlap cleanup: remove later elements that overlap earlier ones
+    {
+      const _removeObs = new Set(), _removeZone = new Set();
+      for (let i = 0; i < track.obstacles.length; i++) {
+        if (_removeObs.has(i)) continue;
+        const bbI = getBB(track.obstacles[i]);
+        for (let j = i + 1; j < track.obstacles.length; j++) {
+          if (_removeObs.has(j)) continue;
+          if (boxesOverlap(bbI, getBB(track.obstacles[j]), 25)) _removeObs.add(j);
+        }
+        for (let j = 0; j < track.zones.length; j++) {
+          if (_removeZone.has(j)) continue;
+          if (track.zones[j].type === 'finish') continue;
+          // Skip intentional overlaps: boost_pipe + boost zone
+          if (track.obstacles[i].type === 'boost_pipe' && track.zones[j].type === 'boost' && Math.abs(track.obstacles[i].x - track.zones[j].x) < 5) continue;
+          if (boxesOverlap(bbI, getBB(track.zones[j]), 25)) _removeZone.add(j);
+        }
+      }
+      for (let i = 0; i < track.zones.length; i++) {
+        if (_removeZone.has(i)) continue;
+        if (track.zones[i].type === 'finish') continue;
+        const bbI = getBB(track.zones[i]);
+        for (let j = i + 1; j < track.zones.length; j++) {
+          if (_removeZone.has(j)) continue;
+          if (track.zones[j].type === 'finish') continue;
+          // Skip portal pairs
+          if (track.zones[i].type === 'portal' && track.zones[j].type === 'portal' && track.zones[i].pairId === track.zones[j].pairId) continue;
+          if (boxesOverlap(bbI, getBB(track.zones[j]), 25)) _removeZone.add(j);
+        }
+      }
+      if (_removeObs.size > 0) track.obstacles = track.obstacles.filter((_, i) => !_removeObs.has(i));
+      if (_removeZone.size > 0) track.zones = track.zones.filter((_, i) => !_removeZone.has(i) || track.zones[i].type === 'finish');
+    }
 
     this.track = track;
   }
 
-  // Update dynamic obstacles (punchfist extension, breakdoor fragments, meteor cleanup)
+  // Update dynamic obstacles (punchfist, hammer, barrier, spinner, sweep_arm, meteor cleanup)
   updateDynamicObstacles(dt) {
     this.track.obstacles.forEach(obs => {
       if (obs.type === 'punchfist') {
-        obs.phase = (obs.phase || 0) + dt / (obs.cycleDuration || 60);
-        if (obs.phase > 1) obs.phase -= 1;
-        let t;
-        if (obs.phase < 0.3) {
-          t = 0;
-          obs.fired = false;
-        } else if (obs.phase < 0.45) {
-          t = (obs.phase - 0.3) / 0.15;
-          obs.fired = true;
-        } else {
-          t = 1 - (obs.phase - 0.45) / 0.55;
-          obs.fired = t > 0.1;
+        obs.stateTimer = (obs.stateTimer || 0) + dt;
+        const angle = obs.angle || 0;
+        if (obs.state === 'retracted') {
+          if (obs.stateTimer > (obs.waitDuration || 15)) {
+            obs.state = 'extending';
+            obs.stateTimer = 0;
+          }
+        } else if (obs.state === 'extending') {
+          const extend = Math.min(obs.stateTimer * obs.extendSpeed, obs.extendDist);
+          obs.punchX = obs.x + Math.cos(angle) * extend;
+          obs.punchY = obs.y + Math.sin(angle) * extend;
+          if (extend >= obs.extendDist) {
+            obs.state = 'hold';
+            obs.stateTimer = 0;
+          }
+        } else if (obs.state === 'hold') {
+          if (obs.stateTimer > (obs.holdDuration || 8)) {
+            obs.state = 'retracting';
+            obs.stateTimer = 0;
+          }
+        } else if (obs.state === 'retracting') {
+          const extend = Math.max(obs.extendDist - obs.stateTimer * obs.retractSpeed, 0);
+          obs.punchX = obs.x + Math.cos(angle) * extend;
+          obs.punchY = obs.y + Math.sin(angle) * extend;
+          if (extend <= 0) {
+            obs.punchX = obs.x;
+            obs.punchY = obs.y;
+            obs.state = 'retracted';
+            obs.stateTimer = 0;
+          }
         }
-        const extend = t * obs.extendDist;
-        obs.fistX = obs.x + obs.direction * extend;
-        obs.fistY = obs.y;
-        obs.fistVx = obs.direction * 14;
+        obs.punchVx = Math.cos(angle) * (obs.state === 'extending' || obs.state === 'hold' ? obs.extendSpeed * 4 : 0);
+        obs.punchVy = Math.sin(angle) * (obs.state === 'extending' || obs.state === 'hold' ? obs.extendSpeed * 4 : 0);
       } else if (obs.type === 'c_bumper') {
         // Continuous rotation
         obs.rotation = (obs.rotation || 0) + (obs.spinSpeed || 0) * dt;
       } else if (obs.type === 'barrier') {
-        // Smooth up/down movement within range (minY/maxY are center bounds)
-        obs.y += obs.direction * obs.speed * dt;
-        if (obs.y < obs.minY) { obs.y = obs.minY; obs.direction = 1; }
-        if (obs.y > obs.maxY) { obs.y = obs.maxY; obs.direction = -1; }
-        obs.vy = obs.direction * obs.speed;
+        obs.stateTimer = (obs.stateTimer || 0) + dt;
+        if (obs.state === 'opening') {
+          obs.currentGap = Math.min(obs.currentGap + obs.slideSpeed * dt, obs.gapMax);
+          if (obs.currentGap >= obs.gapMax) {
+            obs.currentGap = obs.gapMax;
+            obs.state = 'open';
+            obs.stateTimer = 0;
+          }
+        } else if (obs.state === 'open') {
+          if (obs.stateTimer > (obs.openDuration || 30)) {
+            obs.state = 'closing';
+            obs.stateTimer = 0;
+          }
+        } else if (obs.state === 'closing') {
+          obs.currentGap = Math.max(obs.currentGap - obs.slideSpeed * dt, obs.gapMin);
+          if (obs.currentGap <= obs.gapMin) {
+            obs.currentGap = obs.gapMin;
+            obs.state = 'closed';
+            obs.stateTimer = 0;
+          }
+        } else if (obs.state === 'closed') {
+          if (obs.stateTimer > (obs.closeDuration || 20)) {
+            obs.state = 'opening';
+            obs.stateTimer = 0;
+          }
+        }
       } else if (obs.type === 'spinner') {
         // Continuous 360 rotation
         obs.angle = (obs.angle || 0) + (obs.speed || 0.03) * dt;
@@ -2630,51 +2930,16 @@ class GameEngine {
             obs._stoppedTimer = 0;
           }
         }
-      } else if (obs.type === 'breakdoor') {
-        if (obs.broken) {
-          if (obs._fragments) {
-            let allDead = true;
-            obs._fragments.forEach(f => {
-              f.x += f.vx * dt;
-              f.y += f.vy * dt;
-              f.vy += 0.2 * dt;
-              f.life -= dt;
-              f.rotation += f.rotSpeed * dt;
-              if (f.life > 0) allDead = false;
-            });
-            if (allDead) obs._remove = true;
-          }
-        } else {
-          const ratio = obs.hp / obs.maxHp;
-          if (ratio <= 0.2) obs._crackLevel = 4;
-          else if (ratio <= 0.4) obs._crackLevel = 3;
-          else if (ratio <= 0.6) obs._crackLevel = 2;
-          else if (ratio <= 0.8) obs._crackLevel = 1;
-          else obs._crackLevel = 0;
-        }
       } else if (obs.type === 'hammer') {
-        obs.angle = (obs.angle || 0) + (obs.speed || 0.03) * obs.direction * dt;
-        obs.headX = obs.x + Math.cos(obs.angle) * (obs.armLength || 100);
-        obs.headY = obs.y + Math.sin(obs.angle) * (obs.armLength || 100);
-      } else if (obs.type === 'barrel') {
-        obs.vx = obs.vx || 0;
-        obs.vy = obs.vy || 0;
-        obs.x += obs.vx * dt;
-        obs.y += obs.vy * dt;
-        obs.vx *= Math.pow(0.98, dt);
-        obs.vy *= Math.pow(0.98, dt);
-        const bounds = this.physics.getWallBoundaries(obs.x, this.track);
-        if (bounds) {
-          const r = obs.radius || 20;
-          if (obs.y - r < bounds.topY) {
-            obs.y = bounds.topY + r;
-            obs.vy = Math.abs(obs.vy) * 0.6;
-          } else if (obs.y + r > bounds.bottomY) {
-            obs.y = bounds.bottomY - r;
-            obs.vy = -Math.abs(obs.vy) * 0.6;
-          }
-        }
-        obs.spin = (obs.spin || 0) + (obs.vx * 0.05) * dt;
+        const armLen = obs.armLength || 80;
+        const speed = obs.speed || 0.03;
+        obs.angle = (obs.angle || 0) + speed * (obs.direction || 1) * dt;
+        obs.headX = obs.x + Math.cos(obs.angle) * armLen;
+        obs.headY = obs.y + Math.sin(obs.angle) * armLen;
+        obs.headVx = (obs.headX - (obs._prevHeadX || obs.headX)) / Math.max(dt, 1);
+        obs.headVy = (obs.headY - (obs._prevHeadY || obs.headY)) / Math.max(dt, 1);
+        obs._prevHeadX = obs.headX;
+        obs._prevHeadY = obs.headY;
       }
     });
 
@@ -3294,9 +3559,7 @@ if (this.activeEvent.key === 'speed_surge') {
         if (b._hitPunchFistThisFrame && Math.random() < 0.2) {
           this.commentary.add(b.name + ' punched!', 'crash');
         }
-        if (b._hitBarrelThisFrame && Math.random() < 0.15) {
-          this.commentary.add(b.name + ' hit a barrel!', 'crash');
-        }
+
         if (b._usedPortalThisFrame) {
           this.commentary.add(b.name + ' used a portal!', 'portal');
         }
@@ -4183,38 +4446,7 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.fillText('FINISH', finishX + zone.width / 2, bannerY + bannerH / 2);
           this.ctx.shadowBlur = 0;
           this.ctx.restore();
-        } else if (zone.type === 'wind') {
-          // Wind zone — semi-transparent fill with directional arrows and flow animation
-          const t = Date.now() * 0.005;
-          const isRight = zone.force > 0;
-          const arrowChar = isRight ? '\u2192' : '\u2190';
-          const scrollDir = isRight ? 1 : -1;
-          // Zone fill
-          this.ctx.save();
-          this.ctx.fillStyle = isRight ? 'rgba(46,204,113,0.12)' : 'rgba(231,76,60,0.12)';
-          this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
-          // Flow lines (animated dots moving in wind direction)
-          this.ctx.fillStyle = isRight ? 'rgba(46,204,113,0.3)' : 'rgba(231,76,60,0.3)';
-          for (let ay = zone.y + 14; ay < zone.y + zone.height - 6; ay += 30) {
-            const ax = zX + (((t * 50 * scrollDir + ay * 0.5) % zone.width) + zone.width) % zone.width;
-            this.ctx.beginPath();
-            this.ctx.arc(ax, ay, 3, 0, Math.PI * 2);
-            this.ctx.fill();
-          }
-          // Arrow direction indicators
-          this.ctx.fillStyle = isRight ? 'rgba(46,204,113,0.5)' : 'rgba(231,76,60,0.5)';
-          this.ctx.font = 'bold 14px Montserrat, sans-serif';
-          this.ctx.textAlign = 'center';
-          this.ctx.textBaseline = 'middle';
-          for (let ay = zone.y + 20; ay < zone.y + zone.height; ay += 28) {
-            const ax = zX + (((t * 40 * scrollDir + ay * 0.4) % zone.width) + zone.width) % zone.width;
-            this.ctx.fillText(arrowChar, ax, ay);
-          }
-          // Direction label
-          this.ctx.fillStyle = isRight ? 'rgba(46,204,113,0.6)' : 'rgba(231,76,60,0.6)';
-          this.ctx.font = 'bold 10px Montserrat, sans-serif';
-          this.ctx.fillText(isRight ? 'WIND +' : 'WIND -', zX + zone.width / 2, zone.y + zone.height / 2);
-          this.ctx.restore();
+
         } else if (zone.type === 'portal') {
           // Portal — purple vortex, direction-agnostic
           this.ctx.save();
@@ -4438,171 +4670,69 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.stroke();
           this.ctx.restore();
         } else if (obs.type === 'barrier') {
-          // Fall Guys-style colorful moving block with neon glow
           this.ctx.save();
-          // Outer neon glow
-          this.ctx.shadowColor = '#0984e3';
-          this.ctx.shadowBlur = 25;
-          this.ctx.fillStyle = 'rgba(9,132,227,0.05)';
-          if (obs.isVertical) {
-            this.ctx.fillRect(obsX - obs.width / 2, obs.y - obs.height / 2, obs.width, obs.height);
-          } else {
-            this.ctx.fillRect(obsX - obs.width / 2, obs.y, obs.width, obs.height);
-          }
-          this.ctx.shadowBlur = 0;
-          this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 8;
-          this.ctx.shadowOffsetY = 2;
-          if (obs.isVertical) {
-            // Vertical barrier: tall thin column
-            const bGrad = this.ctx.createLinearGradient(obsX, obs.y - obs.height / 2, obsX, obs.y + obs.height / 2);
-            bGrad.addColorStop(0, '#74b9ff');
-            bGrad.addColorStop(0.5, '#0984e3');
-            bGrad.addColorStop(1, '#0652DD');
-            this.ctx.fillStyle = bGrad;
-            this.ctx.fillRect(obsX - obs.width / 2, obs.y - obs.height / 2, obs.width, obs.height);
-            // Yellow warning stripes (horizontal instead of vertical)
-            this.ctx.fillStyle = '#ffeaa7';
-            const stripeH = 8;
-            for (let sy = obs.y - obs.height / 2 + 5; sy < obs.y + obs.height / 2; sy += stripeH * 2) {
-              this.ctx.fillRect(obsX - obs.width / 2 + 2, sy, obs.width - 4, stripeH);
-            }
-            // Top/bottom caps
-            this.ctx.fillStyle = '#2d3436';
-            this.ctx.fillRect(obsX - obs.width / 2 - 2, obs.y - obs.height / 2 - 2, obs.width + 4, 4);
-            this.ctx.fillRect(obsX - obs.width / 2 - 2, obs.y + obs.height / 2 - 2, obs.width + 4, 4);
-          } else {
-            // Horizontal barrier (original)
-            const bGrad = this.ctx.createLinearGradient(obsX, obs.y, obsX, obs.y + obs.height);
-            bGrad.addColorStop(0, '#74b9ff');
-            bGrad.addColorStop(0.5, '#0984e3');
-            bGrad.addColorStop(1, '#0652DD');
-            this.ctx.fillStyle = bGrad;
-            this.ctx.fillRect(obsX - obs.width / 2, obs.y, obs.width, obs.height);
-            // Yellow warning stripes with angle
-            this.ctx.fillStyle = '#ffeaa7';
-            const stripeW = 8;
-            for (let sx = obsX - obs.width / 2 + 5; sx < obsX + obs.width / 2; sx += stripeW * 2) {
-              this.ctx.beginPath();
-              this.ctx.moveTo(sx, obs.y);
-              this.ctx.lineTo(sx + stripeW, obs.y);
-              this.ctx.lineTo(sx + stripeW - 4, obs.y + obs.height);
-              this.ctx.lineTo(sx - 4, obs.y + obs.height);
-              this.ctx.fill();
-            }
-            // Rivets
-            this.ctx.fillStyle = '#2d3436';
-            [
-              [obsX - obs.width / 2 + 6, obs.y + 4],
-              [obsX + obs.width / 2 - 6, obs.y + 4],
-              [obsX - obs.width / 2 + 6, obs.y + obs.height - 4],
-              [obsX + obs.width / 2 - 6, obs.y + obs.height - 4]
-            ].forEach(([rx, ry]) => {
-              this.ctx.beginPath();
-              this.ctx.arc(rx, ry, 2, 0, Math.PI * 2);
-              this.ctx.fill();
-            });
-          }
-          this.ctx.restore();
-        } else if (obs.type === 'breakdoor') {
-          if (obs.broken) {
-            // Render fragments if still alive
-            if (obs._fragments) {
-              obs._fragments.forEach(f => {
-                if (f.life <= 0) return;
-                const alpha = Math.max(0, f.life / f.maxLife);
-                this.ctx.save();
-                this.ctx.globalAlpha = alpha;
-                this.ctx.translate(f.x - camX, f.y);
-                this.ctx.rotate(f.rotation);
-                this.ctx.fillStyle = f.color;
-                this.ctx.fillRect(-f.size / 2, -f.size / 2, f.size, f.size);
-                this.ctx.restore();
-              });
-            }
-            return;
-          }
-          this.ctx.save();
-          const dW = obs.width;
-          const dH = obs.height;
-          const dX = obsX;
-          const dY = obs.y;
-          // Red/orange breakable barrier body
-          const doorGrad = this.ctx.createLinearGradient(dX - dW / 2, dY, dX + dW / 2, dY);
-          doorGrad.addColorStop(0, '#c0392b');
-          doorGrad.addColorStop(0.3, '#e74c3c');
-          doorGrad.addColorStop(0.5, '#ff6b6b');
-          doorGrad.addColorStop(0.7, '#e74c3c');
-          doorGrad.addColorStop(1, '#c0392b');
-          this.ctx.fillStyle = doorGrad;
+          const halfGap = (obs.currentGap != null ? obs.currentGap : 100) / 2;
+          const gw = obs.width || 18;
+          const gh = obs.height || 80;
+          const midY = obs.y;
+          // Top gate half
+          const topCenterY = midY - halfGap - gh / 2;
+          const topGrad = this.ctx.createLinearGradient(obsX, topCenterY - gh / 2, obsX, topCenterY + gh / 2);
+          topGrad.addColorStop(0, '#2c3e50');
+          topGrad.addColorStop(0.4, '#5d6d7e');
+          topGrad.addColorStop(1, '#2c3e50');
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
           this.ctx.shadowBlur = 6;
-          this.ctx.fillRect(dX - dW / 2, dY - dH / 2, dW, dH);
+          this.ctx.shadowOffsetY = 2;
+          this.ctx.fillStyle = topGrad;
+          this.ctx.fillRect(obsX - gw / 2, topCenterY - gh / 2, gw, gh);
+          // Top yellow warning stripes
+          this.ctx.fillStyle = '#f1c40f';
+          for (let sy = topCenterY - gh / 2 + 6; sy < topCenterY + gh / 2; sy += 16) {
+            this.ctx.fillRect(obsX - gw / 2 + 2, sy, gw - 4, 5);
+          }
+          // Top cap
+          this.ctx.fillStyle = '#1a252f';
+          this.ctx.fillRect(obsX - gw / 2 - 2, topCenterY - gh / 2 - 2, gw + 4, 4);
+          // Bottom gate half
+          const botCenterY = midY + halfGap + gh / 2;
+          const botGrad = this.ctx.createLinearGradient(obsX, botCenterY - gh / 2, obsX, botCenterY + gh / 2);
+          botGrad.addColorStop(0, '#2c3e50');
+          botGrad.addColorStop(0.6, '#5d6d7e');
+          botGrad.addColorStop(1, '#2c3e50');
+          this.ctx.fillStyle = botGrad;
+          this.ctx.fillRect(obsX - gw / 2, botCenterY - gh / 2, gw, gh);
+          // Bottom yellow warning stripes
+          this.ctx.fillStyle = '#f1c40f';
+          for (let sy = botCenterY - gh / 2 + 6; sy < botCenterY + gh / 2; sy += 16) {
+            this.ctx.fillRect(obsX - gw / 2 + 2, sy, gw - 4, 5);
+          }
+          // Bottom cap
+          this.ctx.fillStyle = '#1a252f';
+          this.ctx.fillRect(obsX - gw / 2 - 2, botCenterY + gh / 2 - 2, gw + 4, 4);
+          // Guide rails (vertical lines)
           this.ctx.shadowBlur = 0;
-          // Cream/yellow border
-          this.ctx.strokeStyle = '#f1c40f';
-          this.ctx.lineWidth = 3;
-          this.ctx.strokeRect(dX - dW / 2, dY - dH / 2, dW, dH);
-          // Display HITS count
-          this.ctx.fillStyle = '#ffffff';
-          this.ctx.font = 'bold 11px Montserrat, sans-serif';
-          this.ctx.textAlign = 'center';
-          this.ctx.textBaseline = 'middle';
-          this.ctx.shadowColor = 'rgba(0,0,0,0.8)';
-          this.ctx.shadowBlur = 4;
-          this.ctx.fillText('HITS ' + obs.hp, dX, dY);
+          this.ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+          this.ctx.lineWidth = 1;
+          this.ctx.setLineDash([3, 5]);
+          this.ctx.beginPath();
+          this.ctx.moveTo(obsX - gw / 2 - 6, obs.topY || midY - 200);
+          this.ctx.lineTo(obsX - gw / 2 - 6, obs.bottomY || midY + 200);
+          this.ctx.stroke();
+          this.ctx.beginPath();
+          this.ctx.moveTo(obsX + gw / 2 + 6, obs.topY || midY - 200);
+          this.ctx.lineTo(obsX + gw / 2 + 6, obs.bottomY || midY + 200);
+          this.ctx.stroke();
+          this.ctx.setLineDash([]);
+          // State indicator light
+          const lightOn = obs.state === 'open' || obs.state === 'opening';
+          this.ctx.shadowColor = lightOn ? 'rgba(46,204,113,0.5)' : 'rgba(231,76,60,0.5)';
+          this.ctx.shadowBlur = lightOn ? 10 : 8;
+          this.ctx.fillStyle = lightOn ? '#2ecc71' : '#e74c3c';
+          this.ctx.beginPath();
+          this.ctx.arc(obsX, midY, 4, 0, Math.PI * 2);
+          this.ctx.fill();
           this.ctx.shadowBlur = 0;
-          // Crack overlay based on damage level
-          if (obs._crackLevel >= 1) {
-            this.ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-            this.ctx.lineWidth = 1.5;
-            this.ctx.beginPath();
-            this.ctx.moveTo(dX - dW * 0.3, dY - dH * 0.35);
-            this.ctx.lineTo(dX + dW * 0.1, dY - dH * 0.1);
-            this.ctx.lineTo(dX - dW * 0.2, dY + dH * 0.15);
-            this.ctx.stroke();
-            this.ctx.beginPath();
-            this.ctx.moveTo(dX + dW * 0.2, dY - dH * 0.3);
-            this.ctx.lineTo(dX + dW * 0.35, dY + dH * 0.05);
-            this.ctx.stroke();
-          }
-          if (obs._crackLevel >= 2) {
-            this.ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-            this.ctx.lineWidth = 2;
-            this.ctx.beginPath();
-            this.ctx.moveTo(dX - dW * 0.25, dY - dH * 0.1);
-            this.ctx.lineTo(dX + dW * 0.3, dY + dH * 0.25);
-            this.ctx.lineTo(dX - dW * 0.1, dY + dH * 0.4);
-            this.ctx.stroke();
-            this.ctx.beginPath();
-            this.ctx.moveTo(dX + dW * 0.1, dY - dH * 0.2);
-            this.ctx.lineTo(dX - dW * 0.15, dY + dH * 0.3);
-            this.ctx.stroke();
-            this.ctx.beginPath();
-            this.ctx.moveTo(dX + dW * 0.3, dY + dH * 0.1);
-            this.ctx.lineTo(dX - dW * 0.05, dY - dH * 0.15);
-            this.ctx.stroke();
-          }
-          if (obs._crackLevel >= 3) {
-            this.ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-            this.ctx.lineWidth = 2.5;
-            this.ctx.beginPath();
-            this.ctx.moveTo(dX - dW * 0.4, dY - dH * 0.2);
-            this.ctx.lineTo(dX + dW * 0.4, dY + dH * 0.3);
-            this.ctx.stroke();
-            this.ctx.beginPath();
-            this.ctx.moveTo(dX + dW * 0.35, dY - dH * 0.15);
-            this.ctx.lineTo(dX - dW * 0.3, dY + dH * 0.35);
-            this.ctx.stroke();
-          }
-          if (obs._crackLevel >= 4) {
-            this.ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-            this.ctx.lineWidth = 3;
-            this.ctx.beginPath();
-            this.ctx.moveTo(dX - dW * 0.2, dY - dH * 0.4);
-            this.ctx.lineTo(dX + dW * 0.15, dY + dH * 0.45);
-            this.ctx.stroke();
-          }
           this.ctx.restore();
         } else if (obs.type === 'sweep_arm') {
           this.ctx.save();
@@ -4847,160 +4977,129 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.arc(0, 0, 6, 0, Math.PI * 2);
           this.ctx.fill();
           this.ctx.restore();
-        } else if (obs.type === 'barrel') {
-          // Fall Guys-style colorful rolling barrel
-          this.ctx.save();
-          this.ctx.translate(obsX, obs.y);
-          this.ctx.rotate(obs.spin);
-          this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 6;
-          this.ctx.shadowOffsetY = 2;
-          // Neon candy stripes
-          const stripColors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff'];
-          const stripH = obs.radius * 1.4 / stripColors.length;
-          for (let s = 0; s < stripColors.length; s++) {
-            this.ctx.fillStyle = stripColors[s];
-            this.ctx.fillRect(-obs.radius, -obs.radius * 0.7 + s * stripH, obs.radius * 2, stripH);
-          }
-          // Bands
-          this.ctx.fillStyle = '#ffffff';
-          this.ctx.fillRect(-obs.radius, -obs.radius * 0.65, obs.radius * 2, 3);
-          this.ctx.fillRect(-obs.radius, obs.radius * 0.65 - 3, obs.radius * 2, 3);
-          // Rims
-          this.ctx.strokeStyle = '#2d3436';
-          this.ctx.lineWidth = 2;
-          this.ctx.strokeRect(-obs.radius, -obs.radius * 0.7, obs.radius * 2, obs.radius * 1.4);
-          // Center circle
-          this.ctx.fillStyle = '#ffffff';
-          this.ctx.beginPath();
-          this.ctx.arc(0, 0, 4, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.restore();
+
         } else if (obs.type === 'hammer') {
-          // Big rotating hammer (no chain) — Fall Guys whirlygig style
           this.ctx.save();
           const hx = obs.headX - camX;
-          // Thick metal arm from pivot to head
           const dx = obs.headX - obs.x;
           const dy = obs.headY - obs.y;
           const armLen = Math.hypot(dx, dy) || 1;
           const armAngle = Math.atan2(dy, dx);
+          // Industrial arm
           this.ctx.save();
           this.ctx.translate(obsX, obs.y);
           this.ctx.rotate(armAngle);
-          this.ctx.fillStyle = '#95a5a6';
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 4;
-          this.ctx.fillRect(0, -4, armLen, 8);
+          this.ctx.shadowBlur = 6;
+          const armGrad = this.ctx.createLinearGradient(0, -6, 0, 6);
+          armGrad.addColorStop(0, '#2c3e50');
+          armGrad.addColorStop(0.5, '#7f8c8d');
+          armGrad.addColorStop(1, '#2c3e50');
+          this.ctx.fillStyle = armGrad;
+          this.ctx.fillRect(0, -6, armLen, 12);
           this.ctx.shadowBlur = 0;
           this.ctx.restore();
-          // Hammer head (angular hammer head, not round)
-          this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 8;
-          this.ctx.shadowOffsetY = 2;
+          // Dark metallic head
           const hSize = obs.headRadius;
-          const hw = hSize * 0.9;
-          const hh = hSize * 0.5;
-          const hGrad = this.ctx.createLinearGradient(hx - hw, obs.headY - hh, hx + hw, obs.headY + hh);
-          hGrad.addColorStop(0, '#ffda79');
-          hGrad.addColorStop(0.4, '#ff9ff3');
-          hGrad.addColorStop(0.7, '#f368e0');
-          hGrad.addColorStop(1, '#be2edd');
-          this.ctx.fillStyle = hGrad;
-          // Angular hammer head (wide rectangle with sharp corners)
+          const hw = hSize * 1.0;
+          const hh = hSize * 0.65;
+          this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
+          this.ctx.shadowBlur = 10;
+          this.ctx.shadowOffsetY = 3;
+          const metalGrad = this.ctx.createLinearGradient(hx - hw, obs.headY - hh, hx + hw, obs.headY + hh);
+          metalGrad.addColorStop(0, '#34495e');
+          metalGrad.addColorStop(0.3, '#5d6d7e');
+          metalGrad.addColorStop(0.6, '#2c3e50');
+          metalGrad.addColorStop(1, '#1a252f');
+          this.ctx.fillStyle = metalGrad;
           this.ctx.beginPath();
           this.ctx.moveTo(hx - hw, obs.headY - hh);
           this.ctx.lineTo(hx + hw, obs.headY - hh);
+          this.ctx.lineTo(hx + hw + 4, obs.headY);
           this.ctx.lineTo(hx + hw, obs.headY + hh);
           this.ctx.lineTo(hx - hw, obs.headY + hh);
+          this.ctx.lineTo(hx - hw - 4, obs.headY);
           this.ctx.closePath();
           this.ctx.fill();
-          // Dark angular outline
-          this.ctx.strokeStyle = '#8e44ad';
+          this.ctx.strokeStyle = '#1a252f';
           this.ctx.lineWidth = 2;
           this.ctx.stroke();
-          // White stripe highlight
-          this.ctx.fillStyle = 'rgba(255,255,255,0.25)';
-          this.ctx.fillRect(hx - hw * 0.8, obs.headY - hh * 0.6, hw * 1.6, hh * 0.3);
+          // Yellow warning stripe on head
+          this.ctx.fillStyle = 'rgba(241,196,15,0.4)';
+          this.ctx.fillRect(hx - hw * 0.6, obs.headY - hh * 0.6, hw * 1.2, hh * 0.25);
           this.ctx.shadowBlur = 0;
           this.ctx.restore();
         } else if (obs.type === 'punchfist') {
-          // Boxing glove on a chain (strikes horizontally)
           this.ctx.save();
-          const fX = obs.fistX - camX;
-          const chainLen = Math.abs(fX - obsX);
-          const chainAngle = Math.atan2(obs.fistY - obs.y, fX - obsX);
-          // Chain links between anchor and fist
-          if (chainLen > 10) {
-            this.ctx.strokeStyle = '#7f8c8d';
-            this.ctx.lineWidth = 3;
-            const numLinks = Math.max(3, Math.floor(chainLen / 12));
-            for (let li = 0; li < numLinks; li++) {
-              const t = (li + 0.5) / numLinks;
-              const lx = obsX + (fX - obsX) * t;
-              const ly = obs.y + (obs.fistY - obs.y) * t;
-              this.ctx.save();
-              this.ctx.translate(lx, ly);
-              this.ctx.rotate(chainAngle);
-              this.ctx.beginPath();
-              // Draw an oval link
-              this.ctx.ellipse(0, 0, 6, 4, 0, 0, Math.PI * 2);
-              this.ctx.stroke();
-              this.ctx.restore();
-            }
-          }
-          // Base anchor plate (wall mount)
-          this.ctx.fillStyle = '#566573';
-          this.ctx.fillRect(obsX - 14, obs.y - 16, 28, 32);
+          const pX = obs.punchX - camX;
+          const pR = obs.punchRadius || 30;
+          const angle = obs.angle || 0;
+          // Square mechanical box body
+          const boxW = 40;
+          const boxH = 46;
+          this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
+          this.ctx.shadowBlur = 8;
+          this.ctx.shadowOffsetY = 2;
+          const boxGrad = this.ctx.createLinearGradient(obsX - boxW / 2, obs.y - boxH / 2, obsX + boxW / 2, obs.y + boxH / 2);
+          boxGrad.addColorStop(0, '#566573');
+          boxGrad.addColorStop(0.5, '#7f8c8d');
+          boxGrad.addColorStop(1, '#34495e');
+          this.ctx.fillStyle = boxGrad;
+          this.ctx.fillRect(obsX - boxW / 2, obs.y - boxH / 2, boxW, boxH);
           this.ctx.strokeStyle = '#2c3e50';
           this.ctx.lineWidth = 2;
-          this.ctx.strokeRect(obsX - 14, obs.y - 16, 28, 32);
-          // Boxing glove
-          const fr = obs.fistRadius;
+          this.ctx.strokeRect(obsX - boxW / 2, obs.y - boxH / 2, boxW, boxH);
+          this.ctx.shadowBlur = 0;
+          // Piston rod along angle
+          const cosA = Math.cos(angle), sinA = Math.sin(angle);
+          const rodLen = Math.hypot(pX - obsX, obs.punchY - obs.y);
+          if (rodLen > 2) {
+            this.ctx.strokeStyle = '#95a5a6';
+            this.ctx.lineWidth = 8;
+            this.ctx.beginPath();
+            this.ctx.moveTo(obsX + cosA * boxW / 2, obs.y + sinA * boxH / 2);
+            this.ctx.lineTo(pX - cosA * pR * 0.5, obs.punchY - sinA * pR * 0.5);
+            this.ctx.stroke();
+            this.ctx.strokeStyle = '#7f8c8d';
+            this.ctx.lineWidth = 10;
+            for (let seg = 0; seg < Math.floor(rodLen / 15); seg++) {
+              const sx = obsX + cosA * (boxW / 2 + seg * 15);
+              const sy = obs.y + sinA * (boxH / 2 + seg * 15);
+              this.ctx.beginPath();
+              this.ctx.moveTo(sx - sinA * 6, sy + cosA * 6);
+              this.ctx.lineTo(sx + sinA * 6, sy - cosA * 6);
+              this.ctx.stroke();
+            }
+          }
+          // Round punch head
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
           this.ctx.shadowBlur = 10;
-          this.ctx.shadowOffsetY = 3;
-          // Main glove body (red)
-          const gGrad = this.ctx.createRadialGradient(fX - 4, obs.fistY - 4, 3, fX, obs.fistY, fr);
-          gGrad.addColorStop(0, '#e74c3c');
-          gGrad.addColorStop(0.6, '#c0392b');
-          gGrad.addColorStop(1, '#922b21');
-          this.ctx.fillStyle = gGrad;
+          this.ctx.shadowOffsetY = 2;
+          const punchGrad = this.ctx.createRadialGradient(pX - pR * 0.2, obs.punchY - pR * 0.2, 2, pX, obs.punchY, pR);
+          punchGrad.addColorStop(0, '#e74c3c');
+          punchGrad.addColorStop(0.5, '#c0392b');
+          punchGrad.addColorStop(1, '#922b21');
+          this.ctx.fillStyle = punchGrad;
           this.ctx.beginPath();
-          this.ctx.arc(fX, obs.fistY, fr, 0, Math.PI * 2);
+          this.ctx.arc(pX, obs.punchY, pR, 0, Math.PI * 2);
           this.ctx.fill();
-          // Thumb (small circle on side)
-          this.ctx.fillStyle = '#c0392b';
-          this.ctx.beginPath();
-          this.ctx.arc(fX - obs.direction * fr * 0.5, obs.fistY + fr * 0.2, fr * 0.3, 0, Math.PI * 2);
-          this.ctx.fill();
-          // White stripe across glove
-          this.ctx.fillStyle = '#ffffff';
-          this.ctx.globalAlpha = 0.2;
-          this.ctx.beginPath();
-          this.ctx.arc(fX, obs.fistY, fr * 0.5, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.globalAlpha = 1;
-          // Highlight
-          this.ctx.shadowBlur = 0;
-          this.ctx.fillStyle = 'rgba(255,255,255,0.25)';
-          this.ctx.beginPath();
-          this.ctx.arc(fX - fr * 0.2, obs.fistY - fr * 0.25, fr * 0.2, 0, Math.PI * 2);
-          this.ctx.fill();
-          // Impact lines when fired
-          if (obs.fired && chainLen > 20) {
-            this.ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-            this.ctx.lineWidth = 2;
-            for (let i = 0; i < 4; i++) {
-              const lx = fX + obs.direction * (fr + 4 + i * 10);
-              const ly = obs.fistY + (i - 1.5) * 7;
-              this.ctx.beginPath();
-              this.ctx.moveTo(lx, ly);
-              this.ctx.lineTo(lx + obs.direction * 12, ly);
+          this.ctx.strokeStyle = '#7f8c8d';
+          this.ctx.lineWidth = 2;
           this.ctx.stroke();
-        }
-      }
-      this.ctx.restore();
+          this.ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          this.ctx.beginPath();
+          this.ctx.arc(pX - cosA * pR * 0.25, obs.punchY - sinA * pR * 0.25, pR * 0.35, 0, Math.PI * 2);
+          this.ctx.fill();
+          if ((obs.state === 'extending' || obs.state === 'hold') && rodLen > 20) {
+            this.ctx.shadowColor = 'rgba(231,76,60,0.4)';
+            this.ctx.shadowBlur = 20;
+            this.ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            this.ctx.beginPath();
+            this.ctx.arc(pX + cosA * 8, obs.punchY + sinA * 8, pR * 0.6, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+          }
+          this.ctx.restore();
         } else if (obs.type === 'trapdoor') {
           // Wall switcher: panel slides between blocking top and bottom
           const bounds = this.physics.getWallBoundaries(obs.x, this.track);
@@ -6631,7 +6730,7 @@ if (this.activeEvent.key === 'speed_surge') {
         let minX = obs.x, maxX = obs.x, minY = obs.y || 300, maxY = obs.y || 300;
         const w = obs.width || obs.length || (obs.radius * 2) || 40;
         const h = obs.height || (obs.radius * 2) || 40;
-        if (obs.type === 'c_bumper' || obs.type === 'barrel' || obs.type === 'rock' || obs.type === 'peg') {
+      if (obs.type === 'c_bumper' || obs.type === 'rock' || obs.type === 'peg') {
           const r = obs.radius || 20;
           minX = obs.x - r; maxX = obs.x + r;
           minY = obs.y - r; maxY = obs.y + r;
@@ -6645,12 +6744,22 @@ if (this.activeEvent.key === 'speed_surge') {
           minX = obs.x - armLen - r; maxX = obs.x + armLen + r;
           minY = obs.y - armLen - r; maxY = obs.y + armLen + r;
         } else if (obs.type === 'punchfist') {
-          const d = obs.direction || 1;
           const ext = obs.extendDist || 120;
-          const r = obs.fistRadius || 32;
-          if (d > 0) { minX = obs.x - r; maxX = obs.x + ext + r; }
-          else { minX = obs.x - ext - r; maxX = obs.x + r; }
-          minY = obs.y - r; maxY = obs.y + r;
+          const r = obs.punchRadius || 30;
+          const angle = obs.angle || 0;
+          const tipX = obs.x + Math.cos(angle) * ext;
+          const tipY = obs.y + Math.sin(angle) * ext;
+          minX = Math.min(obs.x, tipX) - r;
+          maxX = Math.max(obs.x, tipX) + r;
+          minY = Math.min(obs.y, tipY) - r;
+          maxY = Math.max(obs.y, tipY) + r;
+        } else if (obs.type === 'barrier') {
+          const hw = (obs.width || 18) / 2;
+          const hh = (obs.height || 80) / 2;
+          const maxGap = obs.gapMax || 200;
+          minX = obs.x - hw; maxX = obs.x + hw;
+          minY = (obs.y || 300) - maxGap / 2 - hh;
+          maxY = (obs.y || 300) + maxGap / 2 + hh;
         } else if (obs.type === 'portal') {
           const r = obs.radius || 25;
           minX = obs.x - r; maxX = obs.x + r;

@@ -1104,11 +1104,11 @@ canvas.force-vertical {
   object-fit: cover;
 }
 
-/* Race Director Event Feed — broadcast timeline, bottom-right */
+/* Race Director Event Feed — broadcast timeline, bottom-left */
 .rd-feed {
   position: fixed;
   bottom: 100px;
-  right: 15px;
+  left: 15px;
   width: 320px;
   max-width: calc(100vw - 300px);
   max-height: calc(100vh - 280px);

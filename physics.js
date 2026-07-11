@@ -23,17 +23,15 @@ class PhysicsEngine {
       b._hitBallThisFrame = false;
       b._hitBarrierThisFrame = false;
       b._hitSpinnerThisFrame = false;
-      b._hitBreakDoorThisFrame = false;
       b._hitMeteorThisFrame = false;
       b._hitSweepArmThisFrame = false;
       b._hitPunchFistThisFrame = false;
-      b._hitBarrelThisFrame = false;
+
       b._hitHammerThisFrame = false;
       b._hitCBumperThisFrame = false;
       b._usedPortalThisFrame = false;
       b._usedLaunchThisFrame = false;
       b._enteredBoostThisFrame = false;
-      b._enteredWindThisFrame = false;
       b._enteredSlowThisFrame = false;
     });
 
@@ -87,7 +85,6 @@ class PhysicsEngine {
       let inBoost = false;
       ball._wasInBoost = ball._wasInBoost || false;
       ball._wasInSlow = ball._wasInSlow || false;
-      ball._wasInWind = ball._wasInWind || false;
 
       track.zones.forEach(zone => {
         if (
@@ -118,13 +115,6 @@ class PhysicsEngine {
           } else if (zone.type === 'oil') {
             currentDamping = 0.97;
             ball.vy += (Math.random() - 0.5) * 0.08;
-          } else if (zone.type === 'wind' && ball.z === 0) {
-            // Apply continuous wind force while in zone
-            ball.vx += zone.force * dt;
-            if (!ball._wasInWind) {
-              ball._enteredWindThisFrame = true;
-            }
-            ball._wasInWind = true;
           } else if (zone.type === 'launch' && ball.z === 0 && !ball._launchCooldown) {
             // Bounce pad: launch upward and boost forward
             ball.vz = -5;
@@ -167,9 +157,6 @@ class PhysicsEngine {
       if (!inBoost) ball._wasInBoost = false;
       if (track.zones.filter(z => z.type === 'slow').every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
         ball._wasInSlow = false;
-      }
-      if (track.zones.filter(z => z.type === 'wind').every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
-        ball._wasInWind = false;
       }
       // Decrement portal cooldown
       if (ball._portalCooldown > 0) {
@@ -440,44 +427,19 @@ class PhysicsEngine {
             }
           });
         } else if (obs.type === 'barrier') {
-          ball._hitLargeObstacle = true;
-          ball._hitBarrierThisFrame = true;
-          // Slippery barrier: minimal friction, ball slides off easily
+          const halfGap = (obs.currentGap || 100) / 2;
           const halfW = obs.width / 2;
           const halfH = obs.height / 2;
-          const cx = Math.max(obs.x - halfW, Math.min(ball.x, obs.x + halfW));
-          const cy = Math.max(obs.y - halfH, Math.min(ball.y, obs.y + halfH));
-          const dx = ball.x - cx;
-          const dy = ball.y - cy;
-          const dist = Math.hypot(dx, dy);
-          if (dist < ball.radius && dist > 0) {
-            const overlap = ball.radius - dist;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            ball.x += nx * overlap;
-            ball.y += ny * overlap;
-            const rvx = (obs.vx || 0) - ball.vx;
-            const rvy = (obs.vy || 0) - ball.vy;
-            const velAlongNormal = rvx * nx + rvy * ny;
-            if (velAlongNormal < 0) {
-              // Near-zero restitution: ball doesn't bounce back, just slides off
-              const j = -(1 + 0.0) * velAlongNormal;
-              ball.vx += j * nx;
-              ball.vy += j * ny;
-              // Strong tangential slide: push ball along the barrier surface
-              const tx = -ny;
-              const ty = nx;
-              const tangVel = ball.vx * tx + ball.vy * ty;
-              const slideForce = Math.abs(tangVel) * 0.8 + 1.0;
-              ball.vx += tx * slideForce;
-              ball.vy += ty * slideForce;
-              // Inherit barrier's vertical velocity so ball moves with it instead of getting crushed
-              ball.vy += (obs.vy || 0) * 0.6;
-              // Additional nudge away from barrier center toward open edge
-              const distFromCenter = (ball.y - obs.y) / (obs.height / 2);
-              ball.vy += distFromCenter * 0.5;
-            }
-          }
+          const midY = obs.y;
+          // Top gate half
+          const topCY = midY - halfGap - halfH;
+          const topBox = { x: obs.x, y: topCY, width: obs.width, height: obs.height };
+          this.resolveBallBoxCollision(ball, topBox);
+          // Bottom gate half
+          const botCY = midY + halfGap + halfH;
+          const botBox = { x: obs.x, y: botCY, width: obs.width, height: obs.height };
+          this.resolveBallBoxCollision(ball, botBox);
+          ball._hitBarrierThisFrame = true;
         } else if (obs.type === 'flap') {
           // Flap is a rotating/hinged blocker. Approximate it as a rotated line segment.
           // When isOpen=true (blocking): angle=PI/2, horizontal across track
@@ -535,9 +497,6 @@ class PhysicsEngine {
             if (ball.y < bounds.topY + margin) { ball.y = bounds.topY + margin; ball.vy = Math.abs(ball.vy) * 0.5; }
             if (ball.y > bounds.bottomY - margin) { ball.y = bounds.bottomY - margin; ball.vy = -Math.abs(ball.vy) * 0.5; }
           }
-        } else if (obs.type === 'barrel') {
-          ball._hitBarrelThisFrame = true;
-          this.resolveBallBarrelCollision(ball, obs);
         } else if (obs.type === 'trapdoor') {
           // Wall switcher: panel blocks top or bottom portion of track
           const bounds = this.getWallBoundaries(obs.x, track);
@@ -566,41 +525,7 @@ class PhysicsEngine {
               ball.vy -= vn * ny * 0.5;
             }
           }
-        } else if (obs.type === 'breakdoor' && !obs.broken) {
-          // Breakable door — AABB block with HP reduction (3-5 hits)
-          const halfW = obs.width / 2;
-          const halfH = obs.height / 2;
-          const cx = Math.max(obs.x - halfW, Math.min(ball.x, obs.x + halfW));
-          const cy = Math.max(obs.y - halfH, Math.min(ball.y, obs.y + halfH));
-          const dx = ball.x - cx;
-          const dy = ball.y - cy;
-          const dist = Math.hypot(dx, dy);
-          if (dist < ball.radius && dist > 0) {
-            const overlap = ball.radius - dist;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            ball.x += nx * overlap;
-            ball.y += ny * overlap;
-            const vn = ball.vx * nx + ball.vy * ny;
-            if (vn < 0) {
-              ball.vx -= vn * nx * 0.5;
-              ball.vy -= vn * ny * 0.5;
-            }
-            // Reduce HP on collision with cooldown to prevent rapid drain
-            if (obs._hitCooldown > 0) obs._hitCooldown--;
-            if (vn < 0 && obs._hitCooldown <= 0) {
-              obs.hp--;
-              obs._hitCooldown = 15;
-              ball._hitObstacleThisFrame = true;
-              ball._hitBreakDoorThisFrame = true;
-              if (obs.hp <= 0) {
-                obs.broken = true;
-                obs._fragments = this._createDoorFragments(obs);
-              }
-            }
-          }
         } else if (obs.type === 'sweep_arm') {
-          // Rotating sweep arm — line segment collision with push force
           const armLen = obs.length || 120;
           const angle = obs.angle || 0;
           const cosA = Math.cos(angle);
@@ -622,12 +547,12 @@ class PhysicsEngine {
               ball.x = closestX + nx * (ball.radius + 6);
               ball.y = closestY + ny * (ball.radius + 6);
             }
-            const physicsSpeed = obs.physicsSpeed || obs.speed || 0.07;
+            const physicsSpeed = obs.physicsSpeed || 0.02;
             const tipVx = -sinA * physicsSpeed * armLen * obs.direction;
             const tipVy = cosA * physicsSpeed * armLen * obs.direction;
-            const pushFactor = (1 - t) * 0.8 + 0.2;
-            ball.vx += tipVx * pushFactor * 0.15;
-            ball.vy += tipVy * pushFactor * 0.15;
+            const pushFactor = (1 - t) * 0.5 + 0.1;
+            ball.vx += tipVx * pushFactor * 0.08;
+            ball.vy += tipVy * pushFactor * 0.08;
             ball._hitSweepArmThisFrame = true;
           }
         } else if (obs.type === 'c_bumper') {
@@ -679,43 +604,37 @@ class PhysicsEngine {
         } else if (obs.type === 'hammer') {
           ball._hitLargeObstacle = true;
           ball._hitHammerThisFrame = true;
-          // Collide with rotating hammer head — calculate tangential velocity
-          const dx = obs.headX - obs.x;
-          const dy = obs.headY - obs.y;
-          const dist = Math.hypot(dx, dy) || 1;
-          // Tangential velocity: perpendicular to arm, scaled by speed*direction
-          const tangV = obs.speed * obs.direction * dist * 0.8;
-          const hVx = -dy / dist * tangV;
-          const hVy = dx / dist * tangV;
-          const mover = { x: obs.headX, y: obs.headY, radius: obs.headRadius, vx: hVx, vy: hVy };
-          this.resolveBallMovingCircleCollision(ball, mover);
-        } else if (obs.type === 'punchfist') {
-          // Collide with punch fist — direction-aware push
-          const mover = {
-            x: obs.fistX,
-            y: obs.fistY,
-            radius: obs.fistRadius + 4, // slightly larger hitbox
-            vx: obs.fistVx || obs.direction * 14,
-            vy: 0
-          };
-          const dx = ball.x - mover.x;
-          const dy = ball.y - mover.y;
-          const dist = Math.hypot(dx, dy);
-          const minDist = ball.radius + mover.radius;
-          if (dist < minDist && dist > 0) {
+          const hR = obs.headRadius || 25;
+          const hdx = ball.x - obs.headX;
+          const hdy = ball.y - obs.headY;
+          const hDist = Math.hypot(hdx, hdy);
+          const hMinDist = ball.radius + hR;
+          if (hDist < hMinDist && hDist > 0) {
+            const hnx = hdx / hDist, hny = hdy / hDist;
+            ball.x += hnx * (hMinDist - hDist);
+            ball.y += hny * (hMinDist - hDist);
             ball._hitObstacleThisFrame = true;
-            ball._hitPunchFistThisFrame = true;
-            const nx = dx / dist;
-            const ny = dy / dist;
+            const hVx = obs.headVx || 0;
+            const hVy = obs.headVy || 0;
+            ball.vx += hVx * 3.0;
+            ball.vy += hVy * 3.0;
+          }
+        } else if (obs.type === 'punchfist') {
+          if (obs.state !== 'extending' && obs.state !== 'hold') return;
+          const pR = obs.punchRadius || 30;
+          const dx = ball.x - obs.punchX;
+          const dy = ball.y - obs.punchY;
+          const dist = Math.hypot(dx, dy);
+          const minDist = ball.radius + pR + 2;
+          if (dist < minDist && dist > 0) {
+            const nx = dx / dist, ny = dy / dist;
             const overlap = minDist - dist;
             ball.x += nx * overlap;
             ball.y += ny * overlap;
-            // Forward punch (direction matches ball travel) = speed gain
-            // Backward punch (opposite direction) = push back
-            const pushVx = mover.vx * 0.8;
-            const pushVy = mover.vy * 0.8;
-            ball.vx += pushVx;
-            ball.vy += pushVy;
+            ball._hitObstacleThisFrame = true;
+            ball._hitPunchFistThisFrame = true;
+            ball.vx += (obs.punchVx || 0) * 1.2;
+            ball.vy += (obs.punchVy || 0) * 1.2;
           }
         }
       });
@@ -997,35 +916,6 @@ class PhysicsEngine {
     }
   }
 
-  // Ball vs Rolling Barrel
-  resolveBallBarrelCollision(ball, barrel) {
-    const dx = ball.x - barrel.x;
-    const dy = ball.y - barrel.y;
-    const dist = Math.hypot(dx, dy);
-    const minDist = ball.radius + barrel.radius;
-    if (dist < minDist && dist > 0) {
-      const overlap = minDist - dist;
-      const nx = dx / dist;
-      const ny = dy / dist;
-      ball.x += nx * overlap;
-      ball.y += ny * overlap;
-      // Push ball away and transfer some of barrel's momentum
-      const rvx = barrel.vx - ball.vx;
-      const rvy = barrel.vy - ball.vy;
-      const velAlongNormal = rvx * nx + rvy * ny;
-      if (velAlongNormal < 0) {
-        const j = -(1 + ball.restitution) * velAlongNormal;
-        ball.vx += j * nx;
-        ball.vy += j * ny;
-        // Barrel gets pushed too (Newton's third law)
-        barrel.vx += j * nx * 0.3 / barrel.mass;
-        barrel.vy += j * ny * 0.3 / barrel.mass;
-      }
-      // Spin the barrel
-      barrel.spin += barrel.spinSpeed;
-    }
-  }
-
   // Anti-jam: detect if >5 balls are stuck in same obstacle zone for >2s, then activate relief
   updateAntiJamSystem(balls, track, dt) {
     const BALL_DIAMETER = 30;
@@ -1123,27 +1013,6 @@ class PhysicsEngine {
         }
       }
     });
-  }
-
-  // Create visual fragments for broken door (purely visual, no collision)
-  _createDoorFragments(obs) {
-    const frags = [];
-    const count = 12 + Math.floor(Math.random() * 8);
-    for (let i = 0; i < count; i++) {
-      frags.push({
-        x: obs.x + (Math.random() - 0.5) * obs.width * 0.6,
-        y: obs.y + (Math.random() - 0.5) * obs.height * 0.6,
-        vx: (Math.random() - 0.5) * 10,
-        vy: -Math.random() * 8 - 3,
-        life: 30 + Math.random() * 30,
-        maxLife: 60,
-        rotation: Math.random() * Math.PI * 2,
-        rotSpeed: (Math.random() - 0.5) * 0.3,
-        size: 4 + Math.random() * 8,
-        color: ['#c0392b', '#e74c3c', '#ff6b6b', '#f1c40f'][Math.floor(Math.random() * 4)]
-      });
-    }
-    return frags;
   }
 
   // Get track center Y at a given X position by interpolating walls
