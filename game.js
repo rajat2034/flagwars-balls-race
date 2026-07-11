@@ -1640,6 +1640,10 @@ class GameEngine {
     this._whiteFlashAlpha = 0;
     this._shootingStarTimer = 600 + Math.random() * 600;
     this._activeShootingStar = null;
+    this._cometTimer = 1200 + Math.random() * 1200;
+    this._activeComet = null;
+    this._meteorShowerTimer = 1800 + Math.random() * 1800;
+    this._activeMeteors = [];
     this._spaceObjects = [];
     this.isPanning = false;
     this.panStartX = 0;
@@ -5287,7 +5291,7 @@ if (this.activeEvent.key === 'speed_surge') {
             else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
           }
           this.ctx.stroke();
-          // Decorative celestial objects + track glow (space theme)
+          // Decorative celestial objects + track glow + edge particles (space theme)
           if (this.currentThemeKey === 'space') {
             this._renderSpaceObjects(camX);
             // Subtle cyan energy pulse along wall boundaries
@@ -5311,6 +5315,22 @@ if (this.activeEvent.key === 'speed_surge') {
             this.ctx.stroke();
             this.ctx.shadowBlur = 0;
             this.ctx.restore();
+            // Tiny energy particles leaking from track edges
+            const epTime = Date.now() * 0.002;
+            const epCount = Math.floor(visibleTop.length * 0.15);
+            for (let e = 0; e < epCount; e++) {
+              const idx = Math.floor((e * 23 + Math.floor(epTime)) % visibleTop.length);
+              if (Math.random() > 0.03) continue;
+              const px = visibleTop[idx].x;
+              const py = visibleTop[idx].y;
+              this.ctx.save();
+              this.ctx.fillStyle = e % 2 === 0 ? '#66fcf1' : '#a78bfa';
+              this.ctx.globalAlpha = 0.15 + Math.random() * 0.15;
+              this.ctx.beginPath();
+              this.ctx.arc(px + (Math.random() - 0.5) * 6, py + Math.random() * 4, 0.8 + Math.random() * 0.8, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.restore();
+            }
           }
           this.ctx.globalAlpha = 1;
         }
@@ -5789,7 +5809,64 @@ if (this.activeEvent.key === 'speed_surge') {
         ctx.fillRect(0, 0, screenW, screenH);
         ctx.restore();
 
-        // ---- LAYER 4b: Deep star field (200+ tiny stars with parallax twinkle) ----
+        // ---- LAYER 4b: Faint distant galaxies (2-4, blurred, very subtle) ----
+        const galTime = time * 0.008;
+        for (let g = 0; g < 3; g++) {
+          ctx.save();
+          ctx.globalAlpha = 0.012 + Math.sin(galTime * 0.5 + g * 2) * 0.004;
+          const gx = screenW * (0.2 + g * 0.3) + Math.sin(galTime + g * 1.5) * 30;
+          const gy = screenH * (0.25 + (g % 2) * 0.4);
+          const gRad = 120 + g * 40;
+          const galGrad = ctx.createRadialGradient(gx, gy, 0, gx, gy, gRad);
+          const galColors = ['#7c3aed', '#3b82f6', '#a855f7'];
+          galGrad.addColorStop(0, galColors[g] + '33');
+          galGrad.addColorStop(0.3, galColors[g] + '1a');
+          galGrad.addColorStop(0.6, galColors[g] + '0d');
+          galGrad.addColorStop(1, 'transparent');
+          ctx.fillStyle = galGrad;
+          ctx.beginPath();
+          ctx.ellipse(gx, gy, gRad, gRad * 0.35, 0.3 + g * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+          // Faint spiral hint
+          ctx.strokeStyle = galColors[g] + '15';
+          ctx.lineWidth = 1;
+          for (let a = 0; a < 2; a++) {
+            ctx.beginPath();
+            for (let r = 0; r < gRad * 0.8; r += 3) {
+              const sa = r * 0.015 + a * Math.PI + galTime * 0.1;
+              const sx = gx + Math.cos(sa) * r;
+              const sy = gy + Math.sin(sa) * r * 0.35;
+              if (r === 0) ctx.moveTo(sx, sy);
+              else ctx.lineTo(sx, sy);
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // ---- LAYER 4c: Faint cosmic light rays (diagonal, slow drift) ----
+        ctx.save();
+        ctx.globalAlpha = 0.015;
+        for (let r = 0; r < 4; r++) {
+          const rx = ((r * screenW * 0.25 + Math.sin(time * 0.02 + r * 2) * 60) % screenW);
+          const rayGrad = ctx.createLinearGradient(rx, 0, rx + 80, screenH);
+          rayGrad.addColorStop(0, 'rgba(168,85,247,0)');
+          rayGrad.addColorStop(0.3, 'rgba(168,85,247,0.02)');
+          rayGrad.addColorStop(0.5, 'rgba(6,182,212,0.025)');
+          rayGrad.addColorStop(0.7, 'rgba(168,85,247,0.02)');
+          rayGrad.addColorStop(1, 'rgba(168,85,247,0)');
+          ctx.fillStyle = rayGrad;
+          ctx.beginPath();
+          ctx.moveTo(rx, 0);
+          ctx.lineTo(rx + 40, 0);
+          ctx.lineTo(rx - 40, screenH);
+          ctx.lineTo(rx - 80, screenH);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ---- LAYER 4d: Deep star field (200+ tiny stars with parallax twinkle) ----
         const starSeed = Math.floor(this.cameraX * 0.01);
         ctx.save();
         for (let i = 0; i < 160; i++) {
@@ -5805,7 +5882,7 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         ctx.restore();
 
-        // ---- LAYER 4c: Mid-field brighter stars (sparse, more twinkle) ----
+        // ---- LAYER 4e: Mid-field brighter stars (sparse, more twinkle) ----
         ctx.save();
         for (let i = 0; i < 40; i++) {
           const sx = ((i * 211.7 + starSeed * 7 + 100) % screenW);
@@ -5820,34 +5897,33 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         ctx.restore();
 
-        // ---- LAYER 4d: Shooting star (occasional meteor streak) ----
+        // ---- LAYER 4f: Shooting stars (quick, elegant, every 10-20s) ----
         this._shootingStarTimer -= 1;
         if (this._shootingStarTimer <= 0) {
-          // Random next shooting star in 20-40 seconds
-          this._shootingStarTimer = 1200 + Math.random() * 1200;
+          this._shootingStarTimer = 600 + Math.random() * 600;
           this._activeShootingStar = {
             x: Math.random() * screenW * 0.8 + screenW * 0.1,
-            y: Math.random() * screenH * 0.3,
-            speed: 8 + Math.random() * 6,
-            length: 40 + Math.random() * 60,
-            angle: Math.PI * 0.15 + Math.random() * 0.15,
-            life: 30 + Math.random() * 15,
+            y: Math.random() * screenH * 0.35,
+            speed: 10 + Math.random() * 8,
+            length: 50 + Math.random() * 80,
+            angle: Math.PI * 0.1 + Math.random() * 0.25,
+            life: 20 + Math.random() * 15,
             age: 0
           };
         }
         if (this._activeShootingStar && this._activeShootingStar.age < this._activeShootingStar.life) {
           const ss = this._activeShootingStar;
           ctx.save();
-          ctx.globalAlpha = Math.max(0, 1 - ss.age / ss.life) * 0.5;
+          const fade = Math.max(0, 1 - ss.age / ss.life);
+          ctx.globalAlpha = fade * 0.6;
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.moveTo(ss.x, ss.y);
           ctx.lineTo(ss.x - Math.cos(ss.angle) * ss.length, ss.y + Math.sin(ss.angle) * ss.length);
           ctx.stroke();
-          // Bright head
           ctx.fillStyle = '#ffffff';
-          ctx.globalAlpha = Math.max(0, 1 - ss.age / ss.life) * 0.7;
+          ctx.globalAlpha = fade * 0.8;
           ctx.beginPath();
           ctx.arc(ss.x, ss.y, 2, 0, Math.PI * 2);
           ctx.fill();
@@ -5857,7 +5933,95 @@ if (this.activeEvent.key === 'speed_surge') {
           ctx.restore();
         }
 
-        // ---- LAYER 4e: Distant aurora-like light band ----
+        // ---- LAYER 4g: Comets (glowing head + long light trail, every 20-40s) ----
+        this._cometTimer -= 1;
+        if (this._cometTimer <= 0) {
+          this._cometTimer = 1200 + Math.random() * 1200;
+          const fromLeft = Math.random() > 0.5;
+          this._activeComet = {
+            x: fromLeft ? -100 : screenW + 100,
+            y: Math.random() * screenH * 0.4,
+            vx: fromLeft ? 4 + Math.random() * 3 : -(4 + Math.random() * 3),
+            vy: 1.5 + Math.random() * 2,
+            trail: [],
+            maxTrail: 20 + Math.floor(Math.random() * 10),
+            life: 80 + Math.random() * 40,
+            age: 0,
+            hue: 20 + Math.random() * 20
+          };
+        }
+        if (this._activeComet && this._activeComet.age < this._activeComet.life) {
+          const c = this._activeComet;
+          c.trail.push({ x: c.x, y: c.y });
+          if (c.trail.length > c.maxTrail) c.trail.shift();
+          ctx.save();
+          // Trail
+          for (let t = 0; t < c.trail.length; t++) {
+            const tf = t / c.trail.length;
+            ctx.globalAlpha = tf * 0.35 * Math.max(0, 1 - c.age / c.life);
+            ctx.fillStyle = `hsl(${c.hue}, 100%, ${60 + tf * 30}%)`;
+            ctx.beginPath();
+            ctx.arc(c.trail[t].x, c.trail[t].y, 1 + tf * 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          // Head glow
+          const headFade = Math.max(0, 1 - c.age / c.life);
+          ctx.globalAlpha = headFade * 0.6;
+          ctx.shadowColor = `hsl(${c.hue}, 100%, 70%)`;
+          ctx.shadowBlur = 15;
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.restore();
+          c.x += c.vx;
+          c.y += c.vy;
+          c.age += 1;
+          if (c.age >= c.life) this._activeComet = null;
+        }
+
+        // ---- LAYER 4h: Meteor showers (tiny orange streaks, fast, distant) ----
+        this._meteorShowerTimer -= 1;
+        if (this._meteorShowerTimer <= 0) {
+          this._meteorShowerTimer = 1800 + Math.random() * 1800;
+          const count = 3 + Math.floor(Math.random() * 4);
+          this._activeMeteors = [];
+          for (let m = 0; m < count; m++) {
+            this._activeMeteors.push({
+              x: Math.random() * screenW * 1.2 - screenW * 0.1,
+              y: -20 - Math.random() * 40,
+              vx: 3 + Math.random() * 4,
+              vy: 5 + Math.random() * 4,
+              life: 15 + Math.random() * 10,
+              age: Math.floor(Math.random() * 5),
+              size: 0.5 + Math.random() * 1,
+            });
+          }
+        }
+        this._activeMeteors = this._activeMeteors.filter(m => m.age < m.life);
+        for (const m of this._activeMeteors) {
+          ctx.save();
+          const mFade = Math.max(0, 1 - m.age / m.life);
+          ctx.globalAlpha = mFade * 0.35;
+          ctx.strokeStyle = '#f97316';
+          ctx.lineWidth = m.size;
+          ctx.beginPath();
+          ctx.moveTo(m.x, m.y);
+          ctx.lineTo(m.x - m.vx * 2.5, m.y - m.vy * 2.5);
+          ctx.stroke();
+          ctx.fillStyle = '#fb923c';
+          ctx.globalAlpha = mFade * 0.5;
+          ctx.beginPath();
+          ctx.arc(m.x, m.y, m.size + 0.5, 0, Math.PI * 2);
+          ctx.fill();
+          m.x += m.vx;
+          m.y += m.vy;
+          m.age += 1;
+          ctx.restore();
+        }
+
+        // ---- LAYER 4i: Distant aurora-like light band ----
         ctx.save();
         ctx.globalAlpha = 0.02 + Math.sin(time * 0.008) * 0.008;
         const auroraGrad = ctx.createLinearGradient(0, screenH * 0.05, 0, screenH * 0.35);
@@ -5902,10 +6066,10 @@ if (this.activeEvent.key === 'speed_surge') {
       this._spaceObjects = [];
       if (this.currentThemeKey !== 'space' || !track) return;
       const length = track.length || 10000;
-      const types = ['planet', 'moon', 'gas_giant', 'station', 'satellite', 'asteroid', 'debris'];
-      for (let i = 0; i < 20; i++) {
+      const types = ['planet', 'moon', 'gas_giant', 'station', 'satellite', 'asteroid', 'debris', 'beacon', 'ancient_probe', 'debris_field'];
+      for (let i = 0; i < 24; i++) {
         const t = types[i % types.length];
-        const x = (i / 20) * length + Math.random() * 400;
+        const x = (i / 24) * length + Math.random() * 400;
         const side = Math.random() > 0.5 ? 1 : -1;
         this._spaceObjects.push({
           type: t,
@@ -5972,6 +6136,45 @@ if (this.activeEvent.key === 'speed_surge') {
           ctx.fillStyle = '#3b82f6';
           ctx.globalAlpha *= 0.3;
           ctx.fillRect(vx - obj.size * 2, vy - obj.size * 0.15, obj.size * 4, obj.size * 0.3);
+        } else if (obj.type === 'beacon') {
+          // Alien beacon: pulsing diamond shape
+          const bp = 0.3 + Math.sin(time * 1.5 + obj.phase) * 0.3;
+          ctx.fillStyle = obj.color;
+          ctx.globalAlpha = 0.2 + bp * 0.3;
+          ctx.shadowColor = obj.color;
+          ctx.shadowBlur = 10 + bp * 8;
+          ctx.beginPath();
+          ctx.moveTo(vx, vy - obj.size);
+          ctx.lineTo(vx + obj.size, vy);
+          ctx.lineTo(vx, vy + obj.size);
+          ctx.lineTo(vx - obj.size, vy);
+          ctx.closePath();
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        } else if (obj.type === 'ancient_probe') {
+          // Broken probe: irregular shape with blinking light
+          ctx.fillStyle = '#64748b';
+          ctx.beginPath();
+          ctx.arc(vx - obj.size * 0.3, vy + obj.size * 0.2, obj.size * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#475569';
+          ctx.fillRect(vx - obj.size * 0.1, vy - obj.size * 0.5, obj.size * 0.4, obj.size * 0.8);
+          ctx.fillStyle = '#fbbf24';
+          ctx.globalAlpha = 0.3 + Math.sin(time * 2.5 + obj.phase) * 0.3;
+          ctx.beginPath();
+          ctx.arc(vx + obj.size * 0.2, vy - obj.size * 0.4, 1, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (obj.type === 'debris_field') {
+          // Scattered debris: several tiny fragments
+          for (let d = 0; d < 5; d++) {
+            const da = d * 1.3 + obj.phase;
+            const dr = obj.size * (0.3 + (d % 3) * 0.2);
+            ctx.fillStyle = ['#94a3b8', '#64748b', '#475569', '#cbd5e1', '#94a3b8'][d];
+            ctx.globalAlpha = 0.15 + Math.sin(time * 0.5 + da) * 0.05;
+            ctx.beginPath();
+            ctx.arc(vx + Math.cos(da) * dr, vy + Math.sin(da) * dr, 0.8 + (d % 3) * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
         ctx.restore();
       }
