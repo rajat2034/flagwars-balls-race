@@ -14,8 +14,8 @@ class AppController {
     // Custom countries database key
     this.STORAGE_CUSTOM_KEY = 'flag_rally_custom_nations';
 
-    // Loadout state
-    this._loadout = { obstacles: [], events: [] };
+    // Loadout state (Phase 2: +freqs, density, eventIntensity)
+    this._loadout = { obstacles: [], obstacleFreqs: {}, events: [], eventFreqs: {}, density: 60, eventIntensity: 'medium' };
     this.STORAGE_LOADOUT_KEY = 'flag_rally_loadout';
     this.STORAGE_PRESETS_KEY = 'flag_rally_loadout_presets';
   }
@@ -47,6 +47,11 @@ class AppController {
     this._initLoadout();
     this.renderLoadoutPanels();
     this.renderPresets();
+    this.renderSummaryPanel();
+    // Sync density slider display
+    const densitySlider = document.getElementById('loadout-density');
+    if (densitySlider) densitySlider.value = this._loadout.density;
+    this.onDensityChange(this._loadout.density);
 
     // 6. Bind UI Events
     window.addEventListener('resize', () => this.handleAspectResize());
@@ -120,14 +125,18 @@ class AppController {
     this.renderCountriesGrid();
   }
 
-  // ─── Loadout System ──────────────────────────────────────
+  // ─── Loadout System (Phase 2) ───────────────────────────
 
   _buildDefaultLoadout(themeKey) {
     const obs = OBSTACLE_REGISTRY
       .filter(o => o.category === 'core' || o.map === themeKey)
       .map(o => o.type);
     const evts = EVENT_REGISTRY.filter(e => e.implemented).map(e => e.key);
-    return { obstacles: obs, events: evts };
+    const obstacleFreqs = {};
+    OBSTACLE_REGISTRY.forEach(o => { obstacleFreqs[o.type] = 3; });
+    const eventFreqs = {};
+    EVENT_REGISTRY.forEach(e => { eventFreqs[e.key] = 3; });
+    return { obstacles: obs, obstacleFreqs, events: evts, eventFreqs, density: 60, eventIntensity: 'medium' };
   }
 
   _initLoadout() {
@@ -135,13 +144,24 @@ class AppController {
       const stored = localStorage.getItem(this.STORAGE_LOADOUT_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && parsed.obstacles && parsed.events) {
+        if (parsed && parsed.obstacles) {
+          // Backward compat: fill missing fields
+          if (!parsed.obstacleFreqs) {
+            parsed.obstacleFreqs = {};
+            OBSTACLE_REGISTRY.forEach(o => { parsed.obstacleFreqs[o.type] = parsed.obstacles.includes(o.type) ? 3 : 0; });
+          }
+          if (!parsed.eventFreqs) {
+            parsed.eventFreqs = {};
+            EVENT_REGISTRY.forEach(e => { parsed.eventFreqs[e.key] = parsed.events && parsed.events.includes(e.key) ? 3 : 0; });
+          }
+          if (!parsed.events) parsed.events = [];
+          if (!parsed.density) parsed.density = 60;
+          if (!parsed.eventIntensity) parsed.eventIntensity = 'medium';
           this._loadout = parsed;
           return;
         }
       }
     } catch (e) { /* ignore */ }
-    // Fall back to default for current map
     this._loadout = this._buildDefaultLoadout(this.selectedMapKey);
     this._saveLoadoutToStorage();
   }
@@ -153,13 +173,12 @@ class AppController {
   }
 
   renderLoadoutPanels() {
-    // Obstacles
     const obsContainer = document.getElementById('obstacle-loadout-list');
     if (!obsContainer) return;
     obsContainer.innerHTML = '';
     const enabledSet = new Set(this._loadout.obstacles);
+    const freqs = this._loadout.obstacleFreqs;
 
-    // Core group
     const coreObs = OBSTACLE_REGISTRY.filter(o => o.category === 'core');
     const sigObs = OBSTACLE_REGISTRY.filter(o => o.category === 'signature');
     const mapNames = { desert: 'Sahara', snow: 'Glacier', jungle: 'Amazon', volcano: 'Magma', ocean: 'Mariana', space: 'Nebula' };
@@ -170,11 +189,10 @@ class AppController {
       sep.textContent = 'CORE OBSTACLES';
       obsContainer.appendChild(sep);
       coreObs.forEach(o => {
-        obsContainer.appendChild(this._makeCheckbox(o.type, o.name, enabledSet.has(o.type), false, false));
+        obsContainer.appendChild(this._makeLoadoutItem(o.type, o.name, enabledSet.has(o.type), false, false, false, freqs[o.type] || 3));
       });
     }
 
-    // Signature by map
     const maps = ['desert', 'snow', 'jungle', 'volcano', 'ocean', 'space'];
     maps.forEach(key => {
       const entries = sigObs.filter(o => o.map === key);
@@ -184,7 +202,7 @@ class AppController {
       sep.textContent = (mapNames[key] || key).toUpperCase() + ' SIGNATURE';
       obsContainer.appendChild(sep);
       entries.forEach(o => {
-        obsContainer.appendChild(this._makeCheckbox(o.type, o.name, enabledSet.has(o.type), false, true));
+        obsContainer.appendChild(this._makeLoadoutItem(o.type, o.name, enabledSet.has(o.type), false, true, false, freqs[o.type] || 3));
       });
     });
 
@@ -193,61 +211,127 @@ class AppController {
     if (!evtContainer) return;
     evtContainer.innerHTML = '';
     const evtEnabledSet = new Set(this._loadout.events);
+    const evtFreqs = this._loadout.eventFreqs;
     EVENT_REGISTRY.forEach(e => {
-      evtContainer.appendChild(this._makeCheckbox(e.key, e.name, evtEnabledSet.has(e.key), !e.implemented, false, true));
+      evtContainer.appendChild(this._makeLoadoutItem(e.key, e.name, evtEnabledSet.has(e.key), !e.implemented, false, true, evtFreqs[e.key] || 3));
     });
   }
 
-  _makeCheckbox(id, label, checked, isFuture, isSignature, isEvent) {
+  _makeLoadoutItem(id, label, checked, isFuture, isSignature, isEvent, freqVal) {
     const div = document.createElement('label');
     div.className = 'loadout-check';
     div.innerHTML = `
-      <input type="checkbox" ${checked ? 'checked' : ''} ${isFuture ? 'disabled' : ''}>
-      <span>${label}${isSignature ? '<span class="sig-label">✦</span>' : ''}${isFuture ? '<span class="future-tag">FUTURE</span>' : ''}</span>
+      <span class="freq-wrap">
+        <input type="checkbox" ${checked ? 'checked' : ''} ${isFuture ? 'disabled' : ''}>
+        <span>${label}${isSignature ? '<span class="sig-label">✦</span>' : ''}${isFuture ? '<span class="future-tag">FUTURE</span>' : ''}</span>
+      </span>
+      <select class="freq-select" ${isFuture ? 'disabled' : ''}>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3" ${(freqVal || 3) === 3 ? 'selected' : ''}>3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
     `;
-    const cb = div.querySelector('input');
+    // Restore actual freq value
+    const sel = div.querySelector('.freq-select');
+    if (freqVal) sel.value = String(freqVal);
+
+    const cb = div.querySelector('input[type="checkbox"]');
     if (!isFuture) {
-      cb.addEventListener('change', () => {
+      const commit = () => {
         if (isEvent) {
           const evtSet = new Set(this._loadout.events);
           if (cb.checked) evtSet.add(id); else evtSet.delete(id);
           this._loadout.events = [...evtSet];
+          this._loadout.eventFreqs[id] = parseInt(sel.value) || 3;
         } else {
           const set = new Set(this._loadout.obstacles);
           if (cb.checked) set.add(id); else set.delete(id);
           this._loadout.obstacles = [...set];
+          this._loadout.obstacleFreqs[id] = parseInt(sel.value) || 3;
         }
         this._saveLoadoutToStorage();
-      });
+      };
+      cb.addEventListener('change', commit);
+      sel.addEventListener('change', commit);
     }
     return div;
   }
 
-  toggleObstacleInLoadout(type) {
-    const set = new Set(this._loadout.obstacles);
-    if (set.has(type)) set.delete(type); else set.add(type);
-    this._loadout.obstacles = [...set];
+  onDensityChange(val) {
+    const v = parseInt(val);
+    this._loadout.density = v;
+    const display = document.getElementById('density-value-display');
+    if (display) display.textContent = v + '%';
     this._saveLoadoutToStorage();
+    this.renderSummaryPanel();
   }
 
-  toggleEventInLoadout(key) {
-    const set = new Set(this._loadout.events);
-    if (set.has(key)) set.delete(key); else set.add(key);
-    this._loadout.events = [...set];
+  onEventIntensityChange(val) {
+    this._loadout.eventIntensity = val;
     this._saveLoadoutToStorage();
+    this.renderSummaryPanel();
   }
 
   randomizeLoadout() {
     const allObs = OBSTACLE_REGISTRY.map(o => o.type);
     const allEvts = EVENT_REGISTRY.filter(e => e.implemented).map(e => e.key);
-    // Random subset: each has ~60% chance of being included
     const obs = allObs.filter(() => Math.random() < 0.6);
     const evts = allEvts.filter(() => Math.random() < 0.6);
     if (!obs.length) obs.push(allObs[Math.floor(Math.random() * allObs.length)]);
     if (!evts.length) evts.push(allEvts[Math.floor(Math.random() * allEvts.length)]);
-    this._loadout = { obstacles: obs, events: evts };
+    const obstacleFreqs = {};
+    OBSTACLE_REGISTRY.forEach(o => { obstacleFreqs[o.type] = obs.includes(o.type) ? 1 + Math.floor(Math.random() * 5) : 0; });
+    const eventFreqs = {};
+    EVENT_REGISTRY.forEach(e => { eventFreqs[e.key] = evts.includes(e.key) ? 1 + Math.floor(Math.random() * 5) : 0; });
+    this._loadout = { obstacles: obs, obstacleFreqs, events: evts, eventFreqs, density: this._loadout.density, eventIntensity: this._loadout.eventIntensity };
     this._saveLoadoutToStorage();
     this.renderLoadoutPanels();
+    this.renderSummaryPanel();
+  }
+
+  restoreMapDefaults() {
+    this._loadout = this._buildDefaultLoadout(this.selectedMapKey);
+    this._saveLoadoutToStorage();
+    this.renderLoadoutPanels();
+    this.renderPresets();
+    this.renderSummaryPanel();
+    const densitySlider = document.getElementById('loadout-density');
+    if (densitySlider) { densitySlider.value = this._loadout.density; }
+    this.onDensityChange(this._loadout.density);
+    const intenseSel = document.getElementById('loadout-event-intense');
+    if (intenseSel) intenseSel.value = this._loadout.eventIntensity;
+  }
+
+  renderSummaryPanel() {
+    const container = document.getElementById('loadout-summary');
+    if (!container) return;
+    const theme = MAP_THEMES[this.selectedMapKey];
+    const mapName = theme ? theme.name : this.selectedMapKey;
+    const presetName = this._getActivePresetName();
+    container.innerHTML = `
+      <div class="summary-row"><span class="summary-label">Map</span><span class="summary-value gold">${mapName}</span></div>
+      <div class="summary-row"><span class="summary-label">Obstacle Density</span><span class="summary-value">${this._loadout.density}%</span></div>
+      <div class="summary-row"><span class="summary-label">Enabled Obstacles</span><span class="summary-value green">${this._loadout.obstacles.length}</span></div>
+      <div class="summary-row"><span class="summary-label">Enabled Events</span><span class="summary-value green">${this._loadout.events.length}</span></div>
+      <div class="summary-row"><span class="summary-label">Event Intensity</span><span class="summary-value">${this._loadout.eventIntensity}</span></div>
+      ${presetName ? `<div class="summary-row"><span class="summary-label">Preset</span><span class="summary-value gold">${presetName}</span></div>` : ''}
+    `;
+  }
+
+  _getActivePresetName() {
+    const presets = this._getPresets();
+    for (const name of Object.keys(presets)) {
+      const p = presets[name];
+      if (p.obstacles && arraysEqual(p.obstacles, this._loadout.obstacles) &&
+          p.events && arraysEqual(p.events, this._loadout.events) &&
+          (!p.density || p.density === this._loadout.density) &&
+          (!p.eventIntensity || p.eventIntensity === this._loadout.eventIntensity)) {
+        return name;
+      }
+    }
+    return null;
   }
 
   // ─── Loadout Presets ─────────────────────────────────────
@@ -269,18 +353,41 @@ class AppController {
     const name = prompt('Name this loadout preset:');
     if (!name || !name.trim()) return;
     const presets = this._getPresets();
-    presets[name.trim()] = { obstacles: [...this._loadout.obstacles], events: [...this._loadout.events] };
+    presets[name.trim()] = {
+      obstacles: [...this._loadout.obstacles],
+      obstacleFreqs: { ...this._loadout.obstacleFreqs },
+      events: [...this._loadout.events],
+      eventFreqs: { ...this._loadout.eventFreqs },
+      density: this._loadout.density,
+      eventIntensity: this._loadout.eventIntensity,
+      mapKey: this.selectedMapKey
+    };
     this._savePresets(presets);
     this.renderPresets();
+    this.renderSummaryPanel();
   }
 
   loadPreset(name) {
     const presets = this._getPresets();
     const preset = presets[name];
     if (!preset) return;
-    this._loadout = { obstacles: [...preset.obstacles], events: [...preset.events] };
+    this._loadout = {
+      obstacles: [...(preset.obstacles || [])],
+      obstacleFreqs: { ...(preset.obstacleFreqs || {}) },
+      events: [...(preset.events || [])],
+      eventFreqs: { ...(preset.eventFreqs || {}) },
+      density: preset.density || 60,
+      eventIntensity: preset.eventIntensity || 'medium'
+    };
     this._saveLoadoutToStorage();
     this.renderLoadoutPanels();
+    this.renderSummaryPanel();
+    // Sync sidebar controls
+    const densitySlider = document.getElementById('loadout-density');
+    if (densitySlider) { densitySlider.value = this._loadout.density; }
+    this.onDensityChange(this._loadout.density);
+    const intenseSel = document.getElementById('loadout-event-intense');
+    if (intenseSel) intenseSel.value = this._loadout.eventIntensity;
   }
 
   deletePreset(name) {
@@ -288,6 +395,7 @@ class AppController {
     delete presets[name];
     this._savePresets(presets);
     this.renderPresets();
+    this.renderSummaryPanel();
   }
 
   renderPresets() {
@@ -295,9 +403,9 @@ class AppController {
     if (!container) return;
     container.innerHTML = '';
     const presets = this._getPresets();
-    const names = Object.keys(presets);
+    const names = Object.keys(presets).sort();
     if (!names.length) {
-      container.innerHTML = '<div class="loadout-note">No saved presets yet. Configure obstacles & events above, then click "Save Current".</div>';
+      container.innerHTML = '<div class="loadout-note">No saved presets yet. Configure obstacles, events & frequencies above, then click "Save Current".</div>';
       return;
     }
     names.forEach(name => {
@@ -314,6 +422,13 @@ class AppController {
       });
       container.appendChild(btn);
     });
+  }
+
+  // Helper
+  _saveAndRefresh() {
+    this._saveLoadoutToStorage();
+    this.renderLoadoutPanels();
+    this.renderSummaryPanel();
   }
 
   loadSettings() {
@@ -559,10 +674,8 @@ class AppController {
     this.engine.currentThemeKey = themeKey;
     this.engine.currentTheme = MAP_THEMES[themeKey];
 
-    // Auto-set loadout to core + this map's signature obstacles
-    this._loadout = this._buildDefaultLoadout(themeKey);
-    this._saveLoadoutToStorage();
-    this.renderLoadoutPanels();
+    // Auto-set loadout to this map's default preset
+    this.restoreMapDefaults();
   }
 
   randomizeMap() {
@@ -696,23 +809,15 @@ class AppController {
 
   // Simulation controls bindings
   startRace() {
-    // Read custom overrides if in custom mode
+    // Race length from mode
     if (this.selectedMode === 'custom') {
-      const length = parseInt(document.getElementById('custom-track-length').value);
-      const density = document.getElementById('custom-obstacles').value;
-      const events = parseInt(document.getElementById('custom-events').value);
-
-      this.engine.raceLength = length;
-      this.engine.obstacleDensity = density;
-      this.engine.maxEvents = events;
+      this.engine.raceLength = parseInt(document.getElementById('custom-track-length').value);
     } else {
-      // defaults - 2.5-4 minute competitive race
       const isWorldCup = this.engine.gameMode === 'world_cup' || this.engine.gameMode === 'world_cup_2026';
       this.engine.raceLength = isWorldCup ? 80000 : 65000;
-      this.engine.obstacleDensity = 'medium';
-      this.engine.maxEvents = 2;
     }
 
+    // Loadout + density scaling + event intensity are passed via this._loadout
     this.engine.startRace(this._loadout);
   }
 
@@ -818,6 +923,14 @@ class AppController {
     this.cancelDiagnostics();
     this.togglePanel('diagnostic-panel');
   }
+}
+
+// Helper: compare two arrays by value
+function arraysEqual(a, b) {
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort(), sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
 }
 
 // Global entry initialization

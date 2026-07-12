@@ -54,146 +54,177 @@
         <div style="width: 70px;"></div> <!-- balance flex spacing -->
       </div>
 
-      <!-- Scrollable customizer sections -->
-      <div class="setup-scroll-container flex-1">
-        
-        <!-- Target mode special rules notice -->
-        <div id="mode-badge-rule" class="alert-notice mb-4">
-          <span class="badge-tag">INFO</span>
-          <span id="mode-rule-text">Football nations receive strength bonuses in this mode.</span>
-        </div>
-
-        <!-- A. Track Map Selection -->
-        <div class="setup-section mb-6">
-          <h3 class="section-title">Select Racing Map</h3>
-          <div class="map-grid mt-2">
-            <div onclick="app.selectMap('desert')" class="map-card active" id="map-desert">
-              <div class="map-thumb desert-thumb"></div>
-              <span>Sahara Desert</span>
-            </div>
-            <div onclick="app.selectMap('snow')" class="map-card" id="map-snow">
-              <div class="map-thumb snow-thumb"></div>
-              <span>Glacier Summit</span>
-            </div>
-            <div onclick="app.selectMap('jungle')" class="map-card" id="map-jungle">
-              <div class="map-thumb jungle-thumb"></div>
-              <span>Amazon Canopy</span>
-            </div>
-            <div onclick="app.selectMap('volcano')" class="map-card" id="map-volcano">
-              <div class="map-thumb volcano-thumb"></div>
-              <span>Magma Crater</span>
-            </div>
-            <div onclick="app.selectMap('ocean')" class="map-card" id="map-ocean">
-              <div class="map-thumb ocean-thumb"></div>
-              <span>Mariana Depths</span>
-            </div>
-            <div onclick="app.selectMap('space')" class="map-card" id="map-space">
-              <div class="map-thumb space-thumb"></div>
-              <span>Nebula Cosmos</span>
-            </div>
-          </div>
-          <div class="flex gap-2 mt-2">
-            <button onclick="app.randomizeMap()" class="btn btn-small btn-secondary flex-1">Random Map</button>
-          </div>
-        </div>
-
-        <!-- B. Countries Selector -->
-        <div class="setup-section mb-6">
-          <div class="flex justify-between items-center">
-            <h3 class="section-title">Select Countries</h3>
-            <span id="selected-count" class="counter-badge">0 Selected</span>
-          </div>
-
-          <!-- Quick selectors -->
-          <div class="quick-selectors flex gap-2 flex-wrap mt-2 mb-3">
-            <button onclick="app.loadPresetFIFA()" class="btn btn-small btn-primary" id="btn-fifa-preset">Load World Cup (48 Teams)</button>
-            <button onclick="app.selectCountriesAll()" class="btn btn-small btn-secondary">Select All</button>
-            <button onclick="app.selectCountriesRandom(16)" class="btn btn-small btn-secondary">Random 16</button>
-            <button onclick="app.selectCountriesRandom(32)" class="btn btn-small btn-secondary">Random 32</button>
-            <button onclick="app.clearCountriesSelection()" class="btn btn-small btn-tertiary">Clear All</button>
-            <button onclick="app.togglePanel('custom-country-creator')" class="btn btn-small btn-secondary bg-purple-glow">＋ Create Custom Ball</button>
-          </div>
-
-          <!-- Search database -->
-          <div class="search-box mb-2">
-            <input type="text" id="country-search" oninput="app.filterCountriesList()" placeholder="🔍 Search country name or code...">
-          </div>
-
-          <!-- List grid -->
-          <div class="countries-grid-wrapper">
-            <div id="countries-list" class="countries-list-grid">
-              <!-- Dynamically populated -->
-            </div>
-          </div>
-        </div>
-        
-        <!-- C. Obstacle Loadout Panel -->
-        <div class="setup-section mb-6">
-          <div class="flex justify-between items-center">
-            <h3 class="section-title">Obstacle Loadout</h3>
-            <button onclick="app.randomizeLoadout()" class="btn btn-small btn-secondary" title="Randomize all obstacles & events">🎲 Random</button>
-          </div>
-          <div class="loadout-note mb-2">Check obstacles to allow in this race. Core obstacles are always listed; signature obstacles are grouped by map.</div>
-          <div id="obstacle-loadout-list" class="loadout-grid mt-2">
-            <!-- populated by app.renderLoadoutPanels() -->
-          </div>
-        </div>
-
-        <!-- D. Event Loadout Panel -->
-        <div class="setup-section mb-6">
-          <h3 class="section-title">Global Events</h3>
-          <div class="loadout-note mb-2">Only checked events can trigger during the race.</div>
-          <div id="event-loadout-list" class="loadout-grid mt-2">
-            <!-- populated by app.renderLoadoutPanels() -->
-          </div>
-        </div>
-
-        <!-- E. Loadout Presets -->
-        <div class="setup-section mb-6">
-          <div class="flex justify-between items-center">
-            <h3 class="section-title">Loadout Presets</h3>
-            <button onclick="app.savePreset()" class="btn btn-small btn-secondary">💾 Save Current</button>
-          </div>
-          <div class="loadout-note mb-2">Save and load custom obstacle/event combinations.</div>
-          <div id="preset-list" class="preset-grid mt-2">
-            <!-- populated by app.renderPresets() -->
-          </div>
-        </div>
-
-        <!-- F. Custom Race Rules -->
-        <div id="custom-settings-sec" class="setup-section mb-6">
-          <h3 class="section-title">Custom Race Rules</h3>
+      <!-- Two-column layout: left content + right sidebar -->
+      <div class="setup-layout">
+        <!-- Left: scrollable sections -->
+        <div class="setup-scroll-container flex-1">
           
-          <div class="flex flex-col gap-3 mt-3">
-            <div class="setting-row">
-              <label for="custom-track-length">Race Distance</label>
-              <select id="custom-track-length">
-                <option value="50000">Short (approx. 60s)</option>
-                <option value="90000" selected>Medium (approx. 90s)</option>
-                <option value="130000">Long (approx. 120s)</option>
-                <option value="190000">Marathon (approx. 180s)</option>
-              </select>
+          <!-- Target mode special rules notice -->
+          <div id="mode-badge-rule" class="alert-notice mb-4">
+            <span class="badge-tag">INFO</span>
+            <span id="mode-rule-text">Football nations receive strength bonuses in this mode.</span>
+          </div>
+
+          <!-- A. Track Map Selection -->
+          <div class="setup-section mb-6">
+            <h3 class="section-title">Select Racing Map</h3>
+            <div class="map-grid mt-2">
+              <div onclick="app.selectMap('desert')" class="map-card active" id="map-desert">
+                <div class="map-thumb desert-thumb"></div>
+                <span>Sahara Desert</span>
+              </div>
+              <div onclick="app.selectMap('snow')" class="map-card" id="map-snow">
+                <div class="map-thumb snow-thumb"></div>
+                <span>Glacier Summit</span>
+              </div>
+              <div onclick="app.selectMap('jungle')" class="map-card" id="map-jungle">
+                <div class="map-thumb jungle-thumb"></div>
+                <span>Amazon Canopy</span>
+              </div>
+              <div onclick="app.selectMap('volcano')" class="map-card" id="map-volcano">
+                <div class="map-thumb volcano-thumb"></div>
+                <span>Magma Crater</span>
+              </div>
+              <div onclick="app.selectMap('ocean')" class="map-card" id="map-ocean">
+                <div class="map-thumb ocean-thumb"></div>
+                <span>Mariana Depths</span>
+              </div>
+              <div onclick="app.selectMap('space')" class="map-card" id="map-space">
+                <div class="map-thumb space-thumb"></div>
+                <span>Nebula Cosmos</span>
+              </div>
             </div>
-            <div class="setting-row">
-              <label for="custom-obstacles">Obstacles Density</label>
-              <select id="custom-obstacles">
-                <option value="low">Sparse (High Speed)</option>
-                <option value="medium" selected>Balanced (Standard)</option>
-                <option value="high">Chaotic (Many spinners/pegs)</option>
-              </select>
-            </div>
-            <div class="setting-row">
-              <label for="custom-events">Random Event Spawns</label>
-              <select id="custom-events">
-                <option value="0">Disabled (0)</option>
-                <option value="1">Rare (1)</option>
-                <option value="2" selected>Normal (1-2)</option>
-                <option value="3">Frequent (2-3)</option>
-              </select>
+            <div class="flex gap-2 mt-2">
+              <button onclick="app.randomizeMap()" class="btn btn-small btn-secondary flex-1">Random Map</button>
             </div>
           </div>
+
+          <!-- B. Countries Selector -->
+          <div class="setup-section mb-6">
+            <div class="flex justify-between items-center">
+              <h3 class="section-title">Select Countries</h3>
+              <span id="selected-count" class="counter-badge">0 Selected</span>
+            </div>
+
+            <!-- Quick selectors -->
+            <div class="quick-selectors flex gap-2 flex-wrap mt-2 mb-3">
+              <button onclick="app.loadPresetFIFA()" class="btn btn-small btn-primary" id="btn-fifa-preset">Load World Cup (48 Teams)</button>
+              <button onclick="app.selectCountriesAll()" class="btn btn-small btn-secondary">Select All</button>
+              <button onclick="app.selectCountriesRandom(16)" class="btn btn-small btn-secondary">Random 16</button>
+              <button onclick="app.selectCountriesRandom(32)" class="btn btn-small btn-secondary">Random 32</button>
+              <button onclick="app.clearCountriesSelection()" class="btn btn-small btn-tertiary">Clear All</button>
+              <button onclick="app.togglePanel('custom-country-creator')" class="btn btn-small btn-secondary bg-purple-glow">＋ Create Custom Ball</button>
+            </div>
+
+            <!-- Search database -->
+            <div class="search-box mb-2">
+              <input type="text" id="country-search" oninput="app.filterCountriesList()" placeholder="🔍 Search country name or code...">
+            </div>
+
+            <!-- List grid -->
+            <div class="countries-grid-wrapper">
+              <div id="countries-list" class="countries-list-grid">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+          
+          <!-- C. Obstacle Loadout Panel -->
+          <div class="setup-section mb-6">
+            <div class="flex justify-between items-center">
+              <h3 class="section-title">Obstacle Loadout</h3>
+              <div class="flex gap-2">
+                <button onclick="app.restoreMapDefaults()" class="btn btn-small btn-tertiary" title="Restore this map's recommended defaults">↺ Defaults</button>
+                <button onclick="app.randomizeLoadout()" class="btn btn-small btn-secondary" title="Randomize all obstacles & events">🎲 Random</button>
+              </div>
+            </div>
+            <div class="loadout-note mb-2">Check obstacles to allow. Set frequency (1=Very Rare → 5=Very Common).</div>
+            <div id="obstacle-loadout-list" class="loadout-grid mt-2">
+              <!-- populated by app.renderLoadoutPanels() -->
+            </div>
+          </div>
+
+          <!-- D. Event Loadout Panel -->
+          <div class="setup-section mb-6">
+            <div class="flex justify-between items-center">
+              <h3 class="section-title">Global Events</h3>
+            </div>
+            <div class="loadout-note mb-2">Only checked events can trigger. Frequency affects selection chance.</div>
+            <div id="event-loadout-list" class="loadout-grid mt-2">
+              <!-- populated by app.renderLoadoutPanels() -->
+            </div>
+          </div>
+
+          <!-- E. Loadout Presets -->
+          <div class="setup-section mb-6">
+            <div class="flex justify-between items-center">
+              <h3 class="section-title">Loadout Presets</h3>
+              <button onclick="app.savePreset()" class="btn btn-small btn-secondary">💾 Save Current</button>
+            </div>
+            <div class="loadout-note mb-2">Save and load custom obstacle/event/frequency combinations.</div>
+            <div id="preset-list" class="preset-grid mt-2">
+              <!-- populated by app.renderPresets() -->
+            </div>
+          </div>
+
+          <!-- F. Custom Race Rules -->
+          <div id="custom-settings-sec" class="setup-section mb-6">
+            <h3 class="section-title">Custom Race Rules</h3>
+            
+            <div class="flex flex-col gap-3 mt-3">
+              <div class="setting-row">
+                <label for="custom-track-length">Race Distance</label>
+                <select id="custom-track-length">
+                  <option value="50000">Short (approx. 60s)</option>
+                  <option value="90000" selected>Medium (approx. 90s)</option>
+                  <option value="130000">Long (approx. 120s)</option>
+                  <option value="190000">Marathon (approx. 180s)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
         </div>
 
+        <!-- Right: Live Summary + Global Controls -->
+        <div class="setup-sidebar">
+          <!-- LIVE SUMMARY -->
+          <div class="sidebar-section">
+            <h3 class="section-title" style="font-size:0.8rem;">Current Loadout</h3>
+            <div id="loadout-summary" class="summary-panel">
+              <!-- populated by app.renderSummaryPanel() -->
+            </div>
+          </div>
+
+          <!-- OBSTACLE DENSITY SLIDER -->
+          <div class="sidebar-section">
+            <h3 class="section-title" style="font-size:0.8rem;">Obstacle Density</h3>
+            <div class="density-control">
+              <input type="range" id="loadout-density" min="20" max="100" value="60" step="10"
+                     oninput="app.onDensityChange(this.value)">
+              <div class="density-labels">
+                <span>20%</span><span>40%</span><span>60%</span><span>80%</span><span>100%</span>
+              </div>
+              <div class="density-value" id="density-value-display">60%</div>
+            </div>
+          </div>
+
+          <!-- EVENT INTENSITY -->
+          <div class="sidebar-section">
+            <h3 class="section-title" style="font-size:0.8rem;">Global Event Intensity</h3>
+            <select id="loadout-event-intense" onchange="app.onEventIntensityChange(this.value)" class="intensity-select">
+              <option value="low">Low — Long gaps</option>
+              <option value="medium" selected>Medium — Balanced</option>
+              <option value="high">High — Frequent</option>
+              <option value="chaos">Chaos — Non-stop</option>
+            </select>
+          </div>
+
+          <!-- RESTORE DEFAULTS -->
+          <div class="sidebar-section">
+            <button onclick="app.restoreMapDefaults()" class="btn btn-small btn-tertiary" style="width:100%;">↺ Restore Map Defaults</button>
+          </div>
+        </div>
       </div>
 
       <!-- Action Button footer -->

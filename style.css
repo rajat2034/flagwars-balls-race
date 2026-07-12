@@ -1315,3 +1315,150 @@ canvas.force-vertical {
 .preset-btn .preset-del:hover {
   opacity: 1;
 }
+
+/* === Setup Layout (two-column) === */
+.setup-layout {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.setup-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+.setup-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+}
+.sidebar-section {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-md);
+  padding: 0.6rem;
+}
+.summary-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.7rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.summary-row:last-child {
+  border-bottom: none;
+}
+.summary-label {
+  color: var(--text-gray);
+  font-weight: 600;
+}
+.summary-value {
+  color: var(--text-white);
+  font-weight: 700;
+}
+.summary-value.gold {
+  color: var(--accent-gold);
+}
+.summary-value.green {
+  color: var(--pitch-green);
+}
+
+/* === Frequency Select === */
+.freq-select {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: var(--text-white);
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.1rem 0.2rem;
+  width: 36px;
+  cursor: pointer;
+  margin-left: auto;
+  flex-shrink: 0;
+  text-align: center;
+}
+.freq-select:hover {
+  border-color: rgba(255,255,255,0.25);
+}
+.freq-select option {
+  background: #1a1a2e;
+  color: #f0f0f5;
+}
+
+/* === Density Slider === */
+.density-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.density-control input[type="range"] {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(90deg, #2ecc71, #f39c12, #e74c3c);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+.density-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--pitch-green);
+  cursor: pointer;
+}
+.density-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.55rem;
+  color: var(--text-gray);
+}
+.density-value {
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--text-white);
+}
+
+/* === Event Intensity Select === */
+.intensity-select {
+  width: 100%;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: var(--text-white);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+}
+.intensity-select:hover {
+  border-color: rgba(255,255,255,0.2);
+}
+.intensity-select option {
+  background: #1a1a2e;
+  color: #f0f0f5;
+}
+
+/* Sidebar adjust for existing loadout-check inside sidebar */
+.loadout-check .freq-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+}

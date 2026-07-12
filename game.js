@@ -1823,7 +1823,7 @@ class GameEngine {
   }
 
   // Generates procedurally built tracks, barriers, and hazards
-  generateProceduralTrack(themeKey, length, densityStr, enabledObstacles) {
+  generateProceduralTrack(themeKey, length, densityStr, enabledObstacles, obstacleFreqs, densityPct) {
     const theme = MAP_THEMES[themeKey];
     this.currentThemeKey = themeKey;
     this.currentTheme = theme;
@@ -1833,6 +1833,19 @@ class GameEngine {
     const enabledSet = enabledObstacles
       ? new Set(enabledObstacles)
       : new Set(OBSTACLE_REGISTRY.filter(o => o.category === 'core' || o.map === themeKey).map(o => o.type));
+
+    // Build frequency weight map (1→1, 2→3, 3→5, 4→10, 5→20)
+    const freqWeights = {};
+    if (obstacleFreqs) {
+      OBSTACLE_REGISTRY.forEach(o => {
+        const f = obstacleFreqs[o.type] || 3;
+        const w = f <= 1 ? 1 : f === 2 ? 3 : f === 3 ? 5 : f === 4 ? 10 : 20;
+        freqWeights[o.type] = w;
+      });
+    }
+
+    // Density scaling factor from slider (20-100% → multiplier 0.3-1.3)
+    const densityMul = densityPct ? 0.3 + (densityPct / 100) * 0.7 : 0.7;
 
     const track = {
       length: length,
@@ -2326,6 +2339,8 @@ class GameEngine {
       if (densityStr === 'low') densityFactor = 0.70;
       if (densityStr === 'medium') densityFactor = 0.55;
       if (densityStr === 'high') densityFactor = 0.40;
+      // Apply density slider scaling (densityMul from outer scope)
+      densityFactor *= Math.max(0.35, 1.5 - (densityMul || 0.7) * 0.8);
 
       const MAJOR_OBSTACLES = _filterTypes(['hammer', 'spinner', 'c_bumper', 'portal', 'punchfist', 'sweep_arm', 'barrier']);
 
@@ -2422,7 +2437,15 @@ class GameEngine {
             recoveryRemaining -= 1;
           }
 
-          type = filtered[Math.floor(Math.random() * filtered.length)];
+          // Weighted random selection based on obstacle frequency
+          const weights = filtered.map(t => freqWeights[t] || 5);
+          const totalW = weights.reduce((a, b) => a + b, 0);
+          let rw = Math.random() * totalW;
+          type = filtered[filtered.length - 1];
+          for (let wi = 0; wi < filtered.length; wi++) {
+            if (rw < weights[wi]) { type = filtered[wi]; break; }
+            rw -= weights[wi];
+          }
         }
 
         const bounds = getBounds(x);
@@ -3191,15 +3214,21 @@ class GameEngine {
       ? new Set(this._loadout.events)
       : null;
 
-    const events = [
-      { name: '\u26BD FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.', weight: 0.25 },
-      { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.', weight: 0.15 },
-      { name: '\u26A1 SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.', weight: 0.20 },
-      { name: '\u26A1 BLACKOUT', key: 'blackout', duration: 0, description: 'Stadium lights have gone out. Anything can happen...', weight: 0.20 },
-      { name: '\u26A1 TELEPORTATION', key: 'teleportation', duration: 360, description: 'Ten countries suddenly swapped positions!', weight: 0.20 },
-    ].filter(e => !enabledEventKeys || enabledEventKeys.has(e.key));
+    // Build frequency-weighted event list
+    const eventFreqs = (this._loadout && this._loadout.eventFreqs) || {};
+    const freqToWeight = (f) => f <= 1 ? 1 : f === 2 ? 3 : f === 3 ? 5 : f === 4 ? 10 : 20;
 
-    // Weighted random selection
+    const events = [
+      { name: '\u26BD FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.' },
+      { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.' },
+      { name: '\u26A1 SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.' },
+      { name: '\u26A1 BLACKOUT', key: 'blackout', duration: 0, description: 'Stadium lights have gone out. Anything can happen...' },
+      { name: '\u26A1 TELEPORTATION', key: 'teleportation', duration: 360, description: 'Ten countries suddenly swapped positions!' },
+    ]
+      .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
+      .map(e => ({ ...e, weight: freqToWeight(eventFreqs[e.key] || 3) }));
+
+    // Weighted random selection using frequencies
     const totalWeight = events.reduce((sum, e) => sum + e.weight, 0);
     let rand = Math.random() * totalWeight;
     let evt = events[events.length - 1]; // fallback
@@ -3489,10 +3518,13 @@ if (this.activeEvent.key === 'speed_surge') {
       if (this.state === 'racing') {
         this.raceTimer += (16.666 * dt) / 1000;
 
-        // Timed event trigger: every 20 race-seconds
+        // Timed event trigger: gap depends on event intensity from loadout
+        const evtIntensity = (this._loadout && this._loadout.eventIntensity) || 'medium';
+        const eventGap = evtIntensity === 'low' ? 40 : evtIntensity === 'medium' ? 20 : evtIntensity === 'high' ? 12 : 6;
+        this.maxEvents = evtIntensity === 'low' ? 2 : evtIntensity === 'medium' ? 3 : evtIntensity === 'high' ? 6 : 12;
         if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime) {
           this.triggerRandomEvent();
-          this._nextEventRaceTime += 20;
+          this._nextEventRaceTime += eventGap;
         }
 
 
@@ -7366,9 +7398,11 @@ if (this.activeEvent.key === 'speed_surge') {
       // Always default camera focus to current leader (auto-switch on overtakes)
       this.selectedBallId = 'leader';
 
-      // Procedural generation (respect loadout)
+      // Procedural generation (respect loadout: obstacles, frequencies, density)
       const enabledObs = this._loadout ? this._loadout.obstacles : null;
-      this.generateProceduralTrack(this.currentThemeKey, this.raceLength, this.obstacleDensity, enabledObs);
+      const obsFreqs = this._loadout ? this._loadout.obstacleFreqs : null;
+      const densityPct = this._loadout ? this._loadout.density : 60;
+      this.generateProceduralTrack(this.currentThemeKey, this.raceLength, this.obstacleDensity, enabledObs, obsFreqs, densityPct);
 
 
       // Balls layout
