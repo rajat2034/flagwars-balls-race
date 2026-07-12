@@ -15,7 +15,7 @@ class AppController {
     this.STORAGE_CUSTOM_KEY = 'flag_rally_custom_nations';
 
     // Loadout state (Phase 2: +freqs, density, eventIntensity)
-    this._loadout = { obstacles: [], obstacleFreqs: {}, events: [], eventFreqs: {}, density: 60, eventIntensity: 'medium' };
+    this._loadout = { obstacles: [], obstacleFreqs: {}, events: [], eventFreqs: {}, density: 80, eventIntensity: 'high' };
     this.STORAGE_LOADOUT_KEY = 'flag_rally_loadout';
     this.STORAGE_PRESETS_KEY = 'flag_rally_loadout_presets';
   }
@@ -136,7 +136,7 @@ class AppController {
     OBSTACLE_REGISTRY.forEach(o => { obstacleFreqs[o.type] = 3; });
     const eventFreqs = {};
     EVENT_REGISTRY.forEach(e => { eventFreqs[e.key] = 3; });
-    return { obstacles: obs, obstacleFreqs, events: evts, eventFreqs, density: 60, eventIntensity: 'medium' };
+    return { obstacles: obs, obstacleFreqs, events: evts, eventFreqs, density: 80, eventIntensity: 'high' };
   }
 
   _initLoadout() {

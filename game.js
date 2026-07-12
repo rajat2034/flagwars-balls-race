@@ -1758,7 +1758,7 @@ class GameEngine {
     this.eventTimer = 0;
     this.eventCount = 0;
     this.maxEvents = 2; // based on user settings
-    this._eventIntensityCfg = { base: 20, variation: 3, maxEvents: 8 };
+    this._eventIntensityCfg = { base: 20, variation: 3, maxEvents: 18 };
     this.leaderboard = [];
     this.lastKnockoutCycle = 0;
 
@@ -2337,7 +2337,7 @@ class GameEngine {
 
       // Density slider (20-100%): higher = more obstacles, tighter spacing
       // multiplier: 1.8 at 20% → 0.5 at 100% (3.6x range)
-      const pct = densityPct || 60;
+      const pct = densityPct || 80;
       const densityMult = 1.8 - (pct / 100) * 1.3;
       // Cap to avoid division by zero / negative
       let densityFactor = Math.max(0.35, densityMult);
@@ -3523,7 +3523,7 @@ if (this.activeEvent.key === 'speed_surge') {
         this.raceTimer += (16.666 * dt) / 1000;
 
         // Event scheduling — uses config computed once in startRace()
-        const evtCfg = this._eventIntensityCfg || { base: 40, variation: 5, maxEvents: 8 };
+        const evtCfg = this._eventIntensityCfg || { base: 20, variation: 3, maxEvents: 18 };
         if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime) {
           this.triggerRandomEvent();
           // Next event: base interval ± random variation
@@ -7409,12 +7409,12 @@ if (this.activeEvent.key === 'speed_surge') {
       // Event intensity config — computed once, consumed by tick()
       const evtIntensity = (this._loadout && this._loadout.eventIntensity) || 'medium';
       const evtCfg = {
-        low: { base: 40, variation: 5, maxEvents: 8 },
-        medium: { base: 20, variation: 3, maxEvents: 15 },
-        high: { base: 10, variation: 2, maxEvents: 30 },
-        chaos: { base: 5, variation: 1, maxEvents: 60 }
+        low: { base: 60, variation: 5, maxEvents: 6 },
+        medium: { base: 30, variation: 3, maxEvents: 12 },
+        high: { base: 20, variation: 3, maxEvents: 18 },
+        chaos: { base: 10, variation: 2, maxEvents: 40 }
       };
-      this._eventIntensityCfg = evtCfg[evtIntensity] || evtCfg.medium;
+      this._eventIntensityCfg = evtCfg[evtIntensity] || evtCfg.high;
       this.maxEvents = this._eventIntensityCfg.maxEvents;
       this._nextEventRaceTime = 20;
       this.raceTimer = 0;
@@ -7431,7 +7431,7 @@ if (this.activeEvent.key === 'speed_surge') {
       // Procedural generation (respect loadout: obstacles, frequencies, density)
       const enabledObs = this._loadout ? this._loadout.obstacles : null;
       const obsFreqs = this._loadout ? this._loadout.obstacleFreqs : null;
-      const densityPct = this._loadout ? this._loadout.density : 60;
+      const densityPct = this._loadout ? this._loadout.density : 80;
       this.generateProceduralTrack(this.currentThemeKey, this.raceLength, this.obstacleDensity, enabledObs, obsFreqs, densityPct);
 
 
