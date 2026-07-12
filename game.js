@@ -131,6 +131,131 @@ const EVENT_REGISTRY = [
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
 ];
 
+// ── Track Designer — Race acts, cluster templates, map personality ──
+
+// Five-act race structure — each with purpose, preferred obstacles, recovery ranges
+const ACTS = [
+  { id: 1, label: 'Opening Sprint',     start: 0.00, end: 0.15,
+    preferred: ['boost', 'spinner', 'portal', 'barrier', 'peg', 'launch', 'c_bumper'],
+    avoid: ['hammer', 'punchfist', 'sweep_arm'],
+    clustersPerAct: 3, recoveryMin: 180, recoveryMax: 300 },
+  { id: 2, label: 'Early Competition',   start: 0.15, end: 0.40,
+    preferred: ['hammer', 'sweep_arm', 'punchfist', 'barrier', 'boost', 'slow', 'spinner'],
+    avoid: [],
+    clustersPerAct: 5, recoveryMin: 120, recoveryMax: 220 },
+  { id: 3, label: 'Mid Race Chaos',      start: 0.40, end: 0.70,
+    preferred: null,
+    avoid: [],
+    clustersPerAct: 6, recoveryMin: 80, recoveryMax: 160 },
+  { id: 4, label: 'Final Battle',        start: 0.70, end: 0.90,
+    preferred: ['hammer', 'sweep_arm', 'boost', 'barrier', 'punchfist', 'portal', 'spinner'],
+    avoid: ['slow'],
+    clustersPerAct: 5, recoveryMin: 60, recoveryMax: 120 },
+  { id: 5, label: 'Finish Stretch',      start: 0.90, end: 1.00,
+    preferred: ['boost', 'spinner', 'barrier', 'portal', 'hammer', 'launch'],
+    avoid: ['slow', 'punchfist'],
+    clustersPerAct: 2, recoveryMin: 40, recoveryMax: 80 }
+];
+
+// Themed obstacle clusters — reusable templates for memorable sequences
+const CLUSTER_TEMPLATES = [
+  { name: 'Speed',      types: ['boost', 'hammer', 'boost'],            spacing: 42, weight: 5 },
+  { name: 'Combat',     types: ['hammer', 'punchfist', 'spinner'],      spacing: 45, weight: 4 },
+  { name: 'Timing',     types: ['barrier', 'portal', 'hammer'],         spacing: 50, weight: 4 },
+  { name: 'Chaos',      types: ['spinner', 'punchfist', 'sweep_arm'],   spacing: 40, weight: 3 },
+  { name: 'Flow',       types: ['portal', 'boost', 'portal'],           spacing: 55, weight: 3 },
+  { name: 'Gate',       types: ['barrier', 'spinner', 'barrier'],       spacing: 45, weight: 3 },
+  { name: 'PunchLine',  types: ['punchfist', 'barrier', 'spinner'],     spacing: 42, weight: 2 },
+  { name: 'ArmSweep',   types: ['sweep_arm', 'boost', 'sweep_arm'],     spacing: 48, weight: 2 },
+  { name: 'TripleHammer', types: ['hammer', 'hammer', 'hammer'],        spacing: 35, weight: 2 },
+];
+
+// Map personality — per-map type preference multipliers
+const MAP_PERSONALITY = {
+  space:  { portal: 3, sweep_arm: 0.7, punchfist: 0.5, hammer: 0.7, spinner: 0.8, boost: 0.8, barrier: 0.9 },
+  snow:   { boost: 1.0, portal: 0.5, hammer: 1.3, spinner: 1.0, sweep_arm: 1.0, punchfist: 1.0, barrier: 1.1 },
+  volcano:{ boost: 0.9, portal: 0.5, hammer: 1.4, spinner: 1.1, sweep_arm: 1.3, punchfist: 1.2, barrier: 0.8 },
+  jungle: { boost: 1.1, portal: 0.7, hammer: 1.0, spinner: 1.2, sweep_arm: 1.1, punchfist: 1.3, barrier: 1.0 },
+  ocean:  { boost: 0.8, portal: 1.5, hammer: 0.8, spinner: 0.9, sweep_arm: 0.7, punchfist: 0.7, barrier: 1.2 },
+  desert: { boost: 1.2, portal: 0.7, hammer: 1.0, spinner: 0.8, sweep_arm: 1.3, punchfist: 1.2, barrier: 1.0 },
+};
+
+// Track Designer — builds a themed obstacle plan before the race starts
+// Divides the race into five acts, picks cluster templates, inserts recovery zones
+class TrackDesigner {
+
+  // Returns a flat plan: [{type, spacing}, {type:'_recovery', length}, ...]
+  buildPlan(themeKey, densityPct, enabledSet, freqWeights) {
+    const densityMod = Math.max(0.4, densityPct / 60); // 0.33 at 20%, 1.67 at 100%
+    const plan = [];
+
+    for (const act of ACTS) {
+      const numClusters = Math.max(1, Math.round(act.clustersPerAct * Math.min(1.8, densityMod)));
+      for (let i = 0; i < numClusters; i++) {
+        // Pick a cluster template appropriate for this act
+        const cluster = this._pickCluster(act, enabledSet, themeKey, freqWeights);
+        for (const item of cluster) {
+          plan.push(item);
+        }
+        // Recovery zone after each cluster except the last
+        if (i < numClusters - 1) {
+          const recLen = act.recoveryMin + Math.random() * (act.recoveryMax - act.recoveryMin);
+          plan.push({ type: '_recovery', length: recLen });
+        }
+      }
+    }
+    return plan;
+  }
+
+  _pickCluster(act, enabledSet, themeKey, freqWeights) {
+    const personality = MAP_PERSONALITY[themeKey] || {};
+    const valid = CLUSTER_TEMPLATES
+      .filter(ct => ct.types.every(t => enabledSet.has(t)))
+      .filter(ct => !ct.types.some(t => act.avoid.includes(t)));
+
+    if (valid.length === 0) {
+      // Fallback: single random enabled type
+      const fallback = Array.from(enabledSet);
+      if (fallback.length === 0) return [{ type: 'boost', spacing: 200 }];
+      return [{ type: fallback[Math.floor(Math.random() * fallback.length)], spacing: 200 }];
+    }
+
+    const weighted = valid.map(ct => {
+      let w = ct.weight;
+      // Map personality: boost weight if types match map preference (average)
+      const avgPersonality = ct.types.reduce((sum, t) => sum + (personality[t] || 1), 0) / ct.types.length;
+      w *= avgPersonality;
+      // Frequency weights from loadout (average across cluster types)
+        const avgFreqRatio = ct.types.reduce((sum, t) => {
+          const fw = freqWeights && freqWeights[t] ? freqWeights[t] : 5;
+          return sum + fw;
+        }, 0) / (ct.types.length * 5);
+      // Act preferred: double weight if all types are in act's preferred pool
+      if (act.preferred && ct.types.every(t => act.preferred.includes(t))) {
+        w *= 2;
+      }
+      // Act avoid: heavily penalize
+      const avoidPenalty = ct.types.filter(t => act.avoid.includes(t)).length;
+      w *= Math.pow(0.3, avoidPenalty);
+      return { ct, w };
+    });
+
+    const totalW = weighted.reduce((s, x) => s + x.w, 0);
+    let r = Math.random() * totalW;
+    let chosen = weighted[weighted.length - 1].ct;
+    for (const entry of weighted) {
+      r -= entry.w;
+      if (r <= 0) { chosen = entry.ct; break; }
+    }
+
+    // Return plan items for this cluster
+    return chosen.types.map(type => ({
+      type,
+      spacing: chosen.spacing + (Math.random() - 0.5) * 10
+    }));
+  }
+}
+
 // Text contrast helper — returns appropriate colors based on map brightness
 function getThemeColors(themeKey) {
   const theme = MAP_THEMES[themeKey];
@@ -1858,10 +1983,6 @@ class GameEngine {
       centerPoints: []
     };
 
-    let densityVal = 0.35;
-    if (densityStr === 'low') densityVal = 0.25;
-    if (densityStr === 'high') densityVal = 0.75;
-
     // Generate center line with multi-directional sections
     const numSteps = Math.ceil(length / 30);
     let baseWidth = 250;
@@ -1941,11 +2062,39 @@ class GameEngine {
     track.zones.push({ type: 'finish', x: finishX, y: 0, width: 120, height: 700 });
     track.finishLineX = finishX;
 
-    // Filter ZONE_CONFIG, COMBINATIONS, TEMPLATES by enabled obstacle set
-    const _filterTypes = (typesArr) => typesArr.filter(t => enabledSet.has(t));
-    const _allEnabled = (typesArr) => typesArr.every(t => enabledSet.has(t));
+    // ── Build the Race Director's obstacle plan ──
+    const designer = new TrackDesigner();
+    const rawPlan = designer.buildPlan(themeKey, densityPct, enabledSet, freqWeights);
 
-    // Zone-based obstacle placement
+    // Convert plan to absolute obstacle positions
+    let planCursor = 800;
+    const planEnd = finishX - 1000;
+    const obstaclePlan = []; // [{type, x}]
+    const planLengthBudget = planEnd - planCursor;
+    // Distribute the plan across the available track
+    // First, calculate total "weight" of the plan (each item needs some portion)
+    let totalPlanUnits = 0;
+    for (const item of rawPlan) {
+      if (item.type === '_recovery') {
+        totalPlanUnits += item.length;
+      } else {
+        totalPlanUnits += (item.spacing || 200);
+      }
+    }
+    if (totalPlanUnits > 0) {
+      const scale = planLengthBudget / totalPlanUnits;
+      for (const item of rawPlan) {
+        if (item.type === '_recovery') {
+          planCursor += item.length * scale;
+        } else {
+          if (planCursor >= planEnd) break;
+          obstaclePlan.push({ type: item.type, x: planCursor });
+          planCursor += (item.spacing || 200) * scale;
+        }
+      }
+    }
+
+    // ── End of Director plan; rest is track geometry ──
     const getBounds = (x) => this.physics.getWallBoundaries(x, track);
     const clampY = (y, bounds, margin = 30) => {
       return Math.min(Math.max(y, bounds.topY + margin), bounds.bottomY - margin);
@@ -1969,62 +2118,6 @@ class GameEngine {
       slow: { min: 100, preferred: 160, recovery: 80, safeLanding: 60 },
       launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 }
     };
-
-    // Zone-based pacing configuration (t = x / length) — higher density, intentional rhythm
-    const ZONE_CONFIG = [
-      { start: 0.00, end: 0.20, density: 0.45,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm']) },
-      { start: 0.20, end: 0.60, density: 0.35,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal']) },
-      { start: 0.60, end: 0.85, density: 0.40,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist']) },
-      { start: 0.85, end: 1.00, density: 0.45,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner']) }
-    ];
-
-    // Weighted obstacle combinations for memorable race moments
-    const COMBINATIONS = [
-      { weight: 5, types: ['boost', 'hammer'], gap: 45 },
-      { weight: 5, types: ['spinner', 'hammer'], gap: 45 },
-      { weight: 5, types: ['hammer', 'boost'], gap: 45 },
-      { weight: 4, types: ['boost', 'spinner'], gap: 40 },
-      { weight: 4, types: ['barrier', 'hammer'], gap: 40 },
-      { weight: 3, types: ['boost', 'portal'], gap: 50 },
-      { weight: 3, types: ['hammer', 'spinner'], gap: 45 },
-      { weight: 3, types: ['sweep_arm', 'hammer'], gap: 40 },
-      { weight: 2, types: ['portal', 'boost'], gap: 50 },
-      { weight: 2, types: ['barrier', 'boost'], gap: 40 },
-      { weight: 2, types: ['boost', 'sweep_arm'], gap: 40 },
-      { weight: 2, types: ['boost', 'punchfist'], gap: 40 },
-      { weight: 2, types: ['spinner', 'punchfist'], gap: 40 },
-      { weight: 2, types: ['punchfist', 'hammer'], gap: 40 },
-      { weight: 1, types: ['hammer', 'portal'], gap: 50 },
-      { weight: 1, types: ['c_bumper', 'spinner'], gap: 40 },
-    ].filter(c => _allEnabled(c.types));
-
-    // 3-obstacle templates that shuffle per race for variety
-    const TEMPLATES = [
-      ['boost', 'spinner', 'hammer'],
-      ['boost', 'hammer', 'portal'],
-      ['hammer', 'boost', 'barrier'],
-      ['barrier', 'hammer', 'sweep_arm'],
-      ['boost', 'spinner', 'punchfist'],
-      ['portal', 'hammer', 'boost'],
-      ['sweep_arm', 'hammer', 'spinner'],
-      ['barrier', 'boost', 'sweep_arm'],
-      ['portal', 'boost', 'spinner'],
-      ['hammer', 'barrier', 'boost'],
-      ['hammer', 'hammer', 'hammer'],
-    ].filter(t => _allEnabled(t));
-    // Shuffle templates once per race
-    const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
-    let templateIndex = 0;
-
-    // Per-race combo budget: 4-7 memorable sequences
-    let comboCount = 0;
-    const MAX_COMBOS = 3 + Math.floor(Math.random() * 3);
-    let usedCombos = [];
-
     // Helper to get bounding box for validation
     const getBB = (obs) => {
       let minX = obs.x;
@@ -2325,179 +2418,38 @@ class GameEngine {
     };
 
     // Helper: generates standard structured layout inside a segment
+    // ── Execute the Director's obstacle plan ──
+    // Place each planned obstacle in its segment, validate, fallback to sparse
     const generateSegmentObstacles = (segStart, segEnd) => {
-      let x = segStart + 50 + Math.random() * 50;
-      let lastPlacedType = null;
-      let secondLastPlacedType = null;
-      let thirdLastPlacedType = null;
-      let recoveryRemaining = 0;
-      let clusterRemaining = 0;
-      let gapUntil = x;
       const segObstaclePositions = [];
+      const segPlan = obstaclePlan.filter(p => p.x >= segStart && p.x < segEnd);
 
-      // Density slider (20-100%): higher = more obstacles, tighter spacing
-      // multiplier: 1.8 at 20% → 0.5 at 100% (3.6x range)
-      const pct = densityPct || 80;
-      const densityMult = 1.8 - (pct / 100) * 1.3;
-      // Cap to avoid division by zero / negative
-      let densityFactor = Math.max(0.35, densityMult);
-
-      const MAJOR_OBSTACLES = _filterTypes(['hammer', 'spinner', 'c_bumper', 'portal', 'punchfist', 'sweep_arm', 'barrier']);
-
-      const FORBIDDEN_NEXT = {};
-      [
-        ['hammer', ['portal', 'hammer']],
-        ['portal', ['hammer', 'punchfist', 'spinner', 'portal']],
-        ['spinner', ['hammer', 'portal']],
-        ['punchfist', ['hammer', 'portal']],
-        ['sweep_arm', ['hammer', 'portal']],
-        ['barrier', ['portal', 'hammer']],
-        ['boost', ['slow', 'boost']],
-        ['slow', ['boost', 'slow']]
-      ].forEach(([key, vals]) => {
-        if (enabledSet.has(key)) {
-          const filtered = vals.filter(v => enabledSet.has(v));
-          if (filtered.length) FORBIDDEN_NEXT[key] = filtered;
-        }
-      });
-
-      let comboNextType = null;
-      let comboNextType2 = null;
-      let consecutiveClusters = 0;
       let _lastPunchHigh = false;
       let _lastHammerTop = false;
-      let _hammerCorridorRemaining = 0;
-      let _hammerCorridorsUsed = 0;
-      const MAX_HAMMER_CORRIDORS = 1 + Math.floor(Math.random() * 3);
 
-      let _safety = 0;
-      while (x < segEnd - 150) {
-        if (++_safety > 500) { console.log('INFINITE LOOP in generateSegmentObstacles'); break; }
-        let forceSafe = recoveryRemaining > 0;
-
-        // Hammer corridor mode: place alternating hammers directly
-        if (_hammerCorridorRemaining > 0) {
-          const cBounds = getBounds(x);
-          if (!cBounds) { x += 200; continue; }
-          const cAvail = cBounds.bottomY - cBounds.topY;
-          if (cAvail < 160) { _hammerCorridorRemaining = 0; x += 200; continue; }
-          const cArmLen = Math.min(70 + Math.random() * 20, cAvail * 0.45);
-          const cHeadRad = 22 + Math.random() * 6;
-          const cTop = !_lastHammerTop;
-          _lastHammerTop = cTop;
-          const cPY = cTop ? cBounds.topY + 8 : cBounds.bottomY - 8;
-          const cAngle = Math.random() * Math.PI * 2;
-          track.obstacles.push({
-            type: 'hammer', x, y: cPY, armLength: cArmLen, headRadius: cHeadRad,
-            angle: cAngle, speed: 0.160 + Math.random() * 0.040,
-            direction: Math.random() < 0.5 ? 1 : -1, pivotTop: cTop,
-            headX: x + Math.cos(cAngle) * cArmLen,
-            headY: cPY + Math.sin(cAngle) * cArmLen
-          });
-          segObstaclePositions.push(x);
-          _hammerCorridorRemaining--;
-          x += 140 + Math.random() * 30;
-          if (_hammerCorridorRemaining > 0) continue;
-        }
-
-        const t = x / length;
-
-        // Determine current pacing zone
-        const currentZone = ZONE_CONFIG.find(z => t >= z.start && t < z.end) || ZONE_CONFIG[ZONE_CONFIG.length - 1];
-        let allowedTypes = currentZone.types;
-        const zoneDensity = currentZone.density;
-
-        // Cluster/gap alternation: if in a gap, skip ahead until gap ends
-        if (gapUntil > x && !comboNextType) {
-          x += Math.min(gapUntil - x, 200);
-          if (x < gapUntil) continue;
-        }
-
-        // Combo sequence: if a combo partner is queued, force it
-        let type;
-        if (comboNextType) {
-          type = comboNextType;
-          comboNextType = comboNextType2;
-          comboNextType2 = null;
-        } else {
-          // No 3 identical obstacles in a row
-          let filtered = allowedTypes.filter(t => t !== lastPlacedType || t !== secondLastPlacedType || t !== thirdLastPlacedType);
-          if (filtered.length === 0) filtered = allowedTypes.filter(t => t !== lastPlacedType);
-
-          // Forbidden sequence prevention
-          if (lastPlacedType && FORBIDDEN_NEXT[lastPlacedType]) {
-            filtered = filtered.filter(t => !FORBIDDEN_NEXT[lastPlacedType].includes(t));
-            if (filtered.length === 0) filtered = allowedTypes.filter(t => t !== lastPlacedType);
-          }
-
-          // Forced safe types during recovery period
-          if (forceSafe) {
-            const safeTypes = filtered.filter(t => !MAJOR_OBSTACLES.includes(t));
-            if (safeTypes.length > 0) filtered = safeTypes;
-            recoveryRemaining -= 1;
-          }
-
-          // Weighted random selection based on obstacle frequency
-          const weights = filtered.map(t => freqWeights[t] || 5);
-          const totalW = weights.reduce((a, b) => a + b, 0);
-          let rw = Math.random() * totalW;
-          type = filtered[filtered.length - 1];
-          for (let wi = 0; wi < filtered.length; wi++) {
-            if (rw < weights[wi]) { type = filtered[wi]; break; }
-            rw -= weights[wi];
-          }
-        }
+      for (const item of segPlan) {
+        const x = item.x;
+        const type = item.type;
 
         const bounds = getBounds(x);
-        if (!bounds) {
-          x += 200;
-          continue;
-        }
+        if (!bounds) continue;
 
         const centerY = (bounds.topY + bounds.bottomY) / 2;
         const availH = bounds.bottomY - bounds.topY;
         const halfH = availH / 2;
 
-        // Skip hammer & punchfist in narrow track sections
-        if ((type === 'hammer' || type === 'punchfist') && availH < 160) {
-          x += 200;
-          continue;
-        }
-
-        // Skip placement near restricted zones (barrier gaps, rotating circles)
-        let nearRestricted = false;
-        for (const _r of track.obstacles) {
-          if (_r.type === 'barrier' && Math.abs(x - _r.x) < 100) { nearRestricted = true; break; }
-          if (_r.type === 'c_bumper' && Math.abs(x - _r.x) < (_r.radius || 55) + 50) { nearRestricted = true; break; }
-        }
-        if (nearRestricted) {
-          if (type === 'peg' || type === 'barrier' || type === 'spinner' || type === 'hammer' || type === 'punchfist' || type === 'sweep_arm' || type === 'c_bumper') {
-            x += 80;
-            continue;
-          }
-        }
-
-        // Start Alternating Hammer Corridor?
-        if (_hammerCorridorsUsed < MAX_HAMMER_CORRIDORS && type === 'hammer' && !forceSafe && t >= 0.20 && t < 0.85 && segEnd - x > 700 && Math.random() < 0.18) {
-          _hammerCorridorRemaining = 5 + Math.floor(Math.random() * 4);
-          _hammerCorridorsUsed++;
-        }
+        if ((type === 'hammer' || type === 'punchfist') && availH < 160) continue;
 
         const cfg = SPACING_CONFIG[type] || { min: 150, preferred: 200, recovery: 0, safeLanding: 0 };
         const _prevObsLen = track.obstacles.length;
         const _prevZoneLen = track.zones.length;
 
-        // 1. Position details & dynamic sizing based on available lane height
         if (type === 'c_bumper') {
-          // 70% chance rotating C-bumper, 30% chance boost pipe corridor
           if (Math.random() < 0.70) {
             const radius = Math.min(65 + Math.random() * 15, availH * 0.40);
             const midY = clampY(centerY + (Math.random() - 0.5) * 20, bounds, radius + 8);
             const spinSpeed = (0.04 + Math.random() * 0.04) * (Math.random() < 0.5 ? -1 : 1);
-            track.obstacles.push({
-              type: 'c_bumper', x, y: midY, radius, thickness: 8,
-              rotation: Math.random() * Math.PI * 2, spinSpeed
-            });
+            track.obstacles.push({ type: 'c_bumper', x, y: midY, radius, thickness: 8, rotation: Math.random() * Math.PI * 2, spinSpeed });
           } else {
             const pipeLen = 150 + Math.random() * 70;
             const pipeH = 46 + Math.random() * 8;
@@ -2505,162 +2457,72 @@ class GameEngine {
             const pipeY = onTop
               ? clampY(bounds.topY + 50 + pipeH / 2, bounds, pipeH / 2 + 5)
               : clampY(bounds.bottomY - 50 - pipeH / 2, bounds, pipeH / 2 + 5);
-
-            track.obstacles.push({
-              type: 'boost_pipe', x, y: pipeY,
-              length: pipeLen, width: pipeH,
-              boostMultiplier: 1.35 + Math.random() * 0.2
-            });
-
-            track.zones.push({
-              type: 'boost', x: x, y: pipeY - pipeH / 2,
-              width: pipeLen, height: pipeH, force: 0.38
-            });
+            track.obstacles.push({ type: 'boost_pipe', x, y: pipeY, length: pipeLen, width: pipeH, boostMultiplier: 1.35 + Math.random() * 0.2 });
+            track.zones.push({ type: 'boost', x, y: pipeY - pipeH / 2, width: pipeLen, height: pipeH, force: 0.38 });
           }
         } else if (type === 'boost') {
           const boostClose = track.zones.some(z => z.type === 'slow' && Math.abs(z.x + z.width / 2 - x) < 400);
-          if (boostClose) { x += 200; continue; }
-          const w = 75;
-          const h = 45;
-          track.zones.push({
-            type: 'boost', x: x - w / 2,
-            y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
-            width: w, height: h, force: 0.20
-          });
+          if (boostClose) continue;
+          track.zones.push({ type: 'boost', x: x - 37, y: clampY(centerY - 22, bounds, 27), width: 75, height: 45, force: 0.20 });
         } else if (type === 'slow') {
           const slowClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - x) < 400);
-          if (slowClose) { x += 200; continue; }
-          const w = 60;
-          const h = 45;
-          track.zones.push({
-            type: 'slow', x: x - w / 2,
-            y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
-            width: w, height: h
-          });
-
+          if (slowClose) continue;
+          track.zones.push({ type: 'slow', x: x - 30, y: clampY(centerY - 22, bounds, 27), width: 60, height: 45 });
         } else if (type === 'punchfist') {
           const punchAngle = Math.random() * Math.PI * 2;
           const punchRadius = 28 + Math.random() * 6;
-          if (lastPlacedType === 'punchfist') _lastPunchHigh = !_lastPunchHigh;
-          else _lastPunchHigh = Math.random() < 0.5;
+          _lastPunchHigh = !_lastPunchHigh;
           const punchY = _lastPunchHigh
             ? clampY(centerY - availH * 0.25, bounds, punchRadius + 10)
             : clampY(centerY + availH * 0.25, bounds, punchRadius + 10);
-          track.obstacles.push({
-            type: 'punchfist', x, y: punchY,
-            angle: punchAngle, extendDist: 90 + Math.random() * 30,
-            punchRadius, state: 'retracted', stateTimer: 0,
-            extendSpeed: 12 + Math.random() * 6,
-            retractSpeed: 6 + Math.random() * 3,
-            holdDuration: 5 + Math.floor(Math.random() * 10),
-            waitDuration: 10 + Math.floor(Math.random() * 15),
-            punchX: x, punchY: centerY
-          });
+          track.obstacles.push({ type: 'punchfist', x, y: punchY, angle: punchAngle, extendDist: 90 + Math.random() * 30, punchRadius, state: 'retracted', stateTimer: 0, extendSpeed: 12 + Math.random() * 6, retractSpeed: 6 + Math.random() * 3, holdDuration: 5 + Math.floor(Math.random() * 10), waitDuration: 10 + Math.floor(Math.random() * 15), punchX: x, punchY: centerY });
         } else if (type === 'portal') {
           const pairId = Math.random().toString(36).slice(2);
           const distAhead = 750 + Math.random() * 350;
           const portalSize = 50;
           const p1Y = clampY(centerY + (Math.random() - 0.5) * 30, bounds, portalSize / 2 + 8);
-          
-          // Exit portal — must be placeable for the pair to exist
           const x2 = Math.min(x + distAhead, segEnd - 100);
           const bounds2 = getBounds(x2);
           if (bounds2 && x2 > x + 250) {
             const p2Y = clampY((bounds2.topY + bounds2.bottomY) / 2, bounds2, portalSize / 2 + 10);
-            // Both portals confirmed — push entry then exit
-            track.zones.push({
-              type: 'portal', x: x - portalSize / 2, y: p1Y - portalSize / 2,
-              width: portalSize, height: portalSize, pairId, radius: portalSize / 2
-            });
-            track.zones.push({
-              type: 'portal', x: x2 - portalSize / 2, y: p2Y - portalSize / 2,
-              width: portalSize, height: portalSize, pairId, radius: portalSize / 2
-            });
-            // Skip spacing offset forward
-            x = x2 + 50;
+            track.zones.push({ type: 'portal', x: x - portalSize / 2, y: p1Y - portalSize / 2, width: portalSize, height: portalSize, pairId, radius: portalSize / 2 });
+            track.zones.push({ type: 'portal', x: x2 - portalSize / 2, y: p2Y - portalSize / 2, width: portalSize, height: portalSize, pairId, radius: portalSize / 2 });
           }
         } else if (type === 'launch') {
-          const padW = 50;
-          track.zones.push({
-            type: 'launch', x: x - padW / 2, y: bounds.bottomY - 20,
-            width: padW, height: 20
-          });
+          track.zones.push({ type: 'launch', x: x - 25, y: bounds.bottomY - 20, width: 50, height: 20 });
         } else if (type === 'barrier') {
-          const gateW = 18 + Math.random() * 4;
-          const gateH = Math.min(80 + Math.random() * 20, availH * 0.55);
-          const gapMax = availH * 0.55;
-          track.obstacles.push({
-            type: 'barrier', x, y: centerY, width: gateW, height: gateH,
-            isVertical: true, gapMin: 0, gapMax,
-            state: 'opening', stateTimer: 0,
-            openDuration: 20 + Math.floor(Math.random() * 20),
-            closeDuration: 15 + Math.floor(Math.random() * 15),
-            currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.0,
-            topY: bounds.topY, bottomY: bounds.bottomY
-          });
+          track.obstacles.push({ type: 'barrier', x, y: centerY, width: 18 + Math.random() * 4, height: Math.min(80 + Math.random() * 20, availH * 0.55), isVertical: true, gapMin: 0, gapMax: availH * 0.55, state: 'opening', stateTimer: 0, openDuration: 20 + Math.floor(Math.random() * 20), closeDuration: 15 + Math.floor(Math.random() * 15), currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.0, topY: bounds.topY, bottomY: bounds.bottomY });
         } else if (type === 'spinner') {
-          const barLen = Math.min(80 + Math.random() * 35, availH * 0.55); // Scaled
+          const barLen = Math.min(80 + Math.random() * 35, availH * 0.55);
           const baseSpeed = 0.065;
           const speedPct = [1.0, 0.8, 0.7, 0.5][Math.floor(Math.random() * 4)];
-          const spinSpeed = baseSpeed * speedPct * (Math.random() < 0.5 ? 1 : -1);
-          track.obstacles.push({
-            type: 'spinner', x, y: clampY(centerY, bounds, barLen / 2 + 6),
-            length: barLen, angle: Math.random() * Math.PI * 2,
-            speed: spinSpeed, pins: []
-          });
+          track.obstacles.push({ type: 'spinner', x, y: clampY(centerY, bounds, barLen / 2 + 6), length: barLen, angle: Math.random() * Math.PI * 2, speed: baseSpeed * speedPct * (Math.random() < 0.5 ? 1 : -1), pins: [] });
         } else if (type === 'sweep_arm') {
           const armLen = Math.min(90 + Math.random() * 40, availH * 0.60);
           const slowSpeed = 0.090 + Math.random() * 0.035;
-          track.obstacles.push({
-            type: 'sweep_arm', x, y: clampY(centerY, bounds, 20),
-            length: armLen, angle: Math.random() * Math.PI * 2,
-            speed: slowSpeed * 0.3, physicsSpeed: slowSpeed,
-            direction: Math.random() < 0.5 ? 1 : -1
-          });
+          track.obstacles.push({ type: 'sweep_arm', x, y: clampY(centerY, bounds, 20), length: armLen, angle: Math.random() * Math.PI * 2, speed: slowSpeed * 0.3, physicsSpeed: slowSpeed, direction: Math.random() < 0.5 ? 1 : -1 });
         } else if (type === 'hammer') {
           const armLen = Math.min(75 + Math.random() * 25, availH * 0.50);
           const headRadius = 22 + Math.random() * 6;
-          let topPivot;
-          if (lastPlacedType === 'hammer') topPivot = !_lastHammerTop;
-          else topPivot = Math.random() < 0.5;
+          const topPivot = Math.random() < 0.5;
           _lastHammerTop = topPivot;
           const pivotY = topPivot ? bounds.topY + 8 : bounds.bottomY - 8;
           const startAngle = Math.random() * Math.PI * 2;
-          track.obstacles.push({
-            type: 'hammer', x, y: pivotY, armLength: armLen, headRadius,
-            angle: startAngle,
-            speed: 0.140 + Math.random() * 0.060,
-            direction: Math.random() < 0.5 ? 1 : -1,
-            pivotTop: topPivot,
-            headX: x + Math.cos(startAngle) * armLen,
-            headY: pivotY + Math.sin(startAngle) * armLen
-          });
-
+          track.obstacles.push({ type: 'hammer', x, y: pivotY, armLength: armLen, headRadius, angle: startAngle, speed: 0.140 + Math.random() * 0.060, direction: Math.random() < 0.5 ? 1 : -1, pivotTop: topPivot, headX: x + Math.cos(startAngle) * armLen, headY: pivotY + Math.sin(startAngle) * armLen });
         } else if (type === 'peg') {
           if (!track.pegs) track.pegs = [];
           const pegR = 4 + Math.random() * 2;
           const count = 2 + Math.floor(Math.random() * 2);
           const spacing = 40 + Math.random() * 8;
           const startY = clampY(centerY - (count - 1) * spacing / 2 + (Math.random() - 0.5) * availH * 0.35, bounds, spacing / 2 + 5);
-          const pegX = x + (Math.random() - 0.5) * 15;
           for (let pi = 0; pi < count; pi++) {
-            track.pegs.push({
-              x: pegX + (Math.random() - 0.5) * 4,
-              y: startY + pi * spacing,
-              radius: pegR, bouncy: true
-            });
+            track.pegs.push({ x: x + (Math.random() - 0.5) * 4, y: startY + pi * spacing, radius: pegR, bouncy: true });
           }
         }
 
-        // Track last 3 types to prevent triplicates
-        thirdLastPlacedType = secondLastPlacedType;
-        secondLastPlacedType = lastPlacedType;
-        lastPlacedType = type;
-
-        if (clusterRemaining > 0) clusterRemaining--;
         segObstaclePositions.push(x);
 
-        // Overlap prevention: check new elements against ALL existing obstacle/zone BBs
+        // Overlap prevention: check new elements against existing
         let _overlap = false;
         for (let _oi = _prevObsLen; _oi < track.obstacles.length && !_overlap; _oi++) {
           const _newBB = getBB(track.obstacles[_oi]);
@@ -2687,87 +2549,12 @@ class GameEngine {
         if (_overlap) {
           while (track.obstacles.length > _prevObsLen) track.obstacles.pop();
           while (track.zones.length > _prevZoneLen) track.zones.pop();
-          lastPlacedType = secondLastPlacedType;
-          secondLastPlacedType = thirdLastPlacedType;
-          continue;
-        }
-
-        const isDifficult = MAJOR_OBSTACLES.includes(type);
-        let nextSpacing = cfg.preferred;
-        if (type === 'boost' || isDifficult) nextSpacing += cfg.recovery;
-        if (type === 'boost') nextSpacing += 120;
-        if (type === 'portal') nextSpacing += cfg.safeLanding;
-
-        const xBeforeAdvance = x;
-
-        // Dynamic density: variable spacing creates organic feel
-        const variability = 0.75 + Math.random() * 0.25;
-        const normalAdvance = Math.max(cfg.min, nextSpacing * densityFactor * zoneDensity * variability);
-        x += normalAdvance;
-
-        // Attempt to start a combo or template (clusters of 2-3)
-        const clusterComboChance = consecutiveClusters >= 2 ? 0.40 : 0.75;
-        if (!comboNextType && !forceSafe && comboCount < MAX_COMBOS && lastPlacedType && Math.random() < clusterComboChance) {
-          consecutiveClusters++;
-          if (templateIndex < shuffledTemplates.length && Math.random() < 0.4) {
-            const template = shuffledTemplates[templateIndex];
-            if (template[0] === lastPlacedType && currentZone.types.includes(template[1]) && currentZone.types.includes(template[2])) {
-              comboNextType = template[1];
-              comboNextType2 = template[2];
-              x = Math.max(xBeforeAdvance + 80, xBeforeAdvance + 100);
-              comboCount++;
-              templateIndex++;
-              clusterRemaining = 2;
-            }
-          }
-          if (!comboNextType) {
-            const compatible = COMBINATIONS.filter(c =>
-              c.types[0] === lastPlacedType &&
-              !usedCombos.includes(c) &&
-              currentZone.types.includes(c.types[1])
-            );
-            if (compatible.length > 0) {
-              const totalWeight = compatible.reduce((s, c) => s + c.weight, 0);
-              let roll = Math.random() * totalWeight;
-              for (const combo of compatible) {
-                roll -= combo.weight;
-                if (roll <= 0) {
-                  comboNextType = combo.types[1];
-                  x = Math.max(xBeforeAdvance + 80, xBeforeAdvance + combo.gap * 2);
-                  usedCombos.push(combo);
-                  comboCount++;
-                  clusterRemaining = 1;
-                  break;
-                }
-              }
-            }
-          }
-          // If no compatible combo found, revert the consecutive counter
-          if (!comboNextType) consecutiveClusters--;
-        }
-
-        // If not in a combo and cluster done, schedule next gap
-        if (!comboNextType && clusterRemaining <= 0) {
-          const gapLen = consecutiveClusters > 0
-            ? 120 + Math.random() * 160
-            : 80 + Math.random() * 100;
-          consecutiveClusters = 0;
-          lastPlacedType = null;
-          secondLastPlacedType = null;
-          thirdLastPlacedType = null;
-          gapUntil = x + gapLen;
-        }
-
-        if (isDifficult) {
-          recoveryRemaining = Math.max(recoveryRemaining, 3);
-        } else {
-          recoveryRemaining = Math.max(0, recoveryRemaining - 1);
         }
       }
 
       // Dead-space validation: fill excessive gaps based on density
-      // Higher density = lower threshold (fill even moderate gaps)
-      const maxGap = Math.round(1100 - (pct / 100) * 900); // e.g. 1100px at 20%, 200px at 100%
+      const pct = densityPct || 80;
+      const maxGap = Math.round(1100 - (pct / 100) * 900);
       if (segObstaclePositions.length > 1) {
         for (let i = 1; i < segObstaclePositions.length; i++) {
           const gap = segObstaclePositions[i] - segObstaclePositions[i - 1];
@@ -2777,19 +2564,15 @@ class GameEngine {
               const ib = getBounds(insX);
               if (ib) {
                 const icY = (ib.topY + ib.bottomY) / 2;
-                const iAvail = ib.bottomY - ib.topY;
-                // Only use enabled obstacles for gap filling
                 const fb = ['boost', 'spinner', 'barrier'].filter(t => enabledSet.has(t));
                 if (fb.length === 0) continue;
                 const ft = fb[Math.floor(Math.random() * fb.length)];
                 if (ft === 'boost') {
-                  const bClose = track.zones.some(z => z.type === 'slow' && Math.abs(z.x + z.width / 2 - insX) < 400);
-                  if (bClose) continue;
                   track.zones.push({ type: 'boost', x: insX - 37, y: clampY(icY - 22, ib, 27), width: 75, height: 45, force: 0.20 });
                 } else if (ft === 'spinner') {
-                  track.obstacles.push({ type: 'spinner', x: insX, y: clampY(icY, ib, 40), length: Math.min(80, iAvail * 0.4), angle: 0, speed: 0.04, pins: [] });
+                  track.obstacles.push({ type: 'spinner', x: insX, y: clampY(icY, ib, 40), length: Math.min(80, (ib.bottomY - ib.topY) * 0.4), angle: 0, speed: 0.04, pins: [] });
                 } else if (ft === 'barrier') {
-                  track.obstacles.push({ type: 'barrier', x: insX, y: icY, width: 18, height: Math.min(80, iAvail * 0.5), isVertical: true, gapMin: 0, gapMax: iAvail * 0.5, state: 'opening', stateTimer: 0, openDuration: 100, closeDuration: 100, currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: ib.topY, bottomY: ib.bottomY });
+                  track.obstacles.push({ type: 'barrier', x: insX, y: icY, width: 18, height: Math.min(80, (ib.bottomY - ib.topY) * 0.5), isVertical: true, gapMin: 0, gapMax: (ib.bottomY - ib.topY) * 0.5, state: 'opening', stateTimer: 0, openDuration: 100, closeDuration: 100, currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: ib.topY, bottomY: ib.bottomY });
                 }
               }
             }
@@ -2805,23 +2588,19 @@ class GameEngine {
         const bounds = getBounds(x);
         if (bounds) {
           const centerY = (bounds.topY + bounds.bottomY) / 2;
-          // Simple launch pad or peg stack
           if (Math.random() < 0.5) {
-            trackObj.zones.push({
-              type: 'launch', x: x - 25, y: bounds.bottomY - 20,
-              width: 50, height: 20
-            });
+            trackObj.zones.push({ type: 'launch', x: x - 25, y: bounds.bottomY - 20, width: 50, height: 20 });
           } else {
             if (!trackObj.pegs) trackObj.pegs = [];
             trackObj.pegs.push({ x, y: centerY - 30, radius: 5, bouncy: true });
             trackObj.pegs.push({ x, y: centerY + 30, radius: 5, bouncy: true });
           }
         }
-        x += 400; // very wide spacing
+        x += 400;
       }
     };
 
-    // Segment partition and loop (leave last 1000px before finish obstacle-free)
+    // Segment partition and loop
     const numSegments = 10;
     const segmentWidth = (finishX - 1800) / numSegments;
 
@@ -2833,15 +2612,12 @@ class GameEngine {
       let valid = false;
 
       while (retries < 10 && !valid) {
-        // Clear old items inside this segment range
         track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
         track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
         if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
 
-        // Generate segment contents
         generateSegmentObstacles(segStart, segEnd);
 
-        // Run validation pass
         const errors = validateSegment(segStart, segEnd);
         if (errors === 0) {
           valid = true;
@@ -2850,130 +2626,11 @@ class GameEngine {
         }
       }
 
-      // If segment keeps failing, fall back to safe spacing sparse layout
       if (!valid) {
         track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
         track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
         if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
         generateSparseSegment(track, segStart, segEnd);
-      }
-    }
-    
-    // Ensure minimum counts: at least 30 of each major type per race (only enabled types)
-    const MIN_COUNT = 30;
-    const TYPE_COUNTS = {};
-    ['hammer', 'spinner', 'barrier', 'sweep_arm', 'punchfist',
-     'c_bumper', 'boost', 'slow', 'portal', 'launch']
-      .filter(t => enabledSet.has(t))
-      .forEach(t => { TYPE_COUNTS[t] = 0; });
-    track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
-    track.zones.forEach(z => { if (z.type !== 'finish' && TYPE_COUNTS[z.type] !== undefined) TYPE_COUNTS[z.type]++; });
-    const underTypes = Object.keys(TYPE_COUNTS).filter(t => TYPE_COUNTS[t] < MIN_COUNT);
-    const _isRestricted = (px) => {
-      if (Math.abs(px - finishX) < 1000) return true;
-      for (const _r of track.obstacles) {
-        if (_r.type === 'barrier' && Math.abs(px - _r.x) < 100) return true;
-        if (_r.type === 'c_bumper' && Math.abs(px - _r.x) < (_r.radius || 55) + 50) return true;
-      }
-      return false;
-    };
-    for (const ut of underTypes) {
-      const needed = MIN_COUNT - TYPE_COUNTS[ut];
-      for (let n = 0; n < needed; n++) {
-        let tryX = 800 + Math.random() * (finishX - 1800);
-        let _attempts = 0;
-        while (_isRestricted(tryX) && _attempts < 20) { tryX = 800 + Math.random() * (finishX - 1800); _attempts++; }
-        if (_attempts >= 20) continue;
-        const b = getBounds(tryX);
-        if (!b) continue;
-        const cY = (b.topY + b.bottomY) / 2;
-        const aH = b.bottomY - b.topY;
-        if (ut === 'hammer') {
-          const topPivot = Math.random() < 0.5;
-          const startAngle = Math.random() * Math.PI * 2;
-          const armLen = 60 + Math.random() * 30;
-          track.obstacles.push({
-            type: 'hammer', x: tryX, y: topPivot ? b.topY + 8 : b.bottomY - 8,
-            armLength: armLen, headRadius: 22 + Math.random() * 6,
-            angle: startAngle, speed: 0.140 + Math.random() * 0.060,
-            direction: Math.random() < 0.5 ? 1 : -1, pivotTop: topPivot,
-            headX: tryX + Math.cos(startAngle) * armLen,
-            headY: (topPivot ? b.topY + 8 : b.bottomY - 8) + Math.sin(startAngle) * armLen
-          });
-        } else if (ut === 'spinner') {
-          track.obstacles.push({
-            type: 'spinner', x: tryX, y: clampY(cY, b, 45),
-            length: Math.min(80, aH * 0.5), angle: 0, speed: 0.04 + Math.random() * 0.03, pins: []
-          });
-        } else if (ut === 'barrier') {
-          track.obstacles.push({
-            type: 'barrier', x: tryX, y: cY, width: 18, height: Math.min(80, aH * 0.5),
-            isVertical: true, gapMin: 0, gapMax: aH * 0.5,
-            state: 'opening', stateTimer: 0,
-            openDuration: 20, closeDuration: 15,
-            currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: b.topY, bottomY: b.bottomY
-          });
-        } else if (ut === 'sweep_arm') {
-          track.obstacles.push({
-            type: 'sweep_arm', x: tryX, y: clampY(cY, b, 20),
-            length: 80 + Math.random() * 30, angle: 0,
-            speed: 0.030, physicsSpeed: 0.090 + Math.random() * 0.035,
-            direction: Math.random() < 0.5 ? 1 : -1
-          });
-        } else if (ut === 'punchfist') {
-          const pAngle = Math.random() * Math.PI * 2;
-          track.obstacles.push({
-            type: 'punchfist', x: tryX, y: clampY(cY, b, 35),
-            angle: pAngle, extendDist: 100,
-            punchRadius: 30, state: 'retracted', stateTimer: 0,
-            extendSpeed: 12, retractSpeed: 6,
-            holdDuration: 8, waitDuration: 15,
-            punchX: tryX, punchY: cY
-          });
-        } else if (ut === 'c_bumper') {
-          track.obstacles.push({
-            type: 'c_bumper', x: tryX, y: clampY(cY, b, 35),
-            radius: Math.min(55, aH * 0.35), thickness: 8,
-            rotation: 0, spinSpeed: 0.04
-          });
-
-        } else if (ut === 'boost') {
-          const tooClose = track.zones.some(z => z.type === 'slow' && Math.abs(z.x + z.width / 2 - tryX) < 400);
-          if (tooClose) continue;
-          track.zones.push({
-            type: 'boost', x: tryX - 37, y: clampY(cY - 22, b, 27),
-            width: 75, height: 45, force: 0.20
-          });
-        } else if (ut === 'slow') {
-          const tooClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - tryX) < 400);
-          if (tooClose) continue;
-          track.zones.push({
-            type: 'slow', x: tryX - 30, y: clampY(cY - 22, b, 27),
-            width: 60, height: 45
-          });
-
-        } else if (ut === 'launch') {
-          track.zones.push({
-            type: 'launch', x: tryX - 25, y: b.bottomY - 20,
-            width: 50, height: 20
-          });
-        } else if (ut === 'portal') {
-          const portalSize = 50;
-          const p2x = Math.min(tryX + 800 + Math.random() * 300, finishX - 100);
-          const b2 = getBounds(p2x);
-          if (!b2 || p2x <= tryX + 250) continue;
-          const pairId = Math.random().toString(36).slice(2);
-          track.zones.push({
-            type: 'portal', x: tryX - portalSize / 2,
-            y: clampY(cY, b, portalSize / 2 + 8) - portalSize / 2,
-            width: portalSize, height: portalSize, pairId, radius: portalSize / 2
-          });
-          track.zones.push({
-            type: 'portal', x: p2x - portalSize / 2,
-            y: clampY((b2.topY + b2.bottomY) / 2, b2, portalSize / 2 + 10) - portalSize / 2,
-            width: portalSize, height: portalSize, pairId, radius: portalSize / 2
-          });
-        }
       }
     }
 
