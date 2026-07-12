@@ -1734,6 +1734,7 @@ class GameEngine {
     this._directorSuggestions = [];
     this._directorSelectedIndex = 0;
     this._directorFlashBalls = [];
+    this._directorRemoveButtons = [];
     this.isPanning = false;
     this.panStartX = 0;
     this.panStartCamX = 0;
@@ -1745,11 +1746,12 @@ class GameEngine {
     this.state = 'menu'; // menu, setup, countdown, racing, finished, champion_screen
     this.countdownSeconds = 3;
     this.countdownTimer = null;
+    this.hudUpdateTimer = null;
+    this._rafId = null;
     this.raceTimer = 0; // in seconds
     this.lastTime = 0;
 
     // Visual Effects
-    this.particles = [];
     this.fireworks = [];
     this.confetti = [];
     this.activeEvent = null;
@@ -3569,7 +3571,7 @@ if (this.activeEvent.key === 'speed_surge') {
     // Render Frame
     this.render();
 
-    requestAnimationFrame((t) => this.tick(t));
+    this._rafId = requestAnimationFrame((t) => this.tick(t));
   }
 
   updateSimulation(dt) {
@@ -7349,13 +7351,28 @@ if (this.activeEvent.key === 'speed_surge') {
         return;
       }
 
+      // ── Guard against duplicate loops ──
+      if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
+      if (this.hudUpdateTimer) { clearInterval(this.hudUpdateTimer); this.hudUpdateTimer = null; }
+      if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
+
       // Store loadout for obstacle generation and event filtering
       this._loadout = loadout || null;
 
-      // Clear screen overlays
-      this.confetti = [];
-      this.fireworks = [];
+      // Clear all race transient state
+      this.balls = [];
       this.particles = [];
+      this.fireworks = [];
+      this.confetti = [];
+      this.leaderboard = [];
+      this._activeMeteors = [];
+      this._activeAsteroid = null;
+      this._spaceObjects = [];
+      this._directorFlashBalls = [];
+      this._directorRemoveButtons = [];
+      this._speedSurgeMultipliers = new Map();
+      this._teleportPairs = [];
+      this._teleportPostPairs = [];
       this.activeEvent = null;
       this.eventCount = 0;
       this._championOverlayShown = false;
@@ -7447,7 +7464,7 @@ if (this.activeEvent.key === 'speed_surge') {
       });
 
       // Start central animation tick
-      requestAnimationFrame((t) => this.tick(t));
+      this._rafId = requestAnimationFrame((t) => this.tick(t));
 
       // Update live HUD overlays continuously
       this.hudUpdateTimer = setInterval(() => this.updateHUD(), 150);
@@ -7624,7 +7641,47 @@ if (this.activeEvent.key === 'speed_surge') {
     }
 
     resetRace() {
-      if (this.countdownTimer) clearInterval(this.countdownTimer);
+      // ── Full cleanup before restart ──
+      // Kill RAF loop immediately so no duplicate loops accumulate
+      if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
+      this.isRunning = false;
+      // Clear all timers
+      if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
+      if (this.hudUpdateTimer) { clearInterval(this.hudUpdateTimer); this.hudUpdateTimer = null; }
+      // Blank all transient arrays/state leftover from previous race
+      this.balls = [];
+      this.particles = [];
+      this.fireworks = [];
+      this.confetti = [];
+      this.leaderboard = [];
+      this._activeMeteors = [];
+      this._activeAsteroid = null;
+      this._spaceObjects = [];
+      this._directorFlashBalls = [];
+      this._directorRemoveButtons = [];
+      this._speedSurgeMultipliers = new Map();
+      this._teleportPairs = [];
+      this._teleportPostPairs = [];
+      this.activeEvent = null;
+      this.eventCount = 0;
+      this._meteorTimer = 600 + Math.random() * 600;
+      this._asteroidTimer = 1800 + Math.random() * 600;
+      this._whiteFlashAlpha = 0;
+      this._footballShowerActive = false;
+      this._speedSurgeActive = false;
+      this._blackoutActive = false;
+      this._blackoutPhase = null;
+      this._blackoutFadeLevel = 0;
+      this._teleportState = null;
+      this.directorMode = null;
+      this.obstacleReliefActive = false;
+      this.obstacleZoneOccupancy = {};
+      this.commentary.clear();
+      this.eventBanner.clear();
+      this.broadcastDirector.reset();
+      this.storyEngine.reset();
+      this.raceDirector.stop();
+      // Now safe to restart
       this.startRace();
     }
 
@@ -7642,13 +7699,40 @@ if (this.activeEvent.key === 'speed_surge') {
     }
 
     stopRace() {
+      // ── Full cleanup ──
+      if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
       this.isRunning = false;
       this.state = 'menu';
+      this.raceDirector.stop();
       this.broadcastDirector.reset();
       this.storyEngine.reset();
 
-      if (this.countdownTimer) clearInterval(this.countdownTimer);
-      clearInterval(this.hudUpdateTimer);
+      if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
+      if (this.hudUpdateTimer) { clearInterval(this.hudUpdateTimer); this.hudUpdateTimer = null; }
+
+      // Clear all transient race data
+      this.balls = [];
+      this.particles = [];
+      this.fireworks = [];
+      this.confetti = [];
+      this.leaderboard = [];
+      this._activeMeteors = [];
+      this._activeAsteroid = null;
+      this._spaceObjects = [];
+      this._directorFlashBalls = [];
+      this._speedSurgeMultipliers = new Map();
+      this._teleportPairs = [];
+      this._teleportPostPairs = [];
+      this.activeEvent = null;
+      this.eventCount = 0;
+      this._footballShowerActive = false;
+      this._speedSurgeActive = false;
+      this._blackoutActive = false;
+      this._blackoutPhase = null;
+      this.directorMode = null;
+      this.obstacleZoneOccupancy = {};
+      this.commentary.clear();
+      this.eventBanner.clear();
 
       this._championOverlayShown = false;
       this._championWinner = null;
