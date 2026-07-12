@@ -194,11 +194,11 @@ class AppController {
     evtContainer.innerHTML = '';
     const evtEnabledSet = new Set(this._loadout.events);
     EVENT_REGISTRY.forEach(e => {
-      evtContainer.appendChild(this._makeCheckbox(e.key, e.name, evtEnabledSet.has(e.key), !e.implemented, false));
+      evtContainer.appendChild(this._makeCheckbox(e.key, e.name, evtEnabledSet.has(e.key), !e.implemented, false, true));
     });
   }
 
-  _makeCheckbox(id, label, checked, isFuture, isSignature) {
+  _makeCheckbox(id, label, checked, isFuture, isSignature, isEvent) {
     const div = document.createElement('label');
     div.className = 'loadout-check';
     div.innerHTML = `
@@ -208,17 +208,15 @@ class AppController {
     const cb = div.querySelector('input');
     if (!isFuture) {
       cb.addEventListener('change', () => {
-        const set = new Set(this._loadout.obstacles);
-        const evtSet = new Set(this._loadout.events);
-        if (cb.checked) {
-          set.add(id);
-          evtSet.add(id);
+        if (isEvent) {
+          const evtSet = new Set(this._loadout.events);
+          if (cb.checked) evtSet.add(id); else evtSet.delete(id);
+          this._loadout.events = [...evtSet];
         } else {
-          set.delete(id);
-          evtSet.delete(id);
+          const set = new Set(this._loadout.obstacles);
+          if (cb.checked) set.add(id); else set.delete(id);
+          this._loadout.obstacles = [...set];
         }
-        this._loadout.obstacles = [...set];
-        this._loadout.events = [...evtSet];
         this._saveLoadoutToStorage();
       });
     }
