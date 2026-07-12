@@ -1758,6 +1758,7 @@ class GameEngine {
     this.eventTimer = 0;
     this.eventCount = 0;
     this.maxEvents = 2; // based on user settings
+    this._eventIntensityCfg = { base: 20, variation: 3, maxEvents: 8 };
     this.leaderboard = [];
     this.lastKnockoutCycle = 0;
 
@@ -1845,9 +1846,6 @@ class GameEngine {
         freqWeights[o.type] = w;
       });
     }
-
-    // Density scaling factor from slider (20-100% → multiplier 0.3-1.3)
-    const densityMul = densityPct ? 0.3 + (densityPct / 100) * 0.7 : 0.7;
 
     const track = {
       length: length,
@@ -2337,12 +2335,12 @@ class GameEngine {
       let gapUntil = x;
       const segObstaclePositions = [];
 
-      let densityFactor = 0.55;
-      if (densityStr === 'low') densityFactor = 0.70;
-      if (densityStr === 'medium') densityFactor = 0.55;
-      if (densityStr === 'high') densityFactor = 0.40;
-      // Apply density slider scaling (densityMul from outer scope)
-      densityFactor *= Math.max(0.35, 1.5 - (densityMul || 0.7) * 0.8);
+      // Density slider (20-100%): higher = more obstacles, tighter spacing
+      // multiplier: 1.8 at 20% → 0.5 at 100% (3.6x range)
+      const pct = densityPct || 60;
+      const densityMult = 1.8 - (pct / 100) * 1.3;
+      // Cap to avoid division by zero / negative
+      let densityFactor = Math.max(0.35, densityMult);
 
       const MAJOR_OBSTACLES = _filterTypes(['hammer', 'spinner', 'c_bumper', 'portal', 'punchfist', 'sweep_arm', 'barrier']);
 
@@ -2767,18 +2765,22 @@ class GameEngine {
         }
       }
 
-      // Dead-space validation: fill gaps > 800px within this segment
+      // Dead-space validation: fill excessive gaps based on density
+      // Higher density = lower threshold (fill even moderate gaps)
+      const maxGap = Math.round(1100 - (pct / 100) * 900); // e.g. 1100px at 20%, 200px at 100%
       if (segObstaclePositions.length > 1) {
         for (let i = 1; i < segObstaclePositions.length; i++) {
           const gap = segObstaclePositions[i] - segObstaclePositions[i - 1];
-          if (gap > 600) {
+          if (gap > maxGap) {
             const insX = segObstaclePositions[i - 1] + gap / 2;
             if (insX < segEnd - 150) {
               const ib = getBounds(insX);
               if (ib) {
                 const icY = (ib.topY + ib.bottomY) / 2;
                 const iAvail = ib.bottomY - ib.topY;
-                const fb = ['boost', 'spinner', 'barrier'];
+                // Only use enabled obstacles for gap filling
+                const fb = ['boost', 'spinner', 'barrier'].filter(t => enabledSet.has(t));
+                if (fb.length === 0) continue;
                 const ft = fb[Math.floor(Math.random() * fb.length)];
                 if (ft === 'boost') {
                   const bClose = track.zones.some(z => z.type === 'slow' && Math.abs(z.x + z.width / 2 - insX) < 400);
@@ -2786,7 +2788,7 @@ class GameEngine {
                   track.zones.push({ type: 'boost', x: insX - 37, y: clampY(icY - 22, ib, 27), width: 75, height: 45, force: 0.20 });
                 } else if (ft === 'spinner') {
                   track.obstacles.push({ type: 'spinner', x: insX, y: clampY(icY, ib, 40), length: Math.min(80, iAvail * 0.4), angle: 0, speed: 0.04, pins: [] });
-                } else {
+                } else if (ft === 'barrier') {
                   track.obstacles.push({ type: 'barrier', x: insX, y: icY, width: 18, height: Math.min(80, iAvail * 0.5), isVertical: true, gapMin: 0, gapMax: iAvail * 0.5, state: 'opening', stateTimer: 0, openDuration: 100, closeDuration: 100, currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: ib.topY, bottomY: ib.bottomY });
                 }
               }
@@ -3520,13 +3522,13 @@ if (this.activeEvent.key === 'speed_surge') {
       if (this.state === 'racing') {
         this.raceTimer += (16.666 * dt) / 1000;
 
-        // Timed event trigger: gap depends on event intensity from loadout
-        const evtIntensity = (this._loadout && this._loadout.eventIntensity) || 'medium';
-        const eventGap = evtIntensity === 'low' ? 40 : evtIntensity === 'medium' ? 20 : evtIntensity === 'high' ? 12 : 6;
-        this.maxEvents = evtIntensity === 'low' ? 2 : evtIntensity === 'medium' ? 3 : evtIntensity === 'high' ? 6 : 12;
+        // Event scheduling — uses config computed once in startRace()
+        const evtCfg = this._eventIntensityCfg || { base: 40, variation: 5, maxEvents: 8 };
         if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime) {
           this.triggerRandomEvent();
-          this._nextEventRaceTime += eventGap;
+          // Next event: base interval ± random variation
+          const offset = (Math.random() - 0.5) * 2 * evtCfg.variation;
+          this._nextEventRaceTime += evtCfg.base + offset;
         }
 
 
@@ -7403,6 +7405,17 @@ if (this.activeEvent.key === 'speed_surge') {
       this.storyEngine.reset();
 
       this._eventToggle = false;
+
+      // Event intensity config — computed once, consumed by tick()
+      const evtIntensity = (this._loadout && this._loadout.eventIntensity) || 'medium';
+      const evtCfg = {
+        low: { base: 40, variation: 5, maxEvents: 8 },
+        medium: { base: 20, variation: 3, maxEvents: 15 },
+        high: { base: 10, variation: 2, maxEvents: 30 },
+        chaos: { base: 5, variation: 1, maxEvents: 60 }
+      };
+      this._eventIntensityCfg = evtCfg[evtIntensity] || evtCfg.medium;
+      this.maxEvents = this._eventIntensityCfg.maxEvents;
       this._nextEventRaceTime = 20;
       this.raceTimer = 0;
       this.countdownSeconds = 3;
@@ -7681,8 +7694,8 @@ if (this.activeEvent.key === 'speed_surge') {
       this.broadcastDirector.reset();
       this.storyEngine.reset();
       this.raceDirector.stop();
-      // Now safe to restart
-      this.startRace();
+      // Now safe to restart — preserve current loadout so settings persist
+      this.startRace(this._loadout);
     }
 
     fadeTransition(callback) {
