@@ -544,19 +544,23 @@ class PhysicsEngine {
           const closestX = obs.x + t * dx;
           const closestY = obs.y + t * dy;
           const dist = Math.hypot(ball.x - closestX, ball.y - closestY);
-          if (dist < ball.radius + 6) {
+          // Arm is 8px wide visually; collision half-width of 14px ensures solid contact
+          if (dist < ball.radius + 14) {
             const nx = (ball.x - closestX) / dist;
             const ny = (ball.y - closestY) / dist;
             if (dist > 0.001) {
-              ball.x = closestX + nx * (ball.radius + 6);
-              ball.y = closestY + ny * (ball.radius + 6);
+              ball.x = closestX + nx * (ball.radius + 14);
+              ball.y = closestY + ny * (ball.radius + 14);
             }
-            const physicsSpeed = obs.physicsSpeed || 0.02;
+            const physicsSpeed = obs.physicsSpeed || obs.speed || 0.07;
             const tipVx = -sinA * physicsSpeed * armLen * obs.direction;
             const tipVy = cosA * physicsSpeed * armLen * obs.direction;
-            const pushFactor = (1 - t) * 0.5 + 0.1;
-            ball.vx += tipVx * pushFactor * 0.08;
-            ball.vy += tipVy * pushFactor * 0.08;
+            // Arm velocity at the contact point scales linearly from 0 (pivot) to tipVx (tip)
+            // Push ball with 80% of arm velocity at that point
+            const armVelocityAtContact = t;
+            const PUSH_STRENGTH = 0.8;
+            ball.vx += tipVx * armVelocityAtContact * PUSH_STRENGTH;
+            ball.vy += tipVy * armVelocityAtContact * PUSH_STRENGTH;
             ball._hitSweepArmThisFrame = true;
           }
         } else if (obs.type === 'c_bumper') {
