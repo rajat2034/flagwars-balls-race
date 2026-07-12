@@ -480,9 +480,11 @@ class AppController {
 
   cycleSimSpeed() {
     let speed = this.engine.simSpeed;
-    if (speed === 1.0) speed = 1.5;
+    if (speed === 0.5) speed = 0.8;
+    else if (speed === 0.8) speed = 1.0;
+    else if (speed === 1.0) speed = 1.5;
     else if (speed === 1.5) speed = 2.0;
-    else speed = 1.0;
+    else speed = 0.5;
 
     this.engine.simSpeed = speed;
     document.getElementById('setting-speed').value = speed.toFixed(1);
