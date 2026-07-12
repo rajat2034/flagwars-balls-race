@@ -1220,3 +1220,98 @@ canvas.force-vertical {
     transform: translateX(0);
   }
 }
+
+/* === Loadout Panels === */
+.loadout-note {
+  font-size: 0.7rem;
+  color: var(--text-gray);
+  line-height: 1.4;
+}
+.loadout-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.loadout-check {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 5px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  user-select: none;
+}
+.loadout-check:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.14);
+}
+.loadout-check input[type="checkbox"] {
+  accent-color: var(--pitch-green);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.loadout-check .sig-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  margin-left: 0.2rem;
+  opacity: 0.7;
+}
+.loadout-check .future-tag {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--text-gray);
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  padding: 0.05rem 0.25rem;
+  margin-left: 0.2rem;
+}
+.loadout-header-sep {
+  width: 100%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-gray);
+  padding: 0.4rem 0 0.15rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 0.15rem;
+}
+.preset-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.preset-btn {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-white);
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.preset-btn:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--pitch-green);
+}
+.preset-btn .preset-del {
+  color: #ff4444;
+  font-weight: 700;
+  font-size: 0.8rem;
+  line-height: 1;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.preset-btn .preset-del:hover {
+  opacity: 1;
+}

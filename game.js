@@ -11,7 +11,8 @@ const MAP_THEMES = {
     particleColor: "#f5b041",
     particleType: "sand",
     forwardForce: 0.025,
-    density: 1.0
+    density: 1.0,
+    isDark: false
   },
   snow: {
     name: "Glacier Summit",
@@ -22,7 +23,8 @@ const MAP_THEMES = {
     particleColor: "#ffffff",
     particleType: "snow",
     forwardForce: 0.022,
-    density: 1.0
+    density: 1.0,
+    isDark: false
   },
   jungle: {
     name: "Amazon Canopy",
@@ -33,7 +35,8 @@ const MAP_THEMES = {
     particleColor: "#58d68d",
     particleType: "leaf",
     forwardForce: 0.025,
-    density: 1.0
+    density: 1.0,
+    isDark: true
   },
   volcano: {
     name: "Magma Crater",
@@ -44,7 +47,8 @@ const MAP_THEMES = {
     particleColor: "#ff5733",
     particleType: "ember",
     forwardForce: 0.028,
-    density: 1.05
+    density: 1.05,
+    isDark: true
   },
   ocean: {
     name: "Mariana Depths",
@@ -55,7 +59,8 @@ const MAP_THEMES = {
     particleColor: "#a9dfbf",
     particleType: "bubble",
     forwardForce: 0.018,
-    density: 0.9
+    density: 0.9,
+    isDark: true
   },
   space: {
     name: "Nebula Cosmos",
@@ -66,9 +71,87 @@ const MAP_THEMES = {
     particleColor: "#66fcf1",
     particleType: "cosmic",
     forwardForce: 0.014,
-    density: 0.8
+    density: 0.8,
+    isDark: true
   }
 };
+
+// Data-driven obstacle registry — add new obstacles here; UI auto-populates
+const OBSTACLE_REGISTRY = [
+  { type: 'portal', name: 'Portal', category: 'core', map: null },
+  { type: 'boost', name: 'Boost Pad', category: 'core', map: null },
+  { type: 'slow', name: 'Slow Pad', category: 'core', map: null },
+  { type: 'spinner', name: 'Spinner', category: 'core', map: null },
+  { type: 'punchfist', name: 'Punch', category: 'core', map: null },
+  { type: 'barrier', name: 'Moving Gate', category: 'core', map: null },
+  { type: 'hammer', name: 'Swinging Hammer', category: 'core', map: null },
+  { type: 'sweep_arm', name: 'Rotating Arm', category: 'core', map: null },
+  { type: 'c_bumper', name: 'C-Bumper', category: 'core', map: null },
+  { type: 'launch', name: 'Launch Pad', category: 'core', map: null },
+  { type: 'boost_pipe', name: 'Boost Pipe', category: 'core', map: null },
+  { type: 'peg', name: 'Bouncy Pegs', category: 'core', map: null },
+  // Space
+  { type: 'gravity_well', name: 'Gravity Well', category: 'signature', map: 'space' },
+  { type: 'energy_ring', name: 'Energy Ring', category: 'signature', map: 'space' },
+  { type: 'meteor_gate', name: 'Meteor Gate', category: 'signature', map: 'space' },
+  // Glacier
+  { type: 'ice', name: 'Ice Patch', category: 'signature', map: 'snow' },
+  { type: 'snowball_cannon', name: 'Snowball Cannon', category: 'signature', map: 'snow' },
+  { type: 'icicle_drop', name: 'Icicle Drop', category: 'signature', map: 'snow' },
+  // Magma
+  { type: 'lava_geyser', name: 'Lava Geyser', category: 'signature', map: 'volcano' },
+  { type: 'rolling_boulder', name: 'Rolling Boulder', category: 'signature', map: 'volcano' },
+  { type: 'flame_jet', name: 'Flame Jet', category: 'signature', map: 'volcano' },
+  // Amazon
+  { type: 'swinging_vine', name: 'Swinging Vine', category: 'signature', map: 'jungle' },
+  { type: 'rolling_log', name: 'Rolling Log', category: 'signature', map: 'jungle' },
+  { type: 'carnivorous_plant', name: 'Carnivorous Plant', category: 'signature', map: 'jungle' },
+  // Mariana
+  { type: 'whirlpool', name: 'Whirlpool', category: 'signature', map: 'ocean' },
+  { type: 'jellyfish', name: 'Jellyfish', category: 'signature', map: 'ocean' },
+  { type: 'crab_claw', name: 'Crab Claw', category: 'signature', map: 'ocean' },
+  { type: 'sea_mine', name: 'Sea Mine', category: 'signature', map: 'ocean' },
+  // Sahara
+  { type: 'quicksand', name: 'Quicksand', category: 'signature', map: 'desert' },
+  { type: 'sand_geyser', name: 'Sand Geyser', category: 'signature', map: 'desert' },
+  { type: 'rolling_tumbleweed', name: 'Rolling Tumbleweed', category: 'signature', map: 'desert' },
+  { type: 'moving_dune', name: 'Moving Dune', category: 'signature', map: 'desert' },
+];
+
+const EVENT_REGISTRY = [
+  { key: 'football_shower', name: 'Football Shower', implemented: true },
+  { key: 'gravity_flip', name: 'Gravity Flip', implemented: true },
+  { key: 'speed_surge', name: 'Speed Surge', implemented: true },
+  { key: 'blackout', name: 'Blackout', implemented: true },
+  { key: 'teleportation', name: 'Teleport Swap', implemented: true },
+  { key: 'meteor_storm', name: 'Meteor Storm', implemented: false },
+  { key: 'blizzard', name: 'Blizzard', implemented: false },
+  { key: 'volcanic_eruption', name: 'Volcanic Eruption', implemented: false },
+  { key: 'sandstorm', name: 'Sandstorm', implemented: false },
+  { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
+];
+
+// Text contrast helper — returns appropriate colors based on map brightness
+function getThemeColors(themeKey) {
+  const theme = MAP_THEMES[themeKey];
+  if (!theme) return { primary: '#ffffff', secondary: '#a0a5b5', accent: '#ffd700' };
+  if (theme.isDark) {
+    return {
+      primary: '#ffffff',
+      secondary: '#8ab4f8',
+      accent: '#ffd700',
+      label: '#e0e0e0',
+      highlight: '#66fcf1'
+    };
+  }
+  return {
+    primary: '#1a1a2e',
+    secondary: '#2c3e50',
+    accent: '#8B4513',
+    label: '#333333',
+    highlight: '#1a5276'
+  };
+}
 
 // Web Audio API Synthesizer — countdown + winner sounds only
 class SoundSynth {
@@ -196,7 +279,8 @@ class Commentary {
 
 // Global Event Banner — queue-based animated banner displayed on canvas near lower-center
 class GlobalEventBanner {
-  constructor() {
+  constructor(engine) {
+    this._engine = engine || null;
     this.queue = [];
     this.current = null;
     this._startTime = 0;
@@ -295,7 +379,7 @@ class GlobalEventBanner {
     ctx.roundRect(-bannerW / 2 - 3, -bannerH / 2 - 3, bannerW + 6, bannerH + 6, 31);
     ctx.stroke();
 
-    // Event name (large, bold)
+    // Event name (large, bold) — always on dark pill, use white
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(255, 200, 0, 0.3)';
@@ -1683,7 +1767,7 @@ class GameEngine {
 
     // Commentary & Event systems
     this.commentary = new Commentary();
-    this.eventBanner = new GlobalEventBanner();
+    this.eventBanner = new GlobalEventBanner(this);
     this.raceDirector = new RaceDirector();
     this.broadcastDirector = new BroadcastDirector(this);
     this.storyEngine = new StoryEngine(this);
@@ -1739,11 +1823,16 @@ class GameEngine {
   }
 
   // Generates procedurally built tracks, barriers, and hazards
-  generateProceduralTrack(themeKey, length, densityStr) {
+  generateProceduralTrack(themeKey, length, densityStr, enabledObstacles) {
     const theme = MAP_THEMES[themeKey];
     this.currentThemeKey = themeKey;
     this.currentTheme = theme;
     this.physics.forwardForce = theme.forwardForce * 0.65;
+
+    // Build enabled set for obstacle filtering
+    const enabledSet = enabledObstacles
+      ? new Set(enabledObstacles)
+      : new Set(OBSTACLE_REGISTRY.filter(o => o.category === 'core' || o.map === themeKey).map(o => o.type));
 
     const track = {
       length: length,
@@ -1839,6 +1928,10 @@ class GameEngine {
     track.zones.push({ type: 'finish', x: finishX, y: 0, width: 120, height: 700 });
     track.finishLineX = finishX;
 
+    // Filter ZONE_CONFIG, COMBINATIONS, TEMPLATES by enabled obstacle set
+    const _filterTypes = (typesArr) => typesArr.filter(t => enabledSet.has(t));
+    const _allEnabled = (typesArr) => typesArr.every(t => enabledSet.has(t));
+
     // Zone-based obstacle placement
     const getBounds = (x) => this.physics.getWallBoundaries(x, track);
     const clampY = (y, bounds, margin = 30) => {
@@ -1867,13 +1960,13 @@ class GameEngine {
     // Zone-based pacing configuration (t = x / length) — higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.45,
-        types: ['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm'] },
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm']) },
       { start: 0.20, end: 0.60, density: 0.35,
-        types: ['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal'] },
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal']) },
       { start: 0.60, end: 0.85, density: 0.40,
-        types: ['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist'] },
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist']) },
       { start: 0.85, end: 1.00, density: 0.45,
-        types: ['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner'] }
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -1894,7 +1987,7 @@ class GameEngine {
       { weight: 2, types: ['punchfist', 'hammer'], gap: 40 },
       { weight: 1, types: ['hammer', 'portal'], gap: 50 },
       { weight: 1, types: ['c_bumper', 'spinner'], gap: 40 },
-    ];
+    ].filter(c => _allEnabled(c.types));
 
     // 3-obstacle templates that shuffle per race for variety
     const TEMPLATES = [
@@ -1909,7 +2002,7 @@ class GameEngine {
       ['portal', 'boost', 'spinner'],
       ['hammer', 'barrier', 'boost'],
       ['hammer', 'hammer', 'hammer'],
-    ];
+    ].filter(t => _allEnabled(t));
     // Shuffle templates once per race
     const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
     let templateIndex = 0;
@@ -2234,18 +2327,24 @@ class GameEngine {
       if (densityStr === 'medium') densityFactor = 0.55;
       if (densityStr === 'high') densityFactor = 0.40;
 
-      const MAJOR_OBSTACLES = ['hammer', 'spinner', 'c_bumper', 'portal', 'punchfist', 'sweep_arm', 'barrier'];
+      const MAJOR_OBSTACLES = _filterTypes(['hammer', 'spinner', 'c_bumper', 'portal', 'punchfist', 'sweep_arm', 'barrier']);
 
-      const FORBIDDEN_NEXT = {
-        hammer: ['portal', 'hammer'],
-        portal: ['hammer', 'punchfist', 'spinner', 'portal'],
-        spinner: ['hammer', 'portal'],
-        punchfist: ['hammer', 'portal'],
-        sweep_arm: ['hammer', 'portal'],
-        barrier: ['portal', 'hammer'],
-        boost: ['slow', 'boost'],
-        slow: ['boost', 'slow']
-      };
+      const FORBIDDEN_NEXT = {};
+      [
+        ['hammer', ['portal', 'hammer']],
+        ['portal', ['hammer', 'punchfist', 'spinner', 'portal']],
+        ['spinner', ['hammer', 'portal']],
+        ['punchfist', ['hammer', 'portal']],
+        ['sweep_arm', ['hammer', 'portal']],
+        ['barrier', ['portal', 'hammer']],
+        ['boost', ['slow', 'boost']],
+        ['slow', ['boost', 'slow']]
+      ].forEach(([key, vals]) => {
+        if (enabledSet.has(key)) {
+          const filtered = vals.filter(v => enabledSet.has(v));
+          if (filtered.length) FORBIDDEN_NEXT[key] = filtered;
+        }
+      });
 
       let comboNextType = null;
       let comboNextType2 = null;
@@ -2733,13 +2832,13 @@ class GameEngine {
       }
     }
     
-    // Ensure minimum counts: at least 30 of each major type per race
+    // Ensure minimum counts: at least 30 of each major type per race (only enabled types)
     const MIN_COUNT = 30;
-    const TYPE_COUNTS = {
-      hammer: 0, spinner: 0, barrier: 0, sweep_arm: 0, punchfist: 0,
-      c_bumper: 0, boost: 0, slow: 0,
-      portal: 0, launch: 0
-    };
+    const TYPE_COUNTS = {};
+    ['hammer', 'spinner', 'barrier', 'sweep_arm', 'punchfist',
+     'c_bumper', 'boost', 'slow', 'portal', 'launch']
+      .filter(t => enabledSet.has(t))
+      .forEach(t => { TYPE_COUNTS[t] = 0; });
     track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
     track.zones.forEach(z => { if (z.type !== 'finish' && TYPE_COUNTS[z.type] !== undefined) TYPE_COUNTS[z.type]++; });
     const underTypes = Object.keys(TYPE_COUNTS).filter(t => TYPE_COUNTS[t] < MIN_COUNT);
@@ -3087,13 +3186,18 @@ class GameEngine {
   triggerRandomEvent() {
     if (this.activeEvent) return;
 
+    // Filter events by loadout if set, otherwise use all implemented events
+    const enabledEventKeys = this._loadout && this._loadout.events
+      ? new Set(this._loadout.events)
+      : null;
+
     const events = [
       { name: '\u26BD FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.', weight: 0.25 },
       { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.', weight: 0.15 },
       { name: '\u26A1 SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.', weight: 0.20 },
       { name: '\u26A1 BLACKOUT', key: 'blackout', duration: 0, description: 'Stadium lights have gone out. Anything can happen...', weight: 0.20 },
       { name: '\u26A1 TELEPORTATION', key: 'teleportation', duration: 360, description: 'Ten countries suddenly swapped positions!', weight: 0.20 },
-    ];
+    ].filter(e => !enabledEventKeys || enabledEventKeys.has(e.key));
 
     // Weighted random selection
     const totalWeight = events.reduce((sum, e) => sum + e.weight, 0);
@@ -5601,10 +5705,11 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
 
-        // 4) Country label
+        // 4) Country label (with auto text contrast)
         this.ctx.save();
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.shadowColor = '#000000';
+        const tColors = getThemeColors(this.currentThemeKey);
+        this.ctx.fillStyle = tColors.primary;
+        this.ctx.shadowColor = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'rgba(255,255,255,0.5)';
         this.ctx.shadowBlur = 4;
         this.ctx.font = 'bold 9px Montserrat, sans-serif';
         this.ctx.textAlign = 'center';
@@ -5621,8 +5726,8 @@ if (this.activeEvent.key === 'speed_surge') {
             this.ctx.shadowColor = '#FFD700';
             this.ctx.shadowBlur = 6;
           } else {
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.shadowColor = '#000000';
+            this.ctx.fillStyle = tColors.primary;
+            this.ctx.shadowColor = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'rgba(255,255,255,0.5)';
             this.ctx.shadowBlur = 4;
           }
           this.ctx.fillText(displayLabel, bX, ball.y + renderRadius + 11);
@@ -7206,11 +7311,14 @@ if (this.activeEvent.key === 'speed_surge') {
     }
 
     // Prepares data and starts countdown
-    startRace() {
+    startRace(loadout) {
       if (this.selectedCountries.length === 0) {
         alert("Please select countries first!");
         return;
       }
+
+      // Store loadout for obstacle generation and event filtering
+      this._loadout = loadout || null;
 
       // Clear screen overlays
       this.confetti = [];
@@ -7258,8 +7366,9 @@ if (this.activeEvent.key === 'speed_surge') {
       // Always default camera focus to current leader (auto-switch on overtakes)
       this.selectedBallId = 'leader';
 
-      // Procedural generation
-      this.generateProceduralTrack(this.currentThemeKey, this.raceLength, this.obstacleDensity);
+      // Procedural generation (respect loadout)
+      const enabledObs = this._loadout ? this._loadout.obstacles : null;
+      this.generateProceduralTrack(this.currentThemeKey, this.raceLength, this.obstacleDensity, enabledObs);
 
 
       // Balls layout

@@ -13,6 +13,11 @@ class AppController {
 
     // Custom countries database key
     this.STORAGE_CUSTOM_KEY = 'flag_rally_custom_nations';
+
+    // Loadout state
+    this._loadout = { obstacles: [], events: [] };
+    this.STORAGE_LOADOUT_KEY = 'flag_rally_loadout';
+    this.STORAGE_PRESETS_KEY = 'flag_rally_loadout_presets';
   }
 
   init() {
@@ -37,6 +42,11 @@ class AppController {
 
     // 5. Initial Map Highlight
     this.selectMap(this.selectedMapKey);
+
+    // 5b. Loadout panels (after map is selected so defaults apply)
+    this._initLoadout();
+    this.renderLoadoutPanels();
+    this.renderPresets();
 
     // 6. Bind UI Events
     window.addEventListener('resize', () => this.handleAspectResize());
@@ -108,6 +118,204 @@ class AppController {
 
     this.updateSelectedCountText();
     this.renderCountriesGrid();
+  }
+
+  // ─── Loadout System ──────────────────────────────────────
+
+  _buildDefaultLoadout(themeKey) {
+    const obs = OBSTACLE_REGISTRY
+      .filter(o => o.category === 'core' || o.map === themeKey)
+      .map(o => o.type);
+    const evts = EVENT_REGISTRY.filter(e => e.implemented).map(e => e.key);
+    return { obstacles: obs, events: evts };
+  }
+
+  _initLoadout() {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_LOADOUT_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.obstacles && parsed.events) {
+          this._loadout = parsed;
+          return;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    // Fall back to default for current map
+    this._loadout = this._buildDefaultLoadout(this.selectedMapKey);
+    this._saveLoadoutToStorage();
+  }
+
+  _saveLoadoutToStorage() {
+    try {
+      localStorage.setItem(this.STORAGE_LOADOUT_KEY, JSON.stringify(this._loadout));
+    } catch (e) { /* ignore */ }
+  }
+
+  renderLoadoutPanels() {
+    // Obstacles
+    const obsContainer = document.getElementById('obstacle-loadout-list');
+    if (!obsContainer) return;
+    obsContainer.innerHTML = '';
+    const enabledSet = new Set(this._loadout.obstacles);
+
+    // Core group
+    const coreObs = OBSTACLE_REGISTRY.filter(o => o.category === 'core');
+    const sigObs = OBSTACLE_REGISTRY.filter(o => o.category === 'signature');
+    const mapNames = { desert: 'Sahara', snow: 'Glacier', jungle: 'Amazon', volcano: 'Magma', ocean: 'Mariana', space: 'Nebula' };
+
+    if (coreObs.length) {
+      const sep = document.createElement('div');
+      sep.className = 'loadout-header-sep';
+      sep.textContent = 'CORE OBSTACLES';
+      obsContainer.appendChild(sep);
+      coreObs.forEach(o => {
+        obsContainer.appendChild(this._makeCheckbox(o.type, o.name, enabledSet.has(o.type), false, false));
+      });
+    }
+
+    // Signature by map
+    const maps = ['desert', 'snow', 'jungle', 'volcano', 'ocean', 'space'];
+    maps.forEach(key => {
+      const entries = sigObs.filter(o => o.map === key);
+      if (!entries.length) return;
+      const sep = document.createElement('div');
+      sep.className = 'loadout-header-sep';
+      sep.textContent = (mapNames[key] || key).toUpperCase() + ' SIGNATURE';
+      obsContainer.appendChild(sep);
+      entries.forEach(o => {
+        obsContainer.appendChild(this._makeCheckbox(o.type, o.name, enabledSet.has(o.type), false, true));
+      });
+    });
+
+    // Events
+    const evtContainer = document.getElementById('event-loadout-list');
+    if (!evtContainer) return;
+    evtContainer.innerHTML = '';
+    const evtEnabledSet = new Set(this._loadout.events);
+    EVENT_REGISTRY.forEach(e => {
+      evtContainer.appendChild(this._makeCheckbox(e.key, e.name, evtEnabledSet.has(e.key), !e.implemented, false));
+    });
+  }
+
+  _makeCheckbox(id, label, checked, isFuture, isSignature) {
+    const div = document.createElement('label');
+    div.className = 'loadout-check';
+    div.innerHTML = `
+      <input type="checkbox" ${checked ? 'checked' : ''} ${isFuture ? 'disabled' : ''}>
+      <span>${label}${isSignature ? '<span class="sig-label">✦</span>' : ''}${isFuture ? '<span class="future-tag">FUTURE</span>' : ''}</span>
+    `;
+    const cb = div.querySelector('input');
+    if (!isFuture) {
+      cb.addEventListener('change', () => {
+        const set = new Set(this._loadout.obstacles);
+        const evtSet = new Set(this._loadout.events);
+        if (cb.checked) {
+          set.add(id);
+          evtSet.add(id);
+        } else {
+          set.delete(id);
+          evtSet.delete(id);
+        }
+        this._loadout.obstacles = [...set];
+        this._loadout.events = [...evtSet];
+        this._saveLoadoutToStorage();
+      });
+    }
+    return div;
+  }
+
+  toggleObstacleInLoadout(type) {
+    const set = new Set(this._loadout.obstacles);
+    if (set.has(type)) set.delete(type); else set.add(type);
+    this._loadout.obstacles = [...set];
+    this._saveLoadoutToStorage();
+  }
+
+  toggleEventInLoadout(key) {
+    const set = new Set(this._loadout.events);
+    if (set.has(key)) set.delete(key); else set.add(key);
+    this._loadout.events = [...set];
+    this._saveLoadoutToStorage();
+  }
+
+  randomizeLoadout() {
+    const allObs = OBSTACLE_REGISTRY.map(o => o.type);
+    const allEvts = EVENT_REGISTRY.filter(e => e.implemented).map(e => e.key);
+    // Random subset: each has ~60% chance of being included
+    const obs = allObs.filter(() => Math.random() < 0.6);
+    const evts = allEvts.filter(() => Math.random() < 0.6);
+    if (!obs.length) obs.push(allObs[Math.floor(Math.random() * allObs.length)]);
+    if (!evts.length) evts.push(allEvts[Math.floor(Math.random() * allEvts.length)]);
+    this._loadout = { obstacles: obs, events: evts };
+    this._saveLoadoutToStorage();
+    this.renderLoadoutPanels();
+  }
+
+  // ─── Loadout Presets ─────────────────────────────────────
+
+  _getPresets() {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_PRESETS_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch (e) { return {}; }
+  }
+
+  _savePresets(presets) {
+    try {
+      localStorage.setItem(this.STORAGE_PRESETS_KEY, JSON.stringify(presets));
+    } catch (e) { /* ignore */ }
+  }
+
+  savePreset() {
+    const name = prompt('Name this loadout preset:');
+    if (!name || !name.trim()) return;
+    const presets = this._getPresets();
+    presets[name.trim()] = { obstacles: [...this._loadout.obstacles], events: [...this._loadout.events] };
+    this._savePresets(presets);
+    this.renderPresets();
+  }
+
+  loadPreset(name) {
+    const presets = this._getPresets();
+    const preset = presets[name];
+    if (!preset) return;
+    this._loadout = { obstacles: [...preset.obstacles], events: [...preset.events] };
+    this._saveLoadoutToStorage();
+    this.renderLoadoutPanels();
+  }
+
+  deletePreset(name) {
+    const presets = this._getPresets();
+    delete presets[name];
+    this._savePresets(presets);
+    this.renderPresets();
+  }
+
+  renderPresets() {
+    const container = document.getElementById('preset-list');
+    if (!container) return;
+    container.innerHTML = '';
+    const presets = this._getPresets();
+    const names = Object.keys(presets);
+    if (!names.length) {
+      container.innerHTML = '<div class="loadout-note">No saved presets yet. Configure obstacles & events above, then click "Save Current".</div>';
+      return;
+    }
+    names.forEach(name => {
+      const btn = document.createElement('button');
+      btn.className = 'preset-btn';
+      btn.innerHTML = `<span>${name}</span><span class="preset-del" data-name="${name}">×</span>`;
+      btn.addEventListener('click', (e) => {
+        if (e.target.classList.contains('preset-del')) {
+          e.stopPropagation();
+          this.deletePreset(name);
+        } else {
+          this.loadPreset(name);
+        }
+      });
+      container.appendChild(btn);
+    });
   }
 
   loadSettings() {
@@ -352,6 +560,11 @@ class AppController {
     document.getElementById(`map-${themeKey}`).classList.add('active');
     this.engine.currentThemeKey = themeKey;
     this.engine.currentTheme = MAP_THEMES[themeKey];
+
+    // Auto-set loadout to core + this map's signature obstacles
+    this._loadout = this._buildDefaultLoadout(themeKey);
+    this._saveLoadoutToStorage();
+    this.renderLoadoutPanels();
   }
 
   randomizeMap() {
@@ -502,7 +715,7 @@ class AppController {
       this.engine.maxEvents = 2;
     }
 
-    this.engine.startRace();
+    this.engine.startRace(this._loadout);
   }
 
   onCameraSelectChange() {
