@@ -96,7 +96,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'meteor_gate', name: 'Meteor Gate', category: 'signature', map: 'space' },
   // Glacier
   { type: 'ice', name: 'Ice Patch', category: 'signature', map: 'snow' },
-  { type: 'snowball_cannon', name: 'Snowball Cannon', category: 'signature', map: 'snow' },
+  { type: 'ice_cannon', name: 'Ice Cannon', category: 'signature', map: 'snow' },
   { type: 'icicle_drop', name: 'Icicle Drop', category: 'signature', map: 'snow' },
   // Magma
   { type: 'lava_geyser', name: 'Lava Geyser', category: 'signature', map: 'volcano' },
@@ -1967,7 +1967,8 @@ class GameEngine {
 
       peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       slow: { min: 100, preferred: 160, recovery: 80, safeLanding: 60 },
-      launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 }
+      launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
+      ice_cannon: { min: 200, preferred: 320, recovery: 150, safeLanding: 120 }
     };
 
     // Zone-based pacing configuration (t = x / length) — higher density, intentional rhythm
@@ -1975,9 +1976,9 @@ class GameEngine {
       { start: 0.00, end: 0.20, density: 0.45,
         types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm']) },
       { start: 0.20, end: 0.60, density: 0.35,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal']) },
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon']) },
       { start: 0.60, end: 0.85, density: 0.40,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist']) },
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon']) },
       { start: 0.85, end: 1.00, density: 0.45,
         types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner']) }
     ];
@@ -2650,6 +2651,16 @@ class GameEngine {
               radius: pegR, bouncy: true
             });
           }
+        } else if (type === 'ice_cannon') {
+          const cannonH = 50;
+          const barrelLen = 40;
+          const cannonY = clampY(centerY + (Math.random() - 0.5) * availH * 0.15, bounds, cannonH * 0.5 + 10);
+          track.obstacles.push({
+            type: 'ice_cannon', x, y: cannonY,
+            cannonHeight: cannonH, barrelLength: barrelLen,
+            _lastFireTime: Math.floor(Math.random() * 120), _fireInterval: 120,
+            _projectiles: [], _splashEffects: []
+          });
         }
 
         // Track last 3 types to prevent triplicates
@@ -2863,7 +2874,7 @@ class GameEngine {
     const MIN_COUNT = 30;
     const TYPE_COUNTS = {};
     ['hammer', 'spinner', 'barrier', 'sweep_arm', 'punchfist',
-     'c_bumper', 'boost', 'slow', 'portal', 'launch']
+     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon']
       .filter(t => enabledSet.has(t))
       .forEach(t => { TYPE_COUNTS[t] = 0; });
     track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
@@ -2972,6 +2983,13 @@ class GameEngine {
             type: 'portal', x: p2x - portalSize / 2,
             y: clampY((b2.topY + b2.bottomY) / 2, b2, portalSize / 2 + 10) - portalSize / 2,
             width: portalSize, height: portalSize, pairId, radius: portalSize / 2
+          });
+        } else if (ut === 'ice_cannon') {
+          track.obstacles.push({
+            type: 'ice_cannon', x: tryX, y: clampY(cY, b, 35),
+            cannonHeight: 50, barrelLength: 40,
+            _lastFireTime: Math.floor(Math.random() * 120), _fireInterval: 120,
+            _projectiles: [], _splashEffects: []
           });
         }
       }
@@ -3169,6 +3187,67 @@ class GameEngine {
         obs.headVy = (obs.headY - (obs._prevHeadY || obs.headY)) / Math.max(dt, 1);
         obs._prevHeadX = obs.headX;
         obs._prevHeadY = obs.headY;
+      } else if (obs.type === 'ice_cannon') {
+        if (!obs._projectiles) obs._projectiles = [];
+        if (obs._lastFireTime === undefined) obs._lastFireTime = 0;
+        if (obs._fireInterval === undefined) obs._fireInterval = 120;
+        if (obs._splashEffects === undefined) obs._splashEffects = [];
+
+        obs._lastFireTime += dt;
+        if (obs._lastFireTime >= obs._fireInterval) {
+          obs._lastFireTime = 0;
+          const barrelLen = obs.barrelLength || 40;
+          const barrelY = obs.y - (obs.cannonHeight || 50) * 0.2;
+          const muzzleX = obs.x - barrelLen;
+          obs._projectiles.push({
+            x: muzzleX, y: barrelY, radius: 6 + Math.random() * 2,
+            speed: 12 + Math.random() * 1.5,
+            maxDistance: 1200 + Math.random() * 800,
+            distanceTraveled: 0, splashRadius: 35,
+            _trailPhase: Math.random() * 100, _removed: false
+          });
+        }
+
+        for (let pi = obs._projectiles.length - 1; pi >= 0; pi--) {
+          const proj = obs._projectiles[pi];
+          if (proj._removed) { obs._projectiles.splice(pi, 1); continue; }
+
+          const moveAmount = proj.speed * dt;
+          proj.x -= moveAmount * 0.5;
+          proj.distanceTraveled += moveAmount;
+
+          // Remove when past max range or off-screen
+          if (proj.distanceTraveled >= proj.maxDistance || proj.x < this.cameraX - 100) {
+            proj._removed = true;
+            obs._projectiles.splice(pi, 1);
+            continue;
+          }
+
+          let hitBall = false;
+          if (this.balls) {
+            for (const ball of this.balls) {
+              if (ball.finished) continue;
+              const dx = ball.x - proj.x, dy = ball.y - proj.y;
+              if (Math.hypot(dx, dy) < ball.radius + proj.radius) {
+                this._applyIceSplash(proj.x, proj.y, proj.splashRadius);
+                if (obs._splashEffects) obs._splashEffects.push({ x: proj.x, y: proj.y, radius: proj.splashRadius, _timer: 0, _duration: 20 });
+                proj._removed = true;
+                obs._projectiles.splice(pi, 1);
+                hitBall = true;
+                break;
+              }
+            }
+          }
+          if (hitBall) continue;
+        }
+
+        if (obs._splashEffects) {
+          for (let si = obs._splashEffects.length - 1; si >= 0; si--) {
+            const spl = obs._splashEffects[si];
+            spl._timer += dt;
+            if (spl._timer > spl._duration) obs._splashEffects.splice(si, 1);
+          }
+        }
       }
     });
 
@@ -3207,6 +3286,57 @@ class GameEngine {
       _lifetime: isFoot ? 300 + Math.random() * 200 : 0,
       _stoppedTimer: 0
     });
+  }
+
+  // Apply ice splash: freeze all unfrozen balls within splashRadius
+  _applyIceSplash(sx, sy, splashRadius) {
+    if (!this.balls) return;
+    for (const ball of this.balls) {
+      if (ball.finished || ball.eliminated) continue;
+      if (ball._frozen) continue;
+      const dx = ball.x - sx, dy = ball.y - sy;
+      if (Math.hypot(dx, dy) < splashRadius + ball.radius) {
+        ball._frozen = true;
+        ball._frozenTimer = 240;
+        ball._frozenSpeedMult = 0.10;
+        ball._origVx = ball.vx;
+        ball._origVy = ball.vy;
+        ball.vx *= ball._frozenSpeedMult;
+        ball.vy *= ball._frozenSpeedMult;
+        // Hit flash particles - white burst around the frozen ball
+        if (this.particles) {
+          for (let p = 0; p < 12; p++) {
+            const a = Math.random() * Math.PI * 2;
+            const spd = 1 + Math.random() * 3;
+            this.particles.push({
+              type: 'sparkle',
+              x: ball.x + (Math.random() - 0.5) * 6,
+              y: ball.y + (Math.random() - 0.5) * 6,
+              vx: Math.cos(a) * spd,
+              vy: Math.sin(a) * spd,
+              alpha: 0.9,
+              size: 2 + Math.random() * 4,
+              life: 10 + Math.floor(Math.random() * 8),
+              color: '#ffffff'
+            });
+          }
+          for (let r = 0; r < 6; r++) {
+            const a = Math.random() * Math.PI * 2;
+            this.particles.push({
+              type: 'sparkle',
+              x: ball.x,
+              y: ball.y,
+              vx: Math.cos(a) * (2 + Math.random() * 2),
+              vy: Math.sin(a) * (2 + Math.random() * 2),
+              alpha: 0.7,
+              size: 4 + Math.random() * 3,
+              life: 6 + Math.floor(Math.random() * 6),
+              color: '#a0d8ef'
+            });
+          }
+        }
+      }
+    }
   }
 
 // Trigger alternate race events (football shower, gravity flip, speed surge, blackout, teleportation)
@@ -3645,6 +3775,36 @@ if (this.activeEvent.key === 'speed_surge') {
 
       // Update dynamic obstacles
       this.updateDynamicObstacles(dt);
+
+      // Freeze effect management: clamp velocity every frame, decrement timer, thaw when expired
+      if (this.balls) {
+        for (const ball of this.balls) {
+          if (ball.finished || !ball._frozen) continue;
+          ball.vx = ball._origVx * ball._frozenSpeedMult;
+          ball.vy = ball._origVy * ball._frozenSpeedMult;
+          ball._frozenTimer -= dt;
+          if (ball._frozenTimer <= 0) {
+            ball._frozen = false;
+            ball._frozenTimer = 0;
+            ball.vx = ball._origVx || ball.vx;
+            ball.vy = ball._origVy || ball.vy;
+            for (let p = 0; p < 8; p++) {
+              const a = Math.random() * Math.PI * 2;
+              this.particles.push({
+                type: 'sparkle',
+                x: ball.x + (Math.random() - 0.5) * 12,
+                y: ball.y + (Math.random() - 0.5) * 12,
+                vx: Math.cos(a) * (1 + Math.random() * 2),
+                vy: Math.sin(a) * (1 + Math.random() * 2),
+                alpha: 0.8,
+                size: 2 + Math.random() * 3,
+                life: 15 + Math.floor(Math.random() * 10),
+                color: '#a0d8ef'
+              });
+            }
+          }
+        }
+      }
 
       // Update random event continuous forces
       this.updateRandomEvents(dt);
@@ -4541,8 +4701,9 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(46,204,113,0.25)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
-          this.ctx.strokeStyle = '#2ecc71';
-          this.ctx.lineWidth = 2;
+          const boostBorderAlpha = this.currentThemeKey === 'snow' ? 0.50 : 0.35;
+          this.ctx.strokeStyle = `rgba(46,204,113,${boostBorderAlpha})`;
+          this.ctx.lineWidth = 2.5;
           this.ctx.strokeRect(zX, zone.y, zone.width, zone.height);
           // Forward arrows (right)
           const animOffset = (Date.now() / 6) % 30;
@@ -4568,8 +4729,9 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(231,76,60,0.18)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
-          this.ctx.strokeStyle = '#c0392b';
-          this.ctx.lineWidth = 2;
+          const slowBorderAlpha = this.currentThemeKey === 'snow' ? 0.50 : 0.35;
+          this.ctx.strokeStyle = `rgba(192,57,43,${slowBorderAlpha})`;
+          this.ctx.lineWidth = 2.5;
           this.ctx.strokeRect(zX, zone.y, zone.width, zone.height);
           // Backward arrows (left)
           const animOff2 = (Date.now() / 6) % 30;
@@ -4948,14 +5110,29 @@ if (this.activeEvent.key === 'speed_surge') {
 
         // Outer glow ring for bouncy bumpers
         if (peg.bouncy) {
-          this.ctx.shadowColor = '#ffffff';
-          this.ctx.shadowBlur = 14;
-          this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-          this.ctx.lineWidth = 2;
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.shadowColor = '#2a5a7a';
+            this.ctx.shadowBlur = 10;
+            this.ctx.strokeStyle = 'rgba(60, 140, 180, 0.35)';
+            this.ctx.lineWidth = 2;
+          } else {
+            this.ctx.shadowColor = '#ffffff';
+            this.ctx.shadowBlur = 14;
+            this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            this.ctx.lineWidth = 2;
+          }
           this.ctx.beginPath();
           this.ctx.arc(pegX, peg.y, peg.radius + 3, 0, Math.PI * 2);
           this.ctx.stroke();
           this.ctx.shadowBlur = 0;
+        }
+        // Dark outline ring for all pegs in snow theme for track contrast
+        if (this.currentThemeKey === 'snow') {
+          this.ctx.strokeStyle = 'rgba(20, 40, 60, 0.40)';
+          this.ctx.lineWidth = 2;
+          this.ctx.beginPath();
+          this.ctx.arc(pegX, peg.y, peg.radius + 1, 0, Math.PI * 2);
+          this.ctx.stroke();
         }
         this.ctx.restore();
 
@@ -4996,6 +5173,28 @@ if (this.activeEvent.key === 'speed_surge') {
         const obsX = obs.x - camX;
         const obsCullBuffer = Math.max(300, 400 / this.userZoomMultiplier);
         if (obsX + 200 < -obsCullBuffer || obsX - 200 > screenW / zoom + obsCullBuffer) return;
+
+        // Soft ground shadow under obstacles for snow theme readability
+        if (this.currentThemeKey === 'snow' && obs.type !== 'portal') {
+          const bounds = this.physics.getWallBoundaries(obs.x, this.track);
+          const shadowBase = bounds ? bounds.bottomY : (obs.y + 60);
+          let sw = 50, sh = 14;
+          if (obs.type === 'hammer' || obs.type === 'punchfist') { sw = 60; sh = 18; }
+          else if (obs.type === 'barrier') { sw = 28; sh = 16; }
+          else if (obs.type === 'flap') { sw = obs.plateWidth || 60; sh = 12; }
+          else if (obs.type === 'sweep_arm') { sw = (obs.length || 120) * 0.6; sh = 10; }
+          else if (obs.type === 'c_bumper') { sw = (obs.radius || 70) * 1.2; sh = 16; }
+          else if (obs.type === 'spinner') { sw = 24; sh = (obs.length || 200) * 0.08 + 8; }
+          else if (obs.type === 'rock') { sw = (obs.radius || 30) * 1.5; sh = 10; }
+          else if (obs.type === 'trapdoor') { sw = obs.width || 40; sh = 14; }
+          else if (obs.type === 'ice_cannon') { sw = 60; sh = 18; }
+          this.ctx.save();
+          this.ctx.fillStyle = 'rgba(10, 20, 35, 0.12)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(obsX, shadowBase + 2, sw / 2, sh / 2, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.restore();
+        }
 
         if (obs.type === 'spinner') {
           // Fall Guys whirlygig-style colorful rotating VERTICAL bar
@@ -5502,6 +5701,161 @@ if (this.activeEvent.key === 'speed_surge') {
             this.ctx.shadowBlur = 0;
 }
           this.ctx.restore();
+        } else if (obs.type === 'ice_cannon') {
+          this.ctx.save();
+          const cannonH = obs.cannonHeight || 50;
+          const barrelLen = obs.barrelLength || 40;
+          const baseY = obs.y + cannonH * 0.4;
+          const barrelY = obs.y - cannonH * 0.2;
+          const time = Date.now() * 0.001;
+          this.ctx.fillStyle = 'rgba(200, 220, 240, 0.30)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(obsX + 8, baseY + 4, 28, 8, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.fillStyle = 'rgba(180, 210, 235, 0.25)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(obsX - 6, baseY + 6, 22, 6, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.strokeStyle = 'rgba(180, 230, 255, 0.35)';
+          this.ctx.lineWidth = 1.5;
+          for (let ci = 0; ci < 5; ci++) {
+            const cx = obsX - 18 + ci * 10 + Math.sin(time + ci) * 2;
+            const cy = baseY - 2 + Math.cos(time * 0.5 + ci * 1.5) * 1;
+            this.ctx.beginPath();
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx - 4, cy - 7);
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + 4, cy - 5);
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + 1, cy - 9);
+            this.ctx.stroke();
+          }
+          const baseGrad = this.ctx.createLinearGradient(obsX - 22, baseY - cannonH * 0.5, obsX + 22, baseY);
+          baseGrad.addColorStop(0, '#8fb5d4');
+          baseGrad.addColorStop(0.3, '#b0d0e8');
+          baseGrad.addColorStop(0.6, '#7a9bb8');
+          baseGrad.addColorStop(1, '#5a7a95');
+          this.ctx.shadowColor = 'rgba(0,0,0,0.25)';
+          this.ctx.shadowBlur = 6;
+          this.ctx.shadowOffsetY = 2;
+          this.ctx.fillStyle = baseGrad;
+          this.ctx.beginPath();
+          this.ctx.roundRect(obsX - 22, baseY - cannonH * 0.5, 44, cannonH * 0.5, 4);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+          this.ctx.shadowOffsetY = 0;
+          this.ctx.strokeStyle = 'rgba(70, 110, 140, 0.20)';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(obsX - 22, baseY - cannonH * 0.5, 44, cannonH * 0.5);
+          this.ctx.fillStyle = 'rgba(70, 110, 140, 0.08)';
+          for (let bi = 0; bi < 3; bi++) {
+            this.ctx.fillRect(obsX - 16 + bi * 14, baseY - cannonH * 0.4 + 4, 8, 6);
+          }
+          const barrelGrad = this.ctx.createLinearGradient(obsX - barrelLen, barrelY - 10, obsX, barrelY + 10);
+          barrelGrad.addColorStop(0, '#c8e0f0');
+          barrelGrad.addColorStop(0.3, '#e0f0ff');
+          barrelGrad.addColorStop(0.7, '#a0c8e0');
+          barrelGrad.addColorStop(1, '#7090b0');
+          this.ctx.shadowColor = 'rgba(0,0,0,0.2)';
+          this.ctx.shadowBlur = 4;
+          this.ctx.shadowOffsetY = 1;
+          this.ctx.fillStyle = barrelGrad;
+          this.ctx.beginPath();
+          this.ctx.roundRect(obsX - barrelLen, barrelY - 10, barrelLen, 20, 3);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+          this.ctx.shadowOffsetY = 0;
+          this.ctx.strokeStyle = 'rgba(100, 160, 200, 0.20)';
+          this.ctx.lineWidth = 1;
+          for (let ri = 0; ri < 3; ri++) {
+            const rx = obsX - barrelLen + 8 + ri * 12;
+            this.ctx.beginPath();
+            this.ctx.moveTo(rx, barrelY - 10);
+            this.ctx.lineTo(rx, barrelY + 10);
+            this.ctx.stroke();
+          }
+          const muzzleX = obsX - barrelLen;
+          this.ctx.fillStyle = '#1a2a3a';
+          this.ctx.beginPath();
+          this.ctx.ellipse(muzzleX, barrelY, 4, 10, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+          const muzzlePulse = 0.3 + Math.sin(time * 3) * 0.15;
+          this.ctx.shadowColor = 'rgba(100, 200, 255, 0.4)';
+          this.ctx.shadowBlur = 15;
+          this.ctx.fillStyle = `rgba(120, 210, 255, ${muzzlePulse})`;
+          this.ctx.beginPath();
+          this.ctx.ellipse(muzzleX, barrelY, 3, 8, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+          this.ctx.strokeStyle = 'rgba(150, 190, 220, 0.25)';
+          this.ctx.lineWidth = 2;
+          this.ctx.beginPath();
+          this.ctx.moveTo(obsX - 4, barrelY - 11);
+          this.ctx.lineTo(obsX - 4, barrelY + 11);
+          this.ctx.stroke();
+          if (Math.sin(time * 1.7) > 0.92) {
+            this.ctx.fillStyle = 'rgba(180, 220, 255, 0.06)';
+            this.ctx.beginPath();
+            this.ctx.ellipse(muzzleX - 8 - Math.sin(time * 2) * 5, barrelY + Math.cos(time * 1.3) * 3, 10, 6, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+          const iceFallPhase = time * 2;
+          for (let pi = 0; pi < 3; pi++) {
+            const px = obsX - 10 + pi * 12 + Math.sin(iceFallPhase + pi * 2) * 4;
+            const py = barrelY - 14 - (pi * 3 + (time * 1.5 + pi * 7) % 16);
+            const pSize = 1.5 + Math.sin(iceFallPhase + pi * 3) * 0.5;
+            this.ctx.fillStyle = 'rgba(200, 235, 255, 0.35)';
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, pSize, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+          this.ctx.restore();
+          if (obs._projectiles) {
+            for (const proj of obs._projectiles) {
+              if (proj._removed) continue;
+              const projX = proj.x - camX;
+              this.ctx.save();
+              this.ctx.shadowColor = 'rgba(100, 200, 255, 0.6)';
+              this.ctx.shadowBlur = 20;
+              const shellGrad = this.ctx.createRadialGradient(projX - 3, proj.y - 3, 1, projX, proj.y, proj.radius);
+              shellGrad.addColorStop(0, '#ffffff');
+              shellGrad.addColorStop(0.3, '#d0ecff');
+              shellGrad.addColorStop(0.6, '#80c0e8');
+              shellGrad.addColorStop(1, '#4090b0');
+              this.ctx.fillStyle = shellGrad;
+              this.ctx.beginPath();
+              this.ctx.arc(projX, proj.y, proj.radius, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+              this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+              this.ctx.beginPath();
+              this.ctx.arc(projX - 1, proj.y - 1, proj.radius * 0.5, 0, Math.PI * 2);
+              this.ctx.fill();
+              // Outer glow ring
+              this.ctx.strokeStyle = 'rgba(180, 230, 255, 0.4)';
+              this.ctx.lineWidth = 2;
+              this.ctx.beginPath();
+              this.ctx.arc(projX, proj.y, proj.radius + 3, 0, Math.PI * 2);
+              this.ctx.stroke();
+              this.ctx.fillStyle = 'rgba(200, 240, 255, 0.4)';
+              for (let ti = 0; ti < 6; ti++) {
+                const tx = projX + ti * 7 + (proj._trailPhase || 0);
+                const ty = proj.y - 4 + ti * 2 + Math.sin(time * 5 + ti) * 2;
+                this.ctx.beginPath();
+                this.ctx.arc(tx, ty, 3 + Math.sin(time * 3 + ti) * 0.5, 0, Math.PI * 2);
+                this.ctx.fill();
+              }
+              this.ctx.fillStyle = 'rgba(180, 220, 250, 0.15)';
+              for (let vi = 0; vi < 8; vi++) {
+                const vx = projX + vi * 6 + 2;
+                const vy = proj.y - 6 + vi * 2.5 + Math.sin(time * 2.5 + vi) * 4;
+                this.ctx.beginPath();
+                this.ctx.ellipse(vx, vy, 6 + vi * 0.5, 4, 0, 0, Math.PI * 2);
+                this.ctx.fill();
+              }
+              this.ctx.restore();
+            }
+          }
         }
       });
   
@@ -5535,6 +5889,17 @@ if (this.activeEvent.key === 'speed_surge') {
           for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
           this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
           this.ctx.fill();
+
+          // Darker surface overlay for snow theme to separate track from background
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.fillStyle = 'rgba(25, 40, 60, 0.10)';
+            this.ctx.beginPath();
+            this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
+            for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
+            this.ctx.fill();
+          }
 
           // Edge lighting — subtle gradient near track boundaries
           const topEdgeY = visibleTop[0].y;
@@ -5650,11 +6015,16 @@ if (this.activeEvent.key === 'speed_surge') {
           }
 
           // Thin top boundary line
-          this.ctx.strokeStyle = wallRgba;
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.strokeStyle = '#1a2a3a';
+            this.ctx.globalAlpha = 0.55;
+          } else {
+            this.ctx.strokeStyle = wallRgba;
+            this.ctx.globalAlpha = wallAlpha;
+          }
           this.ctx.lineWidth = 3;
           this.ctx.lineCap = 'round';
           this.ctx.lineJoin = 'round';
-          this.ctx.globalAlpha = wallAlpha;
           this.ctx.beginPath();
           for (let i = 0; i < visibleTop.length; i++) {
             if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
@@ -5662,6 +6032,13 @@ if (this.activeEvent.key === 'speed_surge') {
           }
           this.ctx.stroke();
           // Thin bottom boundary line
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.strokeStyle = '#1a2a3a';
+            this.ctx.globalAlpha = 0.55;
+          } else {
+            this.ctx.strokeStyle = wallRgba;
+            this.ctx.globalAlpha = wallAlpha;
+          }
           this.ctx.beginPath();
           for (let i = 0; i < visibleBot.length; i++) {
             if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
@@ -5908,6 +6285,42 @@ if (this.activeEvent.key === 'speed_surge') {
         this.ctx.fill();
 
         this.ctx.restore();
+
+        // Frost overlay when frozen by Ice Cannon
+        if (ball._frozen) {
+          this.ctx.save();
+          const frostGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius);
+          frostGrad.addColorStop(0, 'rgba(160, 220, 255, 0.35)');
+          frostGrad.addColorStop(0.5, 'rgba(100, 190, 240, 0.45)');
+          frostGrad.addColorStop(1, 'rgba(60, 150, 220, 0.55)');
+          this.ctx.fillStyle = frostGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+          this.ctx.fill();
+          const crystalTime = Date.now() * 0.002;
+          this.ctx.strokeStyle = 'rgba(180, 230, 255, 0.7)';
+          this.ctx.lineWidth = 2;
+          for (let ci = 0; ci < 8; ci++) {
+            const ca = crystalTime + ci * Math.PI / 4;
+            const cx = bX + Math.cos(ca) * renderRadius;
+            const cy = ball.y + Math.sin(ca) * renderRadius;
+            this.ctx.beginPath();
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + Math.cos(ca + 0.5) * 8, cy + Math.sin(ca + 0.5) * 8);
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + Math.cos(ca - 0.5) * 8, cy + Math.sin(ca - 0.5) * 8);
+            this.ctx.stroke();
+          }
+          this.ctx.fillStyle = 'rgba(200, 240, 255, 0.55)';
+          for (let pi = 0; pi < 6; pi++) {
+            const px = bX + Math.sin(crystalTime * 2 + pi * 2) * renderRadius * 0.5;
+            const py = ball.y + Math.cos(crystalTime * 3 + pi * 3) * renderRadius * 0.5;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, 2.5 + Math.sin(crystalTime + pi) * 0.5, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+          this.ctx.restore();
+        }
 
         // Winner glow during flash sequence
         if (this._winnerFlashActive && this._winnerFlashBall && ball.id === this._winnerFlashBall.id) {
