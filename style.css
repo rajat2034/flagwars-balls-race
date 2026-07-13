@@ -387,7 +387,7 @@ canvas.force-vertical {
 
 /* Stylized procedural theme thumbnails placeholder textures */
 .desert-thumb { background: linear-gradient(135deg, #e59866, #d35400); }
-.snow-thumb { background: linear-gradient(135deg, #ebf5fb, #a9cce3); }
+.snow-thumb { background: linear-gradient(135deg, #c5dbe8, #7a9fc0); }
 .jungle-thumb { background: linear-gradient(135deg, #196f3d, #145a32); }
 .volcano-thumb { background: linear-gradient(135deg, #2c3e50, #e74c3c); }
 .ocean-thumb { background: linear-gradient(135deg, #1f618d, #1b4f72); }
