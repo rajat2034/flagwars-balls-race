@@ -16,10 +16,10 @@ const MAP_THEMES = {
   },
   snow: {
     name: "Glacier Summit",
-    bgGrad: ["#c5dbe8", "#7a9fc0"],
-    wallColor: "#3c7db5",
-    pegColor: "#b8dce8",
-    pegBouncyColor: "#6db5d4",
+    bgGrad: ["#8faec8", "#54799a"],
+    wallColor: "#2d6a9e",
+    pegColor: "#9ac0d4",
+    pegBouncyColor: "#4f9bbe",
     particleColor: "#ffffff",
     particleType: "snow",
     forwardForce: 0.022,
@@ -4172,8 +4172,8 @@ if (this.activeEvent.key === 'speed_surge') {
           alpha: 0.4 + Math.random() * 0.4,
           size: flakeSize
         });
-        // Occasional ice crystal sparkles (10% chance)
-        if (Math.random() < 0.10) {
+        // Occasional ice crystal sparkles (15% chance)
+        if (Math.random() < 0.15) {
           this.particles.push({
             type: 'sparkle',
             x: spawnX,
@@ -4274,6 +4274,39 @@ if (this.activeEvent.key === 'speed_surge') {
         alpha: 0.08 + Math.random() * 0.10,
         size: Math.random() * 6 + 3,
         life: 100 + Math.floor(Math.random() * 80)
+      });
+    }
+
+    // Occasional wind gust (horizontal snow streaks) for snow theme
+    if (this.currentTheme && this.currentTheme.particleType === 'snow' && Math.random() < 0.03 * dt) {
+      const gustCount = 1 + Math.floor(Math.random() * 3);
+      for (let g = 0; g < gustCount; g++) {
+        this.particles.push({
+          type: 'dust',
+          x: Math.random() * this.canvas.width * 0.3,
+          y: Math.random() * this.canvas.height * 0.6,
+          vx: 3 + Math.random() * 4,
+          vy: 0.2 + Math.random() * 0.3,
+          color: 'rgba(220, 235, 250, 0.15)',
+          alpha: 0.12 + Math.random() * 0.10,
+          size: Math.random() * 2 + 0.5,
+          life: 20 + Math.floor(Math.random() * 15)
+        });
+      }
+    }
+
+    // Extra sparkle crystals for snow theme
+    if (this.currentTheme && this.currentTheme.particleType === 'snow' && Math.random() < 0.02 * dt) {
+      this.particles.push({
+        type: 'sparkle',
+        x: Math.random() * this.canvas.width,
+        y: Math.random() * this.canvas.height * 0.4,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: 0.2 + Math.random() * 0.2,
+        color: '#b0d8f0',
+        alpha: 0.3 + Math.random() * 0.3,
+        size: Math.random() * 1.5 + 0.3,
+        life: 50 + Math.floor(Math.random() * 40)
       });
     }
   }
@@ -5492,7 +5525,8 @@ if (this.activeEvent.key === 'speed_surge') {
         if (visibleTop.length > 1) {
           // Surface fill (semi-transparent version of wall color)
           const hexToRgba = (hex, a) => { const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; };
-          this.ctx.fillStyle = hexToRgba(wallRgba, 0.06);
+          const surfAlpha = this.currentThemeKey === 'snow' ? 0.12 : 0.06;
+          this.ctx.fillStyle = hexToRgba(wallRgba, surfAlpha);
           this.ctx.beginPath();
           this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
           for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
@@ -5676,7 +5710,7 @@ if (this.activeEvent.key === 'speed_surge') {
           // Icy glow on track boundaries for Glacier Summit
           if (this.currentThemeKey === 'snow') {
             this.ctx.save();
-            const icePulse = 0.10 + Math.sin(Date.now() * 0.0025) * 0.05;
+            const icePulse = 0.07 + Math.sin(Date.now() * 0.0025) * 0.04;
             this.ctx.strokeStyle = `rgba(180, 220, 250, ${icePulse})`;
             this.ctx.shadowColor = '#8fcaf5';
             this.ctx.shadowBlur = 6;
@@ -6130,196 +6164,346 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         ctx.restore();
       } else if (theme === 'snow') {
-        // ---- Far mountain range (distant, low opacity) ----
+        // ========== FAR LAYER: Distant mountain silhouettes ==========
         ctx.save();
-        ctx.fillStyle = 'rgba(130, 160, 190, 0.07)';
+        ctx.fillStyle = 'rgba(90, 120, 155, 0.07)';
         ctx.beginPath();
         ctx.moveTo(0, screenH);
         for (let x = 0; x <= screenW; x += 4) {
-          const m1 = Math.sin(x * 0.0025 + time * 0.003) * 50;
-          const m2 = Math.sin(x * 0.006 + time * 0.005) * 30;
-          const m3 = Math.sin(x * 0.012 + time * 0.008) * 15;
-          ctx.lineTo(x, screenH * 0.35 + m1 * 0.4 + m2 * 0.3 + m3 * 0.3);
+          const m1 = Math.sin(x * 0.0015 + time * 0.002) * 55;
+          const m2 = Math.sin(x * 0.004 + time * 0.004) * 35;
+          const m3 = Math.sin(x * 0.008 + time * 0.006) * 18;
+          ctx.lineTo(x, screenH * 0.30 + m1 * 0.35 + m2 * 0.25 + m3 * 0.2);
         }
         ctx.lineTo(screenW, screenH);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
 
-        // ---- Mid mountain range (more defined, icy blue) ----
+        // ========== MID-FAR LAYER: Glacier mountain range with snow caps ==========
         ctx.save();
-        ctx.fillStyle = 'rgba(100, 140, 180, 0.10)';
+        ctx.fillStyle = 'rgba(70, 105, 145, 0.10)';
         ctx.beginPath();
         ctx.moveTo(0, screenH);
         for (let x = 0; x <= screenW; x += 3) {
-          const m1 = Math.sin(x * 0.004 + time * 0.004 + 1) * 60;
-          const m2 = Math.sin(x * 0.009 + time * 0.006 + 2) * 35;
-          const m3 = Math.sin(x * 0.018 + time * 0.003 + 3) * 18;
-          ctx.lineTo(x, screenH * 0.38 + m1 * 0.35 + m2 * 0.25 + m3 * 0.3);
+          const m1 = Math.sin(x * 0.003 + time * 0.003 + 1) * 65;
+          const m2 = Math.sin(x * 0.007 + time * 0.005 + 2) * 40;
+          const m3 = Math.sin(x * 0.015 + time * 0.003 + 3) * 22;
+          ctx.lineTo(x, screenH * 0.34 + m1 * 0.3 + m2 * 0.22 + m3 * 0.18);
         }
         ctx.lineTo(screenW, screenH);
         ctx.closePath();
         ctx.fill();
-
-        // Snow caps on mid mountains
-        ctx.fillStyle = 'rgba(200, 220, 240, 0.13)';
+        // Snow caps
+        ctx.fillStyle = 'rgba(140, 175, 205, 0.11)';
         ctx.beginPath();
         ctx.moveTo(0, screenH);
         for (let x = 0; x <= screenW; x += 3) {
-          const m1 = Math.sin(x * 0.004 + time * 0.004 + 1) * 60;
-          const m2 = Math.sin(x * 0.009 + time * 0.006 + 2) * 35;
-          const m3 = Math.sin(x * 0.018 + time * 0.003 + 3) * 18;
-          const peakY = screenH * 0.38 + m1 * 0.35 + m2 * 0.25 + m3 * 0.3;
-          const snowLine = peakY - 22 - Math.sin(x * 0.007 + time * 0.002) * 8;
-          ctx.lineTo(x, Math.min(peakY + 4, snowLine));
+          const m1 = Math.sin(x * 0.003 + time * 0.003 + 1) * 65;
+          const m2 = Math.sin(x * 0.007 + time * 0.005 + 2) * 40;
+          const m3 = Math.sin(x * 0.015 + time * 0.003 + 3) * 22;
+          const peakY = screenH * 0.34 + m1 * 0.3 + m2 * 0.22 + m3 * 0.18;
+          const capY = peakY - 20 - Math.sin(x * 0.006 + time * 0.001) * 7;
+          ctx.lineTo(x, Math.min(peakY + 3, capY));
         }
         ctx.lineTo(screenW, screenH);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
 
-        // ---- Aurora borealis (gentle northern lights near horizon) ----
+        // ========== MID LAYER: Aurora borealis (dimmed) ==========
         ctx.save();
-        const auroraAlpha = 0.06 + Math.sin(time * 0.08) * 0.04;
-        ctx.globalAlpha = auroraAlpha;
-        const auroraY = screenH * 0.25;
-        const auroraGrad = ctx.createRadialGradient(screenW * 0.35, auroraY, 10, screenW * 0.35, auroraY, screenW * 0.45);
-        auroraGrad.addColorStop(0, '#80ffb0');
-        auroraGrad.addColorStop(0.3, '#5090ff');
-        auroraGrad.addColorStop(0.6, '#3070d0');
-        auroraGrad.addColorStop(1, 'transparent');
-        ctx.fillStyle = auroraGrad;
-        ctx.fillRect(0, screenH * 0.12, screenW, screenH * 0.25);
+        const aurAlpha = 0.04 + Math.sin(time * 0.07) * 0.03;
+        ctx.globalAlpha = aurAlpha;
+        const aurY = screenH * 0.22;
+        const aurGrad = ctx.createRadialGradient(screenW * 0.3, aurY, 5, screenW * 0.3, aurY, screenW * 0.4);
+        aurGrad.addColorStop(0, '#70e0a0');
+        aurGrad.addColorStop(0.3, '#4080d0');
+        aurGrad.addColorStop(0.6, '#3060b0');
+        aurGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = aurGrad;
+        ctx.fillRect(0, screenH * 0.08, screenW, screenH * 0.25);
+        ctx.restore();
+        ctx.save();
+        ctx.globalAlpha = 0.025 + Math.sin(time * 0.09 + 1.5) * 0.02;
+        const aurGrad2 = ctx.createRadialGradient(screenW * 0.7, aurY + 10, 5, screenW * 0.7, aurY + 10, screenW * 0.3);
+        aurGrad2.addColorStop(0, '#90e8b0');
+        aurGrad2.addColorStop(0.4, '#5080d0');
+        aurGrad2.addColorStop(1, 'transparent');
+        ctx.fillStyle = aurGrad2;
+        ctx.fillRect(0, screenH * 0.08, screenW, screenH * 0.25);
         ctx.restore();
 
-        // Second aurora band
+        // ========== MID-FRONT LAYER: Dense pine forest (back row) ==========
         ctx.save();
-        ctx.globalAlpha = 0.04 + Math.sin(time * 0.1 + 1.5) * 0.03;
-        const auroraGrad2 = ctx.createRadialGradient(screenW * 0.7, auroraY + 15, 10, screenW * 0.7, auroraY + 15, screenW * 0.35);
-        auroraGrad2.addColorStop(0, '#a0ffc0');
-        auroraGrad2.addColorStop(0.4, '#6090ff');
-        auroraGrad2.addColorStop(1, 'transparent');
-        ctx.fillStyle = auroraGrad2;
-        ctx.fillRect(0, screenH * 0.12, screenW, screenH * 0.25);
-        ctx.restore();
-
-        // ---- Pine forest silhouette (near track level) ----
-        ctx.save();
-        ctx.fillStyle = 'rgba(70, 95, 120, 0.10)';
-        const treeCount = 22;
-        for (let i = 0; i < treeCount; i++) {
-          const tx = (i / treeCount) * screenW + Math.sin(i * 3.7 + time * 0.008) * 25;
-          const treeH = 45 + Math.sin(i * 2.3) * 15;
-          const treeBase = screenH * 0.68 + Math.sin(i * 1.7 + time * 0.004) * 5;
+        ctx.fillStyle = 'rgba(45, 68, 92, 0.10)';
+        for (let i = 0; i < 28; i++) {
+          const tx = (i / 28) * screenW + Math.sin(i * 3.7 + time * 0.006) * 30;
+          const th = 48 + Math.sin(i * 2.3) * 14;
+          const tb = screenH * 0.58 + Math.sin(i * 1.7 + time * 0.003) * 4;
           ctx.beginPath();
-          ctx.moveTo(tx, treeBase - treeH);
-          ctx.lineTo(tx - 14, treeBase);
-          ctx.lineTo(tx + 14, treeBase);
+          ctx.moveTo(tx, tb - th);
+          ctx.lineTo(tx - 11, tb);
+          ctx.lineTo(tx + 11, tb);
           ctx.closePath();
           ctx.fill();
         }
-        // Snow on tree tops
-        ctx.fillStyle = 'rgba(200, 215, 230, 0.06)';
-        for (let i = 0; i < treeCount; i++) {
-          const tx = (i / treeCount) * screenW + Math.sin(i * 3.7 + time * 0.008) * 25;
-          const treeH = 45 + Math.sin(i * 2.3) * 15;
-          const treeBase = screenH * 0.68 + Math.sin(i * 1.7 + time * 0.004) * 5;
-          if (treeH > 40) {
-            ctx.beginPath();
-            ctx.moveTo(tx, treeBase - treeH + 6);
-            ctx.lineTo(tx - 7, treeBase - treeH * 0.55);
-            ctx.lineTo(tx + 7, treeBase - treeH * 0.55);
-            ctx.closePath();
-            ctx.fill();
-          }
+        // Snow on back trees
+        ctx.fillStyle = 'rgba(140, 170, 200, 0.06)';
+        for (let i = 0; i < 28; i++) {
+          const tx = (i / 28) * screenW + Math.sin(i * 3.7 + time * 0.006) * 30;
+          const th = 48 + Math.sin(i * 2.3) * 14;
+          const tb = screenH * 0.58 + Math.sin(i * 1.7 + time * 0.003) * 4;
+          ctx.beginPath();
+          ctx.moveTo(tx, tb - th + 6);
+          ctx.lineTo(tx - 6, tb - th * 0.5);
+          ctx.lineTo(tx + 6, tb - th * 0.5);
+          ctx.closePath();
+          ctx.fill();
         }
         ctx.restore();
 
-        // ---- Ground fog and mist (soft gradient near bottom) ----
+        // ========== MID-FRONT LAYER: Pine forest (front row, offset for depth) ==========
+        ctx.save();
+        ctx.fillStyle = 'rgba(38, 55, 78, 0.12)';
+        for (let i = 0; i < 18; i++) {
+          const tx = ((i + 0.5) / 18) * screenW + Math.sin(i * 2.5 + time * 0.004) * 20;
+          const th = 60 + Math.sin(i * 3.1) * 16;
+          const tb = screenH * 0.66 + Math.sin(i * 1.3 + time * 0.002) * 3;
+          ctx.beginPath();
+          ctx.moveTo(tx, tb - th);
+          ctx.lineTo(tx - 15, tb);
+          ctx.lineTo(tx + 15, tb);
+          ctx.closePath();
+          ctx.fill();
+        }
+        // Snow on front trees
+        ctx.fillStyle = 'rgba(140, 170, 200, 0.07)';
+        for (let i = 0; i < 18; i++) {
+          const tx = ((i + 0.5) / 18) * screenW + Math.sin(i * 2.5 + time * 0.004) * 20;
+          const th = 60 + Math.sin(i * 3.1) * 16;
+          const tb = screenH * 0.66 + Math.sin(i * 1.3 + time * 0.002) * 3;
+          ctx.beginPath();
+          ctx.moveTo(tx, tb - th + 7);
+          ctx.lineTo(tx - 8, tb - th * 0.55);
+          ctx.lineTo(tx + 8, tb - th * 0.55);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== MID-FRONT LAYER: Frozen lake ==========
+        ctx.save();
+        const lakeCx = screenW * 0.72 + Math.sin(time * 0.003) * 8;
+        const lakeCy = screenH * 0.64;
+        ctx.fillStyle = 'rgba(130, 168, 200, 0.05)';
+        ctx.beginPath();
+        ctx.ellipse(lakeCx, lakeCy, 70, 22, 0.15, 0, Math.PI * 2);
+        ctx.fill();
+        // Ice reflection lines
+        ctx.strokeStyle = 'rgba(160, 195, 220, 0.035)';
+        ctx.lineWidth = 1;
+        for (let r = 0; r < 4; r++) {
+          const rx = lakeCx - 50 + r * 28 + Math.sin(time * 0.003 + r) * 5;
+          ctx.beginPath();
+          ctx.moveTo(rx, lakeCy - 12 + r * 4);
+          ctx.lineTo(rx + 18, lakeCy - 4 + r * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // ========== FRONT LAYER: Landmarks ==========
+        ctx.save();
+
+        // Watchtower
+        const wtX = screenW * 0.12 + Math.sin(time * 0.004) * 5;
+        const wtBase = screenH * 0.63;
+        ctx.strokeStyle = 'rgba(75, 60, 45, 0.12)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(wtX - 5, wtBase);
+        ctx.lineTo(wtX - 5, wtBase - 38);
+        ctx.moveTo(wtX + 5, wtBase);
+        ctx.lineTo(wtX + 5, wtBase - 38);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(wtX - 5, wtBase - 14);
+        ctx.lineTo(wtX + 5, wtBase - 14);
+        ctx.moveTo(wtX - 5, wtBase - 28);
+        ctx.lineTo(wtX + 5, wtBase - 28);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(75, 60, 45, 0.12)';
+        ctx.fillRect(wtX - 7, wtBase - 40, 14, 4);
+        ctx.fillStyle = 'rgba(160, 188, 215, 0.09)';
+        ctx.fillRect(wtX - 8, wtBase - 41, 16, 3);
+
+        // Cabin (left foreground)
+        const cab1X = 35 + Math.sin(time * 0.004) * 4;
+        const cab1Y = screenH * 0.76;
+        ctx.fillStyle = 'rgba(68, 52, 42, 0.14)';
+        ctx.fillRect(cab1X, cab1Y, 28, 20);
+        ctx.fillStyle = 'rgba(85, 65, 52, 0.17)';
+        ctx.beginPath();
+        ctx.moveTo(cab1X - 5, cab1Y);
+        ctx.lineTo(cab1X + 14, cab1Y - 16);
+        ctx.lineTo(cab1X + 33, cab1Y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(155, 182, 210, 0.10)';
+        ctx.beginPath();
+        ctx.moveTo(cab1X - 4, cab1Y - 1);
+        ctx.lineTo(cab1X + 14, cab1Y - 15);
+        ctx.lineTo(cab1X + 32, cab1Y - 1);
+        ctx.lineTo(cab1X + 29, cab1Y - 2);
+        ctx.lineTo(cab1X + 14, cab1Y - 13);
+        ctx.lineTo(cab1X - 1, cab1Y - 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(180, 160, 90, 0.09)';
+        ctx.fillRect(cab1X + 5, cab1Y + 4, 6, 6);
+        ctx.fillRect(cab1X + 17, cab1Y + 4, 6, 6);
+
+        // Snowman (decorative, always visible)
+        const smX = screenW * 0.38;
+        const smY = screenH * 0.75;
+        ctx.fillStyle = 'rgba(165, 190, 215, 0.08)';
+        ctx.beginPath();
+        ctx.arc(smX, smY + 14, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(175, 200, 225, 0.09)';
+        ctx.beginPath();
+        ctx.arc(smX, smY, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(185, 208, 230, 0.10)';
+        ctx.beginPath();
+        ctx.arc(smX, smY - 9, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(55, 45, 38, 0.10)';
+        ctx.fillRect(smX - 5, smY - 17, 10, 4);
+        ctx.fillRect(smX - 3, smY - 22, 6, 6);
+        ctx.fillStyle = 'rgba(55, 45, 38, 0.10)';
+        ctx.beginPath();
+        ctx.arc(smX - 2, smY - 10, 1.2, 0, Math.PI * 2);
+        ctx.arc(smX + 2, smY - 10, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Second cabin (right side)
+        const cab2X = screenW - 140 + Math.sin(time * 0.005 + 2) * 6;
+        const cab2Y = screenH * 0.72;
+        ctx.fillStyle = 'rgba(62, 48, 38, 0.12)';
+        ctx.fillRect(cab2X, cab2Y, 22, 16);
+        ctx.fillStyle = 'rgba(78, 62, 48, 0.15)';
+        ctx.beginPath();
+        ctx.moveTo(cab2X - 4, cab2Y);
+        ctx.lineTo(cab2X + 11, cab2Y - 13);
+        ctx.lineTo(cab2X + 26, cab2Y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(155, 182, 210, 0.09)';
+        ctx.beginPath();
+        ctx.moveTo(cab2X - 3, cab2Y - 1);
+        ctx.lineTo(cab2X + 11, cab2Y - 12);
+        ctx.lineTo(cab2X + 25, cab2Y - 1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(180, 160, 90, 0.08)';
+        ctx.fillRect(cab2X + 4, cab2Y + 3, 5, 5);
+        ctx.fillRect(cab2X + 13, cab2Y + 3, 5, 5);
+
+        // Camp site (tents near center)
+        const campX = screenW * 0.55 + Math.sin(time * 0.003) * 8;
+        const campY = screenH * 0.72;
+        ctx.fillStyle = 'rgba(72, 82, 92, 0.08)';
+        ctx.beginPath();
+        ctx.moveTo(campX - 10, campY + 8);
+        ctx.lineTo(campX, campY - 12);
+        ctx.lineTo(campX + 10, campY + 8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(155, 182, 210, 0.06)';
+        ctx.beginPath();
+        ctx.moveTo(campX - 8, campY + 4);
+        ctx.lineTo(campX, campY - 8);
+        ctx.lineTo(campX + 8, campY + 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(65, 75, 85, 0.07)';
+        ctx.beginPath();
+        ctx.moveTo(campX + 8, campY + 10);
+        ctx.lineTo(campX + 16, campY - 6);
+        ctx.lineTo(campX + 24, campY + 10);
+        ctx.closePath();
+        ctx.fill();
+
+        // Snow-covered fence posts scattered along the ground
+        ctx.fillStyle = 'rgba(72, 62, 48, 0.10)';
+        for (let f = 0; f < 14; f++) {
+          const fx = (f / 14) * screenW + Math.sin(f * 2.3 + time * 0.002) * 18;
+          const fy = screenH * 0.80 + Math.sin(f * 1.7) * 3;
+          ctx.fillRect(fx - 1, fy - 6, 3, 12);
+          ctx.fillStyle = 'rgba(155, 182, 210, 0.08)';
+          ctx.fillRect(fx - 2, fy - 7, 5, 3);
+          ctx.fillStyle = 'rgba(72, 62, 48, 0.10)';
+        }
+
+        // Broken bridge remnants
+        const bbX = screenW * 0.85 + Math.sin(time * 0.004) * 5;
+        const bbY = screenH * 0.70;
+        ctx.strokeStyle = 'rgba(68, 55, 42, 0.10)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(bbX - 15, bbY + 5);
+        ctx.lineTo(bbX - 2, bbY - 4);
+        ctx.lineTo(bbX + 10, bbY + 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(155, 182, 210, 0.06)';
+        ctx.fillRect(bbX - 16, bbY + 4, 32, 3);
+
+        ctx.restore();
+
+        // ========== FRONT LAYER: Snowdrifts and ice crystals ==========
+        ctx.save();
+        for (let s = 0; s < 12; s++) {
+          const sx = (s / 12) * screenW + Math.sin(s * 3.7 + time * 0.003) * 25;
+          const sy = screenH * 0.82 + Math.sin(s * 2.1) * 3;
+          const sw = 35 + Math.sin(s * 1.3) * 18;
+          const sh = 7 + Math.sin(s * 2.7) * 3;
+          ctx.fillStyle = 'rgba(135, 165, 190, 0.05)';
+          ctx.beginPath();
+          ctx.ellipse(sx, sy, sw, sh, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Tiny ice crystal sparkles along foreground
+        ctx.fillStyle = 'rgba(170, 200, 225, 0.06)';
+        for (let c = 0; c < 14; c++) {
+          const cx = (c / 14) * screenW + Math.sin(c * 5.1 + time * 0.005) * 15;
+          const cy = screenH * 0.84 + Math.sin(c * 3.3) * 4;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 1 + Math.sin(c * 2.1) * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== GROUND FOG (dimmer) ==========
         ctx.save();
         const fogGrad = ctx.createLinearGradient(0, screenH * 0.55, 0, screenH);
-        fogGrad.addColorStop(0, 'rgba(220, 235, 250, 0)');
-        fogGrad.addColorStop(0.4, 'rgba(220, 235, 250, 0.03)');
-        fogGrad.addColorStop(0.75, 'rgba(220, 235, 250, 0.06)');
-        fogGrad.addColorStop(1, 'rgba(220, 235, 250, 0.12)');
+        fogGrad.addColorStop(0, 'rgba(140, 170, 200, 0)');
+        fogGrad.addColorStop(0.4, 'rgba(140, 170, 200, 0.02)');
+        fogGrad.addColorStop(0.75, 'rgba(140, 170, 200, 0.04)');
+        fogGrad.addColorStop(1, 'rgba(140, 170, 200, 0.08)');
         ctx.fillStyle = fogGrad;
         ctx.fillRect(0, screenH * 0.55, screenW, screenH * 0.45);
         ctx.restore();
 
-        // ---- Ambient life decorations (cabins, signposts, frozen bridge) ----
+        // ========== DRIFTING CLOUDS ==========
         ctx.save();
-        // Cabin on left side
-        const cabinX = 60 + Math.sin(time * 0.005) * 5;
-        const cabinY = screenH * 0.76;
-        ctx.fillStyle = 'rgba(80, 60, 50, 0.12)';
-        ctx.fillRect(cabinX, cabinY, 24, 18);
-        // Roof
-        ctx.fillStyle = 'rgba(100, 80, 70, 0.15)';
-        ctx.beginPath();
-        ctx.moveTo(cabinX - 4, cabinY);
-        ctx.lineTo(cabinX + 12, cabinY - 14);
-        ctx.lineTo(cabinX + 28, cabinY);
-        ctx.closePath();
-        ctx.fill();
-        // Snow on roof
-        ctx.fillStyle = 'rgba(200, 215, 230, 0.10)';
-        ctx.beginPath();
-        ctx.moveTo(cabinX - 3, cabinY - 1);
-        ctx.lineTo(cabinX + 12, cabinY - 13);
-        ctx.lineTo(cabinX + 27, cabinY - 1);
-        ctx.lineTo(cabinX + 24, cabinY - 2);
-        ctx.lineTo(cabinX + 12, cabinY - 11);
-        ctx.lineTo(cabinX, cabinY - 2);
-        ctx.closePath();
-        ctx.fill();
-        // Window glow
-        ctx.fillStyle = 'rgba(200, 180, 100, 0.10)';
-        ctx.fillRect(cabinX + 5, cabinY + 4, 5, 5);
-        ctx.fillRect(cabinX + 14, cabinY + 4, 5, 5);
-
-        // Signpost on right side
-        const signX = screenW - 100 + Math.sin(time * 0.006 + 1) * 4;
-        const signY = screenH * 0.73;
-        ctx.strokeStyle = 'rgba(100, 80, 60, 0.10)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(signX, signY);
-        ctx.lineTo(signX, signY + 30);
-        ctx.stroke();
-        // Sign board
-        ctx.fillStyle = 'rgba(100, 90, 80, 0.12)';
-        ctx.fillRect(signX - 12, signY - 8, 24, 12);
-        // Snow on sign
-        ctx.fillStyle = 'rgba(220, 230, 240, 0.10)';
-        ctx.fillRect(signX - 13, signY - 9, 26, 4);
-
-        // Frozen bridge silhouette (far background)
-        const bridgeX = screenW * 0.45 + Math.sin(time * 0.004 + 2) * 10;
-        const bridgeY = screenH * 0.69;
-        ctx.strokeStyle = 'rgba(80, 100, 120, 0.08)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(bridgeX - 30, bridgeY + 10);
-        ctx.quadraticCurveTo(bridgeX, bridgeY - 5, bridgeX + 30, bridgeY + 10);
-        ctx.stroke();
-        // Bridge supports
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(bridgeX - 25, bridgeY + 8);
-        ctx.lineTo(bridgeX - 25, bridgeY + 20);
-        ctx.moveTo(bridgeX + 25, bridgeY + 8);
-        ctx.lineTo(bridgeX + 25, bridgeY + 20);
-        ctx.stroke();
-        ctx.restore();
-
-        // ---- Drifting cloud wisps ----
-        ctx.save();
-        ctx.fillStyle = 'rgba(230, 240, 250, 0.04)';
+        ctx.fillStyle = 'rgba(190, 215, 235, 0.025)';
         for (let i = 0; i < 4; i++) {
-          const cx = ((time * 6 + i * 280 + i * 50) % (screenW + 300)) - 150;
-          const cy = screenH * (0.2 + i * 0.08) + Math.sin(time * 0.04 + i * 2.5) * 25;
+          const cx = ((time * 5 + i * 260) % (screenW + 350)) - 175;
+          const cy = screenH * (0.12 + i * 0.08) + Math.sin(time * 0.035 + i * 2.3) * 18;
           ctx.beginPath();
-          ctx.ellipse(cx, cy, 100 + Math.sin(time * 0.02 + i * 1.3) * 20, 12 + i * 2, 0, 0, Math.PI * 2);
+          ctx.ellipse(cx, cy, 70 + Math.sin(time * 0.015 + i * 1.1) * 12, 9 + i * 1.3, 0, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
