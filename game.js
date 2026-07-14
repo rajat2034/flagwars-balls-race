@@ -97,6 +97,7 @@ const OBSTACLE_REGISTRY = [
   // Glacier
   { type: 'ice', name: 'Ice Patch', category: 'signature', map: 'snow' },
   { type: 'ice_cannon', name: 'Ice Cannon', category: 'signature', map: 'snow' },
+  { type: 'icicle', name: 'Animated Icicle', category: 'signature', map: 'snow' },
   { type: 'icicle_drop', name: 'Icicle Drop', category: 'signature', map: 'snow' },
   // Magma
   { type: 'lava_geyser', name: 'Lava Geyser', category: 'signature', map: 'volcano' },
@@ -3063,6 +3064,51 @@ class GameEngine {
     // Generate decorative celestial objects for space theme
     this._initSpaceObjects(track);
 
+    // Generate Retractable Wall Icicles for Glacier Summit
+    if (enabledSet.has('icicle')) {
+      const _numIcicles = 120 + Math.floor(Math.random() * 41);
+      const _ballR = 15;
+      const _baseLen = _ballR * 3;
+      const _baseW = _ballR * 1.2;
+      const _snapFrames = 6;
+      const _cycleConfigs = [
+        { outDur: 60, inDur: 60 },
+        { outDur: 120, inDur: 120 },
+        { outDur: 180, inDur: 180 }
+      ];
+      for (let _ii = 0; _ii < _numIcicles; _ii++) {
+        const _ix = 200 + Math.random() * (finishX - 400);
+        if (Math.abs(_ix - finishX) < 600) continue;
+        const _ib = this.physics.getWallBoundaries(_ix, track);
+        if (!_ib || _ib.bottomY - _ib.topY < 120) continue;
+        const _onTop = Math.random() < 0.5;
+        const _len = _baseLen * (0.85 + Math.random() * 0.3);
+        const _bw = _baseW * (0.85 + Math.random() * 0.3);
+        const _cfg = _cycleConfigs[Math.floor(Math.random() * 3)];
+        const _totalFrames = _cfg.outDur + _cfg.inDur;
+        const _phase = Math.floor(Math.random() * _totalFrames);
+        let _overlap = false;
+        for (const _o of track.obstacles) {
+          if (_o.type === 'icicle') continue;
+          if (Math.abs(_o.x - _ix) < 100) { _overlap = true; break; }
+        }
+        if (_overlap) continue;
+        const _wallY = _onTop ? _ib.topY : _ib.bottomY;
+        track.obstacles.push({
+          type: 'icicle', x: _ix,
+          y: _wallY,
+          length: _len, baseWidth: _bw,
+          wallSide: _onTop ? 'top' : 'bottom',
+          _outDur: _cfg.outDur, _inDur: _cfg.inDur,
+          _snapFrames: _snapFrames,
+          _totalFrames: _totalFrames,
+          _phaseOffset: _phase,
+          _timer: _phase,
+          _irregularity: (Math.random() - 0.5) * 3
+        });
+      }
+    }
+
     this.track = track;
   }
 
@@ -3246,6 +3292,94 @@ class GameEngine {
             const spl = obs._splashEffects[si];
             spl._timer += dt;
             if (spl._timer > spl._duration) obs._splashEffects.splice(si, 1);
+          }
+        }
+      } else if (obs.type === 'icicle') {
+        if (obs._outDur === undefined) { obs._outDur = 60; obs._inDur = 60; obs._snapFrames = 6; obs._totalFrames = 120; obs._phaseOffset = 0; obs._timer = 0; obs._irregularity = 0; }
+        obs._timer = (obs._timer + dt) % obs._totalFrames;
+        const _t = (obs._timer + obs._phaseOffset) % obs._totalFrames;
+        const _outDur = obs._outDur;
+        const _snap = obs._snapFrames || 6;
+        let _iProgress = 0;
+        if (_t < _snap) {
+          _iProgress = _t / _snap;
+        } else if (_t < _outDur) {
+          _iProgress = 1;
+        } else if (_t < _outDur + _snap) {
+          _iProgress = 1 - (_t - _outDur) / _snap;
+        }
+        // Particle effects on snap-out / snap-in transitions
+        const _prevP = obs._prevProgress !== undefined ? obs._prevProgress : 0;
+        if (this.particles) {
+          if (_prevP < 0.05 && _iProgress > 0.05) {
+            // Snap-out: snow burst
+            for (let _p = 0; _p < 4; _p++) {
+              const _a = Math.random() * Math.PI * 2;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * 6,
+                y: (obs.wallSide === 'top' ? obs.y + obs.length * 0.2 : obs.y - obs.length * 0.2) + (Math.random() - 0.5) * 4,
+                vx: Math.cos(_a) * (0.5 + Math.random()),
+                vy: Math.sin(_a) * (0.5 + Math.random()),
+                alpha: 0.6, size: 1 + Math.random() * 2,
+                life: 8 + Math.floor(Math.random() * 8),
+                color: '#ffffff'
+              });
+            }
+          } else if (_prevP > 0.95 && _iProgress < 0.95) {
+            // Snap-in: ice fragments
+            for (let _p = 0; _p < 3; _p++) {
+              const _a = Math.random() * Math.PI * 2;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * 8,
+                y: (obs.wallSide === 'top' ? obs.y + obs.length * 0.3 : obs.y - obs.length * 0.3) + (Math.random() - 0.5) * 4,
+                vx: Math.cos(_a) * (0.2 + Math.random() * 0.5),
+                vy: 0.3 + Math.random() * 0.8,
+                alpha: 0.5, size: 0.8 + Math.random() * 1.5,
+                life: 12 + Math.floor(Math.random() * 10),
+                color: '#c0e8ff'
+              });
+            }
+          }
+        }
+        obs._prevProgress = _iProgress;
+        // Collision — only when extended
+        if (this.balls && _iProgress > 0.5) {
+          const _iLen = obs.length || 45;
+          const _iDir = obs.wallSide === 'top' ? 1 : -1;
+          const _iBaseY = obs.y;
+          const _iTipX = obs.x;
+          const _iTipY = _iBaseY + _iDir * _iLen * 0.8 * _iProgress;
+          for (const ball of this.balls) {
+            if (ball.finished) continue;
+            const _dx = ball.x - _iTipX;
+            const _dy = ball.y - _iTipY;
+            if (Math.hypot(_dx, _dy) < ball.radius + 8) {
+              const _pushDir = obs.wallSide === 'top' ? 1 : -1;
+              ball.vy += _pushDir * 2;
+              const _spd = Math.hypot(ball.vx, ball.vy);
+              const _newSpd = _spd * (0.85 - Math.random() * 0.05);
+              const _angle = Math.atan2(ball.vy, ball.vx);
+              ball.vx = Math.cos(_angle) * _newSpd;
+              ball.vy = Math.sin(_angle) * _newSpd;
+              if (this.particles) {
+                for (let _p = 0; _p < 5; _p++) {
+                  const _a = Math.random() * Math.PI * 2;
+                  this.particles.push({
+                    type: 'sparkle',
+                    x: ball.x + (Math.random() - 0.5) * 4,
+                    y: ball.y + (Math.random() - 0.5) * 4,
+                    vx: Math.cos(_a) * (0.3 + Math.random()),
+                    vy: Math.sin(_a) * (0.3 + Math.random()),
+                    alpha: 0.7, size: 1.5 + Math.random() * 2,
+                    life: 6 + Math.floor(Math.random() * 6),
+                    color: '#d0ecff'
+                  });
+                }
+              }
+              break;
+            }
           }
         }
       }
@@ -4175,9 +4309,9 @@ if (this.activeEvent.key === 'speed_surge') {
           this._directorInput = '';
           this._directorSuggestions = [];
           this._directorSelectedIndex = 0;
+          }
         }
-      }
-    });
+      });
 
     window.addEventListener('keyup', (e) => {
       if (e.key === 'Shift') this.isShiftDown = false;
@@ -5188,6 +5322,7 @@ if (this.activeEvent.key === 'speed_surge') {
           else if (obs.type === 'rock') { sw = (obs.radius || 30) * 1.5; sh = 10; }
           else if (obs.type === 'trapdoor') { sw = obs.width || 40; sh = 14; }
           else if (obs.type === 'ice_cannon') { sw = 60; sh = 18; }
+          else if (obs.type === 'icicle') { sw = 8; sh = 4; }
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(10, 20, 35, 0.12)';
           this.ctx.beginPath();
@@ -5856,9 +5991,9 @@ if (this.activeEvent.key === 'speed_surge') {
               this.ctx.restore();
             }
           }
+
         }
       });
-  
 
       // Draw Track Surface as filled shape with thin boundaries
       const wallAlpha = 0.35;
@@ -6113,6 +6248,72 @@ if (this.activeEvent.key === 'speed_surge') {
         }
       }
       this.ctx.restore();
+
+      // Draw Retractable Wall Icicles — natural ice formations on track boundaries
+      if (this.track && this.track.obstacles) {
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'icicle') return;
+          const _iCamX = obs.x - camX;
+          const _iCullBuf = 300;
+          if (_iCamX + 200 < -_iCullBuf || _iCamX - 200 > screenW / zoom + _iCullBuf) return;
+          const _iLen = obs.length || 45;
+          const _iBaseW = obs.baseWidth || 10;
+          const _outDur = obs._outDur || 60;
+          const _inDur = obs._inDur || 60;
+          const _snap = obs._snapFrames || 6;
+          const _t = ((obs._timer || 0) + (obs._phaseOffset || 0)) % (_outDur + _inDur);
+          let _iProgress = 0;
+          if (_t < _snap) {
+            _iProgress = _t / _snap;
+          } else if (_t < _outDur) {
+            _iProgress = 1;
+          } else if (_t < _outDur + _snap) {
+            _iProgress = 1 - (_t - _outDur) / _snap;
+          }
+          if (_iProgress < 0.05) return;
+          const _iDir = obs.wallSide === 'top' ? 1 : -1;
+          const _iBaseY = obs.y;
+          const _iTipX = _iCamX;
+          const _iTipY = _iBaseY + _iDir * _iLen * 0.8 * _iProgress;
+          const _iCurW = _iBaseW * (1 - _iProgress * 0.5);
+          const _irreg = obs._irregularity || 0;
+          this.ctx.save();
+          // Bright icy glow when extended
+          if (_iProgress > 0.5) {
+            this.ctx.shadowColor = 'rgba(180, 240, 255, 0.50)';
+            this.ctx.shadowBlur = 16;
+          }
+          // Organic icicle shape with bezier curves
+          const _halfW = _iCurW * 0.5;
+          const _midY = (_iBaseY + _iTipY) * 0.5;
+          const icicleGrad = this.ctx.createLinearGradient(_iTipX, _iBaseY, _iTipX, _iTipY);
+          icicleGrad.addColorStop(0, 'rgba(200, 235, 255, 0.80)');
+          icicleGrad.addColorStop(0.3, 'rgba(180, 225, 250, 0.70)');
+          icicleGrad.addColorStop(0.7, 'rgba(210, 245, 255, 0.65)');
+          icicleGrad.addColorStop(1, 'rgba(255, 255, 255, 0.95)');
+          this.ctx.fillStyle = icicleGrad;
+          this.ctx.beginPath();
+          this.ctx.moveTo(_iTipX - _halfW, _iBaseY);
+          this.ctx.quadraticCurveTo(_iTipX - _halfW * 1.15 + _irreg, _midY, _iTipX, _iTipY);
+          this.ctx.quadraticCurveTo(_iTipX + _halfW * 1.15 + _irreg, _midY, _iTipX + _halfW, _iBaseY);
+          this.ctx.closePath();
+          this.ctx.fill();
+          // White edge outline
+          this.ctx.shadowBlur = 0;
+          this.ctx.strokeStyle = 'rgba(220, 240, 255, 0.50)';
+          this.ctx.lineWidth = 1.5;
+          this.ctx.stroke();
+          // Bright white reflection highlight on one side
+          this.ctx.fillStyle = 'rgba(255, 255, 255, 0.40)';
+          this.ctx.beginPath();
+          this.ctx.moveTo(_iTipX - _halfW * 0.3 + _irreg * 0.5, _iBaseY - 2);
+          this.ctx.quadraticCurveTo(_iTipX - _halfW * 0.2 + _irreg * 0.5, _midY, _iTipX - 1, _iTipY + 3);
+          this.ctx.quadraticCurveTo(_iTipX + _halfW * 0.2 + _irreg * 0.5, _midY, _iTipX + _halfW * 0.3 + _irreg * 0.5, _iBaseY - 2);
+          this.ctx.closePath();
+          this.ctx.fill();
+          this.ctx.restore();
+        });
+      }
 
       // Draw Flag Balls (racing + collector for finished)
       const finishLineX = this.track ? (this.track.finishLineX || this.track.length - 400) : 0;
