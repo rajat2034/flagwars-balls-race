@@ -1925,7 +1925,15 @@ class GameEngine {
     this._auroraBackgroundFog = [];
     this._auroraSceneBrightness = 1.0;
 
-    // Director Mode (hidden developer overlay)
+    // Volcano eruption state (Magma Crater)
+    this._volcanoEruptionActive = false;
+    this._volcanoEruptionTimer = 0;
+    this._volcanoEruptionX = 0;
+    this._volcanoEruptionParticles = [];
+    this._volcanoNextEruptionTime = 1200 + Math.random() * 1200; // 20-40 seconds in frames
+    this._volcanoAshParticles = [];
+    this._volcanoEmberParticles = [];
+    this._volcanoSmokeColumns = [];
     this.directorMode = null;
     this._directorInput = '';
     this._directorSuggestions = [];
@@ -4481,6 +4489,134 @@ if (this.activeEvent.key === 'speed_surge') {
         }
       }
 
+      // Volcano eruption system (Magma Crater)
+      if (this.currentThemeKey === 'volcano' && this.state === 'racing') {
+        // Update eruption timer and trigger random eruptions
+        this._volcanoNextEruptionTime -= dt;
+        if (!this._volcanoEruptionActive && this._volcanoNextEruptionTime <= 0) {
+          this._volcanoEruptionActive = true;
+          this._volcanoEruptionTimer = 180; // 3 seconds at 60fps
+          this._volcanoEruptionX = Math.random() * 0.8 + 0.1; // 10-90% across screen
+          // Spawn eruption particles (lava burst, ash cloud, glowing rocks)
+          this._volcanoEruptionParticles = [];
+          const eruptionColors = ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ff5500'];
+          for (let i = 0; i < 25; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1 + Math.random() * 3;
+            this._volcanoEruptionParticles.push({
+              x: this._volcanoEruptionX,
+              y: 0.25,
+              vx: Math.cos(angle) * speed * 0.005,
+              vy: -Math.sin(angle) * speed * 0.003 - 0.002,
+              size: 3 + Math.random() * 5,
+              alpha: 0.8 + Math.random() * 0.2,
+              color: eruptionColors[Math.floor(Math.random() * eruptionColors.length)],
+              life: 1.0,
+              gravity: 0.0001
+            });
+          }
+          // Ash cloud particles
+          for (let i = 0; i < 15; i++) {
+            this._volcanoEruptionParticles.push({
+              x: this._volcanoEruptionX + (Math.random() - 0.5) * 0.15,
+              y: 0.2 + Math.random() * 0.1,
+              vx: (Math.random() - 0.5) * 0.004,
+              vy: -0.0005 - Math.random() * 0.001,
+              size: 8 + Math.random() * 12,
+              alpha: 0.15 + Math.random() * 0.1,
+              color: '#2a2018',
+              life: 1.0,
+              gravity: 0
+            });
+          }
+          this._volcanoNextEruptionTime = 1200 + Math.random() * 1200; // 20-40 seconds
+        }
+
+        // Update active eruption
+        if (this._volcanoEruptionActive) {
+          this._volcanoEruptionTimer -= dt;
+          for (const p of this._volcanoEruptionParticles) {
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.vy += p.gravity * dt;
+            p.life -= dt * 0.004;
+            p.alpha = p.life * 0.8;
+            p.size *= 0.998;
+          }
+          this._volcanoEruptionParticles = this._volcanoEruptionParticles.filter(p => p.life > 0 && p.size > 0.5);
+          if (this._volcanoEruptionTimer <= 0 || this._volcanoEruptionParticles.length === 0) {
+            this._volcanoEruptionActive = false;
+            this._volcanoEruptionParticles = [];
+          }
+        }
+
+        // Update ambient ash particles
+        if (Math.random() < 0.02 * dt) {
+          this._volcanoAshParticles.push({
+            x: Math.random(),
+            y: 0.15 + Math.random() * 0.35,
+            vx: -0.0005 - Math.random() * 0.001,
+            vy: -0.0002 - Math.random() * 0.0005,
+            size: 1 + Math.random() * 2,
+            alpha: 0.05 + Math.random() * 0.1,
+            life: 1.0
+          });
+        }
+        for (const p of this._volcanoAshParticles) {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.life -= dt * 0.0008;
+          p.alpha = p.life * 0.15;
+        }
+        this._volcanoAshParticles = this._volcanoAshParticles.filter(p => p.life > 0 && p.x > -0.1);
+
+        // Update ambient ember particles
+        if (Math.random() < 0.015 * dt) {
+          const emberColors = ['#ff3300', '#ff6600', '#ff9900', '#ffcc00'];
+          this._volcanoEmberParticles.push({
+            x: Math.random(),
+            y: 0.7 + Math.random() * 0.25,
+            vx: (Math.random() - 0.5) * 0.0008,
+            vy: -0.001 - Math.random() * 0.002,
+            size: 1.5 + Math.random() * 2,
+            alpha: 0.4 + Math.random() * 0.4,
+            color: emberColors[Math.floor(Math.random() * emberColors.length)],
+            life: 1.0
+          });
+        }
+        for (const p of this._volcanoEmberParticles) {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.life -= dt * 0.0015;
+          p.alpha = p.life * 0.8;
+        }
+        this._volcanoEmberParticles = this._volcanoEmberParticles.filter(p => p.life > 0 && p.y > 0);
+
+        // Update smoke columns
+        if (this._volcanoSmokeColumns.length < 4 && Math.random() < 0.003 * dt) {
+          this._volcanoSmokeColumns.push({
+            x: Math.random() * 0.8 + 0.1,
+            y: 0.85,
+            baseY: 0.85,
+            height: 0.15 + Math.random() * 0.1,
+            size: 150 + Math.random() * 100, // size in pixels for rendering
+            alpha: 0.03 + Math.random() * 0.04,
+            driftPhase: Math.random() * Math.PI * 2,
+            driftSpeed: 0.0005 + Math.random() * 0.001
+          });
+        }
+        for (const s of this._volcanoSmokeColumns) {
+          s.y -= 0.00015 * dt;
+          s.driftPhase += s.driftSpeed * dt;
+          s.x += Math.sin(s.driftPhase) * 0.00008 * dt;
+          if (s.y < 0.3) {
+            s.y = s.baseY;
+            s.x = Math.random() * 0.8 + 0.1;
+            s.driftPhase = Math.random() * Math.PI * 2;
+          }
+        }
+      }
+
       // Update random event continuous forces
       this.updateRandomEvents(dt);
 
@@ -6605,8 +6741,14 @@ if (this.activeEvent.key === 'speed_surge') {
         if (visibleTop.length > 1) {
           // Surface fill (semi-transparent version of wall color)
           const hexToRgba = (hex, a) => { const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; };
-          const surfAlpha = this.currentThemeKey === 'snow' ? 0.18 : 0.06;
-          this.ctx.fillStyle = hexToRgba(wallRgba, surfAlpha);
+          let surfAlpha = this.currentThemeKey === 'snow' ? 0.18 : 0.06;
+          let surfaceColor = wallRgba;
+          // Volcano: use dark metallic graphite instead of red wall color for track surface
+          if (this.currentThemeKey === 'volcano') {
+            surfaceColor = '#1a1612'; // Dark volcanic rock / graphite
+            surfAlpha = 0.85;
+          }
+          this.ctx.fillStyle = hexToRgba(surfaceColor, surfAlpha);
           this.ctx.beginPath();
           this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
           for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
@@ -6623,6 +6765,19 @@ if (this.activeEvent.key === 'speed_surge') {
             for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
             this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
             this.ctx.fill();
+          }
+          // Volcano: subtle molten glow along track edges
+          if (this.currentThemeKey === 'volcano') {
+            const edgeGlowTop = this.ctx.createLinearGradient(0, topEdgeY, 0, topEdgeY + 30);
+            edgeGlowTop.addColorStop(0, 'rgba(255, 80, 0, 0.04)');
+            edgeGlowTop.addColorStop(1, 'rgba(255, 80, 0, 0)');
+            this.ctx.fillStyle = edgeGlowTop;
+            this.ctx.fillRect(visibleTop[0].x - 10, topEdgeY, visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20, 30);
+            const edgeGlowBot = this.ctx.createLinearGradient(0, botEdgeY - 30, 0, botEdgeY);
+            edgeGlowBot.addColorStop(0, 'rgba(0,0,0,0)');
+            edgeGlowBot.addColorStop(1, 'rgba(255, 80, 0, 0.05)');
+            this.ctx.fillStyle = edgeGlowBot;
+            this.ctx.fillRect(visibleBot[0].x - 10, botEdgeY - 30, visibleBot[visibleBot.length - 1].x - visibleBot[0].x + 20, 30);
           }
 
           // Edge lighting — subtle gradient near track boundaries
@@ -6656,6 +6811,24 @@ if (this.activeEvent.key === 'speed_surge') {
               this.ctx.beginPath();
               this.ctx.moveTo(cx + 5, cy + 2);
               this.ctx.lineTo(cx + 15 + (c * 19) % 12, cy - 8 + (c * 5) % 6);
+              this.ctx.stroke();
+            }
+          } else if (this.currentThemeKey === 'volcano') {
+            // Magma crack patterns on the volcanic surface
+            this.ctx.strokeStyle = 'rgba(255, 100, 0, 0.05)';
+            this.ctx.lineWidth = 1.2;
+            const magmaSeed = Math.floor(camX / 25);
+            for (let c = 0; c < 10; c++) {
+              const cx = visibleTop[0].x + ((magmaSeed * 67 + c * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const cy = topEdgeY + 10 + ((magmaSeed * 43 + c * 89) % (botEdgeY - topEdgeY - 20));
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx, cy);
+              this.ctx.lineTo(cx + 12 + (c * 13) % 20, cy + 6 + (c * 7) % 10);
+              this.ctx.lineTo(cx + 22 + (c * 17) % 15, cy - 4 + (c * 11) % 8);
+              this.ctx.stroke();
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx + 5, cy + 2);
+              this.ctx.lineTo(cx + 18 + (c * 19) % 12, cy - 10 + (c * 5) % 6);
               this.ctx.stroke();
             }
           } else {
@@ -7940,20 +8113,254 @@ if (this.activeEvent.key === 'speed_surge') {
         ctx.restore();
       } else if (theme === 'volcano') {
         ctx.save();
-        const lavaGlow = 0.1 + Math.sin(time * 0.5) * 0.05;
-        ctx.globalAlpha = lavaGlow;
-        ctx.fillStyle = '#e74c3c';
-        ctx.fillRect(0, screenH * 0.82, screenW, screenH * 0.18);
-        // Lava cracks
-        ctx.strokeStyle = 'rgba(255, 100, 0, 0.15)';
-        ctx.lineWidth = 2;
+        const t = time * 0.5;
+
+        // ========== LAYER 1: Distant volcano silhouettes (barely moving) ==========
+        ctx.save();
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#0a0806';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 4) {
+          const v1 = Math.sin(x * 0.0008 + t * 0.005) * 40;
+          const v2 = Math.sin(x * 0.0018 + t * 0.003 + 1) * 25;
+          const v3 = Math.sin(x * 0.0035 + t * 0.002 + 2) * 15;
+          const y = screenH * 0.28 + v1 * 0.5 + v2 * 0.3 + v3 * 0.2;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // ========== LAYER 2: Dark volcanic mountains (slow parallax) ==========
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#1a1410';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const m1 = Math.sin(x * 0.0015 + t * 0.008 + 0.5) * 60;
+          const m2 = Math.sin(x * 0.004 + t * 0.005 + 1.2) * 35;
+          const m3 = Math.sin(x * 0.008 + t * 0.003 + 2.1) * 18;
+          const y = screenH * 0.35 + m1 * 0.4 + m2 * 0.3 + m3 * 0.3;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // ========== LAYER 3: Broken cliffs and rock formations (mid parallax) ==========
+        ctx.save();
+        ctx.globalAlpha = 0.10;
+        ctx.fillStyle = '#14100c';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 2) {
+          const c1 = Math.sin(x * 0.0025 + t * 0.012 + 0.8) * 50;
+          const c2 = Math.sin(x * 0.006 + t * 0.008 + 1.8) * 28;
+          const c3 = Math.sin(x * 0.012 + t * 0.005 + 3.2) * 12;
+          const y = screenH * 0.48 + c1 * 0.35 + c2 * 0.25 + c3 * 0.4;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // ========== LAYER 4: Lava rivers flowing through the valley ==========
+        // River 1 - upper
+        ctx.save();
+        ctx.globalAlpha = 0.18;
+        const river1Y = screenH * 0.58;
+        const river1Grad = ctx.createLinearGradient(0, 0, screenW, 0);
+        river1Grad.addColorStop(0, '#ff6b00');
+        river1Grad.addColorStop(0.3, '#ff8c00');
+        river1Grad.addColorStop(0.6, '#ffaa00');
+        river1Grad.addColorStop(1, '#ff6b00');
+        ctx.fillStyle = river1Grad;
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const w1 = Math.sin(x * 0.006 + t * 0.02) * 8;
+          const w2 = Math.sin(x * 0.015 + t * 0.01 + 1.5) * 4;
+          const y = river1Y + w1 + w2;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // River 2 - lower
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        const river2Y = screenH * 0.72;
+        const river2Grad = ctx.createLinearGradient(0, 0, screenW, 0);
+        river2Grad.addColorStop(0, '#ff8c00');
+        river2Grad.addColorStop(0.4, '#ffaa00');
+        river2Grad.addColorStop(0.8, '#ff6b00');
+        river2Grad.addColorStop(1, '#ff8c00');
+        ctx.fillStyle = river2Grad;
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const w1 = Math.sin(x * 0.005 + t * 0.018 + 0.5) * 10;
+          const w2 = Math.sin(x * 0.012 + t * 0.012 + 2) * 6;
+          const y = river2Y + w1 + w2;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // River 3 - near bottom
+        ctx.save();
+        ctx.globalAlpha = 0.15;
+        const river3Y = screenH * 0.86;
+        const river3Grad = ctx.createLinearGradient(0, 0, screenW, 0);
+        river3Grad.addColorStop(0, '#ff6b00');
+        river3Grad.addColorStop(0.5, '#cc4400');
+        river3Grad.addColorStop(1, '#ff6b00');
+        ctx.fillStyle = river3Grad;
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const w1 = Math.sin(x * 0.007 + t * 0.022 + 1) * 6;
+          const w2 = Math.sin(x * 0.014 + t * 0.015 + 2.5) * 3;
+          const y = river3Y + w1 + w2;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // ========== LAYER 5: Magma cracks pulsing gently (10% variation) ==========
+        for (let crackSet = 0; crackSet < 3; crackSet++) {
+          const baseAlpha = 0.08 + crackSet * 0.03;
+          const pulse = 0.9 + 0.1 * Math.sin(t * 0.3 + crackSet * 1.5);
+          ctx.save();
+          ctx.globalAlpha = baseAlpha * pulse;
+          ctx.strokeStyle = crackSet === 0 ? '#ffaa00' : (crackSet === 1 ? '#ff6b00' : '#cc4400');
+          ctx.lineWidth = 1.5;
+          const numCracks = 5 + crackSet * 2;
+          for (let i = 0; i < numCracks; i++) {
+            const cx = (i / numCracks) * screenW + Math.sin(t * 0.05 + i * 1.2) * 15;
+            const startY = screenH * (0.55 + crackSet * 0.1);
+            ctx.beginPath();
+            ctx.moveTo(cx, startY);
+            for (let seg = 0; seg < 4; seg++) {
+              const segY = startY + seg * 40 + Math.sin(t * 0.1 + i * 0.8 + seg) * 12;
+              const segX = cx + Math.sin(t * 0.08 + i * 1.1 + seg * 0.5) * 8;
+              ctx.lineTo(segX, segY);
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // ========== LAYER 6: Lava bubble effects on rivers ==========
+        // Bubbles on river 1
+        ctx.save();
+        ctx.globalAlpha = 0.12;
         for (let i = 0; i < 8; i++) {
-          const lx = (i / 8) * screenW + Math.sin(time * 0.1 + i) * 20;
+          const bx = (i / 8) * screenW + Math.sin(t * 0.03 + i * 1.5) * 20;
+          const by = river1Y + Math.sin(t * 0.05 + i * 0.7) * 12;
+          const size = 2 + Math.sin(t * 0.1 + i) * 1.5;
+          const pulseAlpha = 0.5 + 0.5 * Math.sin(t * 0.2 + i * 0.8);
+          ctx.fillStyle = `rgba(255, 170, 0, ${0.4 * pulseAlpha})`;
           ctx.beginPath();
-          ctx.moveTo(lx, screenH * 0.88);
-          ctx.quadraticCurveTo(lx + Math.sin(time + i) * 10, screenH * 0.9, lx + 15, screenH);
+          ctx.arc(bx, by, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Bubbles on river 2
+        ctx.save();
+        ctx.globalAlpha = 0.15;
+        for (let i = 0; i < 10; i++) {
+          const bx = (i / 10) * screenW + Math.sin(t * 0.025 + i * 1.2) * 25;
+          const by = river2Y + Math.sin(t * 0.04 + i * 0.5) * 15;
+          const size = 3 + Math.sin(t * 0.12 + i) * 2;
+          const pulseAlpha = 0.5 + 0.5 * Math.sin(t * 0.18 + i * 0.6);
+          ctx.fillStyle = `rgba(255, 200, 50, ${0.5 * pulseAlpha})`;
+          ctx.beginPath();
+          ctx.arc(bx, by, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 7: Thin smoke columns from volcanic vents ==========
+        ctx.save();
+        ctx.globalAlpha = 0.06;
+        for (let i = 0; i < 5; i++) {
+          const sx = (i / 5) * screenW + 50 * Math.sin(t * 0.02 + i);
+          const sy = screenH * 0.5 + i * 40;
+          ctx.strokeStyle = '#3a3028';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let s = 0; s < 5; s++) {
+            const px = sx + Math.sin(t * 0.05 + i * 0.8 + s) * 8;
+            const py = sy - s * 30 - Math.sin(t * 0.03 + i * 0.5 + s) * 10;
+            if (s === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
           ctx.stroke();
         }
+        ctx.restore();
+
+        // ========== LAYER 8: Distant volcano eruptions (every 20-40s) ==========
+        // This will be animated via the persistent eruption state
+
+        // ========== LAYER 9: Atmospheric glow - lava illuminating nearby rocks ==========
+        // Glow near river 1
+        ctx.save();
+        const glowGrad1 = ctx.createRadialGradient(
+          screenW * 0.3, river1Y, 10,
+          screenW * 0.3, river1Y, 180
+        );
+        const glowPulse1 = 0.85 + 0.15 * Math.sin(t * 0.4);
+        glowGrad1.addColorStop(0, `rgba(255, 140, 0, ${0.06 * glowPulse1})`);
+        glowGrad1.addColorStop(0.5, `rgba(255, 100, 0, ${0.03 * glowPulse1})`);
+        glowGrad1.addColorStop(1, 'rgba(255, 80, 0, 0)');
+        ctx.fillStyle = glowGrad1;
+        ctx.fillRect(0, river1Y - 100, screenW, 200);
+        ctx.restore();
+
+        // Glow near river 2
+        ctx.save();
+        const glowGrad2 = ctx.createRadialGradient(
+          screenW * 0.7, river2Y, 10,
+          screenW * 0.7, river2Y, 200
+        );
+        const glowPulse2 = 0.85 + 0.15 * Math.sin(t * 0.35 + 1);
+        glowGrad2.addColorStop(0, `rgba(255, 170, 0, ${0.05 * glowPulse2})`);
+        glowGrad2.addColorStop(0.5, `rgba(255, 120, 0, ${0.025 * glowPulse2})`);
+        glowGrad2.addColorStop(1, 'rgba(255, 80, 0, 0)');
+        ctx.fillStyle = glowGrad2;
+        ctx.fillRect(0, river2Y - 100, screenW, 200);
+        ctx.restore();
+
+        // Glow near river 3
+        ctx.save();
+        const glowGrad3 = ctx.createRadialGradient(
+          screenW * 0.5, river3Y, 10,
+          screenW * 0.5, river3Y, 150
+        );
+        const glowPulse3 = 0.85 + 0.15 * Math.sin(t * 0.5 + 2);
+        glowGrad3.addColorStop(0, `rgba(255, 100, 0, ${0.04 * glowPulse3})`);
+        glowGrad3.addColorStop(0.5, `rgba(255, 60, 0, ${0.02 * glowPulse3})`);
+        glowGrad3.addColorStop(1, 'rgba(255, 40, 0, 0)');
+        ctx.fillStyle = glowGrad3;
+        ctx.fillRect(0, river3Y - 80, screenW, 160);
+        ctx.restore();
+
+        // ========== LAYER 10: Heat shimmer above lava rivers (subtle) ==========
+        // Just visual indication via slight alpha modulation on background elements
+
         ctx.restore();
       } else if (theme === 'ocean') {
         ctx.save();
@@ -8938,6 +9345,86 @@ if (this.activeEvent.key === 'speed_surge') {
         this.ctx.restore();
       }
 
+      // A0ac. Volcano (Magma Crater) atmospheric overlay
+      if (this.currentThemeKey === 'volcano' && this.state === 'racing') {
+        this.ctx.save();
+
+        // 1. Subtle heat haze overlay (very low opacity)
+        const heatHazeGrad = this.ctx.createLinearGradient(0, 0, 0, screenH);
+        heatHazeGrad.addColorStop(0, 'rgba(255, 100, 0, 0.008)');
+        heatHazeGrad.addColorStop(0.5, 'rgba(255, 80, 0, 0.005)');
+        heatHazeGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        this.ctx.fillStyle = heatHazeGrad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+
+        // 2. Floating ash particles (dark volcanic dust)
+        for (const ash of this._volcanoAshParticles) {
+          const a = ash.alpha * 0.4;
+          if (a <= 0) continue;
+          const ax = ash.x * screenW;
+          const ay = ash.y * screenH;
+          this.ctx.globalAlpha = a;
+          this.ctx.fillStyle = '#1a1510';
+          this.ctx.beginPath();
+          this.ctx.arc(ax, ay, ash.size, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+
+        // 3. Rising glowing embers
+        for (const ember of this._volcanoEmberParticles) {
+          const a = ember.alpha * 0.6;
+          if (a <= 0) continue;
+          const ex = ember.x * screenW;
+          const ey = ember.y * screenH;
+          this.ctx.globalAlpha = a;
+          this.ctx.fillStyle = ember.color;
+          this.ctx.shadowColor = ember.color;
+          this.ctx.shadowBlur = 4;
+          this.ctx.beginPath();
+          this.ctx.arc(ex, ey, ember.size, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+        }
+
+        // 4. Thin smoke columns from volcanic vents
+        for (const smoke of this._volcanoSmokeColumns) {
+          const a = smoke.alpha * 0.3;
+          if (a <= 0) continue;
+          const sx = smoke.x * screenW;
+          const sy = smoke.y * screenH;
+          const smokeSize = smoke.height * screenH;
+          this.ctx.globalAlpha = a;
+          const smokeGrad = this.ctx.createRadialGradient(sx, sy, 0, sx, sy, smokeSize);
+          smokeGrad.addColorStop(0, `rgba(58, 48, 40, ${smoke.alpha})`);
+          smokeGrad.addColorStop(1, 'rgba(58, 48, 40, 0)');
+          this.ctx.fillStyle = smokeGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(sx, sy, smoke.size, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+
+        // 5. Active eruption effects (lava burst, ash cloud, glowing rocks)
+        if (this._volcanoEruptionActive && this._volcanoEruptionParticles.length > 0) {
+          for (const p of this._volcanoEruptionParticles) {
+            const px = p.x * screenW;
+            const py = p.y * screenH;
+            this.ctx.globalAlpha = p.alpha;
+            this.ctx.fillStyle = p.color;
+            if (p.color.startsWith('#ff') || p.color.startsWith('#cc')) {
+              this.ctx.shadowColor = p.color;
+              this.ctx.shadowBlur = 6;
+            }
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, p.size, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+          }
+        }
+
+        this.ctx.globalAlpha = 1;
+        this.ctx.restore();
+      }
+
       // A0b. Teleportation white flash
       if (this._whiteFlashAlpha > 0) {
         this.ctx.save();
@@ -9496,7 +9983,7 @@ if (this.activeEvent.key === 'speed_surge') {
       this._blizzardSnowParticles = [];
       this._blizzardFogParticles = [];
       this._blizzardCrackTimer = 0;
-      this._auroraActive = false;
+this._auroraActive = false;
       this._auroraStars = [];
       this._auroraFadePhase = null;
       this._auroraFadeProgress = 0;
@@ -9504,6 +9991,17 @@ if (this.activeEvent.key === 'speed_surge') {
       this._auroraSnowGusts = [];
       this._auroraBackgroundFog = [];
       this._auroraSceneBrightness = 1.0;
+
+      // Volcano eruption state reset
+      this._volcanoEruptionActive = false;
+      this._volcanoEruptionTimer = 0;
+      this._volcanoEruptionX = 0;
+      this._volcanoEruptionParticles = [];
+      this._volcanoNextEruptionTime = 1200 + Math.random() * 1200;
+      this._volcanoAshParticles = [];
+      this._volcanoEmberParticles = [];
+      this._volcanoSmokeColumns = [];
+
       this.sounds.stopBlizzardWind();
       this.sounds.stopAuroraAmbient();
       this.commentary.clear();
