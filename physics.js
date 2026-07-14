@@ -11,6 +11,7 @@ class PhysicsEngine {
     this.reliefActive = false;
     this.reliefX = 0;
     this.reliefTimer = 0;
+    this._isGlacier = false;
   }
 
   update(balls, track, dt = 1) {
@@ -33,6 +34,7 @@ class PhysicsEngine {
       b._usedLaunchThisFrame = false;
       b._enteredBoostThisFrame = false;
       b._enteredSlowThisFrame = false;
+      b._exitedSlowThisFrame = false;
     });
 
     // Anti-jam: track balls in obstacle zones and detect jams
@@ -122,7 +124,9 @@ class PhysicsEngine {
             }
           } else if (zone.type === 'slow' || zone.type === 'sand') {
             if (ball.z === 0 && !ball._wasInSlow && zone.type === 'slow') {
-              ball.vx *= 0.7;
+              if (!this._isGlacier) {
+                ball.vx *= 0.7;
+              }
               ball._wasInSlow = true;
               ball._enteredSlowThisFrame = true;
             }
@@ -163,6 +167,9 @@ class PhysicsEngine {
       // Reset zone visit flags (only when outside the respective zones)
       if (!inBoost) ball._wasInBoost = false;
       if (track.zones.filter(z => z.type === 'slow').every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
+        if (ball._wasInSlow) {
+          ball._exitedSlowThisFrame = true;
+        }
         ball._wasInSlow = false;
       }
       // Decrement portal cooldown

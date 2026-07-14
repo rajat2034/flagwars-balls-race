@@ -126,7 +126,7 @@ const EVENT_REGISTRY = [
   { key: 'blackout', name: 'Blackout', implemented: true },
   { key: 'teleportation', name: 'Teleport Swap', implemented: true },
   { key: 'meteor_storm', name: 'Meteor Storm', implemented: false },
-  { key: 'blizzard', name: 'Blizzard', implemented: false },
+  { key: 'blizzard', name: 'Blizzard', implemented: true },
   { key: 'volcanic_eruption', name: 'Volcanic Eruption', implemented: false },
   { key: 'sandstorm', name: 'Sandstorm', implemented: false },
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
@@ -218,6 +218,122 @@ class SoundSynth {
 
     osc.start();
     osc.stop(this.ctx.currentTime + 0.3);
+  }
+  playIceWhoosh() {
+    if (!this.enabled) return;
+    this.init();
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const bufferSize = Math.floor(ctx.sampleRate * 0.15);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.015, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(2000, now);
+    filter.frequency.exponentialRampToValueAtTime(500, now + 0.15);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 0.15);
+  }
+  playIceCrack() {
+    if (!this.enabled) return;
+    this.init();
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const bufferSize = Math.floor(ctx.sampleRate * 0.08);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 0.5);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.025, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(3000, now);
+    filter.Q.setValueAtTime(1.5, now);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 0.08);
+  }
+  startBlizzardWind() {
+    if (!this.enabled) return;
+    this.init();
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const bufferSize = Math.floor(ctx.sampleRate * 3);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.35;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    noise.loop = true;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.018, now + 0.5);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(800, now);
+    filter.frequency.linearRampToValueAtTime(250, now + 2);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+    this._blizzardWindNoise = noise;
+    this._blizzardWindGain = gain;
+  }
+  stopBlizzardWind() {
+    if (!this._blizzardWindGain) return;
+    const now = this.ctx.currentTime;
+    this._blizzardWindGain.gain.linearRampToValueAtTime(0, now + 1);
+    if (this._blizzardWindNoise) {
+      this._blizzardWindNoise.stop(now + 1.05);
+    }
+    this._blizzardWindNoise = null;
+    this._blizzardWindGain = null;
+  }
+  playBlizzardCrack() {
+    if (!this.enabled) return;
+    this.init();
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const bufferSize = Math.floor(ctx.sampleRate * 0.12);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 0.4);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.03, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(4000, now);
+    filter.Q.setValueAtTime(2, now);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 0.12);
   }
 }
 
@@ -1728,6 +1844,10 @@ class GameEngine {
     this._asteroidTimer = 1800 + Math.random() * 600;
     this._activeAsteroid = null;
     this._spaceObjects = [];
+    this._blizzardActive = false;
+    this._blizzardSnowParticles = [];
+    this._blizzardFogParticles = [];
+    this._blizzardCrackTimer = 0;
 
     // Director Mode (hidden developer overlay)
     this.directorMode = null;
@@ -1831,6 +1951,7 @@ class GameEngine {
     const theme = MAP_THEMES[themeKey];
     this.currentThemeKey = themeKey;
     this.currentTheme = theme;
+    this.physics._isGlacier = themeKey === 'snow';
     this.physics.forwardForce = theme.forwardForce * 0.65;
 
     // Build enabled set for obstacle filtering
@@ -3492,8 +3613,11 @@ class GameEngine {
       { name: '\u26A1 SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.' },
       { name: '\u26A1 BLACKOUT', key: 'blackout', duration: 0, description: 'Stadium lights have gone out. Anything can happen...' },
       { name: '\u26A1 TELEPORTATION', key: 'teleportation', duration: 360, description: 'Ten countries suddenly swapped positions!' },
+      { name: '\u2744 BLIZZARD', key: 'blizzard', duration: 300, description: 'A freezing storm slows every racer.' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
+      .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
+      .filter(e => e.key !== 'gravity_flip' || this.currentThemeKey !== 'snow')
       .map(e => ({ ...e, weight: freqToWeight(eventFreqs[e.key] || 3) }));
 
     // Weighted random selection using frequencies
@@ -3553,6 +3677,46 @@ class GameEngine {
         this.activeEvent = null;
         return;
       }
+    } else if (evt.key === 'blizzard') {
+      this._blizzardActive = true;
+      this._blizzardCrackTimer = 120 + Math.random() * 60;
+      // Initialize snow particle pool
+      this._blizzardSnowParticles = [];
+      for (let i = 0; i < 45; i++) {
+        this._blizzardSnowParticles.push({
+          x: Math.random(),
+          y: Math.random(),
+          size: 1.5 + Math.random() * 2.5,
+          speedX: -0.3 - Math.random() * 0.6,
+          speedY: 0.1 + Math.random() * 0.3,
+          alpha: 0.3 + Math.random() * 0.5,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      // Initialize fog particle pool
+      this._blizzardFogParticles = [];
+      for (let i = 0; i < 12; i++) {
+        this._blizzardFogParticles.push({
+          x: Math.random(),
+          y: Math.random(),
+          size: 80 + Math.random() * 120,
+          speedX: -0.05 - Math.random() * 0.08,
+          alpha: 0.04 + Math.random() * 0.06,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      // Apply 20% speed to all active balls
+      this.balls.forEach(ball => {
+        if (!ball.finished && !ball.eliminated) {
+          const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+          ball._blizzardCapSpeed = speed * 0.2;
+          const ratio = 0.2;
+          ball.vx *= ratio;
+          ball.vy *= ratio;
+        }
+      });
+      // Start wind audio
+      this.sounds.startBlizzardWind();
     }
 
     this.eventCount++;
@@ -3584,6 +3748,13 @@ if (this.activeEvent.key === 'speed_surge') {
         this._teleportState = null;
         this._teleportPairs = [];
         this._teleportPostPairs = [];
+      }
+      if (this.activeEvent.key === 'blizzard') {
+        this._blizzardActive = false;
+        this.balls.forEach(ball => {
+          delete ball._blizzardCapSpeed;
+        });
+        this.sounds.stopBlizzardWind();
       }
       this.activeEvent = null;
       return;
@@ -3719,6 +3890,29 @@ if (this.activeEvent.key === 'speed_surge') {
           this._teleportPairs = [];
           this._teleportPostPairs = [];
         }
+      }
+    } else if (this.activeEvent.key === 'blizzard') {
+      // Update snow particle positions (screen-space, normalized 0-1)
+      const time = Date.now() * 0.001;
+      for (const sp of this._blizzardSnowParticles) {
+        sp.x += sp.speedX * dt * 0.008;
+        sp.y += sp.speedY * dt * 0.008 + Math.sin(time + sp.phase) * 0.0003 * dt;
+        if (sp.x < -0.05) sp.x = 1.05;
+        if (sp.x > 1.05) sp.x = -0.05;
+        if (sp.y < -0.05) sp.y = 1.05;
+        if (sp.y > 1.05) sp.y = -0.05;
+      }
+      // Update fog particle positions
+      for (const fp of this._blizzardFogParticles) {
+        fp.x += fp.speedX * dt * 0.008;
+        if (fp.x < -0.1) fp.x = 1.1;
+        if (fp.x > 1.1) fp.x = -0.1;
+      }
+      // Random ice crack sounds
+      this._blizzardCrackTimer -= dt;
+      if (this._blizzardCrackTimer <= 0) {
+        this.sounds.playBlizzardCrack();
+        this._blizzardCrackTimer = 120 + Math.random() * 60;
       }
     }
   }
@@ -3936,6 +4130,87 @@ if (this.activeEvent.key === 'speed_surge') {
                 color: '#a0d8ef'
               });
             }
+          }
+        }
+      }
+
+      // Ice Ramp freeze management (Glacier Summit slow zones → speed cap on exit)
+      if (this.balls) {
+        for (const ball of this.balls) {
+          if (ball.finished) continue;
+
+          // Sound effects
+          if (ball._enteredSlowThisFrame && this.currentThemeKey === 'snow') {
+            this.sounds.playIceWhoosh();
+          }
+          if (ball._exitedSlowThisFrame && this.currentThemeKey === 'snow') {
+            this.sounds.playIceCrack();
+          }
+
+          // Apply new freeze on exit from slow zone (ice ramp)
+          if (ball._exitedSlowThisFrame && this.currentThemeKey === 'snow') {
+            const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+            ball._iceRampExitSpeed = speed;
+            ball._iceRampFrozen = true;
+            ball._iceRampFreezeTimer = 210; // 210 dt ≈ 3.5s at 60fps
+          }
+
+          // Speed cap while frozen
+          if (ball._iceRampFrozen) {
+            ball._iceRampFreezeTimer -= dt;
+
+            let speedCapRatio;
+            if (ball._iceRampFreezeTimer > 90) {
+              // Phase 1: full freeze at 50% for first ~2s
+              speedCapRatio = 0.5;
+            } else if (ball._iceRampFreezeTimer > 0) {
+              // Phase 2: gradual recovery from 0.5→1.0 over ~1.5s
+              const recoveryProgress = 1 - (ball._iceRampFreezeTimer / 90);
+              speedCapRatio = 0.5 + recoveryProgress * 0.5;
+            } else {
+              speedCapRatio = 1.0;
+              ball._iceRampFrozen = false;
+              // Thaw particles
+              for (let p = 0; p < 6; p++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * 12,
+                  y: ball.y + (Math.random() - 0.5) * 12,
+                  vx: Math.cos(a) * (1 + Math.random() * 2),
+                  vy: Math.sin(a) * (1 + Math.random() * 2),
+                  alpha: 0.7,
+                  size: 2 + Math.random() * 2,
+                  life: 12 + Math.floor(Math.random() * 8),
+                  color: '#b0e0ff'
+                });
+              }
+            }
+
+            if (ball._iceRampFrozen) {
+              const currentSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+              if (currentSpeed > 0) {
+                const cappedSpeed = ball._iceRampExitSpeed * speedCapRatio;
+                if (currentSpeed > cappedSpeed) {
+                  const ratio = cappedSpeed / currentSpeed;
+                  ball.vx *= ratio;
+                  ball.vy *= ratio;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Blizzard speed cap: enforce 20% of original speed every frame
+      if (this._blizzardActive && this.balls) {
+        for (const ball of this.balls) {
+          if (ball.finished || ball.eliminated || ball._blizzardCapSpeed === undefined) continue;
+          const currentSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+          if (currentSpeed > 0 && currentSpeed > ball._blizzardCapSpeed) {
+            const ratio = ball._blizzardCapSpeed / currentSpeed;
+            ball.vx *= ratio;
+            ball.vy *= ratio;
           }
         }
       }
@@ -4859,32 +5134,80 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.fillText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.restore();
         } else if (zone.type === 'slow' || zone.type === 'sand') {
-          // Slow zone — red/grey fill, backward arrows
-          this.ctx.save();
-          this.ctx.fillStyle = 'rgba(231,76,60,0.18)';
-          this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
-          const slowBorderAlpha = this.currentThemeKey === 'snow' ? 0.50 : 0.35;
-          this.ctx.strokeStyle = `rgba(192,57,43,${slowBorderAlpha})`;
-          this.ctx.lineWidth = 2.5;
-          this.ctx.strokeRect(zX, zone.y, zone.width, zone.height);
-          // Backward arrows (left)
-          const animOff2 = (Date.now() / 6) % 30;
-          this.ctx.strokeStyle = 'rgba(231,76,60,0.45)';
-          this.ctx.lineWidth = 2.5;
-          for (let ax = zX + animOff2; ax < zX + zone.width; ax += 30) {
-            const acy = zone.y + zone.height / 2;
-            this.ctx.beginPath();
-            this.ctx.moveTo(ax + 10, acy - 8);
-            this.ctx.lineTo(ax, acy);
-            this.ctx.lineTo(ax + 10, acy + 8);
-            this.ctx.stroke();
+          if (zone.type === 'slow' && this.currentThemeKey === 'snow') {
+            // Ice Ramp visual (Glacier Summit)
+            this.ctx.save();
+            const iceGrad = this.ctx.createLinearGradient(zX, zone.y, zX, zone.y + zone.height);
+            iceGrad.addColorStop(0, 'rgba(160, 220, 255, 0.25)');
+            iceGrad.addColorStop(0.5, 'rgba(200, 240, 255, 0.35)');
+            iceGrad.addColorStop(1, 'rgba(120, 200, 240, 0.25)');
+            this.ctx.fillStyle = iceGrad;
+            this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
+            this.ctx.shadowColor = 'rgba(180, 230, 255, 0.6)';
+            this.ctx.shadowBlur = 10;
+            this.ctx.strokeStyle = 'rgba(200, 240, 255, 0.6)';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(zX, zone.y, zone.width, zone.height);
+            this.ctx.shadowBlur = 0;
+            // Frost crack patterns
+            const crackSeed = ((zone.x * 7 + zone.y * 13) % 100) / 100;
+            this.ctx.strokeStyle = 'rgba(220, 245, 255, 0.4)';
+            this.ctx.lineWidth = 1.5;
+            for (let ci = 0; ci < 3; ci++) {
+              const baseX = zX + zone.width * ((ci + 1) / 4 + crackSeed * 0.08);
+              this.ctx.beginPath();
+              this.ctx.moveTo(baseX + Math.sin(ci * 2) * 4, zone.y + 2);
+              for (let j = 0; j < 4; j++) {
+                const jx = baseX + Math.sin((ci + 1) * (j + 1) + crackSeed * 10) * 6;
+                const jy = zone.y + 2 + (j + 1) * (zone.height - 4) / 4;
+                this.ctx.lineTo(jx, jy);
+              }
+              this.ctx.stroke();
+            }
+            // Drifting snow particles inside zone
+            const driftBase = (Date.now() * 0.02) % (zone.width + 20);
+            this.ctx.fillStyle = 'rgba(220, 240, 255, 0.5)';
+            for (let si = 0; si < 5; si++) {
+              const sx = zX + ((driftBase + si * 18 + crackSeed * 10) % (zone.width + 10)) - 5;
+              const sy = zone.y + 5 + (Math.sin(Date.now() * 0.003 + si * 2 + crackSeed * 6) * 0.5 + 0.5) * (zone.height - 10);
+              this.ctx.beginPath();
+              this.ctx.arc(sx, sy, 1.5 + Math.sin(Date.now() * 0.005 + si) * 0.5, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+            // Label
+            this.ctx.fillStyle = '#b0e0ff';
+            this.ctx.font = 'bold 11px Montserrat, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText('ICE', zX + zone.width / 2, zone.y + zone.height / 2);
+            this.ctx.restore();
+          } else {
+            // Original slow/sand zone rendering (non-glacier or sand)
+            this.ctx.save();
+            this.ctx.fillStyle = 'rgba(231,76,60,0.18)';
+            this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
+            const slowBorderAlpha = this.currentThemeKey === 'snow' ? 0.50 : 0.35;
+            this.ctx.strokeStyle = `rgba(192,57,43,${slowBorderAlpha})`;
+            this.ctx.lineWidth = 2.5;
+            this.ctx.strokeRect(zX, zone.y, zone.width, zone.height);
+            const animOff2 = (Date.now() / 6) % 30;
+            this.ctx.strokeStyle = 'rgba(231,76,60,0.45)';
+            this.ctx.lineWidth = 2.5;
+            for (let ax = zX + animOff2; ax < zX + zone.width; ax += 30) {
+              const acy = zone.y + zone.height / 2;
+              this.ctx.beginPath();
+              this.ctx.moveTo(ax + 10, acy - 8);
+              this.ctx.lineTo(ax, acy);
+              this.ctx.lineTo(ax + 10, acy + 8);
+              this.ctx.stroke();
+            }
+            this.ctx.fillStyle = '#c0392b';
+            this.ctx.font = 'bold 14px Montserrat, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText('SLOW', zX + zone.width / 2, zone.y + zone.height / 2);
+            this.ctx.restore();
           }
-          this.ctx.fillStyle = '#c0392b';
-          this.ctx.font = 'bold 14px Montserrat, sans-serif';
-          this.ctx.textAlign = 'center';
-          this.ctx.textBaseline = 'middle';
-          this.ctx.fillText('SLOW', zX + zone.width / 2, zone.y + zone.height / 2);
-          this.ctx.restore();
         } else if (zone.type === 'ice') {
           // Ice zone — label only
           this.ctx.fillStyle = 'rgba(100,200,255,0.2)';
@@ -6523,6 +6846,86 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
 
+        // Ice Ramp frozen overlay (Glacier Summit slow zone freeze)
+        if (ball._iceRampFrozen) {
+          this.ctx.save();
+          const frostGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius);
+          frostGrad.addColorStop(0, 'rgba(180, 230, 255, 0.30)');
+          frostGrad.addColorStop(0.5, 'rgba(140, 210, 240, 0.40)');
+          frostGrad.addColorStop(1, 'rgba(100, 180, 220, 0.50)');
+          this.ctx.fillStyle = frostGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+          this.ctx.fill();
+          const crystalTime = Date.now() * 0.002;
+          this.ctx.strokeStyle = 'rgba(200, 240, 255, 0.6)';
+          this.ctx.lineWidth = 1.5;
+          for (let ci = 0; ci < 6; ci++) {
+            const ca = crystalTime + ci * Math.PI / 3;
+            const cx = bX + Math.cos(ca) * renderRadius * 0.8;
+            const cy = ball.y + Math.sin(ca) * renderRadius * 0.8;
+            this.ctx.beginPath();
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + Math.cos(ca + 0.4) * 6, cy + Math.sin(ca + 0.4) * 6);
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + Math.cos(ca - 0.4) * 6, cy + Math.sin(ca - 0.4) * 6);
+            this.ctx.stroke();
+          }
+          this.ctx.fillStyle = 'rgba(220, 245, 255, 0.5)';
+          for (let pi = 0; pi < 4; pi++) {
+            const px = bX + Math.sin(crystalTime * 2 + pi * 2.5) * renderRadius * 0.6;
+            const py = ball.y + Math.cos(crystalTime * 3 + pi * 3.1) * renderRadius * 0.6;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, 2 + Math.sin(crystalTime + pi) * 0.5, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+          this.ctx.restore();
+        }
+
+        // Blizzard frost overlay on balls (global event)
+        if (this._blizzardActive && !ball.finished && !ball.eliminated) {
+          this.ctx.save();
+          const frostGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius);
+          frostGrad.addColorStop(0, 'rgba(190, 230, 255, 0.25)');
+          frostGrad.addColorStop(0.6, 'rgba(150, 210, 240, 0.35)');
+          frostGrad.addColorStop(1, 'rgba(100, 180, 220, 0.45)');
+          this.ctx.fillStyle = frostGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+          this.ctx.fill();
+          // Ice crystals
+          const crystalTime = Date.now() * 0.002;
+          this.ctx.strokeStyle = 'rgba(200, 240, 255, 0.5)';
+          this.ctx.lineWidth = 1.5;
+          for (let ci = 0; ci < 6; ci++) {
+            const ca = crystalTime + ci * Math.PI / 3;
+            const cx = bX + Math.cos(ca) * renderRadius * 0.75;
+            const cy = ball.y + Math.sin(ca) * renderRadius * 0.75;
+            this.ctx.beginPath();
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + Math.cos(ca + 0.4) * 5, cy + Math.sin(ca + 0.4) * 5);
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + Math.cos(ca - 0.4) * 5, cy + Math.sin(ca - 0.4) * 5);
+            this.ctx.stroke();
+          }
+          // Snow trail particles behind the ball
+          for (let pi = 0; pi < 3; pi++) {
+            const tOff = pi * 0.3;
+            const px = bX - ball.vx * (3 + tOff * 5);
+            const py = ball.y - ball.vy * (3 + tOff * 5);
+            const pAlpha = 0.3 - pi * 0.08;
+            if (pAlpha > 0) {
+              this.ctx.globalAlpha = pAlpha;
+              this.ctx.fillStyle = '#ffffff';
+              this.ctx.beginPath();
+              this.ctx.arc(px, py, 2 - pi * 0.5, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+          }
+          this.ctx.globalAlpha = 1;
+          this.ctx.restore();
+        }
+
         // Winner glow during flash sequence
         if (this._winnerFlashActive && this._winnerFlashBall && ball.id === this._winnerFlashBall.id) {
           this.ctx.save();
@@ -7984,6 +8387,48 @@ if (this.activeEvent.key === 'speed_surge') {
         this.ctx.restore();
       }
 
+      // A0ab. Blizzard visual overlay (Glacier Summit global event)
+      if (this._blizzardActive && this.state === 'racing') {
+        this.ctx.save();
+        // Blue tint overlay (12% opacity)
+        this.ctx.fillStyle = 'rgba(140, 200, 255, 0.12)';
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        // Frost vignette
+        const vigGrad = this.ctx.createRadialGradient(screenW / 2, screenH / 2, screenH * 0.1, screenW / 2, screenH / 2, screenH * 0.8);
+        vigGrad.addColorStop(0, 'rgba(200, 230, 255, 0)');
+        vigGrad.addColorStop(0.5, 'rgba(180, 220, 255, 0)');
+        vigGrad.addColorStop(0.8, 'rgba(160, 210, 255, 0.06)');
+        vigGrad.addColorStop(1, 'rgba(140, 200, 255, 0.15)');
+        this.ctx.fillStyle = vigGrad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        // Snow particles (screen-space)
+        for (const sp of this._blizzardSnowParticles) {
+          const sx = sp.x * screenW;
+          const sy = sp.y * screenH;
+          this.ctx.globalAlpha = sp.alpha;
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.beginPath();
+          this.ctx.arc(sx, sy, sp.size, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+        this.ctx.globalAlpha = 1;
+        // Fog particles
+        for (const fp of this._blizzardFogParticles) {
+          const fx = fp.x * screenW;
+          const fy = fp.y * screenH;
+          this.ctx.globalAlpha = fp.alpha;
+          const fogGrad = this.ctx.createRadialGradient(fx, fy, 0, fx, fy, fp.size);
+          fogGrad.addColorStop(0, 'rgba(200, 230, 255, 0.5)');
+          fogGrad.addColorStop(1, 'rgba(200, 230, 255, 0)');
+          this.ctx.fillStyle = fogGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(fx, fy, fp.size, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+        this.ctx.globalAlpha = 1;
+        this.ctx.restore();
+      }
+
       // A0b. Teleportation white flash
       if (this._whiteFlashAlpha > 0) {
         this.ctx.save();
@@ -8538,6 +8983,11 @@ if (this.activeEvent.key === 'speed_surge') {
       this._teleportPairs = [];
       this._teleportPostPairs = [];
       this._whiteFlashAlpha = 0;
+      this._blizzardActive = false;
+      this._blizzardSnowParticles = [];
+      this._blizzardFogParticles = [];
+      this._blizzardCrackTimer = 0;
+      this.sounds.stopBlizzardWind();
       this.commentary.clear();
       this.commentary.lastLeaderCode = null;
       this.eventBanner.clear();
