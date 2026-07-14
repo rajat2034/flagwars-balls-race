@@ -127,6 +127,7 @@ const EVENT_REGISTRY = [
   { key: 'teleportation', name: 'Teleport Swap', implemented: true },
   { key: 'meteor_storm', name: 'Meteor Storm', implemented: false },
   { key: 'blizzard', name: 'Blizzard', implemented: true },
+  { key: 'aurora_borealis', name: 'Aurora Borealis', implemented: true },
   { key: 'volcanic_eruption', name: 'Volcanic Eruption', implemented: false },
   { key: 'sandstorm', name: 'Sandstorm', implemented: false },
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
@@ -334,6 +335,68 @@ class SoundSynth {
     gain.connect(ctx.destination);
     noise.start(now);
     noise.stop(now + 0.12);
+  }
+  startAuroraAmbient() {
+    if (!this.enabled) return;
+    this.init();
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    // Gentle wind noise
+    const bufferSize = Math.floor(ctx.sampleRate * 4);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.12;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    noise.loop = true;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.006, now + 2);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(400, now);
+    filter.frequency.linearRampToValueAtTime(150, now + 3);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+    this._auroraAmbientNoise = noise;
+    this._auroraAmbientGain = gain;
+    // High shimmer tone
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(2000, now);
+    osc.frequency.linearRampToValueAtTime(1800, now + 4);
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0, now);
+    oscGain.gain.linearRampToValueAtTime(0.004, now + 2);
+    oscGain.gain.setValueAtTime(0.004, now + 5);
+    oscGain.gain.linearRampToValueAtTime(0.001, now + 9);
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 10);
+    this._auroraOsc = osc;
+    this._auroraOscGain = oscGain;
+  }
+  stopAuroraAmbient() {
+    if (this._auroraAmbientGain) {
+      const now = this.ctx.currentTime;
+      this._auroraAmbientGain.gain.linearRampToValueAtTime(0, now + 1);
+      if (this._auroraAmbientNoise) {
+        this._auroraAmbientNoise.stop(now + 1.05);
+      }
+      this._auroraAmbientNoise = null;
+      this._auroraAmbientGain = null;
+    }
+    if (this._auroraOscGain) {
+      const now = this.ctx.currentTime;
+      this._auroraOscGain.gain.linearRampToValueAtTime(0, now + 0.5);
+      this._auroraOsc = null;
+      this._auroraOscGain = null;
+    }
   }
 }
 
@@ -1848,6 +1911,19 @@ class GameEngine {
     this._blizzardSnowParticles = [];
     this._blizzardFogParticles = [];
     this._blizzardCrackTimer = 0;
+    this._auroraActive = false;
+    this._auroraRibbonTime = 0;
+    this._auroraStars = [];
+    this._auroraFadePhase = null;
+    this._auroraFadeProgress = 0;
+    this._auroraPulseTimer = 0;
+    this._auroraPulseValue = 0;
+    this._auroraDominantColor = { r: 75, g: 235, b: 140 };
+    this._auroraArcticParticles = [];
+    this._auroraSnowGusts = [];
+    this._auroraGustTimer = 0;
+    this._auroraBackgroundFog = [];
+    this._auroraSceneBrightness = 1.0;
 
     // Director Mode (hidden developer overlay)
     this.directorMode = null;
@@ -3614,10 +3690,13 @@ class GameEngine {
       { name: '\u26A1 BLACKOUT', key: 'blackout', duration: 0, description: 'Stadium lights have gone out. Anything can happen...' },
       { name: '\u26A1 TELEPORTATION', key: 'teleportation', duration: 360, description: 'Ten countries suddenly swapped positions!' },
       { name: '\u2744 BLIZZARD', key: 'blizzard', duration: 300, description: 'A freezing storm slows every racer.' },
+      { name: 'AURORA BOREALIS', key: 'aurora_borealis', duration: 480, description: 'The northern lights dance across the frozen sky.' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'gravity_flip' || this.currentThemeKey !== 'snow')
+      .filter(e => e.key !== 'blackout' || this.currentThemeKey !== 'snow')
+      .filter(e => e.key !== 'aurora_borealis' || this.currentThemeKey === 'snow')
       .map(e => ({ ...e, weight: freqToWeight(eventFreqs[e.key] || 3) }));
 
     // Weighted random selection using frequencies
@@ -3717,6 +3796,80 @@ class GameEngine {
       });
       // Start wind audio
       this.sounds.startBlizzardWind();
+    } else if (evt.key === 'aurora_borealis') {
+      this._auroraActive = true;
+      this._auroraRibbonTime = 0;
+      this._auroraFadePhase = 'fade_in';
+      this._auroraFadeProgress = 0;
+      this._auroraPulseTimer = 180 + Math.random() * 120;
+      this._auroraPulseValue = 0;
+      this._auroraDominantColor = { r: 75, g: 235, b: 140 };
+      this._auroraSceneBrightness = 1.0;
+      this.eventTimer = 480 + 120; // 8s active + 2s fade-in buffer
+      // Generate star field (105 stars for enhanced visibility)
+      this._auroraStars = [];
+      for (let i = 0; i < 105; i++) {
+        this._auroraStars.push({
+          x: Math.random(),
+          y: 0.015 + Math.random() * 0.38,
+          size: 0.6 + Math.random() * 2.2,
+          twinklePhase: Math.random() * Math.PI * 2,
+          twinkleSpeed: 0.4 + Math.random() * 1.6
+        });
+      }
+      // Initialize arctic wind particles (soft drifting snow)
+      this._auroraArcticParticles = [];
+      for (let i = 0; i < 60; i++) {
+        this._auroraArcticParticles.push({
+          x: Math.random(), y: Math.random(),
+          size: 0.5 + Math.random() * 1.5,
+          speedX: -0.1 - Math.random() * 0.2,
+          speedY: 0.02 + Math.random() * 0.05,
+          alpha: 0.1 + Math.random() * 0.25,
+          phase: Math.random() * Math.PI * 2,
+          auroraGlow: Math.random() > 0.7 ? Math.random() : 0
+        });
+      }
+      // Tiny ice crystals
+      for (let i = 0; i < 25; i++) {
+        this._auroraArcticParticles.push({
+          x: Math.random(), y: Math.random(),
+          size: 0.3 + Math.random() * 0.6,
+          speedX: 0.05 + Math.random() * 0.08,
+          speedY: -0.03 - Math.random() * 0.04,
+          alpha: 0.15 + Math.random() * 0.3,
+          phase: Math.random() * Math.PI * 2,
+          auroraGlow: 0.3 + Math.random() * 0.7
+        });
+      }
+      // Slow wind streaks
+      for (let i = 0; i < 15; i++) {
+        this._auroraArcticParticles.push({
+          x: Math.random(), y: Math.random(),
+          size: 1.5 + Math.random() * 3,
+          speedX: -0.3 - Math.random() * 0.4,
+          speedY: 0,
+          alpha: 0.02 + Math.random() * 0.05,
+          phase: Math.random() * Math.PI * 2,
+          auroraGlow: 0.1 + Math.random() * 0.3
+        });
+      }
+      // Initialize background fog layers for depth
+      this._auroraBackgroundFog = [];
+      for (let i = 0; i < 6; i++) {
+        this._auroraBackgroundFog.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: 0.35 + Math.random() * 0.45,
+          size: 100 + Math.random() * 150,
+          speedX: -0.02 - Math.random() * 0.03,
+          alpha: 0.02 + Math.random() * 0.04,
+          colorShift: Math.random() * 0.5
+        });
+      }
+      this._auroraGustTimer = 120 + Math.random() * 120;
+      this._auroraSnowGusts = [];
+      // Start ambient audio
+      this.sounds.startAuroraAmbient();
     }
 
     this.eventCount++;
@@ -3755,6 +3908,17 @@ if (this.activeEvent.key === 'speed_surge') {
           delete ball._blizzardCapSpeed;
         });
         this.sounds.stopBlizzardWind();
+      }
+      if (this.activeEvent.key === 'aurora_borealis') {
+        this._auroraActive = false;
+        this._auroraFadePhase = null;
+        this._auroraFadeProgress = 0;
+        this._auroraStars = [];
+        this._auroraArcticParticles = [];
+        this._auroraSnowGusts = [];
+        this._auroraBackgroundFog = [];
+        this._auroraSceneBrightness = 1.0;
+        this.sounds.stopAuroraAmbient();
       }
       this.activeEvent = null;
       return;
@@ -3913,6 +4077,108 @@ if (this.activeEvent.key === 'speed_surge') {
       if (this._blizzardCrackTimer <= 0) {
         this.sounds.playBlizzardCrack();
         this._blizzardCrackTimer = 120 + Math.random() * 60;
+      }
+    } else if (this.activeEvent.key === 'aurora_borealis') {
+      // ---- Aurora fade phase management ----
+      const fadeFrames = 120;
+      if (this.eventTimer > 480) {
+        this._auroraFadePhase = 'fade_in';
+        this._auroraFadeProgress = Math.min(1, (this.eventTimer - 480) / fadeFrames);
+      } else if (this.eventTimer > fadeFrames) {
+        this._auroraFadePhase = 'active';
+        this._auroraFadeProgress = 1.0;
+      } else {
+        this._auroraFadePhase = 'fade_out';
+        this._auroraFadeProgress = Math.max(0, this.eventTimer / fadeFrames);
+      }
+
+      // Scene brightness: darken 23% at full effect
+      this._auroraSceneBrightness = 1.0 - this._auroraFadeProgress * 0.23;
+
+      // Gentle light pulse (10% brightness change every 3-5s)
+      this._auroraPulseTimer -= dt;
+      if (this._auroraPulseTimer <= 0) {
+        this._auroraPulseTimer = 180 + Math.random() * 120;
+      }
+      const pulsePhase = this._auroraPulseTimer;
+      this._auroraPulseValue = pulsePhase < 60
+        ? (60 - pulsePhase) / 60 * 0.10
+        : pulsePhase > 120
+          ? 0
+          : (120 - pulsePhase) / 60 * 0.10;
+
+      // Update dominant aurora color (cycles through palette for reflections)
+      const aurTime = Date.now() * 0.0003;
+      const pal = [
+        { r: 75, g: 235, b: 140 }, { r: 60, g: 220, b: 205 },
+        { r: 85, g: 185, b: 255 }, { r: 155, g: 130, b: 250 },
+        { r: 220, g: 125, b: 210 }
+      ];
+      const t = (aurTime * 0.5 + 0.5) % 1;
+      const idx1 = Math.floor(t * (pal.length - 1));
+      const idx2 = Math.min(idx1 + 1, pal.length - 1);
+      const lt = (t * (pal.length - 1)) - idx1;
+      const pc = pal[idx1], nc = pal[idx2];
+      this._auroraDominantColor = {
+        r: pc.r + (nc.r - pc.r) * lt,
+        g: pc.g + (nc.g - pc.g) * lt,
+        b: pc.b + (nc.b - pc.b) * lt
+      };
+
+      // Update arctic wind particles
+      const arcticTime = Date.now() * 0.001;
+      for (const p of this._auroraArcticParticles) {
+        p.x += p.speedX * dt * 0.01;
+        p.y += p.speedY * dt * 0.01 + Math.sin(arcticTime + p.phase) * 0.00012 * dt;
+        if (p.x < -0.05) p.x = 1.05;
+        if (p.x > 1.05) p.x = -0.05;
+        if (p.y < -0.05) p.y = 1.05;
+        if (p.y > 1.05) p.y = -0.05;
+      }
+
+      // Update background fog layers
+      for (const fog of this._auroraBackgroundFog) {
+        fog.x += fog.speedX * dt * 0.008;
+        if (fog.x < -0.2) fog.x = 1.2;
+        if (fog.x > 1.2) fog.x = -0.2;
+      }
+
+      // Snow gust management
+      if (this._auroraFadeProgress > 0) {
+        this._auroraGustTimer -= dt;
+        if (this._auroraGustTimer <= 0) {
+          const gustY = 0.2 + Math.random() * 0.5;
+          const gustParticles = [];
+          const pCount = 12 + Math.floor(Math.random() * 10);
+          for (let i = 0; i < pCount; i++) {
+            gustParticles.push({
+              ox: (Math.random() - 0.5) * 0.3,
+              oy: (Math.random() - 0.5) * 0.12,
+              size: 0.5 + Math.random() * 1.5,
+              alpha: 0.1 + Math.random() * 0.2,
+              phase: Math.random() * Math.PI * 2,
+              auroraGlow: Math.random() > 0.5 ? 0.2 + Math.random() * 0.5 : 0
+            });
+          }
+          this._auroraSnowGusts.push({
+            x: 1.15,
+            y: gustY,
+            speed: -0.5 - Math.random() * 0.3,
+            life: 80 + Math.random() * 40,
+            maxLife: 120,
+            particles: gustParticles
+          });
+          this._auroraGustTimer = 180 + Math.random() * 180;
+        }
+      }
+      // Update existing gusts
+      for (let gi = this._auroraSnowGusts.length - 1; gi >= 0; gi--) {
+        const gust = this._auroraSnowGusts[gi];
+        gust.life -= dt;
+        gust.x += gust.speed * dt * 0.01;
+        if (gust.life <= 0 || gust.x < -0.2) {
+          this._auroraSnowGusts.splice(gi, 1);
+        }
       }
     }
   }
@@ -6926,6 +7192,21 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
 
+        // Aurora Borealis faint reflection on balls
+        if (this._auroraActive && !ball.finished && !ball.eliminated) {
+          const fade = this._auroraFadeProgress;
+          const dc = this._auroraDominantColor;
+          this.ctx.save();
+          this.ctx.globalAlpha = 0.15 * fade;
+          this.ctx.fillStyle = `rgba(${dc.r|0},${dc.g|0},${dc.b|0},0.15)`;
+          this.ctx.shadowColor = `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${0.25 * fade})`;
+          this.ctx.shadowBlur = 18;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.restore();
+        }
+
         // Winner glow during flash sequence
         if (this._winnerFlashActive && this._winnerFlashBall && ball.id === this._winnerFlashBall.id) {
           this.ctx.save();
@@ -7183,6 +7464,117 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         ctx.restore();
       } else if (theme === 'snow') {
+        // ========== AURORA BOREALIS EVENT: Full-sky aurora curtain ==========
+        if (this._auroraActive) {
+          const fade = this._auroraFadeProgress;
+          const pulse = this._auroraPulseValue;
+          const totalAlpha = fade * (1 + pulse);
+          const dc = this._auroraDominantColor;
+
+          // Darken upper sky (deep Arctic night)
+          ctx.save();
+          const skyGrad = ctx.createLinearGradient(0, 0, 0, screenH * 0.55);
+          skyGrad.addColorStop(0, `rgba(3, 6, 20, ${0.60 * fade})`);
+          skyGrad.addColorStop(0.4, `rgba(5, 10, 30, ${0.30 * fade})`);
+          skyGrad.addColorStop(0.7, `rgba(8, 15, 35, ${0.10 * fade})`);
+          skyGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = skyGrad;
+          ctx.fillRect(0, 0, screenW, screenH * 0.55);
+          ctx.restore();
+
+          // Stars with enhanced visibility
+          for (const star of this._auroraStars) {
+            const sx = star.x * screenW;
+            const sy = star.y * screenH;
+            const twinkle = 0.5 + 0.5 * Math.sin(time * star.twinkleSpeed + star.twinklePhase);
+            ctx.globalAlpha = (0.45 + 0.55 * twinkle) * fade;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(sx, sy, star.size, 0, Math.PI * 2);
+            ctx.fill();
+            if (twinkle > 0.9) {
+              ctx.globalAlpha = (twinkle - 0.9) * 0.30 * fade;
+              ctx.shadowColor = '#ffffff';
+              ctx.shadowBlur = 12;
+              ctx.beginPath();
+              ctx.arc(sx, sy, star.size * 2.5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+          }
+          ctx.globalAlpha = 1;
+
+          // Aurora curtain layers
+          const auroraTime = time * 0.15;
+          const colorStops = [
+            { pos: 0.00, r: 75, g: 235, b: 140 },
+            { pos: 0.20, r: 60, g: 220, b: 205 },
+            { pos: 0.40, r: 85, g: 185, b: 255 },
+            { pos: 0.60, r: 155, g: 130, b: 250 },
+            { pos: 0.80, r: 220, g: 125, b: 210 },
+            { pos: 1.00, r: 75, g: 235, b: 140 },
+          ];
+          const makeGradient = (alpha) => {
+            const g = ctx.createLinearGradient(0, 0, screenW, 0);
+            for (const cs of colorStops) {
+              g.addColorStop(cs.pos, `rgba(${cs.r},${cs.g},${cs.b},${alpha * totalAlpha})`);
+            }
+            return g;
+          };
+
+          const curtains = [
+            { baseY: 0.30, amp1: 50, f1: 0.003, s1: 0.020, amp2: 30, f2: 0.007, s2: 0.030, amp3: 20, f3: 0.012, s3: 0.040, drift: 90, df: 0.0012, ds: 0.008, alpha: 0.07 },
+            { baseY: 0.36, amp1: 45, f1: 0.004, s1: 0.028, amp2: 28, f2: 0.008, s2: 0.038, amp3: 18, f3: 0.014, s3: 0.048, drift: 110, df: 0.0015, ds: 0.010, alpha: 0.14 },
+            { baseY: 0.40, amp1: 48, f1: 0.005, s1: 0.032, amp2: 32, f2: 0.009, s2: 0.042, amp3: 22, f3: 0.015, s3: 0.052, drift: 100, df: 0.0018, ds: 0.012, alpha: 0.18 },
+            { baseY: 0.34, amp1: 38, f1: 0.0035, s1: 0.024, amp2: 24, f2: 0.0065, s2: 0.034, amp3: 15, f3: 0.011, s3: 0.044, drift: 85, df: 0.001, ds: 0.009, alpha: 0.12 },
+            { baseY: 0.26, amp1: 35, f1: 0.006, s1: 0.036, amp2: 20, f2: 0.011, s2: 0.046, amp3: 14, f3: 0.018, s3: 0.056, drift: 70, df: 0.002, ds: 0.014, alpha: 0.22 },
+          ];
+
+          for (const curtain of curtains) {
+            ctx.save();
+            const by = screenH * curtain.baseY;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            for (let x = 0; x <= screenW; x += 3) {
+              const w1 = Math.sin(x * curtain.f1 + auroraTime * curtain.s1) * curtain.amp1;
+              const w2 = Math.sin(x * curtain.f2 + auroraTime * curtain.s2) * curtain.amp2;
+              const w3 = Math.sin(x * curtain.f3 + auroraTime * curtain.s3) * curtain.amp3;
+              const w4 = Math.sin(x * curtain.df + auroraTime * curtain.ds) * curtain.drift;
+              const y = Math.max(5, by + w1 + w2 + w3 + w4);
+              ctx.lineTo(x, y);
+            }
+            ctx.lineTo(screenW, 0);
+            ctx.closePath();
+            ctx.fillStyle = makeGradient(curtain.alpha);
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // Vertical fade mask
+          ctx.save();
+          const fadeGrad = ctx.createLinearGradient(0, screenH * 0.15, 0, screenH * 0.50);
+          fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
+          fadeGrad.addColorStop(0.5, 'rgba(0,0,0,0)');
+          fadeGrad.addColorStop(0.8, `rgba(0,0,0,${0.08 * fade})`);
+          fadeGrad.addColorStop(1, `rgba(0,0,0,${0.20 * fade})`);
+          ctx.fillStyle = fadeGrad;
+          ctx.fillRect(0, screenH * 0.15, screenW, screenH * 0.35);
+          ctx.restore();
+
+          // Atmospheric glow
+          ctx.save();
+          const glowGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.15, 10, screenW * 0.5, screenH * 0.15, screenH * 0.5);
+          const glowT = (Math.sin(auroraTime * 0.7) * 0.5 + 0.5) * 0.4 + 0.3;
+          glowGrad.addColorStop(0, `rgba(${80 + glowT * 60}, ${200 + glowT * 40}, ${160 + glowT * 60}, ${0.06 * totalAlpha})`);
+          glowGrad.addColorStop(0.5, `rgba(${120 + glowT * 40}, ${170 + glowT * 30}, ${200 + glowT * 40}, ${0.03 * totalAlpha})`);
+          glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = glowGrad;
+          ctx.fillRect(0, 0, screenW, screenH * 0.55);
+          ctx.restore();
+
+          ctx.globalAlpha = 1;
+        }
+
         // ========== FAR LAYER: Distant mountain silhouettes ==========
         ctx.save();
         ctx.fillStyle = 'rgba(15, 35, 60, 0.12)';
@@ -7230,28 +7622,30 @@ if (this.activeEvent.key === 'speed_surge') {
         ctx.fill();
         ctx.restore();
 
-        // ========== MID LAYER: Aurora borealis ==========
-        ctx.save();
-        const aurAlpha = 0.07 + Math.sin(time * 0.07) * 0.05;
-        ctx.globalAlpha = aurAlpha;
-        const aurY = screenH * 0.20;
-        const aurGrad = ctx.createRadialGradient(screenW * 0.3, aurY, 5, screenW * 0.3, aurY, screenW * 0.45);
-        aurGrad.addColorStop(0, '#80f0b0');
-        aurGrad.addColorStop(0.25, '#50d0ff');
-        aurGrad.addColorStop(0.5, '#3080d0');
-        aurGrad.addColorStop(1, 'transparent');
-        ctx.fillStyle = aurGrad;
-        ctx.fillRect(0, screenH * 0.06, screenW, screenH * 0.28);
-        ctx.restore();
-        ctx.save();
-        ctx.globalAlpha = 0.045 + Math.sin(time * 0.09 + 1.5) * 0.035;
-        const aurGrad2 = ctx.createRadialGradient(screenW * 0.7, aurY + 12, 5, screenW * 0.7, aurY + 12, screenW * 0.35);
-        aurGrad2.addColorStop(0, '#a0f8c0');
-        aurGrad2.addColorStop(0.3, '#60d0ff');
-        aurGrad2.addColorStop(1, 'transparent');
-        ctx.fillStyle = aurGrad2;
-        ctx.fillRect(0, screenH * 0.06, screenW, screenH * 0.28);
-        ctx.restore();
+        // ========== MID LAYER: Aurora borealis (skip during aurora event — enhanced version renders above) ==========
+        if (!this._auroraActive) {
+          ctx.save();
+          const aurAlpha = 0.07 + Math.sin(time * 0.07) * 0.05;
+          ctx.globalAlpha = aurAlpha;
+          const aurY = screenH * 0.20;
+          const aurGrad = ctx.createRadialGradient(screenW * 0.3, aurY, 5, screenW * 0.3, aurY, screenW * 0.45);
+          aurGrad.addColorStop(0, '#80f0b0');
+          aurGrad.addColorStop(0.25, '#50d0ff');
+          aurGrad.addColorStop(0.5, '#3080d0');
+          aurGrad.addColorStop(1, 'transparent');
+          ctx.fillStyle = aurGrad;
+          ctx.fillRect(0, screenH * 0.06, screenW, screenH * 0.28);
+          ctx.restore();
+          ctx.save();
+          ctx.globalAlpha = 0.045 + Math.sin(time * 0.09 + 1.5) * 0.035;
+          const aurGrad2 = ctx.createRadialGradient(screenW * 0.7, aurY + 12, 5, screenW * 0.7, aurY + 12, screenW * 0.35);
+          aurGrad2.addColorStop(0, '#a0f8c0');
+          aurGrad2.addColorStop(0.3, '#60d0ff');
+          aurGrad2.addColorStop(1, 'transparent');
+          ctx.fillStyle = aurGrad2;
+          ctx.fillRect(0, screenH * 0.06, screenW, screenH * 0.28);
+          ctx.restore();
+        }
 
         // ========== MID-FRONT LAYER: Dense pine forest (back row) ==========
         ctx.save();
@@ -8429,6 +8823,121 @@ if (this.activeEvent.key === 'speed_surge') {
         this.ctx.restore();
       }
 
+      // A0aa. Aurora Borealis — comprehensive atmospheric overlay
+      if (this._auroraActive && this.state === 'racing') {
+        const fade = this._auroraFadeProgress;
+        const pulse = this._auroraPulseValue;
+        const dc = this._auroraDominantColor;
+        const totalA = fade * (1 + pulse);
+        this.ctx.save();
+
+        // 1. Environment darkening (20-25% reduction, using fade progress)
+        const darkA = fade * 0.23;
+        this.ctx.fillStyle = `rgba(3, 6, 20, ${darkA})`;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+
+        // 2. Aurora colored haze extending downward from sky
+        const hazeGrad = this.ctx.createLinearGradient(0, 0, 0, screenH);
+        const hazeA = totalA * 0.08;
+        hazeGrad.addColorStop(0, `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${hazeA})`);
+        hazeGrad.addColorStop(0.30, `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${hazeA * 0.6})`);
+        hazeGrad.addColorStop(0.55, `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${hazeA * 0.25})`);
+        hazeGrad.addColorStop(0.80, `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${hazeA * 0.08})`);
+        hazeGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        this.ctx.fillStyle = hazeGrad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+
+        // 3. Dynamic snow/ground reflection (matches dominant aurora color)
+        const refGrad = this.ctx.createLinearGradient(0, screenH * 0.40, 0, screenH);
+        refGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        refGrad.addColorStop(0.3, `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${totalA * 0.035})`);
+        refGrad.addColorStop(0.6, `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${totalA * 0.025})`);
+        refGrad.addColorStop(0.85, `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${totalA * 0.015})`);
+        refGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        this.ctx.fillStyle = refGrad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+
+        // 4. Faint track coloured sheen (ice reflecting aurora)
+        const trackGrad = this.ctx.createLinearGradient(0, screenH * 0.45, 0, screenH * 0.75);
+        trackGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        trackGrad.addColorStop(0.5, `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${totalA * 0.02})`);
+        trackGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        this.ctx.fillStyle = trackGrad;
+        this.ctx.fillRect(0, screenH * 0.45, screenW, screenH * 0.30);
+        this.ctx.restore();
+
+        // 5. Background depth: distant snowy mist and icy fog layers
+        this.ctx.save();
+        for (const fog of this._auroraBackgroundFog) {
+          const fx = fog.x * screenW;
+          const fy = fog.y * screenH;
+          const fAlpha = fog.alpha * fade;
+          if (fAlpha <= 0) continue;
+          const fogGrad = this.ctx.createRadialGradient(fx, fy, 0, fx, fy, fog.size);
+          const cr = Math.min(255, dc.r + 40);
+          const cg = Math.min(255, dc.g + 30);
+          const cb = Math.min(255, dc.b + 50);
+          fogGrad.addColorStop(0, `rgba(${cr},${cg},${cb},${fAlpha})`);
+          fogGrad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+          this.ctx.fillStyle = fogGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(fx, fy, fog.size, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+        this.ctx.restore();
+
+        // 6. Arctic wind particles (drifting snow, ice crystals, wind streaks)
+        this.ctx.save();
+        for (const p of this._auroraArcticParticles) {
+          const a = p.alpha * fade;
+          if (a <= 0) continue;
+          const px = p.x * screenW;
+          const py = p.y * screenH;
+          this.ctx.globalAlpha = a;
+          if (p.auroraGlow > 0) {
+            const gA = p.auroraGlow * 0.5;
+            this.ctx.fillStyle = `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${gA})`;
+          } else {
+            this.ctx.fillStyle = 'rgba(220, 240, 255, 0.6)';
+          }
+          if (p.size > 1.5) {
+            // Wind streak (elongated)
+            this.ctx.fillRect(px - p.size * 3, py, p.size * 6, 0.5);
+          } else {
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, p.size, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+        }
+        this.ctx.globalAlpha = 1;
+        this.ctx.restore();
+
+        // 7. Snow gusts with aurora-colored reflections
+        this.ctx.save();
+        for (const gust of this._auroraSnowGusts) {
+          const gustLife = gust.life / gust.maxLife;
+          const gustA = Math.min(1, gustLife * 2) * fade * 0.6;
+          if (gustA <= 0) continue;
+          const gx = gust.x * screenW;
+          const gy = gust.y * screenH;
+          for (const gp of gust.particles) {
+            const gpx = gx + gp.ox * screenW;
+            const gpy = gy + gp.oy * screenH;
+            this.ctx.globalAlpha = gp.alpha * gustA * Math.min(1, gustLife * 2);
+            if (gp.auroraGlow > 0) {
+              this.ctx.fillStyle = `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${gp.auroraGlow})`;
+            } else {
+              this.ctx.fillStyle = 'rgba(230, 245, 255, 0.5)';
+            }
+            this.ctx.beginPath();
+            this.ctx.arc(gpx, gpy, gp.size, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+        }
+        this.ctx.globalAlpha = 1;
+        this.ctx.restore();
+      }
+
       // A0b. Teleportation white flash
       if (this._whiteFlashAlpha > 0) {
         this.ctx.save();
@@ -8987,7 +9496,16 @@ if (this.activeEvent.key === 'speed_surge') {
       this._blizzardSnowParticles = [];
       this._blizzardFogParticles = [];
       this._blizzardCrackTimer = 0;
+      this._auroraActive = false;
+      this._auroraStars = [];
+      this._auroraFadePhase = null;
+      this._auroraFadeProgress = 0;
+      this._auroraArcticParticles = [];
+      this._auroraSnowGusts = [];
+      this._auroraBackgroundFog = [];
+      this._auroraSceneBrightness = 1.0;
       this.sounds.stopBlizzardWind();
+      this.sounds.stopAuroraAmbient();
       this.commentary.clear();
       this.commentary.lastLeaderCode = null;
       this.eventBanner.clear();
