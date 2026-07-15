@@ -4550,17 +4550,20 @@ if (this.activeEvent.key === 'speed_surge') {
           }
         }
 
-        // Update ambient ash particles
-        if (Math.random() < 0.02 * dt) {
-          this._volcanoAshParticles.push({
-            x: Math.random(),
-            y: 0.15 + Math.random() * 0.35,
-            vx: -0.0005 - Math.random() * 0.001,
-            vy: -0.0002 - Math.random() * 0.0005,
-            size: 1 + Math.random() * 2,
-            alpha: 0.05 + Math.random() * 0.1,
-            life: 1.0
-          });
+        // Update ambient ash particles — 5 emitters across full viewport
+        const ashEmitters = [0.05, 0.25, 0.5, 0.75, 0.95];
+        for (const ax of ashEmitters) {
+          if (Math.random() < 0.004 * dt) {
+            this._volcanoAshParticles.push({
+              x: ax + (Math.random() - 0.5) * 0.15,
+              y: 0.15 + Math.random() * 0.35,
+              vx: -0.0003 - Math.random() * 0.0008,
+              vy: -0.0002 - Math.random() * 0.0005,
+              size: 1 + Math.random() * 2,
+              alpha: 0.05 + Math.random() * 0.08,
+              life: 1.0
+            });
+          }
         }
         for (const p of this._volcanoAshParticles) {
           p.x += p.vx * dt;
@@ -4570,25 +4573,28 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         this._volcanoAshParticles = this._volcanoAshParticles.filter(p => p.life > 0 && p.x > -0.1);
 
-        // Update ambient ember particles
-        if (Math.random() < 0.015 * dt) {
-          const emberColors = ['#ff3300', '#ff6600', '#ff9900', '#ffcc00'];
-          this._volcanoEmberParticles.push({
-            x: Math.random(),
-            y: 0.7 + Math.random() * 0.25,
-            vx: (Math.random() - 0.5) * 0.0008,
-            vy: -0.001 - Math.random() * 0.002,
-            size: 1.5 + Math.random() * 2,
-            alpha: 0.4 + Math.random() * 0.4,
-            color: emberColors[Math.floor(Math.random() * emberColors.length)],
-            life: 1.0
-          });
+        // Update ambient ember particles — 5 emitters across full viewport
+        const emberEmitters = [0.05, 0.25, 0.5, 0.75, 0.95];
+        const emberColors = ['#ff6600', '#ff8800', '#ffaa00', '#ff4400'];
+        for (const ex of emberEmitters) {
+          if (Math.random() < 0.003 * dt) {
+            this._volcanoEmberParticles.push({
+              x: ex + (Math.random() - 0.5) * 0.15,
+              y: 0.5 + Math.random() * 0.4,
+              vx: (Math.random() - 0.5) * 0.001,
+              vy: -0.0008 - Math.random() * 0.003,
+              size: 1 + Math.random() * 1.5,
+              alpha: 0.10 + Math.random() * 0.08,
+              color: emberColors[Math.floor(Math.random() * emberColors.length)],
+              life: 1.0
+            });
+          }
         }
         for (const p of this._volcanoEmberParticles) {
           p.x += p.vx * dt;
           p.y += p.vy * dt;
-          p.life -= dt * 0.0015;
-          p.alpha = p.life * 0.8;
+          p.life -= dt * 0.0012;
+          p.alpha = p.life * 0.18;
         }
         this._volcanoEmberParticles = this._volcanoEmberParticles.filter(p => p.life > 0 && p.y > 0);
 
@@ -5182,8 +5188,9 @@ if (this.activeEvent.key === 'speed_surge') {
           alpha: 0.8,
           size: Math.random() * 6 + 3
         });
-      } else if (pType === 'ember') {
+      } else if (pType === 'ember' && this.currentThemeKey !== 'volcano') {
         // Volcano: embers rise from bottom lava grids
+        // Skipped for Magma Crater — volcano-specific atmo overlay handles embers in the correct layer (behind track, obstacles, balls)
         this.particles.push({
           type: 'ember',
           x: Math.random() * 500,
@@ -5471,6 +5478,76 @@ if (this.activeEvent.key === 'speed_surge') {
     // Draw dynamic background elements (map-specific atmospheric effects)
     this.renderDynamicBackground(screenW, screenH);
 
+    // A0ac. Volcano (Magma Crater) atmospheric overlay
+    if (this.currentThemeKey === 'volcano' && this.state === 'racing') {
+      this.ctx.save();
+
+    // 1. Floating ash particles (dark volcanic dust)
+      for (const ash of this._volcanoAshParticles) {
+        const a = ash.alpha * 0.4;
+        if (a <= 0) continue;
+        const ax = ash.x * screenW;
+        const ay = ash.y * screenH;
+        this.ctx.globalAlpha = a;
+        this.ctx.fillStyle = '#1a1510';
+        this.ctx.beginPath();
+        this.ctx.arc(ax, ay, ash.size, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+
+      // 3. Rising embers (subtle, 10-18% opacity, no glow)
+      for (const ember of this._volcanoEmberParticles) {
+        const a = ember.alpha;
+        if (a <= 0) continue;
+        const ex = ember.x * screenW;
+        const ey = ember.y * screenH;
+        this.ctx.globalAlpha = a;
+        this.ctx.fillStyle = ember.color;
+        this.ctx.beginPath();
+        this.ctx.arc(ex, ey, ember.size, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.shadowBlur = 0;
+      }
+
+      // 4. Thin smoke columns from volcanic vents
+      for (const smoke of this._volcanoSmokeColumns) {
+        const a = smoke.alpha * 0.3;
+        if (a <= 0) continue;
+        const sx = smoke.x * screenW;
+        const sy = smoke.y * screenH;
+        const smokeSize = smoke.height * screenH;
+        this.ctx.globalAlpha = a;
+        const smokeGrad = this.ctx.createRadialGradient(sx, sy, 0, sx, sy, smokeSize);
+        smokeGrad.addColorStop(0, `rgba(58, 48, 40, ${smoke.alpha})`);
+        smokeGrad.addColorStop(1, 'rgba(58, 48, 40, 0)');
+        this.ctx.fillStyle = smokeGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(sx, sy, smoke.size, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+
+      // 5. Active eruption effects (lava burst, ash cloud, glowing rocks)
+      if (this._volcanoEruptionActive && this._volcanoEruptionParticles.length > 0) {
+        for (const p of this._volcanoEruptionParticles) {
+          const px = p.x * screenW;
+          const py = p.y * screenH;
+          this.ctx.globalAlpha = p.alpha;
+          this.ctx.fillStyle = p.color;
+          if (p.color.startsWith('#ff') || p.color.startsWith('#cc')) {
+            this.ctx.shadowColor = p.color;
+            this.ctx.shadowBlur = 6;
+          }
+          this.ctx.beginPath();
+          this.ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+        }
+      }
+
+      this.ctx.globalAlpha = 1;
+      this.ctx.restore();
+    }
+
     // Apply camera shake offset
     // Calculate scaling coordinates based on aspect ratio
     let baseZoom = 1;
@@ -5501,6 +5578,7 @@ if (this.activeEvent.key === 'speed_surge') {
 
     if (this.track) {
       // Draw Zones (boost pads, ice zones, finish checkered area)
+      const renderTrackZones = () => {
       this.track.zones.forEach(zone => {
         // Draw offset relative to camera (scroll on X axis)
         const zX = zone.x - camX;
@@ -5933,6 +6011,8 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
       });
+      };
+      if (this.currentThemeKey !== 'volcano') renderTrackZones();
 
       // Draw Static Pegs (Bumpers) — white, shiny, glossy
       this.track.pegs.forEach(peg => {
@@ -6027,7 +6107,300 @@ if (this.activeEvent.key === 'speed_surge') {
         }
       });
 
-      // Draw Obstacles (moving barriers, spinner anchors, meteors/rocks)
+      // Draw Track Surface as filled shape with thin boundaries
+      const wallAlpha = 0.35;
+      const wallRgba = this.currentTheme.wallColor;
+      this.ctx.save();
+      // Fill track surface (connects top and bottom boundaries)
+      if (this.track.topPoints.length > 1) {
+        const cullBuf = 600;
+        const virtRight = screenW / zoom;
+        // Use only visible wall points to build a filled polygon
+        const visibleTop = [];
+        const visibleBot = [];
+        for (let i = 0; i < this.track.topPoints.length; i++) {
+          const wx = this.track.topPoints[i].x - camX;
+          if (wx > -cullBuf && wx < virtRight + cullBuf) {
+            visibleTop.push({ x: wx, y: this.track.topPoints[i].y });
+            visibleBot.push({ x: wx, y: this.track.bottomPoints[i].y });
+          }
+        }
+        if (visibleTop.length > 1) {
+          // Surface fill (semi-transparent version of wall color)
+          const hexToRgba = (hex, a) => { const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; };
+          let surfAlpha = this.currentThemeKey === 'snow' ? 0.18 : 0.06;
+          let surfaceColor = wallRgba;
+          // Volcano: use dark metallic graphite instead of red wall color for track surface
+          if (this.currentThemeKey === 'volcano') {
+            surfaceColor = '#1a1612'; // Dark volcanic rock / graphite
+            surfAlpha = 0.85;
+          }
+          this.ctx.fillStyle = hexToRgba(surfaceColor, surfAlpha);
+          this.ctx.beginPath();
+          this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
+          for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+          for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+          this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
+          this.ctx.fill();
+
+          // Darker surface overlay for snow theme to separate track from background
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.fillStyle = 'rgba(25, 40, 60, 0.10)';
+            this.ctx.beginPath();
+            this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
+            for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
+            this.ctx.fill();
+          }
+          // Edge lighting — subtle gradient near track boundaries
+          const topEdgeY = visibleTop[0].y;
+          const botEdgeY = visibleBot[0].y;
+
+          // Volcano: subtle molten glow along track edges
+          if (this.currentThemeKey === 'volcano') {
+            const edgeGlowTop = this.ctx.createLinearGradient(0, topEdgeY, 0, topEdgeY + 30);
+            edgeGlowTop.addColorStop(0, 'rgba(255, 80, 0, 0.04)');
+            edgeGlowTop.addColorStop(1, 'rgba(255, 80, 0, 0)');
+            this.ctx.fillStyle = edgeGlowTop;
+            this.ctx.fillRect(visibleTop[0].x - 10, topEdgeY, visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20, 30);
+            const edgeGlowBot = this.ctx.createLinearGradient(0, botEdgeY - 30, 0, botEdgeY);
+            edgeGlowBot.addColorStop(0, 'rgba(0,0,0,0)');
+            edgeGlowBot.addColorStop(1, 'rgba(255, 80, 0, 0.05)');
+            this.ctx.fillStyle = edgeGlowBot;
+            this.ctx.fillRect(visibleBot[0].x - 10, botEdgeY - 30, visibleBot[visibleBot.length - 1].x - visibleBot[0].x + 20, 30);
+          }
+          const edgeLight = this.ctx.createLinearGradient(0, topEdgeY, 0, topEdgeY + 20);
+          edgeLight.addColorStop(0, 'rgba(255,255,255,0.04)');
+          edgeLight.addColorStop(1, 'rgba(255,255,255,0)');
+          this.ctx.fillStyle = edgeLight;
+          this.ctx.fillRect(visibleTop[0].x - 10, topEdgeY, visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20, 20);
+          const botEdgeLight = this.ctx.createLinearGradient(0, botEdgeY - 20, 0, botEdgeY);
+          botEdgeLight.addColorStop(0, 'rgba(0,0,0,0)');
+          botEdgeLight.addColorStop(1, 'rgba(0,0,0,0.06)');
+          this.ctx.fillStyle = botEdgeLight;
+          this.ctx.fillRect(visibleBot[0].x - 10, botEdgeY - 20, visibleBot[visibleBot.length - 1].x - visibleBot[0].x + 20, 20);
+
+          // Grass texture variation or ice cracks (theme-specific)
+          if (this.currentThemeKey === 'snow') {
+            // Ice crack patterns on the surface (more visible)
+            this.ctx.strokeStyle = 'rgba(100, 180, 220, 0.10)';
+            this.ctx.lineWidth = 1.2;
+            const iceSeed = Math.floor(camX / 25);
+            for (let c = 0; c < 8; c++) {
+              const cx = visibleTop[0].x + ((iceSeed * 67 + c * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const cy = topEdgeY + 10 + ((iceSeed * 43 + c * 89) % (botEdgeY - topEdgeY - 20));
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx, cy);
+              this.ctx.lineTo(cx + 10 + (c * 13) % 20, cy + 5 + (c * 7) % 10);
+              this.ctx.lineTo(cx + 20 + (c * 17) % 15, cy - 3 + (c * 11) % 8);
+              this.ctx.stroke();
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx + 5, cy + 2);
+              this.ctx.lineTo(cx + 15 + (c * 19) % 12, cy - 8 + (c * 5) % 6);
+              this.ctx.stroke();
+            }
+          } else if (this.currentThemeKey === 'volcano') {
+            // Magma crack patterns on the volcanic surface
+            this.ctx.strokeStyle = 'rgba(255, 100, 0, 0.05)';
+            this.ctx.lineWidth = 1.2;
+            const magmaSeed = Math.floor(camX / 25);
+            for (let c = 0; c < 10; c++) {
+              const cx = visibleTop[0].x + ((magmaSeed * 67 + c * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const cy = topEdgeY + 10 + ((magmaSeed * 43 + c * 89) % (botEdgeY - topEdgeY - 20));
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx, cy);
+              this.ctx.lineTo(cx + 12 + (c * 13) % 20, cy + 6 + (c * 7) % 10);
+              this.ctx.lineTo(cx + 22 + (c * 17) % 15, cy - 4 + (c * 11) % 8);
+              this.ctx.stroke();
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx + 5, cy + 2);
+              this.ctx.lineTo(cx + 18 + (c * 19) % 12, cy - 10 + (c * 5) % 6);
+              this.ctx.stroke();
+            }
+          } else {
+            this.ctx.strokeStyle = 'rgba(46,204,113,0.03)';
+            this.ctx.lineWidth = 1.5;
+            const grassSeed = Math.floor(camX / 30);
+            for (let g = 0; g < 12; g++) {
+              const gx = visibleTop[0].x + ((grassSeed * 137 + g * 97) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const gy = topEdgeY + 8 + ((grassSeed * 53 + g * 131) % (botEdgeY - topEdgeY - 16));
+              const glen = 3 + ((grassSeed * 71 + g * 43) % 6);
+              this.ctx.beginPath();
+              this.ctx.moveTo(gx, gy);
+              this.ctx.lineTo(gx + ((g * 29) % 7 - 3), gy - glen);
+              this.ctx.stroke();
+            }
+          }
+
+          // White painted boundary lines (at ~15% and ~85% of track width)
+          const lineY1 = topEdgeY + (botEdgeY - topEdgeY) * 0.15;
+          const lineY2 = topEdgeY + (botEdgeY - topEdgeY) * 0.85;
+          this.ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+          this.ctx.lineWidth = 1.5;
+          this.ctx.setLineDash([8, 12]);
+          this.ctx.beginPath();
+          this.ctx.moveTo(visibleTop[0].x, lineY1);
+          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY1);
+          this.ctx.stroke();
+          this.ctx.beginPath();
+          this.ctx.moveTo(visibleTop[0].x, lineY2);
+          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY2);
+          this.ctx.stroke();
+          this.ctx.setLineDash([]);
+
+          // Wear marks — subtle dark streaks
+          this.ctx.strokeStyle = 'rgba(0,0,0,0.04)';
+          this.ctx.lineWidth = 1;
+          const wearSeed = Math.floor(camX / 20);
+          for (let w = 0; w < 4; w++) {
+            const wx = visibleTop[0].x + ((wearSeed * 61 + w * 113) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+            const wy = topEdgeY + 15 + ((wearSeed * 43 + w * 79) % (botEdgeY - topEdgeY - 30));
+            this.ctx.beginPath();
+            this.ctx.moveTo(wx, wy);
+            this.ctx.quadraticCurveTo(wx + 10 + (w * 17) % 15, wy + 2, wx + 25 + (w * 11) % 10, wy - 1);
+            this.ctx.stroke();
+          }
+
+          // Small scattered pebbles or ice crystals (theme-specific)
+          const pebSeed = Math.floor(camX / 15);
+          if (this.currentThemeKey === 'snow') {
+            // Ice crystal sparkles on the surface (more visible)
+            this.ctx.fillStyle = 'rgba(120, 200, 240, 0.18)';
+            for (let p = 0; p < 10; p++) {
+              const px = visibleTop[0].x + ((pebSeed * 47 + p * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const py = topEdgeY + 5 + ((pebSeed * 73 + p * 89) % (botEdgeY - topEdgeY - 10));
+              const ps = 0.8 + ((pebSeed * 59 + p * 37) % 3) * 0.6;
+              this.ctx.beginPath();
+              this.ctx.arc(px, py, ps, 0, Math.PI * 2);
+              this.ctx.fill();
+              // Tiny cross sparkle
+              this.ctx.globalAlpha = 0.6;
+              this.ctx.strokeStyle = 'rgba(220, 240, 255, 0.10)';
+              this.ctx.lineWidth = 0.5;
+              this.ctx.beginPath();
+              this.ctx.moveTo(px - 3, py);
+              this.ctx.lineTo(px + 3, py);
+              this.ctx.moveTo(px, py - 3);
+              this.ctx.lineTo(px, py + 3);
+              this.ctx.stroke();
+              this.ctx.globalAlpha = 0.6;
+            }
+          } else {
+            this.ctx.fillStyle = 'rgba(180,170,160,0.06)';
+            for (let p = 0; p < 8; p++) {
+              const px = visibleTop[0].x + ((pebSeed * 47 + p * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const py = topEdgeY + 5 + ((pebSeed * 73 + p * 89) % (botEdgeY - topEdgeY - 10));
+              const ps = 1 + ((pebSeed * 59 + p * 37) % 3);
+              this.ctx.beginPath();
+              this.ctx.arc(px, py, ps, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+          }
+
+          // Thin top boundary line
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.strokeStyle = '#1a2a3a';
+            this.ctx.globalAlpha = 0.55;
+          } else {
+            this.ctx.strokeStyle = wallRgba;
+            this.ctx.globalAlpha = wallAlpha;
+          }
+          this.ctx.lineWidth = 3;
+          this.ctx.lineCap = 'round';
+          this.ctx.lineJoin = 'round';
+          this.ctx.beginPath();
+          for (let i = 0; i < visibleTop.length; i++) {
+            if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
+            else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+          }
+          this.ctx.stroke();
+          // Thin bottom boundary line
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.strokeStyle = '#1a2a3a';
+            this.ctx.globalAlpha = 0.55;
+          } else {
+            this.ctx.strokeStyle = wallRgba;
+            this.ctx.globalAlpha = wallAlpha;
+          }
+          this.ctx.beginPath();
+          for (let i = 0; i < visibleBot.length; i++) {
+            if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
+            else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+          }
+          this.ctx.stroke();
+          // Decorative celestial objects + track glow + edge particles (space theme)
+          if (this.currentThemeKey === 'space') {
+            this._renderSpaceObjects(camX);
+            // Subtle cyan energy pulse along wall boundaries
+            this.ctx.save();
+            const pulse = 0.12 + Math.sin(Date.now() * 0.003) * 0.06;
+            this.ctx.strokeStyle = `rgba(102,252,241,${pulse})`;
+            this.ctx.shadowColor = '#66fcf1';
+            this.ctx.shadowBlur = 8;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleTop.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
+              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleBot.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
+              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+            this.ctx.restore();
+            // Tiny energy particles leaking from track edges
+            const epTime = Date.now() * 0.002;
+            const epCount = Math.floor(visibleTop.length * 0.15);
+            for (let e = 0; e < epCount; e++) {
+              const idx = Math.floor((e * 23 + Math.floor(epTime)) % visibleTop.length);
+              if (Math.random() > 0.03) continue;
+              const px = visibleTop[idx].x;
+              const py = visibleTop[idx].y;
+              this.ctx.save();
+              this.ctx.fillStyle = e % 2 === 0 ? '#66fcf1' : '#a78bfa';
+              this.ctx.globalAlpha = 0.15 + Math.random() * 0.15;
+              this.ctx.beginPath();
+              this.ctx.arc(px + (Math.random() - 0.5) * 6, py + Math.random() * 4, 0.8 + Math.random() * 0.8, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.restore();
+            }
+          }
+          // Icy glow on track boundaries for Glacier Summit
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.save();
+            const icePulse = 0.06 + Math.sin(Date.now() * 0.0025) * 0.03;
+            this.ctx.strokeStyle = `rgba(100, 190, 240, ${icePulse})`;
+            this.ctx.shadowColor = '#60b8e0';
+            this.ctx.shadowBlur = 5;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleTop.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
+              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleBot.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
+              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+            this.ctx.restore();
+          }
+          this.ctx.globalAlpha = 1;
+        }
+      }
+      this.ctx.restore();      // Draw Obstacles (moving barriers, spinner anchors, meteors/rocks)
+
+      // Volcano: draw zones on top of track (track is opaque for volcano, zones would be hidden underneath)
+      if (this.currentThemeKey === 'volcano') renderTrackZones();
+
       this.track.obstacles.forEach(obs => {
         const obsX = obs.x - camX;
         const obsCullBuffer = Math.max(300, 400 / this.userZoomMultiplier);
@@ -6720,296 +7093,7 @@ if (this.activeEvent.key === 'speed_surge') {
         }
       });
 
-      // Draw Track Surface as filled shape with thin boundaries
-      const wallAlpha = 0.35;
-      const wallRgba = this.currentTheme.wallColor;
-      this.ctx.save();
-      // Fill track surface (connects top and bottom boundaries)
-      if (this.track.topPoints.length > 1) {
-        const cullBuf = 600;
-        const virtRight = screenW / zoom;
-        // Use only visible wall points to build a filled polygon
-        const visibleTop = [];
-        const visibleBot = [];
-        for (let i = 0; i < this.track.topPoints.length; i++) {
-          const wx = this.track.topPoints[i].x - camX;
-          if (wx > -cullBuf && wx < virtRight + cullBuf) {
-            visibleTop.push({ x: wx, y: this.track.topPoints[i].y });
-            visibleBot.push({ x: wx, y: this.track.bottomPoints[i].y });
-          }
-        }
-        if (visibleTop.length > 1) {
-          // Surface fill (semi-transparent version of wall color)
-          const hexToRgba = (hex, a) => { const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; };
-          let surfAlpha = this.currentThemeKey === 'snow' ? 0.18 : 0.06;
-          let surfaceColor = wallRgba;
-          // Volcano: use dark metallic graphite instead of red wall color for track surface
-          if (this.currentThemeKey === 'volcano') {
-            surfaceColor = '#1a1612'; // Dark volcanic rock / graphite
-            surfAlpha = 0.85;
-          }
-          this.ctx.fillStyle = hexToRgba(surfaceColor, surfAlpha);
-          this.ctx.beginPath();
-          this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
-          for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
-          for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
-          this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
-          this.ctx.fill();
 
-          // Darker surface overlay for snow theme to separate track from background
-          if (this.currentThemeKey === 'snow') {
-            this.ctx.fillStyle = 'rgba(25, 40, 60, 0.10)';
-            this.ctx.beginPath();
-            this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
-            for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
-            for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
-            this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
-            this.ctx.fill();
-          }
-          // Volcano: subtle molten glow along track edges
-          if (this.currentThemeKey === 'volcano') {
-            const edgeGlowTop = this.ctx.createLinearGradient(0, topEdgeY, 0, topEdgeY + 30);
-            edgeGlowTop.addColorStop(0, 'rgba(255, 80, 0, 0.04)');
-            edgeGlowTop.addColorStop(1, 'rgba(255, 80, 0, 0)');
-            this.ctx.fillStyle = edgeGlowTop;
-            this.ctx.fillRect(visibleTop[0].x - 10, topEdgeY, visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20, 30);
-            const edgeGlowBot = this.ctx.createLinearGradient(0, botEdgeY - 30, 0, botEdgeY);
-            edgeGlowBot.addColorStop(0, 'rgba(0,0,0,0)');
-            edgeGlowBot.addColorStop(1, 'rgba(255, 80, 0, 0.05)');
-            this.ctx.fillStyle = edgeGlowBot;
-            this.ctx.fillRect(visibleBot[0].x - 10, botEdgeY - 30, visibleBot[visibleBot.length - 1].x - visibleBot[0].x + 20, 30);
-          }
-
-          // Edge lighting — subtle gradient near track boundaries
-          const topEdgeY = visibleTop[0].y;
-          const botEdgeY = visibleBot[0].y;
-          const edgeLight = this.ctx.createLinearGradient(0, topEdgeY, 0, topEdgeY + 20);
-          edgeLight.addColorStop(0, 'rgba(255,255,255,0.04)');
-          edgeLight.addColorStop(1, 'rgba(255,255,255,0)');
-          this.ctx.fillStyle = edgeLight;
-          this.ctx.fillRect(visibleTop[0].x - 10, topEdgeY, visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20, 20);
-          const botEdgeLight = this.ctx.createLinearGradient(0, botEdgeY - 20, 0, botEdgeY);
-          botEdgeLight.addColorStop(0, 'rgba(0,0,0,0)');
-          botEdgeLight.addColorStop(1, 'rgba(0,0,0,0.06)');
-          this.ctx.fillStyle = botEdgeLight;
-          this.ctx.fillRect(visibleBot[0].x - 10, botEdgeY - 20, visibleBot[visibleBot.length - 1].x - visibleBot[0].x + 20, 20);
-
-          // Grass texture variation or ice cracks (theme-specific)
-          if (this.currentThemeKey === 'snow') {
-            // Ice crack patterns on the surface (more visible)
-            this.ctx.strokeStyle = 'rgba(100, 180, 220, 0.10)';
-            this.ctx.lineWidth = 1.2;
-            const iceSeed = Math.floor(camX / 25);
-            for (let c = 0; c < 8; c++) {
-              const cx = visibleTop[0].x + ((iceSeed * 67 + c * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-              const cy = topEdgeY + 10 + ((iceSeed * 43 + c * 89) % (botEdgeY - topEdgeY - 20));
-              this.ctx.beginPath();
-              this.ctx.moveTo(cx, cy);
-              this.ctx.lineTo(cx + 10 + (c * 13) % 20, cy + 5 + (c * 7) % 10);
-              this.ctx.lineTo(cx + 20 + (c * 17) % 15, cy - 3 + (c * 11) % 8);
-              this.ctx.stroke();
-              this.ctx.beginPath();
-              this.ctx.moveTo(cx + 5, cy + 2);
-              this.ctx.lineTo(cx + 15 + (c * 19) % 12, cy - 8 + (c * 5) % 6);
-              this.ctx.stroke();
-            }
-          } else if (this.currentThemeKey === 'volcano') {
-            // Magma crack patterns on the volcanic surface
-            this.ctx.strokeStyle = 'rgba(255, 100, 0, 0.05)';
-            this.ctx.lineWidth = 1.2;
-            const magmaSeed = Math.floor(camX / 25);
-            for (let c = 0; c < 10; c++) {
-              const cx = visibleTop[0].x + ((magmaSeed * 67 + c * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-              const cy = topEdgeY + 10 + ((magmaSeed * 43 + c * 89) % (botEdgeY - topEdgeY - 20));
-              this.ctx.beginPath();
-              this.ctx.moveTo(cx, cy);
-              this.ctx.lineTo(cx + 12 + (c * 13) % 20, cy + 6 + (c * 7) % 10);
-              this.ctx.lineTo(cx + 22 + (c * 17) % 15, cy - 4 + (c * 11) % 8);
-              this.ctx.stroke();
-              this.ctx.beginPath();
-              this.ctx.moveTo(cx + 5, cy + 2);
-              this.ctx.lineTo(cx + 18 + (c * 19) % 12, cy - 10 + (c * 5) % 6);
-              this.ctx.stroke();
-            }
-          } else {
-            this.ctx.strokeStyle = 'rgba(46,204,113,0.03)';
-            this.ctx.lineWidth = 1.5;
-            const grassSeed = Math.floor(camX / 30);
-            for (let g = 0; g < 12; g++) {
-              const gx = visibleTop[0].x + ((grassSeed * 137 + g * 97) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-              const gy = topEdgeY + 8 + ((grassSeed * 53 + g * 131) % (botEdgeY - topEdgeY - 16));
-              const glen = 3 + ((grassSeed * 71 + g * 43) % 6);
-              this.ctx.beginPath();
-              this.ctx.moveTo(gx, gy);
-              this.ctx.lineTo(gx + ((g * 29) % 7 - 3), gy - glen);
-              this.ctx.stroke();
-            }
-          }
-
-          // White painted boundary lines (at ~15% and ~85% of track width)
-          const lineY1 = topEdgeY + (botEdgeY - topEdgeY) * 0.15;
-          const lineY2 = topEdgeY + (botEdgeY - topEdgeY) * 0.85;
-          this.ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-          this.ctx.lineWidth = 1.5;
-          this.ctx.setLineDash([8, 12]);
-          this.ctx.beginPath();
-          this.ctx.moveTo(visibleTop[0].x, lineY1);
-          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY1);
-          this.ctx.stroke();
-          this.ctx.beginPath();
-          this.ctx.moveTo(visibleTop[0].x, lineY2);
-          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY2);
-          this.ctx.stroke();
-          this.ctx.setLineDash([]);
-
-          // Wear marks — subtle dark streaks
-          this.ctx.strokeStyle = 'rgba(0,0,0,0.04)';
-          this.ctx.lineWidth = 1;
-          const wearSeed = Math.floor(camX / 20);
-          for (let w = 0; w < 4; w++) {
-            const wx = visibleTop[0].x + ((wearSeed * 61 + w * 113) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-            const wy = topEdgeY + 15 + ((wearSeed * 43 + w * 79) % (botEdgeY - topEdgeY - 30));
-            this.ctx.beginPath();
-            this.ctx.moveTo(wx, wy);
-            this.ctx.quadraticCurveTo(wx + 10 + (w * 17) % 15, wy + 2, wx + 25 + (w * 11) % 10, wy - 1);
-            this.ctx.stroke();
-          }
-
-          // Small scattered pebbles or ice crystals (theme-specific)
-          const pebSeed = Math.floor(camX / 15);
-          if (this.currentThemeKey === 'snow') {
-            // Ice crystal sparkles on the surface (more visible)
-            this.ctx.fillStyle = 'rgba(120, 200, 240, 0.18)';
-            for (let p = 0; p < 10; p++) {
-              const px = visibleTop[0].x + ((pebSeed * 47 + p * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-              const py = topEdgeY + 5 + ((pebSeed * 73 + p * 89) % (botEdgeY - topEdgeY - 10));
-              const ps = 0.8 + ((pebSeed * 59 + p * 37) % 3) * 0.6;
-              this.ctx.beginPath();
-              this.ctx.arc(px, py, ps, 0, Math.PI * 2);
-              this.ctx.fill();
-              // Tiny cross sparkle
-              this.ctx.globalAlpha = 0.6;
-              this.ctx.strokeStyle = 'rgba(220, 240, 255, 0.10)';
-              this.ctx.lineWidth = 0.5;
-              this.ctx.beginPath();
-              this.ctx.moveTo(px - 3, py);
-              this.ctx.lineTo(px + 3, py);
-              this.ctx.moveTo(px, py - 3);
-              this.ctx.lineTo(px, py + 3);
-              this.ctx.stroke();
-              this.ctx.globalAlpha = 0.6;
-            }
-          } else {
-            this.ctx.fillStyle = 'rgba(180,170,160,0.06)';
-            for (let p = 0; p < 8; p++) {
-              const px = visibleTop[0].x + ((pebSeed * 47 + p * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-              const py = topEdgeY + 5 + ((pebSeed * 73 + p * 89) % (botEdgeY - topEdgeY - 10));
-              const ps = 1 + ((pebSeed * 59 + p * 37) % 3);
-              this.ctx.beginPath();
-              this.ctx.arc(px, py, ps, 0, Math.PI * 2);
-              this.ctx.fill();
-            }
-          }
-
-          // Thin top boundary line
-          if (this.currentThemeKey === 'snow') {
-            this.ctx.strokeStyle = '#1a2a3a';
-            this.ctx.globalAlpha = 0.55;
-          } else {
-            this.ctx.strokeStyle = wallRgba;
-            this.ctx.globalAlpha = wallAlpha;
-          }
-          this.ctx.lineWidth = 3;
-          this.ctx.lineCap = 'round';
-          this.ctx.lineJoin = 'round';
-          this.ctx.beginPath();
-          for (let i = 0; i < visibleTop.length; i++) {
-            if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
-            else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
-          }
-          this.ctx.stroke();
-          // Thin bottom boundary line
-          if (this.currentThemeKey === 'snow') {
-            this.ctx.strokeStyle = '#1a2a3a';
-            this.ctx.globalAlpha = 0.55;
-          } else {
-            this.ctx.strokeStyle = wallRgba;
-            this.ctx.globalAlpha = wallAlpha;
-          }
-          this.ctx.beginPath();
-          for (let i = 0; i < visibleBot.length; i++) {
-            if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
-            else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
-          }
-          this.ctx.stroke();
-          // Decorative celestial objects + track glow + edge particles (space theme)
-          if (this.currentThemeKey === 'space') {
-            this._renderSpaceObjects(camX);
-            // Subtle cyan energy pulse along wall boundaries
-            this.ctx.save();
-            const pulse = 0.12 + Math.sin(Date.now() * 0.003) * 0.06;
-            this.ctx.strokeStyle = `rgba(102,252,241,${pulse})`;
-            this.ctx.shadowColor = '#66fcf1';
-            this.ctx.shadowBlur = 8;
-            this.ctx.lineWidth = 2;
-            this.ctx.beginPath();
-            for (let i = 0; i < visibleTop.length; i++) {
-              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
-              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
-            }
-            this.ctx.stroke();
-            this.ctx.beginPath();
-            for (let i = 0; i < visibleBot.length; i++) {
-              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
-              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
-            }
-            this.ctx.stroke();
-            this.ctx.shadowBlur = 0;
-            this.ctx.restore();
-            // Tiny energy particles leaking from track edges
-            const epTime = Date.now() * 0.002;
-            const epCount = Math.floor(visibleTop.length * 0.15);
-            for (let e = 0; e < epCount; e++) {
-              const idx = Math.floor((e * 23 + Math.floor(epTime)) % visibleTop.length);
-              if (Math.random() > 0.03) continue;
-              const px = visibleTop[idx].x;
-              const py = visibleTop[idx].y;
-              this.ctx.save();
-              this.ctx.fillStyle = e % 2 === 0 ? '#66fcf1' : '#a78bfa';
-              this.ctx.globalAlpha = 0.15 + Math.random() * 0.15;
-              this.ctx.beginPath();
-              this.ctx.arc(px + (Math.random() - 0.5) * 6, py + Math.random() * 4, 0.8 + Math.random() * 0.8, 0, Math.PI * 2);
-              this.ctx.fill();
-              this.ctx.restore();
-            }
-          }
-          // Icy glow on track boundaries for Glacier Summit
-          if (this.currentThemeKey === 'snow') {
-            this.ctx.save();
-            const icePulse = 0.06 + Math.sin(Date.now() * 0.0025) * 0.03;
-            this.ctx.strokeStyle = `rgba(100, 190, 240, ${icePulse})`;
-            this.ctx.shadowColor = '#60b8e0';
-            this.ctx.shadowBlur = 5;
-            this.ctx.lineWidth = 2;
-            this.ctx.beginPath();
-            for (let i = 0; i < visibleTop.length; i++) {
-              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
-              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
-            }
-            this.ctx.stroke();
-            this.ctx.beginPath();
-            for (let i = 0; i < visibleBot.length; i++) {
-              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
-              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
-            }
-            this.ctx.stroke();
-            this.ctx.shadowBlur = 0;
-            this.ctx.restore();
-          }
-          this.ctx.globalAlpha = 1;
-        }
-      }
-      this.ctx.restore();
 
       // Draw Retractable Wall Icicles — natural ice formations on track boundaries
       if (this.track && this.track.obstacles) {
@@ -9341,86 +9425,6 @@ if (this.activeEvent.key === 'speed_surge') {
             this.ctx.fill();
           }
         }
-        this.ctx.globalAlpha = 1;
-        this.ctx.restore();
-      }
-
-      // A0ac. Volcano (Magma Crater) atmospheric overlay
-      if (this.currentThemeKey === 'volcano' && this.state === 'racing') {
-        this.ctx.save();
-
-        // 1. Subtle heat haze overlay (very low opacity)
-        const heatHazeGrad = this.ctx.createLinearGradient(0, 0, 0, screenH);
-        heatHazeGrad.addColorStop(0, 'rgba(255, 100, 0, 0.008)');
-        heatHazeGrad.addColorStop(0.5, 'rgba(255, 80, 0, 0.005)');
-        heatHazeGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        this.ctx.fillStyle = heatHazeGrad;
-        this.ctx.fillRect(0, 0, screenW, screenH);
-
-        // 2. Floating ash particles (dark volcanic dust)
-        for (const ash of this._volcanoAshParticles) {
-          const a = ash.alpha * 0.4;
-          if (a <= 0) continue;
-          const ax = ash.x * screenW;
-          const ay = ash.y * screenH;
-          this.ctx.globalAlpha = a;
-          this.ctx.fillStyle = '#1a1510';
-          this.ctx.beginPath();
-          this.ctx.arc(ax, ay, ash.size, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-
-        // 3. Rising glowing embers
-        for (const ember of this._volcanoEmberParticles) {
-          const a = ember.alpha * 0.6;
-          if (a <= 0) continue;
-          const ex = ember.x * screenW;
-          const ey = ember.y * screenH;
-          this.ctx.globalAlpha = a;
-          this.ctx.fillStyle = ember.color;
-          this.ctx.shadowColor = ember.color;
-          this.ctx.shadowBlur = 4;
-          this.ctx.beginPath();
-          this.ctx.arc(ex, ey, ember.size, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.shadowBlur = 0;
-        }
-
-        // 4. Thin smoke columns from volcanic vents
-        for (const smoke of this._volcanoSmokeColumns) {
-          const a = smoke.alpha * 0.3;
-          if (a <= 0) continue;
-          const sx = smoke.x * screenW;
-          const sy = smoke.y * screenH;
-          const smokeSize = smoke.height * screenH;
-          this.ctx.globalAlpha = a;
-          const smokeGrad = this.ctx.createRadialGradient(sx, sy, 0, sx, sy, smokeSize);
-          smokeGrad.addColorStop(0, `rgba(58, 48, 40, ${smoke.alpha})`);
-          smokeGrad.addColorStop(1, 'rgba(58, 48, 40, 0)');
-          this.ctx.fillStyle = smokeGrad;
-          this.ctx.beginPath();
-          this.ctx.arc(sx, sy, smoke.size, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-
-        // 5. Active eruption effects (lava burst, ash cloud, glowing rocks)
-        if (this._volcanoEruptionActive && this._volcanoEruptionParticles.length > 0) {
-          for (const p of this._volcanoEruptionParticles) {
-            const px = p.x * screenW;
-            const py = p.y * screenH;
-            this.ctx.globalAlpha = p.alpha;
-            this.ctx.fillStyle = p.color;
-            if (p.color.startsWith('#ff') || p.color.startsWith('#cc')) {
-              this.ctx.shadowColor = p.color;
-              this.ctx.shadowBlur = 6;
-            }
-            this.ctx.beginPath();
-            this.ctx.arc(px, py, p.size, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.shadowBlur = 0;
-          }
-        }
-
         this.ctx.globalAlpha = 1;
         this.ctx.restore();
       }
