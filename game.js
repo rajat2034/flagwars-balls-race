@@ -2185,6 +2185,7 @@ class GameEngine {
 peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       slow: { min: 100, preferred: 160, recovery: 80, safeLanding: 60 },
       lava_pool: { min: 80, preferred: 120, recovery: 60, safeLanding: 40 },
+      lava_geyser: { min: 180, preferred: 300, recovery: 200, safeLanding: 100 },
       launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       ice_cannon: { min: 200, preferred: 320, recovery: 150, safeLanding: 120 }
     };
@@ -2192,13 +2193,13 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
     // Zone-based pacing configuration (t = x / length) — higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.45,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool']) },
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser']) },
       { start: 0.20, end: 0.60, density: 0.35,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool']) },
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser']) },
       { start: 0.60, end: 0.85, density: 0.40,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool']) },
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser']) },
       { start: 0.85, end: 1.00, density: 0.45,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool']) }
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -2227,6 +2228,14 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       { weight: 2, types: ['barrier', 'lava_pool'], gap: 40 },
       { weight: 2, types: ['lava_pool', 'sweep_arm'], gap: 40 },
       { weight: 1, types: ['lava_pool', 'punchfist'], gap: 40 },
+      // Magma Crater: Lava Geyser combinations
+      { weight: 3, types: ['boost', 'lava_geyser'], gap: 50 },
+      { weight: 3, types: ['spinner', 'lava_geyser'], gap: 50 },
+      { weight: 2, types: ['lava_geyser', 'hammer'], gap: 50 },
+      { weight: 2, types: ['barrier', 'lava_geyser'], gap: 50 },
+      { weight: 2, types: ['lava_geyser', 'sweep_arm'], gap: 50 },
+      { weight: 1, types: ['lava_geyser', 'punchfist'], gap: 50 },
+      { weight: 1, types: ['lava_geyser', 'portal'], gap: 60 },
     ].filter(c => _allEnabled(c.types));
 
     // 3-obstacle templates that shuffle per race for variety
@@ -2247,6 +2256,11 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       ['lava_pool', 'spinner', 'hammer'],
       ['barrier', 'lava_pool', 'boost'],
       ['hammer', 'lava_pool', 'sweep_arm'],
+      // Magma Crater: Lava Geyser templates
+      ['boost', 'lava_geyser', 'hammer'],
+      ['lava_geyser', 'spinner', 'barrier'],
+      ['hammer', 'lava_geyser', 'sweep_arm'],
+      ['portal', 'lava_geyser', 'boost'],
     ].filter(t => _allEnabled(t));
     // Shuffle templates once per race
     const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
@@ -2316,6 +2330,15 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         maxX = obs.x + r;
         minY = obs.y - r;
         maxY = obs.y + r;
+      } else if (obs.type === 'lava_geyser') {
+        // Lava geyser: crack in ground with vertical eruption column
+        const crackW = obs.crackWidth || 30;
+        const crackH = obs.crackHeight || 60;
+        const eruptionH = obs.eruptionHeight || 200;
+        minX = obs.x - crackW / 2;
+        maxX = obs.x + crackW / 2;
+        minY = obs.y - crackH / 2;
+        maxY = obs.y + crackH / 2 + eruptionH;
       } else {
         const halfW = w / 2;
         const halfH = h / 2;
@@ -2903,6 +2926,24 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             _lastFireTime: Math.floor(Math.random() * 120), _fireInterval: 120,
             _projectiles: [], _splashEffects: []
           });
+        } else if (type === 'lava_geyser') {
+          // Magma Crater exclusive: Lava Geyser - periodic eruption from ground crack
+          const geyserY = clampY(centerY + (Math.random() - 0.5) * availH * 0.4, bounds, 20);
+          track.obstacles.push({
+            type: 'lava_geyser', x, y: geyserY,
+            // Cycle timing (in frames at 60fps)
+            _hiddenDuration: 180 + Math.floor(Math.random() * 180), // 3-6 seconds hidden
+            _warningDuration: 30, // 0.5 seconds warning
+            _eruptionDuration: 60, // 1 second eruption
+            _cycleTimer: Math.floor(Math.random() * 420), // Random start offset
+            _state: 'hidden', // 'hidden' | 'warning' | 'erupting'
+            // Visual properties
+            _crackWidth: 8 + Math.random() * 6, // 8-14px crack width
+            crackHeight: 60 + Math.random() * 20, // 60-80px crack height
+            _eruptionHeight: 180 + Math.random() * 60, // 180-240px lava column height
+            _eruptionWidth: 24 + Math.random() * 12, // 24-36px column width
+            _seed: Math.random() * 1000 // For deterministic particle positions
+          });
         }
 
         // Track last 3 types to prevent triplicates
@@ -3116,7 +3157,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
     const MIN_COUNT = 30;
     const TYPE_COUNTS = {};
     ['hammer', 'spinner', 'barrier', 'sweep_arm', 'punchfist',
-     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon']
+     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon', 'lava_geyser']
       .filter(t => enabledSet.has(t))
       .forEach(t => { TYPE_COUNTS[t] = 0; });
     track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
@@ -3204,6 +3245,24 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           track.zones.push({
             type: 'lava_pool', x: tryX - 35, y: clampY(cY - 25, b, 25),
             width: 70, height: 50
+          });
+        } else if (ut === 'lava_geyser') {
+          // Magma Crater: Lava Geyser (exclusive to volcano)
+          track.obstacles.push({
+            type: 'lava_geyser', x: tryX, y: clampY(cY, b, 40),
+            crackWidth: 25 + Math.random() * 10,
+            crackHeight: 60 + Math.random() * 20,
+            eruptionHeight: 150 + Math.random() * 80,
+            // Cycle timing
+            _state: 'hidden', // 'hidden' | 'warning' | 'erupting'
+            _stateTimer: 0,
+            _cycleTimer: 0,
+            _cycleDuration: (180 + Math.floor(Math.random() * 180)) * (60 / 60), // 3-6 seconds at 60fps
+            _warningDuration: 30, // 0.5 seconds at 60fps
+            _eruptionDuration: 60, // 1 second at 60fps
+            // Visual
+            _warningGlow: 0,
+            _eruptionParticles: []
           });
         } else if (ut === 'slow') {
           // Standard Slow Ramp (non-volcano maps only)
@@ -3632,8 +3691,327 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             }
           }
         }
+      } else if (obs.type === 'lava_geyser') {
+        // Magma Crater exclusive: Lava Geyser - periodic eruption
+        // Only active on volcano map
+        if (this.currentThemeKey !== 'volcano') return;
+        
+        // Initialize if needed
+        if (obs._state === undefined) {
+          obs._state = 'hidden'; // 'hidden' | 'warning' | 'erupting'
+          obs._stateTimer = 0;
+          obs._cycleTimer = obs._cycleTimer || 0;
+          // Cycle: hidden (3-6s) -> warning (0.5s) -> erupting (1s) -> hidden
+          obs._hiddenDuration = obs._hiddenDuration || (180 + Math.floor(Math.random() * 180)); // 3-6s at 60fps
+          obs._warningDuration = obs._warningDuration || 30; // 0.5s
+          obs._eruptionDuration = obs._eruptionDuration || 60; // 1s
+        }
+        
+        // Update cycle timer
+        obs._cycleTimer += dt;
+        obs._stateTimer += dt;
+        
+        // State machine
+        if (obs._state === 'hidden') {
+          if (obs._cycleTimer >= obs._hiddenDuration) {
+            obs._state = 'warning';
+            obs._stateTimer = 0;
+            // Pre-eruption particles
+            for (let i = 0; i < 8; i++) {
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * (obs._crackWidth || 20),
+                y: obs.y - 5 - Math.random() * 10,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: -1 - Math.random() * 1.5,
+                alpha: 0.8,
+                size: 2 + Math.random() * 3,
+                life: 20 + Math.floor(Math.random() * 10),
+                color: '#ff8800'
+              });
+            }
+          }
+        } else if (obs._state === 'warning') {
+          // Warning phase: crack glows brighter, small particles
+          const warningProgress = obs._stateTimer / obs._warningDuration;
+          obs._warningGlow = warningProgress;
+          
+          // Warning particles
+          if (Math.random() < 0.3) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._crackWidth || 20),
+              y: obs.y - 5 - Math.random() * 5,
+              vx: (Math.random() - 0.5) * 0.3,
+              vy: -0.5 - Math.random() * 1,
+              alpha: 0.6 + warningProgress * 0.4,
+              size: 1 + Math.random() * 2,
+              life: 10 + Math.floor(Math.random() * 10),
+              color: '#ffaa00'
+            });
+          }
+          
+          if (obs._stateTimer >= obs._warningDuration) {
+            obs._state = 'erupting';
+            obs._stateTimer = 0;
+            // Explosion particles
+            for (let i = 0; i < 30; i++) {
+              const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.5;
+              const speed = 2 + Math.random() * 5;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30),
+                y: obs.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.9,
+                size: 3 + Math.random() * 5,
+                life: 30 + Math.floor(Math.random() * 20),
+                color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00'][Math.floor(Math.random() * 4)]
+              });
+            }
+          }
+        } else if (obs._state === 'erupting') {
+          // Erupting phase: vertical lava column
+          const eruptionProgress = obs._stateTimer / obs._eruptionDuration;
+          
+          // Lava column particles
+          if (Math.random() < 0.5) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30),
+              y: obs.y - eruptionProgress * (obs._eruptionHeight || 200),
+              vx: (Math.random() - 0.5) * 0.5,
+              vy: -1 - Math.random() * 2,
+              alpha: 0.8,
+              size: 2 + Math.random() * 4,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ffff00'][Math.floor(Math.random() * 5)]
+            });
+          }
+          
+          // Smoke particles
+          if (Math.random() < 0.2) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30) * 1.5,
+              y: obs.y - eruptionProgress * (obs._eruptionHeight || 200) * 0.5,
+              vx: (Math.random() - 0.5) * 0.3,
+              vy: -0.2 - Math.random() * 0.5,
+              alpha: 0.3,
+              size: 5 + Math.random() * 8,
+              life: 20 + Math.floor(Math.random() * 15),
+              color: '#333333'
+            });
+          }
+          
+          // Glowing embers
+          if (Math.random() < 0.3) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30),
+              y: obs.y - Math.random() * (obs._eruptionHeight || 200),
+              vx: (Math.random() - 0.5) * 0.8,
+              vy: -0.5 - Math.random() * 1.5,
+              alpha: 0.7,
+              size: 1.5 + Math.random() * 2.5,
+              life: 25 + Math.floor(Math.random() * 15),
+              color: '#ffdd44'
+            });
+          }
+          
+          if (obs._stateTimer >= obs._eruptionDuration) {
+            obs._state = 'hidden';
+            obs._stateTimer = 0;
+            obs._cycleTimer = 0;
+            // Randomize next cycle duration (3-6 seconds)
+            obs._hiddenDuration = 180 + Math.floor(Math.random() * 180);
+          }
+        }
+        
+        // Collision with balls - only during eruption
+        if (obs._state === 'erupting' && this.balls) {
+          const eruptionHeight = obs._eruptionHeight || 200;
+          const eruptionWidth = obs._eruptionWidth || 30;
+          const halfW = eruptionWidth / 2;
+          
+          for (const ball of this.balls) {
+            if (ball.finished || ball.eliminated || ball.z > 0) continue;
+            
+            // Check if ball is in the lava column
+            const dx = Math.abs(ball.x - obs.x);
+            const dy = obs.y - ball.y; // ball.y should be above obs.y (y increases downward)
+            
+            if (dx < halfW + ball.radius && dy >= 0 && dy <= eruptionHeight + ball.radius) {
+              // Ball hit by lava geyser!
+              // Apply upward launch
+              ball.vz = Math.max(ball.vz, 3.5);
+              ball.z = Math.max(ball.z, 0.5);
+              
+              // Small random horizontal knockback
+              ball.vx += (Math.random() - 0.5) * 2.5;
+              ball.vy += (Math.random() - 0.5) * 1.5;
+              
+              // Apply burn effect (if not already burning)
+              if (!ball._lavaBurnActive && !ball._geyserBurnActive) {
+                ball._geyserBurnActive = true;
+                ball._geyserBurnTimer = 120; // 2 seconds at 60fps
+                ball._geyserBurnExitSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+                
+                // Hit particles
+                for (let i = 0; i < 15; i++) {
+                  const angle = Math.random() * Math.PI * 2;
+                  const speed = 1 + Math.random() * 3;
+                  this.particles.push({
+                    type: 'sparkle',
+                    x: ball.x + (Math.random() - 0.5) * 10,
+                    y: ball.y + (Math.random() - 0.5) * 10,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    alpha: 0.9,
+                    size: 2 + Math.random() * 4,
+                    life: 20 + Math.floor(Math.random() * 15),
+                    color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ffff00'][Math.floor(Math.random() * 5)]
+                  });
+                }
+              }
+              
+              // Mark for commentary
+              ball._hitGeyserThisFrame = true;
+            }
+          }
+        }
       }
     });
+
+    // Lava Geyser state machine update (Magma Crater exclusive)
+    if (this.currentThemeKey === 'volcano') {
+      this.track.obstacles.forEach(obs => {
+        if (obs.type !== 'lava_geyser') return;
+        
+        // Initialize if needed
+        if (obs._state === undefined) {
+          obs._state = 'hidden';
+          obs._stateTimer = 0;
+          obs._cycleTimer = 0;
+          obs._cycleDuration = obs._hiddenDuration || (180 + Math.floor(Math.random() * 180)); // 3-6 seconds
+          obs._warningDuration = obs._warningDuration || 30; // 0.5 seconds
+          obs._eruptionDuration = obs._eruptionDuration || 60; // 1 second
+          obs._eruptionHeight = obs._eruptionHeight || (180 + Math.random() * 60);
+          obs._eruptionWidth = obs._eruptionWidth || (24 + Math.random() * 12);
+          obs._crackWidth = obs._crackWidth || (8 + Math.random() * 6);
+        }
+        
+        // Advance cycle timer
+        obs._cycleTimer += dt;
+        
+        // State machine
+        if (obs._state === 'hidden') {
+          // Wait for cycle to complete
+          if (obs._cycleTimer >= obs._cycleDuration) {
+            obs._state = 'warning';
+            obs._stateTimer = 0;
+            obs._cycleTimer = 0;
+            // Warning particles
+            for (let i = 0; i < 3; i++) {
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * 8,
+                y: obs.y + (Math.random() - 0.5) * 4,
+                vx: (Math.random() - 0.5) * 1,
+                vy: -1 - Math.random() * 2,
+                alpha: 0.8,
+                size: 2 + Math.random() * 2,
+                life: 15 + Math.floor(Math.random() * 10),
+                color: '#ff8800'
+              });
+            }
+          }
+        } else if (obs._state === 'warning') {
+          obs._stateTimer += dt;
+          // Intensify glow
+          obs._warningGlow = Math.min(1, obs._stateTimer / obs._warningDuration);
+          
+          // Warning particles
+          if (Math.random() < 0.3 * dt) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._crackWidth || 12),
+              y: obs.y - 2 - Math.random() * 10,
+              vx: (Math.random() - 0.5) * 0.5,
+              vy: -1 - Math.random() * 2,
+              alpha: 0.6,
+              size: 1 + Math.random() * 2,
+              life: 10 + Math.floor(Math.random() * 8),
+              color: '#ffaa00'
+            });
+          }
+          
+          if (obs._stateTimer >= obs._warningDuration) {
+            obs._state = 'erupting';
+            obs._stateTimer = 0;
+            // Eruption burst particles
+            for (let i = 0; i < 20; i++) {
+              const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6;
+              const speed = 2 + Math.random() * 4;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x,
+                y: obs.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 1,
+                size: 3 + Math.random() * 5,
+                life: 20 + Math.floor(Math.random() * 15),
+                color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00'][Math.floor(Math.random() * 4)]
+              });
+            }
+          }
+        } else if (obs._state === 'erupting') {
+          obs._stateTimer += dt;
+          
+          // Continuous eruption particles
+          if (Math.random() < 0.5 * dt) {
+            const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.5;
+            const speed = 1.5 + Math.random() * 3;
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30) * 0.5,
+              y: obs.y - Math.random() * (obs._eruptionHeight || 200) * 0.3,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed - 1,
+              alpha: 0.8 + Math.random() * 0.2,
+              size: 2 + Math.random() * 4,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ffaa00'][Math.floor(Math.random() * 5)]
+            });
+          }
+          
+          // Smoke particles
+          if (Math.random() < 0.2 * dt) {
+            this.particles.push({
+              type: 'dust',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30) * 0.8,
+              y: obs.y - (obs._eruptionHeight || 200) * (0.5 + Math.random() * 0.5),
+              vx: (Math.random() - 0.5) * 0.5,
+              vy: -0.5 - Math.random() * 0.5,
+              alpha: 0.15 + Math.random() * 0.15,
+              size: 8 + Math.random() * 12,
+              color: ['#332211', '#221100', '#442211'][Math.floor(Math.random() * 3)],
+              life: 30 + Math.floor(Math.random() * 30)
+            });
+          }
+          
+          if (obs._stateTimer >= obs._eruptionDuration) {
+            obs._state = 'hidden';
+            obs._stateTimer = 0;
+            obs._cycleTimer = 0;
+            // New random cycle duration (3-6 seconds)
+            obs._cycleDuration = 180 + Math.floor(Math.random() * 180);
+          }
+        }
+      });
+    }
 
     // Remove old off-camera falling rocks/meteors and broken walls
     if (this.track.obstacles.length > 0) {
@@ -4528,8 +4906,8 @@ if (this.activeEvent.key === 'speed_surge') {
 
           // Apply burn effect on exit from lava pool
           if (ball._exitedSlowThisFrame && ball._wasInLavaPool) {
-            // Prevent stacking: ignore if already burned
-            if (!ball._lavaBurnActive) {
+            // Prevent stacking: ignore if already burned (by lava pool or geyser)
+            if (!ball._lavaBurnActive && !ball._geyserBurnActive) {
               ball._lavaBurnActive = true;
               ball._lavaBurnTimer = 120; // 2 seconds at 60fps
               ball._lavaBurnExitSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
@@ -4574,6 +4952,59 @@ if (this.activeEvent.key === 'speed_surge') {
               const currentSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
               if (currentSpeed > 0) {
                 const cappedSpeed = ball._lavaBurnExitSpeed * speedCapRatio;
+                if (currentSpeed > cappedSpeed) {
+                  const ratio = cappedSpeed / currentSpeed;
+                  ball.vx *= ratio;
+                  ball.vy *= ratio;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Lava Geyser burn effect (Magma Crater exclusive)
+      if (this.currentThemeKey === 'volcano' && this.balls) {
+        for (const ball of this.balls) {
+          if (ball.finished || ball.eliminated) continue;
+
+          // Burn effect applied by physics collision
+          if (ball._geyserBurnActive) {
+            ball._geyserBurnTimer -= dt;
+
+            let speedCapRatio;
+            if (ball._geyserBurnTimer > 90) {
+              // Phase 1: full burn at 50% for first ~0.5s
+              speedCapRatio = 0.5;
+            } else if (ball._geyserBurnTimer > 0) {
+              // Phase 2: smooth recovery from 0.5→1.0 over ~1.5s (ease-out)
+              const progress = 1 - (ball._geyserBurnTimer / 90);
+              const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
+              speedCapRatio = 0.5 + eased * 0.5;
+            } else {
+              speedCapRatio = 1.0;
+              ball._geyserBurnActive = false;
+              // Recovery particles
+              for (let p = 0; p < 12; p++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * 12,
+                  y: ball.y + (Math.random() - 0.5) * 12,
+                  vx: Math.cos(a) * (1.5 + Math.random() * 3),
+                  vy: Math.sin(a) * (1.5 + Math.random() * 3),
+                  alpha: 0.9,
+                  size: 2 + Math.random() * 3,
+                  life: 20 + Math.floor(Math.random() * 15),
+                  color: '#ffaa00'
+                });
+              }
+            }
+
+            if (ball._geyserBurnActive) {
+              const currentSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+              if (currentSpeed > 0) {
+                const cappedSpeed = ball._geyserBurnExitSpeed * speedCapRatio;
                 if (currentSpeed > cappedSpeed) {
                   const ratio = cappedSpeed / currentSpeed;
                   ball.vx *= ratio;
@@ -4889,6 +5320,9 @@ if (this.activeEvent.key === 'speed_surge') {
         }
         if (b._hitPunchFistThisFrame && Math.random() < 0.2) {
           this.commentary.add(b.name + ' punched!', 'crash');
+        }
+        if (b._hitGeyserThisFrame && Math.random() < 0.2) {
+          this.commentary.add(b.name + ' erupted by lava geyser!', 'crash');
         }
 
         if (b._usedPortalThisFrame) {
@@ -7497,11 +7931,172 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.quadraticCurveTo(_iTipX + _halfW * 0.2 + _irreg * 0.5, _midY, _iTipX + _halfW * 0.3 + _irreg * 0.5, _iBaseY - 2);
           this.ctx.closePath();
           this.ctx.fill();
+this.ctx.restore();
+        });
+      }
+    }
+
+      // Draw Lava Geysers — Magma Crater exclusive volcanic hazard
+      if (this.currentThemeKey === 'volcano' && this.track && this.track.obstacles) {
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'lava_geyser') return;
+          const gCamX = obs.x - camX;
+          const gCullBuf = 300;
+          if (gCamX + 200 < -gCullBuf || gCamX - 200 > screenW / zoom + gCullBuf) return;
+          
+          const state = obs._state || 'hidden';
+          const crackWidth = obs._crackWidth || 12;
+          const crackHeight = obs.crackHeight || 60;
+          const eruptionHeight = obs._eruptionHeight || 200;
+          const eruptionWidth = obs._eruptionWidth || 30;
+          const warningGlow = obs._warningGlow || 0;
+          
+          this.ctx.save();
+          
+          // ===== CRACK IN GROUND (always visible) =====
+          const crackGrad = this.ctx.createLinearGradient(
+            gCamX - crackWidth / 2, obs.y,
+            gCamX + crackWidth / 2, obs.y
+          );
+          crackGrad.addColorStop(0, '#1a1008');
+          crackGrad.addColorStop(0.3, '#2a1505');
+          crackGrad.addColorStop(0.5, warningGlow > 0 ? `rgba(255, 100, 0, ${0.3 + warningGlow * 0.4})` : '#3a1a05');
+          crackGrad.addColorStop(0.7, '#2a1505');
+          crackGrad.addColorStop(1, '#1a1008');
+          
+          this.ctx.fillStyle = crackGrad;
+          this.ctx.beginPath();
+          // Irregular crack shape
+          const crackSegments = 8;
+          for (let i = 0; i <= crackSegments; i++) {
+            const t = i / crackSegments;
+            const angle = t * Math.PI * 2 - Math.PI / 2;
+            const baseR = crackWidth / 2;
+            const jitter = (Math.sin((obs._seed || 0) * 10 + i * 1.5) - 0.5) * 4;
+            const r = baseR + jitter;
+            const px = gCamX + Math.cos(angle) * r;
+            const py = obs.y + Math.sin(angle) * crackHeight * 0.5;
+            if (i === 0) this.ctx.moveTo(px, py);
+            else this.ctx.lineTo(px, py);
+          }
+          // Bottom of crack
+          for (let i = crackSegments; i >= 0; i--) {
+            const t = i / crackSegments;
+            const angle = t * Math.PI * 2 + Math.PI / 2;
+            const baseR = crackWidth / 2;
+            const jitter = (Math.sin((obs._seed || 0) * 10 + i * 1.5 + 100) - 0.5) * 4;
+            const r = baseR + jitter;
+            const px = gCamX + Math.cos(angle) * r;
+            const py = obs.y + Math.sin(angle) * crackHeight * 0.5;
+            this.ctx.lineTo(px, py);
+          }
+          this.ctx.closePath();
+          this.ctx.fill();
+          
+          // Crack glow when warning/erupting
+          if (state === 'warning' || state === 'erupting') {
+            this.ctx.strokeStyle = `rgba(255, 140, 0, ${0.5 + warningGlow * 0.5})`;
+            this.ctx.lineWidth = 2;
+            this.ctx.shadowColor = '#ff8800';
+            this.ctx.shadowBlur = 8;
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+          }
+          
+          // ===== ERUPTION COLUMN =====
+          if (state === 'erupting') {
+            const eruptionProgress = (obs._stateTimer || 0) / (obs._eruptionDuration || 60);
+            const currentHeight = eruptionHeight * eruptionProgress;
+            const currentWidth = eruptionWidth * (0.8 + 0.4 * Math.sin(performance.now() * 0.01));
+            
+            // Outer glow
+            this.ctx.save();
+            const eruptionGrad = this.ctx.createLinearGradient(
+              gCamX, obs.y,
+              gCamX, obs.y - currentHeight
+            );
+            eruptionGrad.addColorStop(0, 'rgba(255, 80, 0, 0.9)');
+            eruptionGrad.addColorStop(0.3, 'rgba(255, 140, 0, 0.7)');
+            eruptionGrad.addColorStop(0.6, 'rgba(255, 200, 50, 0.5)');
+            eruptionGrad.addColorStop(1, 'rgba(255, 255, 100, 0.2)');
+            
+            this.ctx.fillStyle = eruptionGrad;
+            this.ctx.shadowColor = '#ff8800';
+            this.ctx.shadowBlur = 30;
+            
+            // Main column
+            this.ctx.beginPath();
+            this.ctx.moveTo(gCamX - currentWidth / 2, obs.y);
+            this.ctx.lineTo(gCamX - currentWidth / 2 * 0.9, obs.y - currentHeight * 0.3);
+            this.ctx.lineTo(gCamX - currentWidth / 2 * 0.7, obs.y - currentHeight * 0.7);
+            this.ctx.lineTo(gCamX, obs.y - currentHeight);
+            this.ctx.lineTo(gCamX + currentWidth / 2 * 0.7, obs.y - currentHeight * 0.7);
+            this.ctx.lineTo(gCamX + currentWidth / 2 * 0.9, obs.y - currentHeight * 0.3);
+            this.ctx.lineTo(gCamX + currentWidth / 2, obs.y);
+            this.ctx.closePath();
+            this.ctx.fill();
+            
+            // Bright core
+            const coreGrad = this.ctx.createLinearGradient(
+              gCamX, obs.y,
+              gCamX, obs.y - currentHeight
+            );
+            coreGrad.addColorStop(0, 'rgba(255, 255, 200, 0.9)');
+            coreGrad.addColorStop(0.5, 'rgba(255, 255, 150, 0.7)');
+            coreGrad.addColorStop(1, 'rgba(255, 255, 100, 0.3)');
+            
+            this.ctx.fillStyle = coreGrad;
+            this.ctx.beginPath();
+            const coreWidth = currentWidth * 0.35;
+            this.ctx.moveTo(gCamX - coreWidth / 2, obs.y);
+            this.ctx.lineTo(gCamX - coreWidth / 2, obs.y - currentHeight * 0.8);
+            this.ctx.lineTo(gCamX + coreWidth / 2, obs.y - currentHeight * 0.8);
+            this.ctx.lineTo(gCamX + coreWidth / 2, obs.y);
+            this.ctx.closePath();
+            this.ctx.fill();
+            
+            this.ctx.shadowBlur = 0;
+            this.ctx.restore();
+            
+            // Heat shimmer above eruption
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.15;
+            this.ctx.strokeStyle = 'rgba(255, 200, 100, 0.6)';
+            this.ctx.lineWidth = 1;
+            for (let h = 0; h < 3; h++) {
+              const shimmerY = obs.y - currentHeight - 10 - h * 8;
+              this.ctx.beginPath();
+              for (let x = gCamX - currentWidth; x <= gCamX + currentWidth; x += 4) {
+                const yy = shimmerY + Math.sin(x * 0.02 + performance.now() * 0.008 + h * 1.5) * (2 + h);
+                if (x === gCamX - currentWidth) this.ctx.moveTo(x, yy);
+                else this.ctx.lineTo(x, yy);
+              }
+              this.ctx.stroke();
+            }
+            this.ctx.globalAlpha = 1;
+            this.ctx.restore();
+          }
+          
+          // ===== WARNING PHASE GLOW =====
+          if (state === 'warning') {
+            const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.02);
+            this.ctx.save();
+            this.ctx.globalAlpha = pulse * 0.6;
+            this.ctx.fillStyle = 'rgba(255, 140, 0, 0.4)';
+            this.ctx.shadowColor = '#ff8800';
+            this.ctx.shadowBlur = 20;
+            this.ctx.beginPath();
+            this.ctx.arc(gCamX, obs.y, crackWidth + 10, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+            this.ctx.restore();
+          }
+          
           this.ctx.restore();
         });
       }
 
-      // Draw Flag Balls (racing + collector for finished)
+    // Draw Flag Balls (racing + collector for finished)
       const finishLineX = this.track ? (this.track.finishLineX || this.track.length - 400) : 0;
       let collectorIdx = 0;
 
@@ -7900,6 +8495,117 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
 
+        // Lava Geyser burn effect (Magma Crater exclusive)
+        if (ball._geyserBurnActive) {
+          this.ctx.save();
+          const time = Date.now() * 0.001;
+          const burnIntensity = 0.5 + 0.3 * Math.sin(time * 8);
+          
+          // Heavy scorch - darken flag texture by ~25% (more visible)
+          this.ctx.globalCompositeOperation = 'multiply';
+          this.ctx.fillStyle = 'rgba(15, 10, 5, 0.25)';
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.globalCompositeOperation = 'source-over';
+          
+          // Intense orange/red glow aura (multi-layer)
+          const burnGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius * 1.6);
+          burnGrad.addColorStop(0, 'rgba(255, 160, 0, 0)');
+          burnGrad.addColorStop(0.3, `rgba(255, 120, 0, ${0.35 * burnIntensity})`);
+          burnGrad.addColorStop(0.6, `rgba(255, 60, 0, ${0.45 * burnIntensity})`);
+          burnGrad.addColorStop(0.85, `rgba(255, 30, 0, ${0.35 * burnIntensity})`);
+          burnGrad.addColorStop(1, `rgba(200, 20, 0, ${0.15 * burnIntensity})`);
+          this.ctx.fillStyle = burnGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius * 1.6, 0, Math.PI * 2);
+          this.ctx.fill();
+          
+          // Inner core glow
+          const coreGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius * 0.8);
+          coreGrad.addColorStop(0, `rgba(255, 200, 50, ${0.4 * burnIntensity})`);
+          coreGrad.addColorStop(0.5, `rgba(255, 100, 0, ${0.25 * burnIntensity})`);
+          coreGrad.addColorStop(1, 'rgba(255, 50, 0, 0)');
+          this.ctx.fillStyle = coreGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius * 0.8, 0, Math.PI * 2);
+          this.ctx.fill();
+          
+          // Heat shimmer distortion rings
+          this.ctx.strokeStyle = `rgba(255, 180, 60, ${0.3 * burnIntensity})`;
+          this.ctx.lineWidth = 2;
+          for (let si = 0; si < 4; si++) {
+            const shimmerPhase = time * 12 + si * 1.5;
+            this.ctx.beginPath();
+            for (let a = 0; a <= Math.PI * 2; a += Math.PI / 8) {
+              const r = renderRadius * (1.15 + 0.12 * Math.sin(shimmerPhase + a * 2.5));
+              const sx = bX + Math.cos(a) * r;
+              const sy = ball.y + Math.sin(a) * r;
+              if (a === 0) this.ctx.moveTo(sx, sy);
+              else this.ctx.lineTo(sx, sy);
+            }
+            this.ctx.closePath();
+            this.ctx.stroke();
+          }
+          
+          // Rising ember trail (more particles, better physics)
+          const trailCount = 6;
+          for (let ti = 0; ti < trailCount; ti++) {
+            const tAge = ti / trailCount;
+            const px = bX - ball.vx * (3 + tAge * 10);
+            const py = ball.y - ball.vy * (3 + tAge * 10) + Math.sin(time * 10 + ti * 2) * 4;
+            const pAlpha = (1 - tAge * 0.7) * 0.8 * burnIntensity;
+            const pSize = (2 + tAge * 2.5) * burnIntensity;
+            this.ctx.globalAlpha = pAlpha;
+            const emberColors = ['#ff3300', '#ff5500', '#ff7700', '#ff9900', '#ffaa00', '#ffcc00'];
+            this.ctx.fillStyle = emberColors[Math.floor(Math.random() * emberColors.length)];
+            this.ctx.shadowColor = '#ff3300';
+            this.ctx.shadowBlur = 8;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, pSize, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+          }
+          
+          // Frequent tiny sparks flying off
+          if (Math.random() < 0.15) {
+            const sparkCount = 1 + Math.floor(Math.random() * 2);
+            for (let sc = 0; sc < sparkCount; sc++) {
+              const sx = bX + (Math.random() - 0.5) * renderRadius * 1.8;
+              const sy = ball.y + (Math.random() - 0.5) * renderRadius * 1.8;
+              this.ctx.globalAlpha = 1;
+              this.ctx.fillStyle = '#fff8cc';
+              this.ctx.shadowColor = '#ff6600';
+              this.ctx.shadowBlur = 6;
+              this.ctx.beginPath();
+              this.ctx.arc(sx, sy, 1.5 + Math.random() * 1.5, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+            }
+          }
+          
+          // Occasional larger flame burst
+          if (Math.random() < 0.03) {
+            for (let i = 0; i < 3; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const dist = renderRadius * (0.8 + Math.random() * 0.6);
+              const fx = bX + Math.cos(angle) * dist;
+              const fy = ball.y + Math.sin(angle) * dist;
+              this.ctx.globalAlpha = 0.7;
+              this.ctx.fillStyle = '#ffaa00';
+              this.ctx.shadowColor = '#ff4400';
+              this.ctx.shadowBlur = 10;
+              this.ctx.beginPath();
+              this.ctx.arc(fx, fy, 3 + Math.random() * 2, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+            }
+          }
+          
+          this.ctx.globalAlpha = 1;
+          this.ctx.restore();
+        }
+
         // Aurora Borealis faint reflection on balls
         if (this._auroraActive && !ball.finished && !ball.eliminated) {
           const fade = this._auroraFadeProgress;
@@ -8105,7 +8811,6 @@ if (this.activeEvent.key === 'speed_surge') {
         this._renderDirectorOverlay(screenW, screenH);
       }
     }
-  }
 
     // Draw map-specific animated background elements — parallax stadium scene
     renderDynamicBackground(screenW, screenH) {

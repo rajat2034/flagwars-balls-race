@@ -659,6 +659,42 @@ class PhysicsEngine {
             ball.vx += (obs.punchVx || 0) * 1.2;
             ball.vy += (obs.punchVy || 0) * 1.2;
           }
+        } else if (obs.type === 'lava_geyser') {
+          // Magma Crater exclusive: Lava Geyser eruption collision
+          // Only collide when geyser is in eruption state
+          if (obs._state !== 'erupting') return;
+          
+          // Check horizontal overlap with eruption column
+          const columnHalfWidth = (obs._eruptionWidth || 30) / 2;
+          const dx = ball.x - obs.x;
+          const absDx = Math.abs(dx);
+          if (absDx > columnHalfWidth + ball.radius) return;
+          
+          // Check vertical overlap with eruption column (extends upward from crack)
+          const crackY = obs.y;
+          const eruptionHeight = obs._eruptionHeight || 200;
+          const columnTop = crackY - eruptionHeight;
+          const columnBottom = crackY;
+          
+          // Ball overlaps with eruption column
+          if (ball.y > columnTop - ball.radius && ball.y < columnBottom + ball.radius) {
+            ball._hitObstacleThisFrame = true;
+            ball._hitLavaGeyserThisFrame = true;
+            
+            // Launch ball slightly upward and apply horizontal knockback
+            const upwardForce = 2.5;
+            const knockbackForce = (Math.random() - 0.5) * 3.0;
+            ball.vy -= upwardForce;
+            ball.vx += knockbackForce;
+            
+            // Apply burn effect (handled in game.js updateSimulation)
+            // Prevent stacking with existing burn effects
+            if (!ball._geyserBurnActive && !ball._lavaBurnActive) {
+              ball._geyserBurnActive = true;
+              ball._geyserBurnTimer = 120; // 2 seconds at 60fps
+              ball._geyserBurnExitSpeed = Math.hypot(ball.vx, ball.vy);
+            }
+          }
         }
       });
     });
