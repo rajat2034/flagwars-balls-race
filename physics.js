@@ -35,6 +35,7 @@ class PhysicsEngine {
       b._enteredBoostThisFrame = false;
       b._enteredSlowThisFrame = false;
       b._exitedSlowThisFrame = false;
+      b._enteredLavaPoolThisFrame = false;
     });
 
     // Anti-jam: track balls in obstacle zones and detect jams
@@ -122,13 +123,19 @@ class PhysicsEngine {
               ball.vy *= boostMult;
               ball._wasInBoost = true;
             }
-          } else if (zone.type === 'slow' || zone.type === 'sand') {
-            if (ball.z === 0 && !ball._wasInSlow && zone.type === 'slow') {
-              if (!this._isGlacier) {
+          } else if (zone.type === 'slow' || zone.type === 'sand' || zone.type === 'lava_pool') {
+            if (ball.z === 0 && !ball._wasInSlow && (zone.type === 'slow' || zone.type === 'lava_pool')) {
+              if (!this._isGlacier && zone.type === 'slow') {
                 ball.vx *= 0.7;
               }
               ball._wasInSlow = true;
               ball._enteredSlowThisFrame = true;
+              if (zone.type === 'lava_pool') {
+                ball._enteredLavaPoolThisFrame = true;
+                ball._wasInLavaPool = true;
+              } else {
+                ball._wasInLavaPool = false;
+              }
             }
             if (zone.type === 'sand') inSand = true;
           } else if (zone.type === 'ice') {
@@ -166,7 +173,8 @@ class PhysicsEngine {
 
       // Reset zone visit flags (only when outside the respective zones)
       if (!inBoost) ball._wasInBoost = false;
-      if (track.zones.filter(z => z.type === 'slow').every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
+      const slowZones = track.zones.filter(z => z.type === 'slow' || z.type === 'lava_pool');
+      if (slowZones.every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
         if (ball._wasInSlow) {
           ball._exitedSlowThisFrame = true;
         }
