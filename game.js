@@ -131,6 +131,7 @@ const EVENT_REGISTRY = [
   { key: 'blizzard', name: 'Blizzard', implemented: true },
   { key: 'aurora_borealis', name: 'Aurora Borealis', implemented: true },
   { key: 'volcanic_eruption', name: 'Volcanic Eruption', implemented: true },
+  { key: 'firestorm', name: 'Firestorm', implemented: true },
   { key: 'lava_shower', name: 'Lava Shower', implemented: true },
   { key: 'sandstorm', name: 'Sandstorm', implemented: false },
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
@@ -1955,6 +1956,22 @@ class GameEngine {
     this._volcanicEruptionFountainParticles = [];
     this._volcanicEruptionBombSpawnCounter = 0;
     this._volcanicEruptionScreenFlash = 0;
+
+    // Firestorm event state
+    this._firestormActive = false;
+    this._firestormPhase = null; // 'build_up', 'active', 'fade_out'
+    this._firestormTimer = 0;
+    this._firestormFadeProgress = 0;
+    this._firestormSkyDarkness = 0;
+    this._firestormGlowIntensity = 0;
+    this._firestormEmbers = [];
+    this._firestormAsh = [];
+    this._firestormWindStreaks = [];
+    this._firestormSparks = [];
+    this._firestormLargeClouds = [];
+    this._firestormWhirls = [];
+    this._firestormWhirlTimer = 0;
+    this._firestormSkyTint = 0;
 
     this.directorMode = null;
     this._directorInput = '';
@@ -4513,12 +4530,14 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       { name: '\u2744 BLIZZARD', key: 'blizzard', duration: 300, description: 'A freezing storm slows every racer.' },
       { name: 'AURORA BOREALIS', key: 'aurora_borealis', duration: 480, description: 'The northern lights dance across the frozen sky.' },
       { name: '\uD83C\uDF0B VOLCANIC ERUPTION', key: 'volcanic_eruption', duration: 480, description: 'The volcano has awakened. The entire crater becomes unstable!' },
+      { name: '\uD83D\uDD25 FIRESTORM', key: 'firestorm', duration: 360, description: 'Scorching volcanic winds sweep across the crater!' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano))
       .filter(e => e.key !== 'volcanic_eruption' || isVolcano)
-      .filter(e => e.key !== 'blackout' || this.currentThemeKey !== 'snow')
+      .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano))
+      .filter(e => e.key !== 'firestorm' || isVolcano)
       .filter(e => e.key !== 'aurora_borealis' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'football_shower' || !isVolcano)
       .filter(e => e.key !== 'lava_shower' || isVolcano)
@@ -4717,6 +4736,44 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       this._volcanicEruptionScreenFlash = 0;
       // Total duration is 480 frames
       this.eventTimer = 480;
+    } else if (evt.key === 'firestorm') {
+      this._firestormActive = true;
+      this._firestormPhase = 'build_up';
+      this._firestormTimer = 60; // 1 second build-up
+      this._firestormFadeProgress = 0;
+      this._firestormSkyDarkness = 0;
+      this._firestormGlowIntensity = 0;
+      this._firestormEmbers = [];
+      this._firestormAsh = [];
+      this._firestormWindStreaks = [];
+      this._firestormSparks = [];
+      this._firestormLargeClouds = [];
+      this._firestormWhirls = [];
+      this._firestormWhirlTimer = 60;
+
+      // Apply 0.3x speed to all active balls
+      this.balls.forEach(ball => {
+        if (!ball.finished && !ball.eliminated) {
+          const speed = Math.hypot(ball.vx, ball.vy);
+
+          // Always store original speed for cap calculation
+          ball._firestormOriginalSpeed = speed;
+          ball._firestormActiveSlow = true;
+
+          // Apply slow instantly
+          ball.vx *= 0.3;
+          ball.vy *= 0.3;
+
+          // Apply firestorm burn visual only if no other burn is active
+          if (!ball._lavaBurnActive && !ball._geyserBurnActive && !ball._showerBurnActive) {
+            ball._firestormBurnActive = true;
+            ball._firestormBurnTimer = 300; // 5 seconds (covers build-up + active)
+          }
+        }
+      });
+
+      // Total duration 360 frames = 6 seconds
+      this.eventTimer = 360;
     }
 
     this.eventCount++;
@@ -4768,6 +4825,28 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         this._volcanicEruptionFountainParticles = [];
         this._volcanicEruptionBombSpawnCounter = 0;
         this._volcanicEruptionScreenFlash = 0;
+      }
+      if (this.activeEvent.key === 'firestorm') {
+        this._firestormActive = false;
+        this._firestormPhase = null;
+        this._firestormTimer = 0;
+        this._firestormFadeProgress = 0;
+        this._firestormSkyDarkness = 0;
+        this._firestormGlowIntensity = 0;
+        this._firestormEmbers = [];
+        this._firestormAsh = [];
+        this._firestormWindStreaks = [];
+        this._firestormSparks = [];
+        this._firestormLargeClouds = [];
+        this._firestormWhirls = [];
+        this._firestormWhirlTimer = 0;
+        this._firestormSkyTint = 0;
+        this.balls.forEach(ball => {
+          delete ball._firestormOriginalSpeed;
+          ball._firestormActiveSlow = false;
+          ball._firestormBurnActive = false;
+          ball._firestormBurnTimer = 0;
+        });
       }
       if (this.activeEvent.key === 'blizzard') {
         this._blizzardActive = false;
@@ -4945,6 +5024,332 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         this.sounds.playBlizzardCrack();
         this._blizzardCrackTimer = 120 + Math.random() * 60;
       }
+    } else if (this.activeEvent.key === 'firestorm') {
+      if (!this._firestormActive) return;
+
+      const totalFrames = 360;
+      const buildUpEnd = totalFrames - 60;
+      const activeEnd = 60;
+      const timeLeft = this.eventTimer;
+      const now = Date.now();
+
+      // Consistent wind direction that slowly shifts
+      const windAngle = Math.sin(now * 0.0003) * Math.PI * 0.3;
+      const windDirX = Math.cos(windAngle);
+      const windStr = 0.5 + Math.abs(Math.sin(now * 0.0004)) * 0.5;
+
+      // ---- Phase Management ----
+      if (timeLeft > buildUpEnd) {
+        // Phase 1: Build-up (1 second)
+        this._firestormPhase = 'build_up';
+        const progress = 1 - (timeLeft - buildUpEnd) / 60;
+        this._firestormFadeProgress = progress;
+        this._firestormSkyDarkness = progress * 0.28;
+        this._firestormGlowIntensity = progress * 0.6;
+        this._firestormSkyTint = progress * 0.25;
+
+        // Wind streaks building
+        if (Math.random() < 0.1 * dt && this._firestormWindStreaks.length < 8) {
+          const startEdge = windDirX > 0 ? -0.15 : 1.15;
+          this._firestormWindStreaks.push({
+            x: startEdge,
+            y: 0.05 + Math.random() * 0.65,
+            vx: windDirX * 0.004 * (0.6 + Math.random() * 0.8),
+            vy: (Math.random() - 0.5) * 0.0004,
+            width: 4 + Math.random() * 6,
+            length: 0.08 + Math.random() * 0.15,
+            alpha: 0.04 + Math.random() * 0.04,
+            life: 1.0,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // Ash drifting with wind
+        if (Math.random() < 0.1 * dt && this._firestormAsh.length < 20) {
+          const startEdge = windDirX > 0 ? -0.08 : 1.08;
+          this._firestormAsh.push({
+            x: startEdge,
+            y: 0.05 + Math.random() * 0.6,
+            vx: windDirX * 0.0015 * (0.5 + Math.random() * 0.8),
+            vy: (Math.random() - 0.5) * 0.0005 + 0.0002,
+            size: 6 + Math.random() * 10,
+            alpha: 0.06 + Math.random() * 0.06,
+            color: ['#3a3028', '#4a3a30', '#2a2218', '#5a4a3a'][Math.floor(Math.random() * 4)],
+            life: 1.0,
+            swirlPhase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // Small embers carried by wind
+        if (Math.random() < 0.15 * dt && this._firestormEmbers.length < 40) {
+          const startEdge = windDirX > 0 ? -0.08 : 1.08;
+          this._firestormEmbers.push({
+            x: startEdge,
+            y: 0.05 + Math.random() * 0.65,
+            vx: windDirX * 0.003 * (0.8 + Math.random()),
+            vy: (Math.random() - 0.5) * 0.002 - 0.001,
+            size: 1.5 + Math.random() * 2.5,
+            alpha: 0.2 + Math.random() * 0.3,
+            color: ['#ff4400', '#ff6600', '#ff8800', '#ffaa00'][Math.floor(Math.random() * 4)],
+            life: 1.0
+          });
+        }
+
+      } else if (timeLeft > activeEnd) {
+        // Phase 2: Active Firestorm (4 seconds)
+        this._firestormPhase = 'active';
+        this._firestormFadeProgress = 1.0;
+        this._firestormSkyDarkness = 0.28 + 0.04 * Math.sin(now * 0.003);
+        this._firestormGlowIntensity = 0.6 + 0.1 * Math.sin(now * 0.002);
+        this._firestormSkyTint = 0.25 + 0.05 * Math.sin(now * 0.0025);
+
+        // ---- 1. Heat Gusts (continuous hot wind ribbons) ----
+        if (Math.random() < 0.15 * dt && this._firestormWindStreaks.length < 20) {
+          const startEdge = windDirX > 0 ? -0.2 : 1.2;
+          this._firestormWindStreaks.push({
+            x: startEdge,
+            y: 0.02 + Math.random() * 0.7,
+            vx: windDirX * 0.005 * (0.6 + Math.random() * windStr),
+            vy: (Math.random() - 0.5) * 0.0005,
+            width: 2 + Math.random() * 7,
+            length: 0.06 + Math.random() * 0.18,
+            alpha: 0.03 + Math.random() * 0.05,
+            life: 1.0,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // ---- 2. Ember Storm (directional streaks carried by wind) ----
+        if (Math.random() < 0.35 * dt && this._firestormEmbers.length < 120) {
+          const startEdge = windDirX > 0 ? -0.1 : 1.1;
+          this._firestormEmbers.push({
+            x: startEdge,
+            y: 0.02 + Math.random() * 0.7,
+            vx: windDirX * 0.004 * (0.8 + Math.random() * 1.5 * windStr),
+            vy: (Math.random() - 0.5) * 0.002 - 0.001,
+            size: 1.5 + Math.random() * 3.5,
+            alpha: 0.3 + Math.random() * 0.5,
+            color: Math.random() < 0.08
+              ? '#ffcc00'
+              : (Math.random() < 0.3 ? '#ff4400' : (Math.random() < 0.5 ? '#ff6600' : '#ff8800')),
+            life: 1.0,
+            trail: true
+          });
+        }
+
+        // ---- 3. Burning Ash (swirling, more density) ----
+        if (Math.random() < 0.2 * dt && this._firestormAsh.length < 50) {
+          const startEdge = windDirX > 0 ? -0.1 : 1.1;
+          this._firestormAsh.push({
+            x: startEdge,
+            y: 0.02 + Math.random() * 0.65,
+            vx: windDirX * 0.002 * (0.5 + Math.random() * 0.8),
+            vy: (Math.random() - 0.5) * 0.0008 + 0.0003,
+            size: 8 + Math.random() * 16,
+            alpha: 0.06 + Math.random() * 0.08,
+            color: ['#3a3028', '#4a3a30', '#2a2218', '#5a4a3a', '#6a5a4a'][Math.floor(Math.random() * 5)],
+            life: 1.0,
+            swirlPhase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // ---- 4. Orange sparks (rapid, small, bright) ----
+        if (Math.random() < 0.3 * dt && this._firestormSparks.length < 35) {
+          const startEdge = windDirX > 0 ? -0.08 : 1.08;
+          this._firestormSparks.push({
+            x: startEdge,
+            y: 0.03 + Math.random() * 0.6,
+            vx: windDirX * 0.008 * (0.5 + Math.random()),
+            vy: (Math.random() - 0.5) * 0.004,
+            size: 0.8 + Math.random() * 1.5,
+            alpha: 0.5 + Math.random() * 0.5,
+            color: ['#ffcc00', '#ffaa00', '#ff8800'][Math.floor(Math.random() * 3)],
+            life: 1.0
+          });
+        }
+
+        // ---- 5. Large Ash Clouds (slow drifting translucent masses) ----
+        if (Math.random() < 0.04 * dt && this._firestormLargeClouds.length < 6) {
+          const startEdge = windDirX > 0 ? -0.3 : 1.3;
+          this._firestormLargeClouds.push({
+            x: startEdge,
+            y: 0.02 + Math.random() * 0.5,
+            vx: windDirX * 0.0003 * (0.5 + Math.random()),
+            vy: (Math.random() - 0.5) * 0.0001,
+            width: 0.25 + Math.random() * 0.4,
+            height: 0.1 + Math.random() * 0.15,
+            alpha: 0.12 + Math.random() * 0.08,
+            color: Math.random() < 0.3
+              ? ['#4a3a30', '#5a4a3a'][Math.floor(Math.random() * 2)]
+              : ['#2a2218', '#3a3028', '#1e1814'][Math.floor(Math.random() * 3)],
+            life: 1.0,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // ---- 6. Fire Whirls (every 2-3 seconds) ----
+        this._firestormWhirlTimer -= dt;
+        if (this._firestormWhirlTimer <= 0 && this._firestormWhirls.length < 3) {
+          this._firestormWhirlTimer = 120 + Math.floor(Math.random() * 60); // 2-3 seconds
+          this._firestormWhirls.push({
+            x: 0.1 + Math.random() * 0.8,
+            y: 0.15 + Math.random() * 0.5,
+            life: 1.0,
+            maxLife: 1.0,
+            phase: Math.random() * Math.PI * 2,
+            height: 0.08 + Math.random() * 0.08,
+            width: 0.015 + Math.random() * 0.015
+          });
+        }
+
+        // ---- 7. Boost volcano ambient emissions ----
+        if (this.currentThemeKey === 'volcano') {
+          if (Math.random() < 0.04 * dt) {
+            this._volcanoAshParticles.push({
+              x: 0.3 + Math.random() * 0.4,
+              y: 0.85 + Math.random() * 0.10,
+              vx: (Math.random() - 0.5) * 0.0015,
+              vy: -0.002 - Math.random() * 0.004,
+              size: 4 + Math.random() * 5,
+              alpha: 0.2 + Math.random() * 0.2,
+              color: ['#3a3028', '#2a2218', '#4a3a30'][Math.floor(Math.random() * 3)],
+              life: 1.0
+            });
+          }
+          if (Math.random() < 0.06 * dt) {
+            this._volcanoEmberParticles.push({
+              x: 0.3 + Math.random() * 0.4,
+              y: 0.78 + Math.random() * 0.17,
+              vx: (Math.random() - 0.5) * 0.002,
+              vy: -0.003 - Math.random() * 0.006,
+              size: 2 + Math.random() * 3,
+              alpha: 0.3 + Math.random() * 0.25,
+              color: ['#ff6600', '#ff8800', '#ffaa00', '#ff4400'][Math.floor(Math.random() * 4)],
+              life: 1.0
+            });
+          }
+        }
+
+      } else {
+        // Phase 3: Fade-out (1 second)
+        this._firestormPhase = 'fade_out';
+        const endingProgress = timeLeft / 60;
+        this._firestormFadeProgress = endingProgress;
+        this._firestormSkyDarkness = 0.28 * endingProgress;
+        this._firestormGlowIntensity = 0.6 * endingProgress;
+        this._firestormSkyTint = 0.25 * endingProgress;
+
+        // Smoothly fade all particle types
+        for (const p of this._firestormEmbers) { p.alpha *= 0.95; p.vx *= 0.97; }
+        for (const p of this._firestormAsh) { p.alpha *= 0.94; p.vx *= 0.97; }
+        for (const p of this._firestormWindStreaks) { p.alpha *= 0.93; p.vx *= 0.96; }
+        for (const p of this._firestormSparks) { p.alpha *= 0.94; p.vx *= 0.96; }
+        for (const p of this._firestormLargeClouds) { p.alpha *= 0.96; p.vx *= 0.98; }
+        for (const p of this._firestormWhirls) { p.life -= dt * 0.03; p.alpha = Math.max(0, p.life * 0.8); }
+      }
+
+      // ---- Common Particle Updates ----
+      for (const p of this._firestormEmbers) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.003;
+        p.alpha = Math.max(0, p.life * 0.7);
+      }
+      this._firestormEmbers = this._firestormEmbers.filter(p => p.life > 0 && p.alpha > 0.01 && p.y > -0.15 && p.y < 1.15);
+
+      for (const p of this._firestormAsh) {
+        const swirl = Math.sin(p.swirlPhase + now * 0.001) * 0.0006;
+        p.x += (p.vx + swirl) * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.002;
+        p.alpha = Math.max(0, p.life * 0.14);
+        p.size += 0.02 * dt;
+      }
+      this._firestormAsh = this._firestormAsh.filter(p => p.life > 0 && p.alpha > 0.005);
+
+      for (const p of this._firestormWindStreaks) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt + Math.sin(p.phase + now * 0.002) * 0.0003 * dt;
+        p.life -= dt * 0.003;
+        p.alpha = Math.max(0, p.life * 0.08);
+        p.width *= 0.997;
+        p.length *= 0.998;
+      }
+      this._firestormWindStreaks = this._firestormWindStreaks.filter(p => p.life > 0 && p.alpha > 0.005);
+
+      for (const p of this._firestormSparks) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.004;
+        p.alpha = Math.max(0, p.life * 0.9);
+      }
+      this._firestormSparks = this._firestormSparks.filter(p => p.life > 0 && p.alpha > 0.01);
+
+      for (const p of this._firestormLargeClouds) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.001;
+        p.alpha = Math.max(0, p.life * 0.18);
+        p.width += 0.0002 * dt;
+        p.height += 0.00005 * dt;
+      }
+      this._firestormLargeClouds = this._firestormLargeClouds.filter(p => p.life > 0 && p.alpha > 0.01);
+
+      for (const p of this._firestormWhirls) {
+        p.life -= dt * 0.008;
+        p.alpha = Math.max(0, p.life * 0.8);
+        p.width *= 1.002;
+        p.height *= 1.003;
+      }
+      this._firestormWhirls = this._firestormWhirls.filter(p => p.life > 0 && p.alpha > 0.02);
+
+      // ---- Update firestorm speed cap and burn timer ----
+      if (this.balls) {
+        for (const ball of this.balls) {
+          if (ball.finished || ball.eliminated) continue;
+
+          // Decrement burn timer for balls with firestorm burn
+          if (ball._firestormBurnActive) {
+            ball._firestormBurnTimer -= dt;
+            if (ball._firestormBurnTimer <= 0) {
+              ball._firestormBurnActive = false;
+              ball._firestormBurnTimer = 0;
+            }
+          }
+
+          if (!ball._firestormActiveSlow) continue;
+
+          // Determine speed cap based on event phase
+          let speedCapRatio;
+          if (this._firestormPhase === 'active') {
+            // Full effect: 0.3x
+            speedCapRatio = 0.3;
+          } else if (this._firestormPhase === 'fade_out') {
+            // Gradual recovery: 0.3x -> 1.0x over 1 second
+            const ft = this._firestormFadeProgress;
+            speedCapRatio = 0.3 + (1 - ft) * 0.7;
+          } else {
+            // Build-up: already at 0.3x
+            speedCapRatio = 0.3;
+          }
+
+          // Enforce speed cap (based on original speed at activation)
+          const currentSpeed = Math.hypot(ball.vx, ball.vy);
+          const cappedSpeed = (ball._firestormOriginalSpeed || currentSpeed) * speedCapRatio;
+          if (currentSpeed > 0 && currentSpeed > cappedSpeed) {
+            const ratio = cappedSpeed / currentSpeed;
+            ball.vx *= ratio;
+            ball.vy *= ratio;
+          }
+
+          // End firestorm slow at end of fade-out
+          if (this._firestormPhase === 'fade_out' && this._firestormFadeProgress < 0.01) {
+            ball._firestormActiveSlow = false;
+            delete ball._firestormOriginalSpeed;
+          }
+        }
+      }
+
     } else if (this.activeEvent.key === 'volcanic_eruption') {
       if (!this._volcanicEruptionActive) return;
 
@@ -9614,8 +10019,8 @@ this.ctx.restore();
           this.ctx.restore();
         }
 
-        // Lava Pool burn effect (Magma Crater exclusive)
-        if (ball._lavaBurnActive) {
+        // Lava Pool burn effect / Firestorm burn (Magma Crater exclusive)
+        if (ball._lavaBurnActive || ball._firestormBurnActive) {
           this.ctx.save();
           const time = Date.now() * 0.001;
           const burnIntensity = 0.5 + 0.3 * Math.sin(time * 8);
@@ -9725,8 +10130,8 @@ this.ctx.restore();
           this.ctx.restore();
         }
 
-        // Lava Geyser burn effect (Magma Crater exclusive)
-        if (ball._geyserBurnActive) {
+        // Lava Geyser burn effect / Firestorm burn (Magma Crater exclusive)
+        if (ball._geyserBurnActive || ball._firestormBurnActive) {
           this.ctx.save();
           const time = Date.now() * 0.001;
           const burnIntensity = 0.5 + 0.3 * Math.sin(time * 8);
@@ -9836,8 +10241,8 @@ this.ctx.restore();
           this.ctx.restore();
         }
 
-        // Lava Shower burn effect
-        if (ball._showerBurnActive) {
+        // Lava Shower burn effect / Firestorm burn
+        if (ball._showerBurnActive || ball._firestormBurnActive) {
           this.ctx.save();
           const time = Date.now() * 0.001;
           const burnIntensity = 0.5 + 0.3 * Math.sin(time * 8);
@@ -11163,6 +11568,221 @@ this.ctx.restore();
               ctx.fillStyle = 'rgba(255, 120, 0, 0.3)';
               ctx.beginPath();
               ctx.arc(bomb.x * screenW, bomb.y * screenH, bomb.size * 0.5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+        }
+
+        // ========== FIRESTORM EVENT RENDERING ==========
+        if (this._firestormActive) {
+          const fd = this._firestormFadeProgress;
+
+          // ---- 1. Sky darkening overlay (heavy volcanic clouds, ~28%) ----
+          if (this._firestormSkyDarkness > 0.005) {
+            ctx.save();
+            ctx.fillStyle = `rgba(8, 4, 2, ${this._firestormSkyDarkness})`;
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
+
+          // ---- 2. Animated Orange Sky Tint ----
+          if (this._firestormSkyTint > 0.005) {
+            ctx.save();
+            const tintPhase = Date.now() * 0.0005;
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, screenH * 0.6);
+            skyGrad.addColorStop(0, `rgba(180, 60, 10, ${0.20 * this._firestormSkyTint})`);
+            skyGrad.addColorStop(0.3, `rgba(140, 40, 5, ${0.14 * this._firestormSkyTint})`);
+            skyGrad.addColorStop(0.6, `rgba(100, 30, 0, ${0.08 * this._firestormSkyTint})`);
+            skyGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
+
+          // ---- 3. Volcanic Glow (stronger, from beneath) ----
+          if (this._firestormGlowIntensity > 0.005) {
+            ctx.save();
+            const glowGrad = ctx.createRadialGradient(
+              screenW * 0.5, screenH * 1.05, 0,
+              screenW * 0.5, screenH * 1.05, screenH * 0.85
+            );
+            glowGrad.addColorStop(0, `rgba(255, 50, 0, ${0.22 * this._firestormGlowIntensity})`);
+            glowGrad.addColorStop(0.2, `rgba(220, 40, 0, ${0.14 * this._firestormGlowIntensity})`);
+            glowGrad.addColorStop(0.5, `rgba(160, 30, 0, ${0.07 * this._firestormGlowIntensity})`);
+            glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = glowGrad;
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
+
+          // ---- 4. Background desaturation (mute non-warm colors) ----
+          if (this._firestormFadeProgress > 0.05) {
+            ctx.save();
+            ctx.globalAlpha = 0.20 * this._firestormFadeProgress;
+            ctx.fillStyle = '#1a120e';
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
+
+          // ---- 5. Heat distortion (continuous shimmering waves) ----
+          if (this._firestormFadeProgress > 0.05) {
+            ctx.save();
+            const alpha = (this._firestormPhase === 'active' ? 0.03 : 0.015) * this._firestormFadeProgress;
+            ctx.globalAlpha = alpha;
+            for (let hi = 0; hi < 12; hi++) {
+              const hy = screenH * (0.10 + hi * 0.07);
+              const speed = 0.10 + hi * 0.025;
+              const freq = 0.005 + hi * 0.002;
+              const amp = 2.5 + hi * 0.6;
+              ctx.strokeStyle = hi % 3 === 0 ? 'rgba(255, 200, 120, 0.04)' : (hi % 2 === 0 ? 'rgba(255, 160, 80, 0.03)' : 'rgba(255, 100, 40, 0.02)');
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              for (let x = 0; x <= screenW; x += 6) {
+                const yy = hy + Math.sin(x * freq + time * speed + hi * 1.5) * amp
+                          + Math.sin(x * freq * 0.5 + time * speed * 0.7 + hi * 2.3) * amp * 0.4;
+                if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+              }
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
+
+          // ---- 6. Heat Gusts (translucent flowing wind ribbons) ----
+          if (this._firestormWindStreaks.length > 0) {
+            ctx.save();
+            for (const p of this._firestormWindStreaks) {
+              if (p.alpha <= 0.005) continue;
+              ctx.globalAlpha = p.alpha;
+              const cx = p.x * screenW;
+              const cy = p.y * screenH;
+              const halfLen = p.length * screenW * 0.5;
+              const sw = p.width;
+              const grad = ctx.createLinearGradient(cx - halfLen, cy, cx + halfLen, cy);
+              grad.addColorStop(0, 'rgba(255, 140, 40, 0)');
+              grad.addColorStop(0.25, 'rgba(255, 180, 80, 0.5)');
+              grad.addColorStop(0.5, 'rgba(255, 220, 120, 0.7)');
+              grad.addColorStop(0.75, 'rgba(255, 180, 80, 0.5)');
+              grad.addColorStop(1, 'rgba(255, 140, 40, 0)');
+              ctx.fillStyle = grad;
+              ctx.shadowColor = '#ff8800';
+              ctx.shadowBlur = 3;
+              ctx.beginPath();
+              ctx.ellipse(cx, cy, halfLen, sw, 0, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 7. Large Ash Clouds (slowly drifting dark masses) ----
+          if (this._firestormLargeClouds.length > 0) {
+            ctx.save();
+            for (const p of this._firestormLargeClouds) {
+              if (p.alpha <= 0.01) continue;
+              ctx.globalAlpha = p.alpha;
+              const cx = p.x * screenW;
+              const cy = p.y * screenH;
+              const cw = p.width * screenW;
+              const ch = p.height * screenH;
+              // Soft-edged cloud with radial gradient
+              const cloudGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(cw, ch) * 0.7);
+              cloudGrad.addColorStop(0, p.color);
+              cloudGrad.addColorStop(0.6, p.color);
+              cloudGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+              ctx.fillStyle = cloudGrad;
+              ctx.beginPath();
+              ctx.ellipse(cx, cy, cw * 0.5, ch * 0.5, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 8. Fire Whirls (brief swirling ember columns) ----
+          if (this._firestormWhirls.length > 0) {
+            ctx.save();
+            for (const p of this._firestormWhirls) {
+              if (p.alpha <= 0.02) continue;
+              ctx.globalAlpha = p.alpha * 0.5;
+              const cx = p.x * screenW;
+              const cy = p.y * screenH;
+              const wh = p.height * screenH;
+              const ww = p.width * screenW;
+              // Swirling column of embers
+              const steps = 8;
+              for (let i = 0; i < steps; i++) {
+                const t = i / steps;
+                const swirlX = Math.sin(t * Math.PI * 4 + p.phase + Date.now() * 0.005) * ww;
+                const swirlY = -t * wh + wh * 0.5;
+                const size = 1.0 + t * 1.5;
+                const alpha = (1 - t) * 0.6;
+                ctx.fillStyle = i % 2 === 0 ? '#ff8800' : '#ffaa00';
+                ctx.shadowColor = '#ff6600';
+                ctx.shadowBlur = 3;
+                ctx.beginPath();
+                ctx.arc(cx + swirlX, cy + swirlY, size, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 9. Ember Storm (directional glowing streaks) ----
+          if (this._firestormEmbers.length > 0) {
+            ctx.save();
+            const emberPhase = Date.now() * 0.003;
+            for (const p of this._firestormEmbers) {
+              if (p.alpha <= 0.01) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.shadowColor = p.color;
+              ctx.shadowBlur = p.size > 2.5 ? 6 : 3;
+              // Stretch into directional streaks
+              const px = p.x * screenW;
+              const py = p.y * screenH;
+              const streakLen = Math.min(p.size * 2.5, 10);
+              const angle = Math.atan2(p.vy, p.vx);
+              ctx.beginPath();
+              ctx.ellipse(px, py, streakLen, p.size, angle, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 10. Burning Ash (dark swirling volcanic particles) ----
+          if (this._firestormAsh.length > 0) {
+            ctx.save();
+            for (const p of this._firestormAsh) {
+              if (p.alpha <= 0.005) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.beginPath();
+              ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 11. Orange sparks (rapid, small, bright) ----
+          if (this._firestormSparks.length > 0) {
+            ctx.save();
+            for (const p of this._firestormSparks) {
+              if (p.alpha <= 0.01) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.shadowColor = p.color;
+              ctx.shadowBlur = 2;
+              ctx.beginPath();
+              ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
               ctx.fill();
               ctx.shadowBlur = 0;
             }
@@ -12785,6 +13405,22 @@ this._auroraActive = false;
       this._volcanicEruptionBombSpawnCounter = 0;
       this._volcanicEruptionScreenFlash = 0;
 
+      // Firestorm event reset
+      this._firestormActive = false;
+      this._firestormPhase = null;
+      this._firestormTimer = 0;
+      this._firestormFadeProgress = 0;
+      this._firestormSkyDarkness = 0;
+      this._firestormGlowIntensity = 0;
+      this._firestormEmbers = [];
+      this._firestormAsh = [];
+      this._firestormWindStreaks = [];
+      this._firestormSparks = [];
+      this._firestormLargeClouds = [];
+      this._firestormWhirls = [];
+      this._firestormWhirlTimer = 0;
+      this._firestormSkyTint = 0;
+
       this.sounds.stopBlizzardWind();
       this.sounds.stopAuroraAmbient();
       this.commentary.clear();
@@ -13152,6 +13788,20 @@ this._auroraActive = false;
       this._volcanicEruptionSkyDarkness = 0;
       this._volcanicEruptionGlowIntensity = 0;
       this._volcanicEruptionScreenFlash = 0;
+      this._firestormActive = false;
+      this._firestormPhase = null;
+      this._firestormTimer = 0;
+      this._firestormFadeProgress = 0;
+      this._firestormSkyDarkness = 0;
+      this._firestormGlowIntensity = 0;
+      this._firestormEmbers = [];
+      this._firestormAsh = [];
+      this._firestormWindStreaks = [];
+      this._firestormSparks = [];
+      this._firestormLargeClouds = [];
+      this._firestormWhirls = [];
+      this._firestormWhirlTimer = 0;
+      this._firestormSkyTint = 0;
       this.directorMode = null;
       this.obstacleZoneOccupancy = {};
       this.commentary.clear();
