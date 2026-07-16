@@ -79,6 +79,32 @@ class TrackDiagnostics {
       maxX = obs.x + r;
       minY = obs.y - r;
       maxY = obs.y + r;
+    } else if (obs.type === 'collapsing_pillar') {
+      if (obs._state === 'fallen' || obs._state === 'disappearing') {
+        const fw = obs._fallenWidth || 80;
+        const fh = obs._fallenHeight || 35;
+        minX = obs.x - fw / 2;
+        maxX = obs.x + fw / 2;
+        if (obs._wallSide === 'top') {
+          minY = obs.y;
+          maxY = obs.y + fh;
+        } else {
+          minY = obs.y - fh;
+          maxY = obs.y;
+        }
+      } else {
+        const pw = obs._pillarWidth || 20;
+        const ph = obs._pillarHeight || 80;
+        minX = obs.x - pw / 2;
+        maxX = obs.x + pw / 2;
+        if (obs._wallSide === 'top') {
+          minY = obs.y;
+          maxY = obs.y + ph;
+        } else {
+          minY = obs.y - ph;
+          maxY = obs.y;
+        }
+      }
     } else {
       // standard box / zone
       const halfW = w / 2;

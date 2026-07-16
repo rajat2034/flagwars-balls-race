@@ -36,6 +36,7 @@ class PhysicsEngine {
       b._enteredSlowThisFrame = false;
       b._exitedSlowThisFrame = false;
       b._enteredLavaPoolThisFrame = false;
+      b._hitCollapsingPillarThisFrame = false;
     });
 
     // Anti-jam: track balls in obstacle zones and detect jams
@@ -694,6 +695,65 @@ class PhysicsEngine {
               ball._geyserBurnTimer = 120; // 2 seconds at 60fps
               ball._geyserBurnExitSpeed = Math.hypot(ball.vx, ball.vy);
             }
+          }
+        } else if (obs.type === 'collapsing_pillar') {
+          // Collapsing Rock Pillar — only collides when fallen
+          if (obs._state !== 'fallen') return;
+
+          const pSide = obs._wallSide || 'top';
+          const fw = obs._fallenWidth || 70;
+          const fh = obs._fallenHeight || 30;
+
+          // Rectangle collision: pillar extends from wall into lane
+          let rectX, rectY, rectW, rectH;
+          if (pSide === 'top') {
+            rectX = obs.x - fw / 2;
+            rectY = obs.y;
+            rectW = fw;
+            rectH = fh;
+          } else {
+            rectX = obs.x - fw / 2;
+            rectY = obs.y - fh;
+            rectW = fw;
+            rectH = fh;
+          }
+
+          // Closest point on rectangle to ball center
+          const cx = Math.max(rectX, Math.min(ball.x, rectX + rectW));
+          const cy = Math.max(rectY, Math.min(ball.y, rectY + rectH));
+          const dx = ball.x - cx;
+          const dy = ball.y - cy;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < ball.radius) {
+            // Collision detected
+            ball._hitObstacleThisFrame = true;
+            ball._hitCollapsingPillarThisFrame = true;
+
+            // Push ball out
+            const overlap = ball.radius - dist;
+            if (dist > 0.001) {
+              const nx = dx / dist;
+              const ny = dy / dist;
+              ball.x += nx * overlap;
+              ball.y += ny * overlap;
+
+              // Bounce response: reflect velocity and reduce slightly
+              const dot = ball.vx * nx + ball.vy * ny;
+              if (dot < 0) {
+                ball.vx -= dot * nx * 1.2;
+                ball.vy -= dot * ny * 1.2;
+                // Small forward momentum loss (no debuff)
+                const speedLoss = 0.92;
+                ball.vx *= speedLoss;
+                ball.vy *= speedLoss;
+              }
+            } else {
+              // Ball is exactly at center, push downward
+              ball.y += ball.radius;
+            }
+
+            // No burning, no slowdown, no stun, no freezing — pure physical bounce
           }
         }
       });

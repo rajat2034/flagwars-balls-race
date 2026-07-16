@@ -104,6 +104,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'lava_geyser', name: 'Lava Geyser', category: 'signature', map: 'volcano' },
   { type: 'rolling_boulder', name: 'Rolling Boulder', category: 'signature', map: 'volcano' },
   { type: 'flame_jet', name: 'Flame Jet', category: 'signature', map: 'volcano' },
+  { type: 'collapsing_pillar', name: 'Collapsing Rock Pillar', category: 'signature', map: 'volcano' },
   // Amazon
   { type: 'swinging_vine', name: 'Swinging Vine', category: 'signature', map: 'jungle' },
   { type: 'rolling_log', name: 'Rolling Log', category: 'signature', map: 'jungle' },
@@ -2339,6 +2340,32 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         maxX = obs.x + crackW / 2;
         minY = obs.y - crackH / 2;
         maxY = obs.y + crackH / 2 + eruptionH;
+      } else if (obs.type === 'collapsing_pillar') {
+        if (obs._state === 'fallen' || obs._state === 'disappearing') {
+          const fw = obs._fallenWidth || 80;
+          const fh = obs._fallenHeight || 35;
+          minX = obs.x - fw / 2;
+          maxX = obs.x + fw / 2;
+          if (obs._wallSide === 'top') {
+            minY = obs.y;
+            maxY = obs.y + fh;
+          } else {
+            minY = obs.y - fh;
+            maxY = obs.y;
+          }
+        } else {
+          const pw = obs._pillarWidth || 20;
+          const ph = obs._pillarHeight || 80;
+          minX = obs.x - pw / 2;
+          maxX = obs.x + pw / 2;
+          if (obs._wallSide === 'top') {
+            minY = obs.y;
+            maxY = obs.y + ph;
+          } else {
+            minY = obs.y - ph;
+            maxY = obs.y;
+          }
+        }
       } else {
         const halfW = w / 2;
         const halfH = h / 2;
@@ -3418,6 +3445,101 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       }
     }
 
+    // Generate Collapsing Rock Pillars for Magma Crater
+    if (enabledSet.has('collapsing_pillar')) {
+      const numPillars = 12 + Math.floor(Math.random() * 5); // 12-16
+      let lastSide = 'bottom';
+      let lastX = -1000;
+      let pillarPositions = [];
+
+      // Scan from start to finish collecting valid placement candidates
+      for (let px = 400; px < finishX - 600; px += 80) {
+        if (Math.abs(px - finishX) < 800) continue;
+        const pb = this.physics.getWallBoundaries(px, track);
+        if (!pb || pb.bottomY - pb.topY < 160) continue;
+
+        // Check overlap with existing obstacles and zones
+        let overlap = false;
+        for (const _o of track.obstacles) {
+          if (Math.abs(_o.x - px) < 120) { overlap = true; break; }
+        }
+        if (overlap) continue;
+        for (const _z of track.zones) {
+          if (_z.type === 'finish') continue;
+          if (Math.abs(_z.x + _z.width / 2 - px) < 120) { overlap = true; break; }
+        }
+        if (overlap) continue;
+        if (track.pegs) {
+          for (const _p of track.pegs) {
+            if (Math.abs(_p.x - px) < 80) { overlap = true; break; }
+          }
+        }
+        if (overlap) continue;
+
+        pillarPositions.push({ x: px, bounds: pb });
+      }
+
+      // Select positions with alternating sides, avoiding direct opposites
+      let selected = [];
+      let lastSelectedSide = null;
+      for (let i = 0; i < pillarPositions.length && selected.length < numPillars; i++) {
+        const pos = pillarPositions[i];
+        const side = (selected.length % 2 === 0) ? 'top' : 'bottom';
+
+        // Avoid placing directly opposite another pillar
+        let opposite = false;
+        for (const s of selected) {
+          if (Math.abs(s.x - pos.x) < 60 && s.side !== side) {
+            opposite = true;
+            break;
+          }
+        }
+        if (opposite) continue;
+
+        // Ensure minimum spacing
+        let tooClose = false;
+        for (const s of selected) {
+          if (Math.abs(s.x - pos.x) < 200) {
+            tooClose = true;
+            break;
+          }
+        }
+        if (tooClose) continue;
+
+        const wallY = side === 'top' ? pos.bounds.topY - 5 : pos.bounds.bottomY + 5;
+        selected.push({ x: pos.x, y: wallY, side: side });
+      }
+
+      // Create pillar obstacles
+      for (const sp of selected) {
+        const pillarHeight = 65 + Math.random() * 25;
+        const pillarWidth = 18 + Math.random() * 7;
+        const wallSide = sp.side;
+        track.obstacles.push({
+          type: 'collapsing_pillar',
+          x: sp.x,
+          y: sp.y,
+          _wallSide: wallSide,
+          _state: 'standing',
+          _stateTimer: 0,
+          _standingDuration: 480 + Math.floor(Math.random() * 420),
+          _warningDuration: 60,
+          _fallenDuration: 240 + Math.floor(Math.random() * 60),
+          _disappearDuration: 30,
+          _pillarHeight: pillarHeight,
+          _pillarWidth: pillarWidth,
+          _fallenWidth: 55 + Math.random() * 20,
+          _fallenHeight: 28 + Math.random() * 8,
+          _seed: Math.random() * 1000,
+          _shakePhase: Math.random() * Math.PI * 2,
+          _fallDirection: wallSide === 'top' ? 1 : -1,
+          _fallProgress: 0,
+          _crumbleProgress: 0,
+          _dustOverlay: null
+        });
+      }
+    }
+
     this.track = track;
   }
 
@@ -4011,6 +4133,251 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           }
         }
       });
+    }
+
+    // Collapsing Rock Pillar state machine (Magma Crater exclusive)
+    if (this.currentThemeKey === 'volcano' && this.track && this.track.obstacles) {
+      this.track.obstacles.forEach(obs => {
+        if (obs.type !== 'collapsing_pillar') return;
+
+        // Initialize if needed
+        if (obs._state === undefined) {
+          obs._state = 'standing';
+          obs._stateTimer = 0;
+          obs._standingDuration = obs._standingDuration || (480 + Math.floor(Math.random() * 420));
+          obs._warningDuration = obs._warningDuration || 60;
+          obs._fallenDuration = obs._fallenDuration || (240 + Math.floor(Math.random() * 60));
+          obs._disappearDuration = obs._disappearDuration || 30;
+          obs._pillarHeight = obs._pillarHeight || (65 + Math.random() * 25);
+          obs._pillarWidth = obs._pillarWidth || (18 + Math.random() * 7);
+          obs._fallenWidth = obs._fallenWidth || (55 + Math.random() * 20);
+          obs._fallenHeight = obs._fallenHeight || (28 + Math.random() * 8);
+          obs._seed = obs._seed || (Math.random() * 1000);
+          obs._shakePhase = obs._shakePhase || (Math.random() * Math.PI * 2);
+          obs._fallProgress = obs._fallProgress || 0;
+          obs._crumbleProgress = obs._crumbleProgress || 0;
+        }
+
+        obs._stateTimer += dt;
+
+        if (obs._state === 'standing') {
+          if (obs._stateTimer >= obs._standingDuration) {
+            obs._state = 'warning';
+            obs._stateTimer = 0;
+            // Dust puffs at base when warning starts
+            for (let i = 0; i < 4; i++) {
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * 20,
+                y: obs.y + (obs._wallSide === 'top' ? 5 : -5) + (Math.random() - 0.5) * 6,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (obs._wallSide === 'top' ? 0.3 : -0.3) + (Math.random() - 0.5) * 0.3,
+                alpha: 0.5,
+                size: 4 + Math.random() * 6,
+                life: 20 + Math.floor(Math.random() * 15),
+                color: '#665544'
+              });
+            }
+          }
+        } else if (obs._state === 'warning') {
+          // Shake intensity increases
+          const warnProgress = obs._stateTimer / obs._warningDuration;
+          obs._shakeOffset = Math.sin(obs._stateTimer * 0.5 + obs._shakePhase) * (2 + warnProgress * 6);
+
+          // Falling tiny rocks
+          if (Math.random() < 0.3 * dt) {
+            this.particles.push({
+              type: 'dust',
+              x: obs.x + (Math.random() - 0.5) * (obs._pillarWidth || 20) * 0.8,
+              y: obs.y - (obs._wallSide === 'top' ? 1 : -1) * (obs._pillarHeight || 80) * 0.3 * (Math.random()),
+              vx: (Math.random() - 0.5) * 0.3,
+              vy: (obs._wallSide === 'top' ? 0.5 : -0.5) + Math.random() * 0.5,
+              alpha: 0.6,
+              size: 1.5 + Math.random() * 2,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: '#554433'
+            });
+          }
+
+          // Dust at base
+          if (Math.random() < 0.2 * dt) {
+            this.particles.push({
+              type: 'dust',
+              x: obs.x + (Math.random() - 0.5) * 15,
+              y: obs.y + (obs._wallSide === 'top' ? 3 : -3) + (Math.random() - 0.5) * 4,
+              vx: (Math.random() - 0.5) * 0.4,
+              vy: (obs._wallSide === 'top' ? 0.2 : -0.2),
+              alpha: 0.3 + warnProgress * 0.3,
+              size: 3 + Math.random() * 4,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: '#776655'
+            });
+          }
+
+          // Rising embers
+          if (Math.random() < 0.25 * dt) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * 12,
+              y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * 5 + (Math.random() - 0.5) * 5,
+              vx: (Math.random() - 0.5) * 0.3,
+              vy: (obs._wallSide === 'top' ? -1 : 1) * (0.3 + Math.random() * 0.5),
+              alpha: 0.5 + Math.random() * 0.3,
+              size: 1.5 + Math.random() * 2,
+              life: 20 + Math.floor(Math.random() * 15),
+              color: '#ff6600'
+            });
+          }
+
+          if (obs._stateTimer >= obs._warningDuration) {
+            obs._state = 'fallen';
+            obs._stateTimer = 0;
+            obs._fallProgress = 0;
+
+            // Collapse burst particles
+            for (let i = 0; i < 20; i++) {
+              const angle = (obs._wallSide === 'top' ? 1 : -1) * (Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6);
+              const speed = 1.5 + Math.random() * 4;
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * 15,
+                y: obs.y + (Math.random() - 0.5) * 10,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.6 + Math.random() * 0.3,
+                size: 3 + Math.random() * 6,
+                life: 25 + Math.floor(Math.random() * 20),
+                color: ['#554433', '#665544', '#776655', '#887766', '#998877'][Math.floor(Math.random() * 5)]
+              });
+            }
+
+            // Dust cloud particles
+            for (let i = 0; i < 12; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 0.5 + Math.random() * 2;
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * 20,
+                y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * 10 + (Math.random() - 0.5) * 8,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed * 0.5,
+                alpha: 0.25 + Math.random() * 0.2,
+                size: 8 + Math.random() * 10,
+                life: 30 + Math.floor(Math.random() * 20),
+                color: '#554433'
+              });
+            }
+
+            // Glowing ember burst
+            for (let i = 0; i < 8; i++) {
+              const angle = (obs._wallSide === 'top' ? 1 : -1) * (Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.4);
+              const speed = 1 + Math.random() * 3;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * 10,
+                y: obs.y + (Math.random() - 0.5) * 8,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.8,
+                size: 2 + Math.random() * 3,
+                life: 20 + Math.floor(Math.random() * 15),
+                color: ['#ff4400', '#ff6600', '#ff8800', '#ffaa00'][Math.floor(Math.random() * 4)]
+              });
+            }
+
+            // Brief screen dust overlay (visual only, no camera shake)
+            if (this._dustOverlay === undefined) this._dustOverlay = 0;
+            this._dustOverlay = 15;
+          }
+        } else if (obs._state === 'fallen') {
+          // Fall animation: pillar rotates into lane
+          if (obs._fallProgress < 1) {
+            obs._fallProgress += dt / 15; // Complete fall in ~0.25s at 60fps
+            if (obs._fallProgress > 1) obs._fallProgress = 1;
+          }
+
+          // Smoke from fallen pillar
+          if (Math.random() < 0.15 * dt) {
+            this.particles.push({
+              type: 'dust',
+              x: obs.x + (Math.random() - 0.5) * (obs._fallenWidth || 60) * 0.5,
+              y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * (obs._fallenHeight || 30) * 0.3 + (Math.random() - 0.5) * 5,
+              vx: (Math.random() - 0.5) * 0.2,
+              vy: (obs._wallSide === 'top' ? -0.3 : 0.3),
+              alpha: 0.15 + Math.random() * 0.1,
+              size: 6 + Math.random() * 8,
+              life: 25 + Math.floor(Math.random() * 15),
+              color: '#333333'
+            });
+          }
+
+          // Occasional embers from broken rocks
+          if (Math.random() < 0.1 * dt) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._fallenWidth || 60) * 0.4,
+              y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * (obs._fallenHeight || 30) * 0.5,
+              vx: (Math.random() - 0.5) * 0.4,
+              vy: (obs._wallSide === 'top' ? -0.5 : 0.5) - Math.random() * 0.3,
+              alpha: 0.4 + Math.random() * 0.3,
+              size: 1.5 + Math.random() * 2,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: '#ff8800'
+            });
+          }
+
+          if (obs._stateTimer >= obs._fallenDuration) {
+            obs._state = 'disappearing';
+            obs._stateTimer = 0;
+            obs._crumbleProgress = 0;
+
+            // Crumble particles
+            for (let i = 0; i < 15; i++) {
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * (obs._fallenWidth || 60),
+                y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * (obs._fallenHeight || 30) * (0.2 + Math.random() * 0.6),
+                vx: (Math.random() - 0.5) * 1.5,
+                vy: (obs._wallSide === 'top' ? -0.5 : 0.5) + (Math.random() - 0.5) * 0.8,
+                alpha: 0.5 + Math.random() * 0.3,
+                size: 3 + Math.random() * 5,
+                life: 25 + Math.floor(Math.random() * 20),
+                color: '#554433'
+              });
+            }
+
+            // Dust cloud
+            for (let i = 0; i < 8; i++) {
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * 25,
+                y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * 10 + (Math.random() - 0.5) * 8,
+                vx: (Math.random() - 0.5) * 0.8,
+                vy: (obs._wallSide === 'top' ? -0.3 : 0.3) + (Math.random() - 0.5) * 0.5,
+                alpha: 0.3 + Math.random() * 0.2,
+                size: 7 + Math.random() * 8,
+                life: 30 + Math.floor(Math.random() * 20),
+                color: '#665544'
+              });
+            }
+          }
+        } else if (obs._state === 'disappearing') {
+          obs._crumbleProgress += dt / obs._disappearDuration;
+          // Fade out
+          if (obs._crumbleProgress >= 1) {
+            obs._state = 'standing';
+            obs._stateTimer = 0;
+            obs._crumbleProgress = 0;
+            obs._standingDuration = 480 + Math.floor(Math.random() * 420);
+          }
+        }
+      });
+    }
+
+    // Dust overlay timer
+    if (this._dustOverlay && this._dustOverlay > 0) {
+      this._dustOverlay -= dt;
+      if (this._dustOverlay < 0) this._dustOverlay = 0;
     }
 
     // Remove old off-camera falling rocks/meteors and broken walls
@@ -7864,6 +8231,191 @@ if (this.activeEvent.key === 'speed_surge') {
             }
           }
 
+        } else if (obs.type === 'collapsing_pillar') {
+          // Collapsing Rock Pillar — Magma Crater exclusive volcanic obstacle
+          const pState = obs._state || 'standing';
+          const pCamX = obs.x - camX;
+          const pSide = obs._wallSide || 'top';
+          const pSeed = obs._seed || 0;
+          const pDir = pSide === 'top' ? 1 : -1;
+
+          this.ctx.save();
+
+          if (pState === 'standing' || pState === 'warning') {
+            const ph = obs._pillarHeight || 75;
+            const pw = obs._pillarWidth || 20;
+            const shakeX = pState === 'warning' ? (obs._shakeOffset || 0) : 0;
+            const shakeY = pState === 'warning' ? Math.sin((obs._stateTimer || 0) * 0.7 + pSeed) * 1.5 : 0;
+            const glowIntensity = pState === 'warning' ? Math.min(1, (obs._stateTimer || 0) / (obs._warningDuration || 60)) : 0;
+
+            const baseY = obs.y;
+            const tipY = obs.y + pDir * ph;
+
+            this.ctx.translate(pCamX + shakeX, baseY + shakeY);
+
+            const rockGrad = this.ctx.createLinearGradient(0, 0, 0, pDir * ph);
+            rockGrad.addColorStop(0, '#1a1a1a');
+            rockGrad.addColorStop(0.2, '#2a2520');
+            rockGrad.addColorStop(0.5, '#3a3530');
+            rockGrad.addColorStop(0.8, '#2a2520');
+            rockGrad.addColorStop(1, '#1a1a1a');
+            this.ctx.fillStyle = rockGrad;
+            this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            this.ctx.shadowBlur = 6;
+            this.ctx.shadowOffsetY = pDir * 2;
+
+            const segments = 6;
+            this.ctx.beginPath();
+            for (let i = 0; i <= segments; i++) {
+              const t = i / segments;
+              const jitterW = (Math.sin(pSeed * 13 + i * 2.7 + pSeed * 0.5) - 0.5) * pw * 0.4;
+              const jitterH = (Math.sin(pSeed * 7 + i * 1.3) - 0.5) * ph * 0.03;
+              const xOff = jitterW;
+              const yOff = t * ph * pDir + jitterH;
+              if (i === 0) this.ctx.moveTo(xOff, yOff);
+              else this.ctx.lineTo(xOff, yOff);
+            }
+            for (let i = segments; i >= 0; i--) {
+              const t = i / segments;
+              const jitterW = (Math.sin(pSeed * 13 + i * 2.7 + 100) - 0.5) * pw * 0.4;
+              const jitterH = (Math.sin(pSeed * 7 + i * 1.3 + 50) - 0.5) * ph * 0.03;
+              const xOff = jitterW;
+              const yOff = t * ph * pDir + jitterH;
+              this.ctx.lineTo(xOff, yOff);
+            }
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+            this.ctx.shadowOffsetY = 0;
+
+            this.ctx.strokeStyle = 'rgba(60, 50, 40, 0.6)';
+            this.ctx.lineWidth = 1.5;
+            this.ctx.stroke();
+
+            const crackAlpha = pState === 'warning' ? 0.4 + glowIntensity * 0.5 : 0.3;
+            this.ctx.shadowColor = '#ff4400';
+            this.ctx.shadowBlur = pState === 'warning' ? 6 + glowIntensity * 10 : 4;
+            for (let c = 0; c < 4; c++) {
+              const cx = (Math.sin(pSeed * 5 + c * 3.1) - 0.5) * pw * 0.7;
+              const cy = (Math.sin(pSeed * 11 + c * 2.3) + 0.5) * ph * 0.6 * pDir * 0.5 + ph * pDir * 0.3;
+              const clen = 4 + Math.sin(pSeed * 3 + c * 1.7) * 3;
+              this.ctx.strokeStyle = `rgba(255, ${100 + glowIntensity * 80}, 0, ${crackAlpha})`;
+              this.ctx.lineWidth = 1.5 + Math.sin(pSeed + c) * 0.5;
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx, cy);
+              this.ctx.lineTo(cx + (Math.sin(pSeed * 2 + c * 1.1) - 0.5) * clen, cy + Math.sin(c) * clen * 0.5);
+              this.ctx.stroke();
+            }
+            this.ctx.shadowBlur = 0;
+
+            const smokeAlpha = pState === 'warning' ? 0.08 + glowIntensity * 0.08 : 0.06;
+            this.ctx.fillStyle = `rgba(150, 140, 130, ${smokeAlpha})`;
+            for (let s = 0; s < 3; s++) {
+              const sx = (Math.sin(pSeed * 3 + s * 2.1 + performance.now() * 0.0005) - 0.5) * pw * 1.5;
+              const sy = (Math.sin(pSeed * 7 + s * 1.3 + performance.now() * 0.0003) + 0.5) * ph * 0.4 * pDir + ph * pDir * 0.4;
+              const sr = 4 + Math.sin(pSeed * 5 + s * 1.7 + performance.now() * 0.001) * 2;
+              this.ctx.beginPath();
+              this.ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            if (pState === 'warning') {
+              const pulseAlpha = 0.15 + 0.2 * Math.sin(performance.now() * 0.008 + pSeed);
+              this.ctx.fillStyle = `rgba(255, 100, 0, ${pulseAlpha})`;
+              this.ctx.shadowColor = '#ff4400';
+              this.ctx.shadowBlur = 15;
+              this.ctx.beginPath();
+              this.ctx.arc(0, 0, pw * 0.8 + pulseAlpha * 10, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+            }
+
+          } else if (pState === 'fallen' || pState === 'disappearing') {
+            const fw = obs._fallenWidth || 70;
+            const fh = obs._fallenHeight || 30;
+            const fallProgress = obs._fallProgress || 1;
+            const crumble = pState === 'disappearing' ? obs._crumbleProgress || 0 : 0;
+
+            const baseY = obs.y;
+            const visualWidth = fw * (1 - crumble * 0.3);
+            const visualHeight = fh * (1 - crumble * 0.4);
+            const visualAlpha = 1 - crumble * 0.7;
+
+            this.ctx.globalAlpha = visualAlpha;
+
+            const px = pCamX;
+            const py = pSide === 'top' ? baseY : baseY - visualHeight;
+
+            const rockGrad2 = this.ctx.createLinearGradient(px, py, px, py + visualHeight);
+            rockGrad2.addColorStop(0, '#2a2520');
+            rockGrad2.addColorStop(0.3, '#3a3530');
+            rockGrad2.addColorStop(0.6, '#2a2018');
+            rockGrad2.addColorStop(1, '#1a1510');
+            this.ctx.fillStyle = rockGrad2;
+            this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            this.ctx.shadowBlur = 6;
+
+            this.ctx.beginPath();
+            const rSegs = 8;
+            for (let i = 0; i <= rSegs; i++) {
+              const t = i / rSegs;
+              const jx = (Math.sin(pSeed * 7 + i * 2.3) - 0.5) * visualWidth * 0.15;
+              const x = px - visualWidth / 2 + t * visualWidth + jx;
+              const y = i % 2 === 0 ? py : py + visualHeight + (Math.sin(pSeed * 5 + i * 1.7) - 0.5) * visualHeight * 0.2;
+              if (i === 0) this.ctx.moveTo(x, py);
+              else this.ctx.lineTo(x, y);
+            }
+            for (let i = rSegs; i >= 0; i--) {
+              const t = i / rSegs;
+              const jx = (Math.sin(pSeed * 7 + i * 2.3 + 50) - 0.5) * visualWidth * 0.15;
+              const x = px - visualWidth / 2 + t * visualWidth + jx;
+              const y = i % 2 === 0 ? py + visualHeight : py + (Math.sin(pSeed * 5 + i * 1.7 + 30) - 0.5) * visualHeight * 0.2;
+              if (i === rSegs) this.ctx.lineTo(x, py + visualHeight);
+              else this.ctx.lineTo(x, y);
+            }
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+
+            this.ctx.shadowColor = '#ff4400';
+            this.ctx.shadowBlur = 8;
+            for (let g = 0; g < 3; g++) {
+              const gx = px - visualWidth * 0.3 + g * visualWidth * 0.3;
+              const gy = py + visualHeight * 0.2 + (Math.sin(pSeed * 3 + g * 2.1) + 0.3) * visualHeight * 0.3;
+              const gr = 3 + Math.sin(pSeed * 5 + g * 1.3) * 1.5;
+              this.ctx.fillStyle = `rgba(255, ${100 + g * 40}, 0, ${0.5 - crumble * 0.3})`;
+              this.ctx.beginPath();
+              this.ctx.arc(gx, gy, gr, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+            this.ctx.shadowBlur = 0;
+
+            for (let r = 0; r < 4; r++) {
+              const rx = px - visualWidth * 0.4 + (Math.sin(pSeed * 11 + r * 3.7) + 0.5) * visualWidth * 0.6;
+              const ry = py + visualHeight + (Math.sin(pSeed * 13 + r * 1.1) + 0.5) * visualHeight * 0.3;
+              const rr = 2 + Math.sin(pSeed * 3 + r * 2.3) * 1;
+              this.ctx.fillStyle = `rgba(50, 45, 40, ${0.5 - crumble * 0.3})`;
+              this.ctx.beginPath();
+              this.ctx.arc(rx, ry, rr, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            if (pState === 'fallen') {
+              this.ctx.fillStyle = `rgba(100, 90, 80, 0.06)`;
+              for (let s = 0; s < 3; s++) {
+                const sx = px - visualWidth * 0.3 + s * visualWidth * 0.3 + Math.sin(performance.now() * 0.002 + pSeed + s) * 5;
+                const sy = py + (pSide === 'top' ? -5 - s * 4 : visualHeight + 5 + s * 4) + Math.sin(performance.now() * 0.003 + pSeed + s) * 2;
+                const sr = 6 + Math.sin(performance.now() * 0.001 + pSeed + s) * 2;
+                this.ctx.beginPath();
+                this.ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+                this.ctx.fill();
+              }
+            }
+
+            this.ctx.globalAlpha = 1;
+          }
+
+          this.ctx.restore();
         }
       });
 
@@ -10506,6 +11058,23 @@ this.ctx.restore();
         vigGrad.addColorStop(0.85, 'rgba(0,0,0,0.15)');
         vigGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
         this.ctx.fillStyle = vigGrad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        this.ctx.restore();
+      }
+
+      // Dust overlay from collapsing pillars
+      if (this._dustOverlay && this._dustOverlay > 0) {
+        this.ctx.save();
+        const dustAlpha = Math.min(0.25, this._dustOverlay / 15 * 0.25);
+        const dustGrad = this.ctx.createRadialGradient(
+          screenW / 2, screenH / 2, 0,
+          screenW / 2, screenH / 2, screenH * 0.7
+        );
+        dustGrad.addColorStop(0, `rgba(180, 140, 100, ${dustAlpha * 0.3})`);
+        dustGrad.addColorStop(0.4, `rgba(160, 120, 80, ${dustAlpha * 0.5})`);
+        dustGrad.addColorStop(0.7, `rgba(120, 90, 60, ${dustAlpha * 0.3})`);
+        dustGrad.addColorStop(1, 'rgba(80, 60, 40, 0)');
+        this.ctx.fillStyle = dustGrad;
         this.ctx.fillRect(0, 0, screenW, screenH);
         this.ctx.restore();
       }
