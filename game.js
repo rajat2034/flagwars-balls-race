@@ -1973,6 +1973,17 @@ class GameEngine {
     this._firestormWhirlTimer = 0;
     this._firestormSkyTint = 0;
 
+    // Jungle theme state
+    this._jungleParrots = [];
+    this._jungleToucans = [];
+    this._jungleButterflies = [];
+    this._jungleDragonflies = [];
+    this._jungleBirdFlocks = [];
+    this._junglePollen = [];
+    this._jungleDriftingLeaves = [];
+    this._jungleMistParticles = [];
+    this._jungleFlowers = [];
+
     this.directorMode = null;
     this._directorInput = '';
     this._directorSuggestions = [];
@@ -12125,30 +12136,536 @@ this.ctx.restore();
         ctx.fillRect(0, 0, screenW, screenH);
         ctx.restore();
       } else if (theme === 'jungle') {
+        try {
+        const camParallax = (this.cameraX || 0) * 0.02;
+
+        // ========== LAYER 1: Sky gradient (warm humid tropical sky) ==========
         ctx.save();
-        ctx.globalAlpha = 0.05;
-        for (let i = 0; i < 5; i++) {
-          const rx = (i * screenW / 4 + Math.sin(time * 0.05 + i) * 30) % screenW;
-          ctx.fillStyle = 'rgba(241, 196, 15, 0.2)';
-          ctx.beginPath();
-          ctx.moveTo(rx - 15, 0);
-          ctx.lineTo(rx + 20, 0);
-          ctx.lineTo(rx + 60, screenH);
-          ctx.lineTo(rx - 50, screenH);
-          ctx.fill();
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, screenH * 0.5);
+        skyGrad.addColorStop(0, 'rgba(135, 180, 210, 0.30)');
+        skyGrad.addColorStop(0.3, 'rgba(160, 200, 180, 0.20)');
+        skyGrad.addColorStop(0.6, 'rgba(180, 210, 160, 0.12)');
+        skyGrad.addColorStop(1, 'rgba(100, 140, 80, 0)');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, screenW, screenH * 0.5);
+        ctx.restore();
+
+        // ========== LAYER 2: Distant jungle mountains (parallax 0.02) ==========
+        ctx.save();
+        const mountOffset = camParallax * 0.3;
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#2d4a3e';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const m1 = Math.sin((x + mountOffset) * 0.0012 + time * 0.002) * 60;
+          const m2 = Math.sin((x + mountOffset) * 0.0035 + time * 0.003 + 1.5) * 40;
+          const m3 = Math.sin((x + mountOffset) * 0.006 + time * 0.004 + 3.0) * 25;
+          const y = screenH * 0.22 + m1 + m2 * 0.6 + m3 * 0.4;
+          ctx.lineTo(x, y);
         }
-        // Fireflies
-        ctx.globalAlpha = 0.4;
-        for (let i = 0; i < 12; i++) {
-          const fx = ((i * 89.7 + 30) % screenW);
-          const fy = ((i * 53.1 + 100) % (screenH * 0.7) + screenH * 0.15);
-          const pulse = 0.3 + Math.sin(time * 1.5 + i * 2.3) * 0.3;
-          ctx.fillStyle = `rgba(200, 255, 100, ${pulse * 0.5})`;
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        // Lighter distant hills
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#3a5a48';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const m1 = Math.sin((x + mountOffset) * 0.0018 + time * 0.001 + 0.5) * 50;
+          const m2 = Math.sin((x + mountOffset) * 0.004 + time * 0.002 + 2.0) * 30;
+          const y = screenH * 0.18 + m1 + m2 * 0.5;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // ========== LAYER 3: Morning haze / atmospheric fog (soft gradient) ==========
+        ctx.save();
+        const hazeGrad = ctx.createLinearGradient(0, screenH * 0.15, 0, screenH * 0.55);
+        hazeGrad.addColorStop(0, 'rgba(200, 220, 200, 0)');
+        hazeGrad.addColorStop(0.4, 'rgba(180, 210, 180, 0.04)');
+        hazeGrad.addColorStop(0.7, 'rgba(160, 190, 160, 0.06)');
+        hazeGrad.addColorStop(1, 'rgba(140, 170, 140, 0.03)');
+        ctx.fillStyle = hazeGrad;
+        ctx.fillRect(0, 0, screenW, screenH);
+        ctx.restore();
+
+        // ========== LAYER 4: Distant rainforest canopy (parallax 0.05) ==========
+        ctx.save();
+        const canopyOffset = camParallax * 0.6;
+        ctx.globalAlpha = 0.20;
+        ctx.fillStyle = '#1e3a2a';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 2) {
+          const c1 = Math.sin((x + canopyOffset) * 0.003 + time * 0.001) * 35;
+          const c2 = Math.sin((x + canopyOffset) * 0.007 + time * 0.002 + 1.0) * 22;
+          const c3 = Math.sin((x + canopyOffset) * 0.015 + time * 0.001 + 2.5) * 12;
+          const y = screenH * 0.30 + c1 + c2 * 0.6 + c3 * 0.4;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        // Second canopy layer (slightly brighter, offset)
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = '#2a4a38';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 2) {
+          const c1 = Math.sin((x + canopyOffset) * 0.004 + time * 0.002 + 0.7) * 30;
+          const c2 = Math.sin((x + canopyOffset) * 0.009 + time * 0.001 + 3.0) * 18;
+          const y = screenH * 0.26 + c1 + c2 * 0.5;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // ========== LAYER 5: Mid-ground tree trunks (dark brown silhouettes) ==========
+        ctx.save();
+        const treeData = [
+          { x: 0.06, w: 8, h: 140, phase: 0 },
+          { x: 0.15, w: 6, h: 110, phase: 1.2 },
+          { x: 0.22, w: 10, h: 160, phase: 2.5 },
+          { x: 0.30, w: 5, h: 95, phase: 3.8 },
+          { x: 0.38, w: 9, h: 130, phase: 0.5 },
+          { x: 0.45, w: 7, h: 120, phase: 1.8 },
+          { x: 0.52, w: 11, h: 170, phase: 3.0 },
+          { x: 0.60, w: 6, h: 100, phase: 4.2 },
+          { x: 0.68, w: 8, h: 145, phase: 0.8 },
+          { x: 0.75, w: 5, h: 90, phase: 2.0 },
+          { x: 0.82, w: 10, h: 155, phase: 3.5 },
+          { x: 0.90, w: 7, h: 115, phase: 4.8 },
+          { x: 0.96, w: 6, h: 105, phase: 1.5 },
+        ];
+        const trunkOffset = camParallax * 0.8;
+        for (const t of treeData) {
+          const tx = t.x * screenW + Math.sin(t.phase + time * 0.002) * 8 + trunkOffset;
+          const baseY = screenH * 0.76 + Math.sin(t.phase + time * 0.001) * 4;
+          const h = t.h + Math.sin(t.phase + time * 0.003) * 8;
+          ctx.globalAlpha = 0.20;
+          ctx.fillStyle = '#2a1f18';
+          ctx.fillRect(tx - t.w * 0.5, baseY - h, t.w, h);
+          // Root flare
           ctx.beginPath();
-          ctx.arc(fx, fy, 2 + pulse, 0, Math.PI * 2);
+          ctx.moveTo(tx - t.w * 0.8, baseY);
+          ctx.quadraticCurveTo(tx - t.w * 0.3, baseY + 5, tx, baseY + 2);
+          ctx.quadraticCurveTo(tx + t.w * 0.3, baseY + 5, tx + t.w * 0.8, baseY);
           ctx.fill();
         }
         ctx.restore();
+
+        // ========== LAYER 6: Mid-ground canopy (large leafy crowns) ==========
+        ctx.save();
+        const canopyTrees = [
+          { x: 0.04, w: 110, h: 70, yOff: 0.50, phase: 0, color: '#1a3a28' },
+          { x: 0.12, w: 80, h: 55, yOff: 0.55, phase: 1.5, color: '#1e4028' },
+          { x: 0.20, w: 130, h: 85, yOff: 0.48, phase: 3.0, color: '#1a3a28' },
+          { x: 0.30, w: 90, h: 60, yOff: 0.53, phase: 0.8, color: '#224430' },
+          { x: 0.38, w: 120, h: 75, yOff: 0.50, phase: 2.2, color: '#1a3a28' },
+          { x: 0.48, w: 85, h: 50, yOff: 0.56, phase: 3.7, color: '#1e4028' },
+          { x: 0.56, w: 140, h: 90, yOff: 0.46, phase: 1.0, color: '#1a3a28' },
+          { x: 0.66, w: 95, h: 65, yOff: 0.52, phase: 2.8, color: '#224430' },
+          { x: 0.74, w: 110, h: 70, yOff: 0.50, phase: 4.2, color: '#1a3a28' },
+          { x: 0.82, w: 80, h: 55, yOff: 0.55, phase: 0.5, color: '#1e4028' },
+          { x: 0.90, w: 100, h: 65, yOff: 0.52, phase: 2.0, color: '#1a3a28' },
+          { x: 0.97, w: 90, h: 60, yOff: 0.54, phase: 3.5, color: '#224430' },
+        ];
+        const canopyOffset2 = camParallax * 0.7;
+        for (const c of canopyTrees) {
+          const cx = c.x * screenW + Math.sin(c.phase + time * 0.001) * 10 + canopyOffset2;
+          const cy = screenH * c.yOff + Math.sin(c.phase + time * 0.002) * 6;
+          ctx.globalAlpha = 0.18;
+          ctx.fillStyle = c.color;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, c.w * 0.5, c.h * 0.5, 0.1, 0, Math.PI * 2);
+          ctx.fill();
+          // Lighter highlight
+          ctx.globalAlpha = 0.08;
+          ctx.fillStyle = '#2a5a38';
+          ctx.beginPath();
+          ctx.ellipse(cx - c.w * 0.12, cy - c.h * 0.15, c.w * 0.3, c.h * 0.3, 0.1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 7: Hanging vines from canopy ==========
+        ctx.save();
+        const vineOffset = camParallax * 0.6;
+        ctx.globalAlpha = 0.10;
+        ctx.strokeStyle = '#2a3a28';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 10; i++) {
+          const vx = ((i / 10) * screenW + Math.sin(i * 2.3 + time * 0.003) * 15 + vineOffset) % (screenW + 20) - 10;
+          const vineLen = 50 + Math.sin(i * 3.7 + time * 0.002) * 20;
+          const topY = screenH * (0.42 + Math.sin(i * 1.3) * 0.04);
+          ctx.beginPath();
+          ctx.moveTo(vx, topY);
+          for (let vy = 0; vy < vineLen; vy += 3) {
+            const sway = Math.sin(vy * 0.08 + time * 0.001 + i * 2.0) * 4;
+            ctx.lineTo(vx + sway, topY + vy);
+          }
+          ctx.stroke();
+          // Small leaf at end
+          ctx.fillStyle = '#3a5a38';
+          ctx.beginPath();
+          const endX = vx + Math.sin(vineLen * 0.08 + time * 0.001 + i * 2.0) * 4;
+          const endY = topY + vineLen;
+          ctx.ellipse(endX, endY, 4, 2, 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 8: Sunlight rays through canopy ==========
+        ctx.save();
+        const rayPhase = Math.sin(time * 0.02) * 0.3 + 0.7;
+        for (let i = 0; i < 5; i++) {
+          const rx = (i * screenW / 4 + Math.sin(time * 0.008 + i * 1.5 + camParallax * 0.2) * 40) % screenW;
+          ctx.globalAlpha = 0.035 * rayPhase;
+          ctx.fillStyle = `rgba(230, 210, 160, ${0.15 * rayPhase})`;
+          ctx.beginPath();
+          ctx.moveTo(rx - 8, 0);
+          ctx.lineTo(rx + 12, 0);
+          ctx.lineTo(rx + 50, screenH * 0.65);
+          ctx.lineTo(rx - 45, screenH * 0.65);
+          ctx.closePath();
+          ctx.fill();
+        }
+        // Secondary softer rays
+        ctx.globalAlpha = 0.02 * rayPhase;
+        ctx.fillStyle = 'rgba(220, 200, 150, 0.12)';
+        for (let i = 0; i < 3; i++) {
+          const rx = ((i + 0.5) * screenW / 3 + Math.sin(time * 0.005 + i * 2.0 + camParallax * 0.15) * 30) % screenW;
+          ctx.beginPath();
+          ctx.moveTo(rx - 5, 0);
+          ctx.lineTo(rx + 8, 0);
+          ctx.lineTo(rx + 35, screenH * 0.55);
+          ctx.lineTo(rx - 30, screenH * 0.55);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 9: River reflections (subtle water hints) ==========
+        ctx.save();
+        const riverTime = time * 0.005;
+        for (let r = 0; r < 3; r++) {
+          const rx = (r * 0.33 + 0.08) * screenW + Math.sin(riverTime + r * 2.0) * 15;
+          const ry = screenH * (0.60 + r * 0.06);
+          ctx.globalAlpha = 0.05 + 0.02 * Math.sin(riverTime + r);
+          const waterGrad = ctx.createLinearGradient(rx - 40, ry, rx + 40, ry);
+          waterGrad.addColorStop(0, 'rgba(60, 120, 140, 0)');
+          waterGrad.addColorStop(0.3, 'rgba(60, 140, 160, 0.08)');
+          waterGrad.addColorStop(0.5, 'rgba(80, 160, 180, 0.10)');
+          waterGrad.addColorStop(0.7, 'rgba(60, 140, 160, 0.08)');
+          waterGrad.addColorStop(1, 'rgba(60, 120, 140, 0)');
+          ctx.fillStyle = waterGrad;
+          ctx.beginPath();
+          ctx.ellipse(rx, ry, 35, 6 + 2 * Math.sin(riverTime * 0.5 + r), 0.2, 0, Math.PI * 2);
+          ctx.fill();
+          // Reflection shimmer line
+          ctx.globalAlpha = 0.03;
+          ctx.strokeStyle = 'rgba(100, 200, 220, 0.06)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let sx = rx - 25; sx <= rx + 25; sx += 3) {
+            const sy = ry + Math.sin(sx * 0.3 + riverTime * 2 + r) * 3;
+            sx === rx - 25 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+          }
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // ========== LAYER 10: Near vegetation (large leaves, ferns, bushes) ==========
+        ctx.save();
+        const vegOffset = camParallax * 1.0;
+        // Large Monstera-style leaves
+        const leafTypes = [
+          { w: 45, h: 30, color1: '#1a4a28', color2: '#2a5a38' },
+          { w: 35, h: 25, color1: '#1e4028', color2: '#2e5038' },
+          { w: 50, h: 35, color1: '#1a3a28', color2: '#2a4a30' },
+        ];
+        for (let i = 0; i < 10; i++) {
+          const lt = leafTypes[i % leafTypes.length];
+          const lx = (i / 10) * screenW + Math.sin(i * 4.1 + time * 0.002) * 20 + vegOffset;
+          const ly = screenH * (0.60 + Math.sin(i * 2.3) * 0.06) + Math.sin(time * 0.003 + i) * 5;
+          const angle = 0.3 + Math.sin(i * 1.7 + time * 0.002) * 0.2;
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = lt.color1;
+          ctx.save();
+          ctx.translate(lx, ly);
+          ctx.rotate(angle);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, lt.w, lt.h, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 0.08;
+          ctx.fillStyle = lt.color2;
+          ctx.beginPath();
+          ctx.ellipse(-lt.w * 0.15, -lt.h * 0.1, lt.w * 0.5, lt.h * 0.5, 0.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        // Palm fronds at edges
+        const frondPositions = [
+          { x: 0.02, side: 1, phase: 0 },
+          { x: 0.50, side: -1, phase: 2.0 },
+          { x: 0.98, side: 1, phase: 4.0 },
+        ];
+        for (const fp of frondPositions) {
+          const fBaseX = fp.x * screenW + vegOffset;
+          const fBaseY = screenH * 0.52 + Math.sin(fp.phase + time * 0.002) * 8;
+          const dir = fp.side;
+          ctx.globalAlpha = 0.12;
+          ctx.save();
+          ctx.translate(fBaseX, fBaseY);
+          ctx.scale(dir, 1);
+          for (let j = 0; j < 6; j++) {
+            const angle = -0.8 + j * 0.3 + Math.sin(time * 0.002 + fp.phase + j) * 0.05;
+            const len = 30 + j * 8;
+            ctx.fillStyle = j % 2 === 0 ? '#1a4a28' : '#224430';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(len * 0.4, -10 - j * 3, len, -3 - Math.sin(j * 0.7 + time * 0.003) * 4);
+            ctx.quadraticCurveTo(len * 0.4, 5 + j * 2, 0, 0);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+        ctx.restore();
+
+        // ========== LAYER 11: Tropical flowers (scattered accents) ==========
+        ctx.save();
+        for (const f of this._jungleFlowers) {
+          const sway = Math.sin(f.phase + time * f.swaySpeed) * 3;
+          const fx = f.x * screenW + sway;
+          const fy = f.y * screenH + Math.sin(f.phase + time * 0.002) * 2;
+          ctx.globalAlpha = 0.20 + 0.05 * Math.sin(f.phase + time * 0.002);
+          ctx.fillStyle = f.color;
+          // Petal cross
+          ctx.beginPath();
+          for (let p = 0; p < 5; p++) {
+            const a = (p / 5) * Math.PI * 2 + Math.sin(time * 0.001 + f.phase) * 0.1;
+          const fpx = fx + Math.cos(a) * f.size;
+          const fpy = fy + Math.sin(a) * f.size;
+          p === 0 ? ctx.moveTo(fpx, fpy) : ctx.lineTo(fpx, fpy);
+          }
+          ctx.closePath();
+          ctx.fill();
+          // Center
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = '#f1c40f';
+          ctx.beginPath();
+          ctx.arc(fx, fy, f.size * 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 12: Mist near forest floor ==========
+        ctx.save();
+        for (const m of this._jungleMistParticles) {
+          const mx = (m.x * screenW + camParallax * 0.3 + Math.sin(time * 0.001 + m.phase) * 15) % (screenW + 30) - 15;
+          const my = m.y * screenH + Math.sin(time * 0.0015 + m.phase * 0.7) * 5;
+          ctx.globalAlpha = m.alpha;
+          ctx.fillStyle = 'rgba(180, 210, 190, 0.04)';
+          ctx.beginPath();
+          ctx.ellipse(mx, my, m.size, m.size * 0.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 13: Pollen particles (soft floating specks) ==========
+        ctx.save();
+        for (const p of this._junglePollen) {
+          const px = (p.x * screenW + camParallax * 0.15 + Math.sin(time * p.speed + p.phase) * 20) % (screenW + 20) - 10;
+          const py = p.y * screenH + Math.sin(time * p.drift + p.phaseY) * 10;
+          ctx.globalAlpha = p.alpha * (0.7 + 0.3 * Math.sin(time * 0.002 + p.phase));
+          ctx.fillStyle = 'rgba(230, 220, 180, 0.06)';
+          ctx.beginPath();
+          ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 14: Drifting leaves ==========
+        ctx.save();
+        for (const l of this._jungleDriftingLeaves) {
+          const lx = (l.x * screenW + camParallax * 0.4 + Math.sin(time * l.speed + l.phase) * 25) % (screenW + 20) - 10;
+          const ly = l.y * screenH + Math.abs(Math.sin(time * l.drift + l.phase)) * 15;
+          ctx.globalAlpha = l.alpha;
+          ctx.fillStyle = l.color;
+          ctx.save();
+          ctx.translate(lx, ly);
+          ctx.rotate(Math.sin(time * 0.002 + l.phase) * 0.3);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, l.size, l.size * 0.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.restore();
+
+        // ========== LAYER 15: Dragonflies (tiny, near bottom) ==========
+        ctx.save();
+        for (const d of this._jungleDragonflies) {
+          const dx = (d.x * screenW + camParallax * 0.3 + Math.sin(time * d.speed + d.phase) * 30) % (screenW + 20) - 10;
+          const dy = d.y * screenH + Math.sin(time * 0.003 + d.phase * 0.5) * 5;
+          const wingPulse = 0.3 + 0.7 * Math.sin(time * 0.01 + d.phase);
+          ctx.globalAlpha = 0.15 * wingPulse;
+          // Body
+          ctx.fillStyle = '#4a7a8a';
+          ctx.beginPath();
+          ctx.arc(dx, dy, d.size * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+          // Wings
+          ctx.fillStyle = 'rgba(180, 220, 240, 0.10)';
+          ctx.beginPath();
+          ctx.ellipse(dx - d.size * 0.5, dy - d.size * 0.2, d.size * 0.8, d.size * 0.15 * wingPulse, -0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(dx + d.size * 0.5, dy - d.size * 0.2, d.size * 0.8, d.size * 0.15 * wingPulse, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 16: Blue morpho butterflies ==========
+        ctx.save();
+        for (const b of this._jungleButterflies) {
+          const bx = (b.x * screenW + camParallax * 0.2 + Math.sin(time * b.speed + b.phase) * 35) % (screenW + 20) - 10;
+          const by = b.y * screenH + Math.sin(time * b.drift + b.phase * 0.7) * 12;
+          const flap = 0.3 + 0.7 * Math.abs(Math.sin(time * 0.006 + b.phase));
+          ctx.globalAlpha = 0.15 * flap;
+          ctx.fillStyle = `hsla(${b.hue}, 80%, 60%, 0.12)`;
+          // Left wing
+          ctx.beginPath();
+          ctx.ellipse(bx - b.size * 0.5, by, b.size, b.size * 0.6 * flap, -0.3, 0, Math.PI * 2);
+          ctx.fill();
+          // Right wing
+          ctx.beginPath();
+          ctx.ellipse(bx + b.size * 0.5, by, b.size, b.size * 0.6 * flap, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          // Body
+          ctx.globalAlpha = 0.08;
+          ctx.fillStyle = '#2a3a4a';
+          ctx.beginPath();
+          ctx.arc(bx, by, b.size * 0.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 17: Parrots flying across ==========
+        ctx.save();
+        for (const p of this._jungleParrots) {
+          const elapsed = (time * 60 - p.delay) % 900;
+          const progress = Math.min(elapsed / 600, 1);
+          if (progress <= 0 || progress >= 1) continue;
+          const px = (p.startX * screenW + progress * screenW * 1.3 * p.speed * 1000 + camParallax * 0.1) % (screenW + 100) - 50;
+          const py = p.y * screenH + Math.sin(progress * Math.PI * 2 + p.phase) * 8;
+          const wingAngle = 0.3 * Math.sin(progress * 30 + p.phase);
+          ctx.globalAlpha = 0.20 * (1 - Math.abs(progress - 0.5) * 0.6);
+          // Body
+          ctx.fillStyle = p.color[0];
+          ctx.beginPath();
+          ctx.ellipse(px, py, p.size * 0.8, p.size * 0.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // Wing
+          ctx.fillStyle = p.color[1];
+          ctx.beginPath();
+          ctx.ellipse(px - p.size * 0.3, py - p.size * 0.15, p.size * 0.5, p.size * 0.3 * (0.5 + 0.5 * Math.sin(wingAngle)), -0.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(px + p.size * 0.3, py - p.size * 0.15, p.size * 0.5, p.size * 0.3 * (0.5 + 0.5 * Math.sin(wingAngle)), 0.5, 0, Math.PI * 2);
+          ctx.fill();
+          // Tail
+          ctx.fillStyle = p.color[1];
+          ctx.beginPath();
+          ctx.moveTo(px + p.size * 0.6, py + p.size * 0.1);
+          ctx.lineTo(px + p.size * 1.0, py + p.size * 0.3);
+          ctx.lineTo(px + p.size * 0.8, py + p.size * 0.2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 18: Toucans (larger, slower) ==========
+        ctx.save();
+        for (const t of this._jungleToucans) {
+          const elapsed = (time * 60 - t.delay) % 1200;
+          const progress = Math.min(elapsed / 900, 1);
+          if (progress <= 0 || progress >= 1) continue;
+          const tx = (t.startX * screenW + progress * screenW * 1.3 * t.speed * 1000 + camParallax * 0.1) % (screenW + 100) - 50;
+          const ty = t.y * screenH + Math.sin(progress * Math.PI + t.phase) * 5;
+          ctx.globalAlpha = 0.18 * (1 - Math.abs(progress - 0.5) * 0.5);
+          // Body (dark)
+          ctx.fillStyle = '#1a1a2a';
+          ctx.beginPath();
+          ctx.ellipse(tx, ty, t.size * 0.7, t.size * 0.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // Chest (white)
+          ctx.fillStyle = '#d4c8a0';
+          ctx.beginPath();
+          ctx.ellipse(tx + t.size * 0.1, ty + t.size * 0.05, t.size * 0.3, t.size * 0.25, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // Beak (large, orange/yellow)
+          ctx.fillStyle = '#e67e22';
+          ctx.beginPath();
+          ctx.moveTo(tx + t.size * 0.5, ty - t.size * 0.05);
+          ctx.lineTo(tx + t.size * 1.0, ty + t.size * 0.05);
+          ctx.lineTo(tx + t.size * 0.5, ty + t.size * 0.15);
+          ctx.closePath();
+          ctx.fill();
+          // Beak tip
+          ctx.fillStyle = '#f1c40f';
+          ctx.beginPath();
+          ctx.arc(tx + t.size * 0.85, ty + t.size * 0.05, t.size * 0.08, 0, Math.PI * 2);
+          ctx.fill();
+          // Wing
+          ctx.fillStyle = '#2a2a3a';
+          ctx.beginPath();
+          ctx.ellipse(tx - t.size * 0.2, ty - t.size * 0.1, t.size * 0.4, t.size * 0.25, -0.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 19: Bird flocks (distant, every 20-40s) ==========
+        ctx.save();
+        for (const flock of this._jungleBirdFlocks) {
+          const elapsed = (time * 60 - flock.delay) % 1800;
+          const progress = Math.min(elapsed / 1200, 1);
+          if (progress <= 0 || progress >= 1) continue;
+          const flockX = (flock.startX * screenW + progress * screenW * 1.3 * flock.speed * 1000 + camParallax * 0.05) % (screenW + 150) - 75;
+          const flockY = flock.y * screenH + Math.sin(progress * Math.PI * 1.5 + flock.phase) * 5;
+          ctx.globalAlpha = 0.12 * (1 - Math.abs(progress - 0.5) * 0.6);
+          for (const bird of flock.birds) {
+            const bx = flockX + bird.offsetX * screenW;
+            const by = flockY + bird.offsetY * screenH;
+            const wingFlap = 0.3 * Math.sin(progress * 40 + bird.offsetX * 5);
+            ctx.fillStyle = flock.color;
+            ctx.beginPath();
+            ctx.ellipse(bx, by, bird.size, bird.size * 0.35, -0.2 + wingFlap * 0.1, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+
+        // ========== LAYER 20: Fireflies (subtle warm dots near vegetation) ==========
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        for (let i = 0; i < 12; i++) {
+          const fx = ((i * 89.7 + 30 + camParallax * 0.2) % screenW);
+          const fy = ((i * 53.1 + 100) % (screenH * 0.4) + screenH * 0.50);
+          const pulse = 0.2 + Math.sin(time * 1.5 + i * 2.3) * 0.3;
+          if (pulse < 0) continue;
+          ctx.fillStyle = `rgba(200, 230, 100, ${pulse * 0.3})`;
+          ctx.beginPath();
+          ctx.arc(fx, fy, 1.5 + pulse * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        } catch (e) { console.warn('Jungle render error:', e); }
       }
     }
 
@@ -12184,6 +12701,127 @@ this.ctx.restore();
           rotation: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 0.02,
           vertices: t === 'asteroid' || t === 'large_asteroid' || t === 'meteorite' ? this._generateAsteroidShape(5 + Math.floor(Math.random() * 4)) : null,
+        });
+      }
+    }
+
+    // Generate decorative jungle wildlife and atmosphere objects for Amazon Canopy
+    _initJungleObjects() {
+      this._jungleParrots = [];
+      for (let i = 0; i < 4; i++) {
+        this._jungleParrots.push({
+          startX: Math.random() < 0.5 ? -0.1 : 1.1,
+          y: 0.08 + Math.random() * 0.25,
+          speed: 0.0006 + Math.random() * 0.0006,
+          size: 6 + Math.random() * 4,
+          color: [['#e74c3c','#f39c12'], ['#2ecc71','#f1c40f'], ['#3498db','#e74c3c'], ['#9b59b6','#f39c12']][i],
+          delay: i * 180 + Math.random() * 120,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleToucans = [];
+      for (let i = 0; i < 2; i++) {
+        this._jungleToucans.push({
+          startX: i === 0 ? -0.15 : 1.15,
+          y: 0.12 + i * 0.10,
+          speed: 0.0003 + Math.random() * 0.0002,
+          size: 10 + Math.random() * 4,
+          delay: i * 300 + Math.random() * 200,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleButterflies = [];
+      for (let i = 0; i < 6; i++) {
+        this._jungleButterflies.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: 0.15 + Math.random() * 0.45,
+          speed: 0.0002 + Math.random() * 0.0004,
+          drift: 0.0003 + Math.random() * 0.0003,
+          size: 3 + Math.random() * 2,
+          phase: Math.random() * Math.PI * 2,
+          hue: 190 + Math.floor(Math.random() * 30),
+          delay: Math.random() * 600
+        });
+      }
+      this._jungleDragonflies = [];
+      for (let i = 0; i < 5; i++) {
+        this._jungleDragonflies.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: 0.60 + Math.random() * 0.20,
+          speed: 0.0003 + Math.random() * 0.0005,
+          size: 2 + Math.random() * 1.5,
+          phase: Math.random() * Math.PI * 2,
+          delay: Math.random() * 400
+        });
+      }
+      this._jungleBirdFlocks = [];
+      for (let i = 0; i < 3; i++) {
+        const count = 5 + Math.floor(Math.random() * 8);
+        const birds = [];
+        for (let j = 0; j < count; j++) {
+          birds.push({
+            offsetX: (j / count) * 0.15 - 0.075,
+            offsetY: (j / count) * 0.03 - 0.015,
+            size: 3 + Math.random() * 2
+          });
+        }
+        this._jungleBirdFlocks.push({
+          birds,
+          startX: Math.random() < 0.5 ? -0.2 : 1.2,
+          y: 0.06 + Math.random() * 0.12,
+          speed: 0.0008 + Math.random() * 0.0004,
+          delay: 600 + i * 480 + Math.random() * 300,
+          phase: Math.random() * Math.PI * 2,
+          color: ['#34495e', '#2c3e50', '#4a6741'][i % 3]
+        });
+      }
+      this._junglePollen = [];
+      for (let i = 0; i < 25; i++) {
+        this._junglePollen.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: Math.random() * 0.7 + 0.05,
+          speed: 0.0001 + Math.random() * 0.0002,
+          drift: 0.0001 + Math.random() * 0.0002,
+          size: 1 + Math.random() * 1.5,
+          alpha: 0.04 + Math.random() * 0.06,
+          phase: Math.random() * Math.PI * 2,
+          phaseY: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleDriftingLeaves = [];
+      for (let i = 0; i < 6; i++) {
+        this._jungleDriftingLeaves.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: Math.random() * 0.3 + 0.02,
+          speed: 0.0002 + Math.random() * 0.0003,
+          drift: 0.0004 + Math.random() * 0.0004,
+          size: 4 + Math.random() * 5,
+          alpha: 0.06 + Math.random() * 0.06,
+          phase: Math.random() * Math.PI * 2,
+          color: ['#6b8e23', '#556b2f', '#8fbc8f', '#228b22'][Math.floor(Math.random() * 4)]
+        });
+      }
+      this._jungleMistParticles = [];
+      for (let i = 0; i < 15; i++) {
+        this._jungleMistParticles.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: 0.65 + Math.random() * 0.25,
+          speed: 0.0001 + Math.random() * 0.00015,
+          size: 15 + Math.random() * 20,
+          alpha: 0.02 + Math.random() * 0.03,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleFlowers = [];
+      const flowerColors = ['#e74c3c', '#f39c12', '#f1c40f', '#e67e22', '#9b59b6', '#ff6b6b'];
+      for (let i = 0; i < 12; i++) {
+        this._jungleFlowers.push({
+          x: Math.random() * 0.9 + 0.05,
+          y: 0.55 + Math.random() * 0.30,
+          size: 3 + Math.random() * 4,
+          color: flowerColors[i % flowerColors.length],
+          phase: Math.random() * Math.PI * 2,
+          swaySpeed: 0.002 + Math.random() * 0.003
         });
       }
     }
@@ -13371,7 +14009,7 @@ this.ctx.restore();
       this._blizzardSnowParticles = [];
       this._blizzardFogParticles = [];
       this._blizzardCrackTimer = 0;
-this._auroraActive = false;
+      this._auroraActive = false;
       this._auroraStars = [];
       this._auroraFadePhase = null;
       this._auroraFadeProgress = 0;
@@ -13379,6 +14017,20 @@ this._auroraActive = false;
       this._auroraSnowGusts = [];
       this._auroraBackgroundFog = [];
       this._auroraSceneBrightness = 1.0;
+
+      // Jungle theme init
+      this._jungleParrots = [];
+      this._jungleToucans = [];
+      this._jungleButterflies = [];
+      this._jungleDragonflies = [];
+      this._jungleBirdFlocks = [];
+      this._junglePollen = [];
+      this._jungleDriftingLeaves = [];
+      this._jungleMistParticles = [];
+      this._jungleFlowers = [];
+      if (this.currentThemeKey === 'jungle') {
+        try { this._initJungleObjects(); } catch (e) { console.warn('Jungle init error:', e); }
+      }
 
       // Volcano eruption state reset
       this._volcanoEruptionActive = false;
@@ -13802,6 +14454,15 @@ this._auroraActive = false;
       this._firestormWhirls = [];
       this._firestormWhirlTimer = 0;
       this._firestormSkyTint = 0;
+      this._jungleParrots = [];
+      this._jungleToucans = [];
+      this._jungleButterflies = [];
+      this._jungleDragonflies = [];
+      this._jungleBirdFlocks = [];
+      this._junglePollen = [];
+      this._jungleDriftingLeaves = [];
+      this._jungleMistParticles = [];
+      this._jungleFlowers = [];
       this.directorMode = null;
       this.obstacleZoneOccupancy = {};
       this.commentary.clear();
