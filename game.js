@@ -104,7 +104,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'rolling_boulder', name: 'Rolling Boulder', category: 'signature', map: 'volcano' },
   { type: 'flame_jet', name: 'Flame Jet', category: 'signature', map: 'volcano' },
   // Amazon
-  { type: 'swinging_vine', name: 'Swinging Vine', category: 'signature', map: 'jungle' },
+  { type: 'carnivorous_vine', name: 'Carnivorous Vine', category: 'signature', map: 'jungle' },
   { type: 'rolling_log', name: 'Rolling Log', category: 'signature', map: 'jungle' },
   { type: 'carnivorous_plant', name: 'Carnivorous Plant', category: 'signature', map: 'jungle' },
   // Mariana
@@ -3314,6 +3314,98 @@ class GameEngine {
       }
     }
 
+    // Generate Carnivorous Vines for Amazon Canopy
+    if (enabledSet.has('carnivorous_vine')) {
+      const _numVines = 30 + Math.floor(Math.random() * 11); // 30-40 vines
+      const _minSpacing = 350; // Minimum spacing between vines
+      const _restrictedZones = [
+        { start: 0, end: 1500 }, // Start area
+        { start: finishX - 1500, end: finishX } // Finish area
+      ];
+      const _existingPositions = [];
+
+      for (let _vi = 0; _vi < _numVines; _vi++) {
+        let _attempts = 0;
+        let _placed = false;
+        
+        while (_attempts < 50 && !_placed) {
+          _attempts++;
+          const _vx = 1500 + Math.random() * (finishX - 3000);
+          
+          // Check restricted zones
+          let _inRestricted = false;
+          for (const _rz of _restrictedZones) {
+            if (_vx >= _rz.start && _vx <= _rz.end) { _inRestricted = true; break; }
+          }
+          if (_inRestricted) continue;
+          
+          // Check spacing from other vines
+          let _tooClose = false;
+          for (const _ep of _existingPositions) {
+            if (Math.abs(_vx - _ep) < _minSpacing) { _tooClose = true; break; }
+          }
+          if (_tooClose) continue;
+          
+          // Check spacing from other obstacles
+          let _obstacleConflict = false;
+          for (const _o of track.obstacles) {
+            if (Math.abs(_o.x - _vx) < _minSpacing) { _obstacleConflict = true; break; }
+          }
+          if (_obstacleConflict) continue;
+          
+          // Check zones (boost, portal, etc.)
+          let _zoneConflict = false;
+          for (const _z of track.zones) {
+            if (_z.type !== 'finish' && Math.abs((_z.x + _z.width / 2) - _vx) < _minSpacing) {
+              _zoneConflict = true; break;
+            }
+          }
+          if (_zoneConflict) continue;
+          
+          const _vb = this.physics.getWallBoundaries(_vx, track);
+          if (!_vb || _vb.bottomY - _vb.topY < 100) continue;
+          
+          const _onTop = Math.random() < 0.5;
+          const _wallY = _onTop ? _vb.topY : _vb.bottomY;
+          const _length = 80 + Math.random() * 120; // 80-200px length
+          const _baseWidth = 8 + Math.random() * 6; // 8-14px base width
+          const _curvature = (Math.random() - 0.5) * 1.5; // slight curve
+          const _leafCount = 6 + Math.floor(Math.random() * 8); // 6-13 leaves
+          const _thornCount = 3 + Math.floor(Math.random() * 5); // 3-7 thorns
+          const _swayPhase = Math.random() * Math.PI * 2;
+          const _swaySpeed = 0.3 + Math.random() * 0.3; // 0.3-0.6 rad/s
+          const _breathPhase = Math.random() * Math.PI * 2;
+          
+          _existingPositions.push(_vx);
+          
+          track.obstacles.push({
+            type: 'carnivorous_vine',
+            x: _vx,
+            y: _wallY,
+            wallSide: _onTop ? 'top' : 'bottom',
+            length: _length,
+            baseWidth: _baseWidth,
+            curvature: _curvature,
+            leafCount: _leafCount,
+            thornCount: _thornCount,
+            swayPhase: _swayPhase,
+            swaySpeed: _swaySpeed,
+            breathPhase: _breathPhase,
+            // Capture state
+            captureState: 'idle', // idle, capturing, capturing_hold, releasing
+            captureTimer: 0,
+            captureBallId: null,
+            captureProgress: 0,
+            wrapSegments: [],
+            // Visual
+            leafOffsets: Array(_leafCount).fill(0).map(() => Math.random() * Math.PI * 2),
+            thornOffsets: Array(_thornCount).fill(0).map(() => Math.random() * Math.PI * 2),
+            particles: []
+          });
+        }
+      }
+    }
+
     this.track = track;
   }
 
@@ -3587,8 +3679,459 @@ class GameEngine {
             }
           }
         }
-      }
-    });
+      } else if (obs.type === 'carnivorous_vine') {
+        // ===== CARNIVOROUS VINE UPDATE =====
+        const time = Date.now() * 0.001;
+        
+        // Sway animation
+        const swayAmount = Math.sin(time * obs.swaySpeed + obs.swayPhase) * 0.15;
+        const breathAmount = Math.sin(time * 0.8 + obs.breathPhase) * 0.02;
+        
+        // Update leaf/ thorn phase offsets
+        if (!obs.leafOffsets) obs.leafOffsets = Array(obs.leafCount || 8).fill(0).map(() => Math.random() * Math.PI * 2);
+        if (!obs.thornOffsets) obs.thornOffsets = Array(obs.thornCount || 5).fill(0).map(() => Math.random() * Math.PI * 2);
+        
+        // Capture state machine
+        if (obs.captureState === 'idle') {
+          // Check for ball entering trigger zone
+          if (this.balls) {
+            const triggerRadius = Math.max(obs.baseWidth * 3, 30);
+            const triggerX = obs.x + swayAmount * obs.length * 0.5;
+            const triggerY = obs.y + (obs.wallSide === 'top' ? obs.length * 0.5 : -obs.length * 0.5);
+            
+            for (const ball of this.balls) {
+              if (ball.finished || ball.eliminated) continue;
+              // Check if ball is already captured by another vine
+              const alreadyCaptured = this.track.obstacles.some(o => 
+                o.type === 'carnivorous_vine' && o.captureState !== 'idle' && o.captureBallId === ball.id
+              );
+              if (alreadyCaptured) continue;
+              
+              const dx = ball.x - triggerX;
+              const dy = ball.y - triggerY;
+              const dist = Math.hypot(dx, dy);
+              
+              if (dist < triggerRadius + ball.radius) {
+                // Capture this ball
+                obs.captureState = 'capturing';
+                obs.captureTimer = 0;
+                obs.captureBallId = ball.id;
+                obs.captureProgress = 0;
+                obs.wrapSegments = [];
+                
+                // Pause ball physics - store original velocity
+                ball._vineCaptured = true;
+                ball._vineCaptureVx = ball.vx;
+                ball._vineCaptureVy = ball.vy;
+                ball._vineCaptureX = ball.x;
+                ball._vineCaptureY = ball.y;
+                ball.vx = 0;
+                ball.vy = 0;
+                
+                // Generate wrap segments
+                const segments = 8 + Math.floor(Math.random() * 4);
+                for (let s = 0; s < segments; s++) {
+                  obs.wrapSegments.push({
+                    progress: s / segments,
+                    angle: Math.random() * Math.PI * 2,
+                    radius: 0.5 + Math.random() * 0.5,
+                    phase: Math.random() * Math.PI * 2
+                  });
+                }
+                
+                // Initial capture particles
+                if (this.particles) {
+                  for (let p = 0; p < 12; p++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 1 + Math.random() * 2;
+                    this.particles.push({
+                      type: 'sparkle',
+                      x: ball.x,
+                      y: ball.y,
+                      vx: Math.cos(angle) * speed,
+                      vy: Math.sin(angle) * speed,
+                      alpha: 0.8,
+                      size: 2 + Math.random() * 3,
+                      life: 15 + Math.floor(Math.random() * 10),
+                      color: '#2a5e2a'
+                    });
+                  }
+                }
+                break; // Only capture one ball at a time
+              }
+            }
+          }
+        } else if (obs.captureState === 'capturing') {
+          obs.captureTimer += dt;
+          obs.captureProgress = Math.min(obs.captureTimer / 15, 1); // 15 frames to fully capture (~0.25s at 60fps)
+          
+          if (this.balls) {
+            const ball = this.balls.find(b => b.id === obs.captureBallId);
+            if (ball) {
+              // Move ball toward vine center during capture
+              const vineCenterX = obs.x + swayAmount * obs.length * 0.5;
+              const vineCenterY = obs.y + (obs.wallSide === 'top' ? obs.length * 0.4 : -obs.length * 0.4);
+              const lerpT = obs.captureProgress * 0.8;
+              ball.x = ball.x + (vineCenterX - ball.x) * lerpT;
+              ball.y = ball.y + (vineCenterY - ball.y) * lerpT;
+              ball.vx = 0;
+              ball.vy = 0;
+              
+              // Capture particles
+              if (this.particles && Math.random() < 0.3) {
+                const angle = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * 6,
+                  y: ball.y + (Math.random() - 0.5) * 6,
+                  vx: Math.cos(angle) * 0.5,
+                  vy: Math.sin(angle) * 0.5,
+                  alpha: 0.6,
+                  size: 1 + Math.random() * 2,
+                  life: 8 + Math.floor(Math.random() * 6),
+                  color: '#1f4a1f'
+                });
+              }
+            }
+          }
+          
+          if (obs.captureProgress >= 1) {
+            obs.captureState = 'capturing_hold';
+            obs.captureTimer = 0;
+          }
+        } else if (obs.captureState === 'capturing_hold') {
+          obs.captureTimer += dt;
+          
+          if (this.balls) {
+            const ball = this.balls.find(b => b.id === obs.captureBallId);
+            if (ball) {
+              // Hold ball at vine center with gentle sway
+              const vineCenterX = obs.x + swayAmount * obs.length * 0.5;
+              const vineCenterY = obs.y + (obs.wallSide === 'top' ? obs.length * 0.4 : -obs.length * 0.4);
+              ball.x = vineCenterX + Math.sin(time * 2 + obs.breathPhase) * 2;
+              ball.y = vineCenterY + Math.cos(time * 1.5 + obs.breathPhase) * 1.5;
+              ball.vx = 0;
+              ball.vy = 0;
+              
+              // Subtle held particles
+              if (this.particles && Math.random() < 0.05) {
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * 4,
+                  y: ball.y + (Math.random() - 0.5) * 4,
+                  vx: (Math.random() - 0.5) * 0.3,
+                  vy: (Math.random() - 0.5) * 0.3,
+                  alpha: 0.4,
+                  size: 1 + Math.random() * 1.5,
+                  life: 10 + Math.floor(Math.random() * 8),
+                  color: '#2d6b2d'
+                });
+              }
+            }
+          }
+          
+          // Hold for 2 seconds (120 frames at 60fps)
+          if (obs.captureTimer >= 120) {
+            obs.captureState = 'releasing';
+            obs.captureTimer = 0;
+            obs.captureProgress = 1;
+          }
+        } else if (obs.captureState === 'releasing') {
+          obs.captureTimer += dt;
+          obs.captureProgress = Math.max(0, 1 - obs.captureTimer / 10); // 10 frames to release
+          
+          if (this.balls) {
+            const ball = this.balls.find(b => b.id === obs.captureBallId);
+            if (ball) {
+              // Gentle release - restore physics
+              if (obs.captureProgress <= 0) {
+                ball._vineCaptured = false;
+                ball.vx = ball._vineCaptureVx || 0;
+                ball.vy = ball._vineCaptureVy || 0;
+                delete ball._vineCaptureVx;
+                delete ball._vineCaptureVy;
+                delete ball._vineCaptureX;
+                delete ball._vineCaptureY;
+                
+                // Release particles
+                if (this.particles) {
+                  for (let p = 0; p < 10; p++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 1 + Math.random() * 2;
+                    this.particles.push({
+                      type: 'sparkle',
+                      x: ball.x,
+                      y: ball.y,
+                      vx: Math.cos(angle) * speed,
+                      vy: Math.sin(angle) * speed,
+                      alpha: 0.7,
+                      size: 2 + Math.random() * 3,
+                      life: 12 + Math.floor(Math.random() * 8),
+                      color: '#3a7a3a'
+                    });
+                  }
+                }
+                
+                obs.captureState = 'idle';
+                obs.captureBallId = null;
+                obs.wrapSegments = [];
+              } else {
+                // Still releasing - keep ball near vine but let it start moving
+                const vineCenterX = obs.x + swayAmount * obs.length * 0.5;
+                const vineCenterY = obs.y + (obs.wallSide === 'top' ? obs.length * 0.4 : -obs.length * 0.4);
+                const lerpT = obs.captureProgress * 0.5;
+                ball.x = vineCenterX + (ball.x - vineCenterX) * (1 - lerpT);
+                ball.y = vineCenterY + (ball.y - vineCenterY) * (1 - lerpT);
+              }
+            }
+          }
+        }
+        
+        // Update particles
+        if (obs.particles) {
+          for (let pi = obs.particles.length - 1; pi >= 0; pi--) {
+            const pt = obs.particles[pi];
+            pt.life--;
+            if (pt.life <= 0) {
+              obs.particles.splice(pi, 1);
+}
+            }
+            this.ctx.restore();
+          }
+        } else if (obs.type === 'carnivorous_vine') {
+          // ===== CARNIVOROUS VINE RENDERING =====
+          // Only render on jungle map
+          if (this.currentThemeKey !== 'jungle') return;
+          
+          const time = Date.now() * 0.001;
+          const swayAmount = Math.sin(time * obs.swaySpeed + obs.swayPhase) * 0.15;
+          const breathAmount = Math.sin(time * 0.8 + obs.breathPhase) * 0.02;
+          
+          // Calculate vine path points
+          const baseX = obsX;
+          const baseY = obs.y;
+          const wallDir = obs.wallSide === 'top' ? 1 : -1;
+          const vineLength = obs.length || 120;
+          const baseWidth = obs.baseWidth || 10;
+          const curvature = obs.curvature || 0;
+          const leafCount = obs.leafCount || 8;
+          const thornCount = obs.thornCount || 5;
+          const leafOffsets = obs.leafOffsets || Array(leafCount).fill(0).map(() => Math.random() * Math.PI * 2);
+          const thornOffsets = obs.thornOffsets || Array(thornCount).fill(0).map(() => Math.random() * Math.PI * 2);
+          
+          // Generate vine path segments
+          const segments = 12;
+          const pathPoints = [];
+          for (let s = 0; s <= segments; s++) {
+            const t = s / segments;
+            const sway = swayAmount * Math.sin(t * Math.PI) * vineLength * 0.3;
+            const curve = curvature * Math.sin(t * Math.PI * 2) * vineLength * 0.2;
+            const x = baseX + sway + curve;
+            const y = baseY + wallDir * t * vineLength * (1 + breathAmount);
+            const width = baseWidth * (1 - t * 0.6) * (1 + breathAmount * 0.5);
+            pathPoints.push({ x, y, width, t });
+          }
+          
+          // Vine base color gradient
+          const vineGrad = this.ctx.createLinearGradient(baseX, baseY, baseX, baseY + wallDir * vineLength);
+          vineGrad.addColorStop(0, '#5A3B20');
+          vineGrad.addColorStop(0.5, '#4A2E18');
+          vineGrad.addColorStop(1, '#352112');
+          
+          // ===== IDLE / CAPTURING STATES: Render vine body behind ball =====
+          if (obs.captureState === 'idle' || obs.captureState === 'capturing' || obs.captureState === 'capturing_hold') {
+            // Main vine body - thick trunk
+            this.ctx.save();
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+            
+            // Shadow
+            this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            this.ctx.shadowBlur = 8;
+            this.ctx.shadowOffsetY = 3;
+            
+            this.ctx.strokeStyle = vineGrad;
+            this.ctx.lineWidth = pathPoints[0].width;
+            this.ctx.beginPath();
+            this.ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+            for (let s = 1; s < pathPoints.length; s++) {
+              this.ctx.lineTo(pathPoints[s].x, pathPoints[s].y);
+            }
+            this.ctx.stroke();
+            
+            // Moss patches on vine
+            this.ctx.shadowBlur = 0;
+            this.ctx.fillStyle = '#1a4a1a';
+            for (let m = 0; m < 3 + Math.floor(Math.random() * 4); m++) {
+              const mp = pathPoints[Math.floor(Math.random() * pathPoints.length)];
+              const mx = mp.x + (Math.random() - 0.5) * mp.width;
+              const my = mp.y + (Math.random() - 0.5) * mp.width;
+              this.ctx.beginPath();
+              this.ctx.arc(mx, my, 2 + Math.random() * 3, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+            
+            // Leaves
+            this.ctx.fillStyle = '#1F6A2D';
+            for (let l = 0; l < leafCount; l++) {
+              const progress = (l / leafCount) * 0.9 + 0.05;
+              const pi = Math.floor(progress * (pathPoints.length - 1));
+              const p = pathPoints[pi];
+              const leafAngle = Math.sin(time * 1.5 + leafOffsets[l]) * 0.4 + (Math.random() - 0.5) * 0.5;
+              const leafSize = 6 + Math.sin(leafOffsets[l]) * 3;
+              
+              this.ctx.save();
+              this.ctx.translate(p.x, p.y);
+              this.ctx.rotate(leafAngle + (wallDir > 0 ? 0 : Math.PI));
+              this.ctx.beginPath();
+              this.ctx.ellipse(0, 0, leafSize, leafSize * 0.4, 0, 0, Math.PI * 2);
+              this.ctx.fill();
+              
+              // Leaf highlight
+              this.ctx.fillStyle = '#2a8a3a';
+              this.ctx.beginPath();
+              this.ctx.ellipse(-1, -1, leafSize * 0.6, leafSize * 0.25, 0, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.fillStyle = '#1F6A2D';
+              this.ctx.restore();
+            }
+            
+            // Thorns
+            this.ctx.fillStyle = '#1a1a1a';
+            for (let t = 0; t < thornCount; t++) {
+              const progress = (t / thornCount) * 0.8 + 0.1;
+              const pi = Math.floor(progress * (pathPoints.length - 1));
+              const p = pathPoints[pi];
+              const thornAngle = Math.sin(time * 1.2 + thornOffsets[t]) * 0.3;
+              const thornSize = 4 + Math.sin(thornOffsets[t]) * 2;
+              const side = (t % 2 === 0 ? 1 : -1) * (wallDir > 0 ? 1 : -1);
+              
+              this.ctx.save();
+              this.ctx.translate(p.x, p.y);
+              this.ctx.rotate(thornAngle);
+              this.ctx.beginPath();
+              this.ctx.moveTo(0, 0);
+              this.ctx.lineTo(side * thornSize, -thornSize * 0.3);
+              this.ctx.lineTo(side * thornSize * 0.5, 0);
+              this.ctx.closePath();
+              this.ctx.fill();
+              this.ctx.restore();
+            }
+            
+            this.ctx.restore();
+          }
+          
+          // ===== CAPTURING / HOLD / RELEASING: Render wrap animation ABOVE ball =====
+          if (obs.captureState === 'capturing' || obs.captureState === 'capturing_hold' || obs.captureState === 'releasing') {
+            // Find the captured ball
+            const ball = this.balls ? this.balls.find(b => b.id === obs.captureBallId) : null;
+            if (ball) {
+              const ballX = ball.x - camX;
+              const ballY = ball.y;
+              const ballR = ball.radius;
+              
+              // Calculate vine center (where it wraps)
+              const vineCenterX = baseX + swayAmount * vineLength * 0.5;
+              const vineCenterY = baseY + wallDir * vineLength * 0.4;
+              
+              this.ctx.save();
+              this.ctx.lineCap = 'round';
+              this.ctx.lineJoin = 'round';
+              
+              // Progress from 0 to 1
+              const progress = obs.captureProgress || 0;
+              const holdProgress = obs.captureState === 'capturing_hold' ? 1 : progress;
+              
+              // Wrap segments animation
+              const segments = obs.wrapSegments || [];
+              
+              // Main wrapping vines
+              for (let s = 0; s < segments.length; s++) {
+                const seg = segments[s];
+                const segProgress = holdProgress * seg.progress;
+                
+                // Animated wrap angle
+                const wrapAngle = seg.angle + time * 3 * (1 - holdProgress * 0.5) + seg.phase;
+                const currentRadius = ballR * (0.8 + holdProgress * 0.4) * (1 - segProgress * 0.3);
+                
+                // Multiple wrap layers
+                const layers = obs.captureState === 'capturing_hold' ? 3 : Math.max(1, Math.floor(holdProgress * 3));
+                
+                for (let layer = 0; layer < layers; layer++) {
+                  const layerOffset = (layer / layers) * Math.PI * 2;
+                  const radius = currentRadius * (0.85 + layer * 0.1);
+                  const startAngle = wrapAngle + layerOffset;
+                  const endAngle = startAngle + Math.PI * 1.5 * holdProgress;
+                  
+                  // Vine wrapping color
+                  this.ctx.strokeStyle = '#3a2514';
+                  this.ctx.lineWidth = Math.max(2, baseWidth * (0.6 - layer * 0.1) * holdProgress);
+                  this.ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                  this.ctx.shadowBlur = 6;
+                  
+                  this.ctx.beginPath();
+                  this.ctx.arc(ballX, ballY, radius, startAngle, endAngle);
+                  this.ctx.stroke();
+                  
+                  // Leaf details on wraps
+                  if (obs.captureState === 'capturing_hold' && Math.random() < 0.3) {
+                    this.ctx.fillStyle = '#154D22';
+                    const leafAngle = (startAngle + endAngle) * 0.5 + Math.random() * 0.5;
+                    const lx = ballX + Math.cos(leafAngle) * radius;
+                    const ly = ballY + Math.sin(leafAngle) * radius;
+                    this.ctx.beginPath();
+                    this.ctx.ellipse(lx, ly, 4, 2, leafAngle, 0, Math.PI * 2);
+                    this.ctx.fill();
+                  }
+                }
+              }
+              
+              // Squeeze effect - dark overlay on ball
+              if (obs.captureState === 'capturing_hold') {
+                this.ctx.fillStyle = 'rgba(26, 30, 18, 0.4)';
+                this.ctx.beginPath();
+                this.ctx.arc(ballX, ballY, ballR * 0.95, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Pulsing squeeze highlight
+                const squeezeAlpha = 0.15 + Math.sin(time * 4) * 0.1;
+                this.ctx.fillStyle = `rgba(60, 80, 40, ${squeezeAlpha})`;
+                this.ctx.beginPath();
+                this.ctx.arc(ballX, ballY, ballR * 0.7, 0, Math.PI * 2);
+                this.ctx.fill();
+              }
+              
+              // Release particles
+              if (obs.captureState === 'releasing') {
+                this.ctx.fillStyle = '#2a5e2a';
+                for (let p = 0; p < 8; p++) {
+                  const angle = (p / 8) * Math.PI * 2 + time * 2;
+                  const dist = ballR + (1 - progress) * 30;
+                  const px = ballX + Math.cos(angle) * dist;
+                  const py = ballY + Math.sin(angle) * dist;
+                  this.ctx.beginPath();
+                  this.ctx.arc(px, py, 2 + Math.random() * 2, 0, Math.PI * 2);
+                  this.ctx.fill();
+                }
+              }
+              
+              this.ctx.restore();
+            }
+          }
+          
+          // Idle particles (falling leaves, dust)
+          if (obs.captureState === 'idle' && obs.particles) {
+            this.ctx.fillStyle = 'rgba(40, 90, 40, 0.3)';
+            for (const pt of obs.particles) {
+              const px = pt.x - camX;
+              const py = pt.y;
+              this.ctx.beginPath();
+              this.ctx.arc(px, py, pt.size || 1.5, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+          }
+        }
+      });
 
     // Remove old off-camera falling rocks/meteors and broken walls
     if (this.track.obstacles.length > 0) {
