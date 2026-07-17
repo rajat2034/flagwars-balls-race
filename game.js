@@ -5529,10 +5529,13 @@ if (this.activeEvent.key === 'speed_surge') {
             this.ctx.stroke();
           }
           // label
-          this.ctx.fillStyle = '#2ecc71';
-          this.ctx.font = 'bold 14px Montserrat, sans-serif';
+          this.ctx.fillStyle = this.currentThemeKey === 'jungle' ? '#102A16' : '#2ecc71';
+          this.ctx.strokeStyle = this.currentThemeKey === 'jungle' ? '#E5EBD9' : 'transparent';
+          this.ctx.lineWidth = this.currentThemeKey === 'jungle' ? 3 : 0;
+          this.ctx.font = this.currentThemeKey === 'jungle' ? 'bold 16px Montserrat, sans-serif' : 'bold 14px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
+          if (this.currentThemeKey === 'jungle') this.ctx.strokeText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.fillText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.restore();
         } else if (zone.type === 'slow' || zone.type === 'sand') {
@@ -5603,26 +5606,37 @@ if (this.activeEvent.key === 'speed_surge') {
               this.ctx.lineTo(ax + 10, acy + 8);
               this.ctx.stroke();
             }
-            this.ctx.fillStyle = '#c0392b';
-            this.ctx.font = 'bold 14px Montserrat, sans-serif';
+            this.ctx.fillStyle = this.currentThemeKey === 'jungle' ? '#102A16' : '#c0392b';
+            this.ctx.strokeStyle = this.currentThemeKey === 'jungle' ? '#E5EBD9' : 'transparent';
+            this.ctx.lineWidth = this.currentThemeKey === 'jungle' ? 3 : 0;
+            this.ctx.font = this.currentThemeKey === 'jungle' ? 'bold 16px Montserrat, sans-serif' : 'bold 14px Montserrat, sans-serif';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
+            if (this.currentThemeKey === 'jungle') this.ctx.strokeText('SLOW', zX + zone.width / 2, zone.y + zone.height / 2);
             this.ctx.fillText('SLOW', zX + zone.width / 2, zone.y + zone.height / 2);
             this.ctx.restore();
           }
         } else if (zone.type === 'ice') {
           // Ice zone — label only
-          this.ctx.fillStyle = 'rgba(100,200,255,0.2)';
-          this.ctx.font = 'bold 11px Montserrat, sans-serif';
+          const isJungle = this.currentThemeKey === 'jungle';
+          this.ctx.fillStyle = isJungle ? '#102A16' : 'rgba(100,200,255,0.2)';
+          this.ctx.strokeStyle = isJungle ? '#E5EBD9' : 'transparent';
+          this.ctx.lineWidth = isJungle ? 2 : 0;
+          this.ctx.font = isJungle ? 'bold 14px Montserrat, sans-serif' : 'bold 11px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
+          if (isJungle) this.ctx.strokeText('ICE', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.fillText('ICE', zX + zone.width / 2, zone.y + zone.height / 2);
         } else if (zone.type === 'oil') {
           // Oil zone — label only
-          this.ctx.fillStyle = 'rgba(100,80,60,0.2)';
-          this.ctx.font = 'bold 11px Montserrat, sans-serif';
+          const isJungle = this.currentThemeKey === 'jungle';
+          this.ctx.fillStyle = isJungle ? '#102A16' : 'rgba(100,80,60,0.2)';
+          this.ctx.strokeStyle = isJungle ? '#E5EBD9' : 'transparent';
+          this.ctx.lineWidth = isJungle ? 2 : 0;
+          this.ctx.font = isJungle ? 'bold 14px Montserrat, sans-serif' : 'bold 11px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
+          if (isJungle) this.ctx.strokeText('OIL', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.fillText('OIL', zX + zone.width / 2, zone.y + zone.height / 2);
         } else if (zone.type === 'finish') {
           const finishX = zone.x - camX;
@@ -5881,10 +5895,13 @@ if (this.activeEvent.key === 'speed_surge') {
           const pairPortal = this.track.zones.find(z => z !== zone && z.type === 'portal' && z.pairId === zone.pairId);
           if (pairPortal) {
             const arrow = pairPortal.x > zone.x ? '→' : '←';
-            this.ctx.fillStyle = 'rgba(200,160,255,0.75)';
-            this.ctx.font = 'bold 20px Montserrat, sans-serif';
+            this.ctx.fillStyle = this.currentThemeKey === 'jungle' ? '#1C3D24' : 'rgba(200,160,255,0.75)';
+            this.ctx.strokeStyle = this.currentThemeKey === 'jungle' ? '#E5EBD9' : 'transparent';
+            this.ctx.lineWidth = this.currentThemeKey === 'jungle' ? 3 : 0;
+            this.ctx.font = this.currentThemeKey === 'jungle' ? 'bold 22px Montserrat, sans-serif' : 'bold 20px Montserrat, sans-serif';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
+            if (this.currentThemeKey === 'jungle') this.ctx.strokeText(arrow, cx, cy + pr + 16);
             this.ctx.fillText(arrow, cx, cy + pr + 16);
           }
           this.ctx.restore();
@@ -5902,9 +5919,14 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.setLineDash([4, 6]);
           this.ctx.strokeRect(zX, zone.y, zone.width, zone.height);
           this.ctx.setLineDash([]);
-          this.ctx.fillStyle = 'rgba(231,76,60,0.15)';
-          this.ctx.font = 'bold 9px Montserrat, sans-serif';
+          const isJungle = this.currentThemeKey === 'jungle';
+          this.ctx.fillStyle = isJungle ? '#102A16' : 'rgba(231,76,60,0.15)';
+          this.ctx.strokeStyle = isJungle ? '#E5EBD9' : 'transparent';
+          this.ctx.lineWidth = isJungle ? 3 : 0;
+          this.ctx.font = isJungle ? 'bold 12px Montserrat, sans-serif' : 'bold 9px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          if (isJungle) this.ctx.strokeText('MERGE', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.fillText('MERGE', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.restore();
         } else if (zone.type === 'jump') {
@@ -5912,11 +5934,15 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(155,89,182,0.15)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
-          this.ctx.fillStyle = 'rgba(155,89,182,0.6)';
-          this.ctx.font = 'bold 14px Montserrat, sans-serif';
+          const isJungle = this.currentThemeKey === 'jungle';
+          this.ctx.fillStyle = isJungle ? '#102A16' : 'rgba(155,89,182,0.6)';
+          this.ctx.strokeStyle = isJungle ? '#E5EBD9' : 'transparent';
+          this.ctx.lineWidth = isJungle ? 2 : 0;
+          this.ctx.font = isJungle ? 'bold 16px Montserrat, sans-serif' : 'bold 14px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           const bounce = Math.sin(Date.now() * 0.006) * 3;
+          if (isJungle) this.ctx.strokeText('\u2191', zX + zone.width / 2, zone.y + zone.height / 2 + bounce);
           this.ctx.fillText('\u2191', zX + zone.width / 2, zone.y + zone.height / 2 + bounce);
           this.ctx.restore();
         } else if (zone.type === 'launch') {
@@ -5925,10 +5951,14 @@ if (this.activeEvent.key === 'speed_surge') {
           const bounceY = Math.sin(Date.now() * 0.01) * 2;
           this.ctx.fillStyle = 'rgba(46,204,113,0.25)';
           this.ctx.fillRect(zX, zone.y + bounceY, zone.width, zone.height);
-          this.ctx.fillStyle = 'rgba(46,204,113,0.7)';
-          this.ctx.font = 'bold 12px Montserrat, sans-serif';
+          const isJungle = this.currentThemeKey === 'jungle';
+          this.ctx.fillStyle = isJungle ? '#102A16' : 'rgba(46,204,113,0.7)';
+          this.ctx.strokeStyle = isJungle ? '#E5EBD9' : 'transparent';
+          this.ctx.lineWidth = isJungle ? 2 : 0;
+          this.ctx.font = isJungle ? 'bold 15px Montserrat, sans-serif' : 'bold 12px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
+          if (isJungle) this.ctx.strokeText('\u21E7', zX + zone.width / 2, zone.y + zone.height / 2 + bounceY);
           this.ctx.fillText('\u21E7', zX + zone.width / 2, zone.y + zone.height / 2 + bounceY);
           this.ctx.restore();
         }
@@ -6748,6 +6778,11 @@ if (this.activeEvent.key === 'speed_surge') {
             surfaceColor = '#1a1612'; // Dark volcanic rock / graphite
             surfAlpha = 0.85;
           }
+          // Jungle: semi-transparent earthy tint, defined primarily by borders
+          if (this.currentThemeKey === 'jungle') {
+            surfaceColor = '#3d4d3a'; // Light olive-brown
+            surfAlpha = 0.12;
+          }
           this.ctx.fillStyle = hexToRgba(surfaceColor, surfAlpha);
           this.ctx.beginPath();
           this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
@@ -6830,6 +6865,30 @@ if (this.activeEvent.key === 'speed_surge') {
               this.ctx.moveTo(cx + 5, cy + 2);
               this.ctx.lineTo(cx + 18 + (c * 19) % 12, cy - 10 + (c * 5) % 6);
               this.ctx.stroke();
+            }
+          } else if (this.currentThemeKey === 'jungle') {
+            // Jungle: subtle jungle floor texture - fallen leaves, roots, moss patches
+            this.ctx.strokeStyle = 'rgba(30, 50, 30, 0.04)';
+            this.ctx.lineWidth = 1;
+            const jungleSeed = Math.floor(camX / 30);
+            for (let j = 0; j < 8; j++) {
+              const jx = visibleTop[0].x + ((jungleSeed * 137 + j * 97) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const jy = topEdgeY + 8 + ((jungleSeed * 53 + j * 131) % (botEdgeY - topEdgeY - 16));
+              const jlen = 2 + ((jungleSeed * 71 + j * 43) % 4);
+              this.ctx.beginPath();
+              this.ctx.moveTo(jx, jy);
+              this.ctx.lineTo(jx + ((j * 29) % 7 - 3), jy - jlen);
+              this.ctx.stroke();
+            }
+            // Occasional fallen leaf / debris
+            this.ctx.fillStyle = 'rgba(40, 60, 35, 0.05)';
+            for (let d = 0; d < 5; d++) {
+              const dx = visibleTop[0].x + ((jungleSeed * 47 + d * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const dy = topEdgeY + 12 + ((jungleSeed * 73 + d * 89) % (botEdgeY - topEdgeY - 24));
+              const ds = 1.5 + ((jungleSeed * 59 + d * 37) % 3) * 0.5;
+              this.ctx.beginPath();
+              this.ctx.arc(dx, dy, ds, 0, Math.PI * 2);
+              this.ctx.fill();
             }
           } else {
             this.ctx.strokeStyle = 'rgba(46,204,113,0.03)';
@@ -6915,11 +6974,17 @@ if (this.activeEvent.key === 'speed_surge') {
           if (this.currentThemeKey === 'snow') {
             this.ctx.strokeStyle = '#1a2a3a';
             this.ctx.globalAlpha = 0.55;
+            this.ctx.lineWidth = 3;
+          } else if (this.currentThemeKey === 'jungle') {
+            // Jungle: bold layered borders - outer, inner, highlight
+            this.ctx.strokeStyle = '#233A2B'; // Outer border
+            this.ctx.globalAlpha = 0.95;
+            this.ctx.lineWidth = 6;
           } else {
             this.ctx.strokeStyle = wallRgba;
             this.ctx.globalAlpha = wallAlpha;
+            this.ctx.lineWidth = 3;
           }
-          this.ctx.lineWidth = 3;
           this.ctx.lineCap = 'round';
           this.ctx.lineJoin = 'round';
           this.ctx.beginPath();
@@ -6928,13 +6993,44 @@ if (this.activeEvent.key === 'speed_surge') {
             else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
           }
           this.ctx.stroke();
+
+          // Jungle: inner border
+          if (this.currentThemeKey === 'jungle') {
+            this.ctx.strokeStyle = '#35513A'; // Inner border
+            this.ctx.globalAlpha = 0.9;
+            this.ctx.lineWidth = 4;
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleTop.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
+              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            }
+            this.ctx.stroke();
+            // Jungle: highlight border
+            this.ctx.strokeStyle = '#4E6B4D'; // Highlight
+            this.ctx.globalAlpha = 0.6;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleTop.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y - 1);
+              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y - 1);
+            }
+            this.ctx.stroke();
+          }
+
           // Thin bottom boundary line
           if (this.currentThemeKey === 'snow') {
             this.ctx.strokeStyle = '#1a2a3a';
             this.ctx.globalAlpha = 0.55;
+            this.ctx.lineWidth = 3;
+          } else if (this.currentThemeKey === 'jungle') {
+            // Jungle: bold layered borders - outer, inner, highlight
+            this.ctx.strokeStyle = '#233A2B'; // Outer border
+            this.ctx.globalAlpha = 0.95;
+            this.ctx.lineWidth = 6;
           } else {
             this.ctx.strokeStyle = wallRgba;
             this.ctx.globalAlpha = wallAlpha;
+            this.ctx.lineWidth = 3;
           }
           this.ctx.beginPath();
           for (let i = 0; i < visibleBot.length; i++) {
@@ -6942,6 +7038,29 @@ if (this.activeEvent.key === 'speed_surge') {
             else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
           }
           this.ctx.stroke();
+
+          // Jungle: inner border (bottom)
+          if (this.currentThemeKey === 'jungle') {
+            this.ctx.strokeStyle = '#35513A'; // Inner border
+            this.ctx.globalAlpha = 0.9;
+            this.ctx.lineWidth = 4;
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleBot.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
+              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            }
+            this.ctx.stroke();
+            // Jungle: highlight border (bottom)
+            this.ctx.strokeStyle = '#4E6B4D'; // Highlight
+            this.ctx.globalAlpha = 0.6;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleBot.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y + 1);
+              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y + 1);
+            }
+            this.ctx.stroke();
+          }
           // Decorative celestial objects + track glow + edge particles (space theme)
           if (this.currentThemeKey === 'space') {
             this._renderSpaceObjects(camX);
