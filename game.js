@@ -3535,8 +3535,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             type: 'carnivorous_vine',
             x: vx, y: vy,
             wallSide: onTop ? 'top' : 'bottom',
-            stemHeight: 20 + Math.random() * 25,
-            headRadius: 10 + Math.random() * 4,
+            stemHeight: 80,
+            headRadius: 28,
             _state: 'idle',
             _stateTimer: 0,
             _phase: Math.random() * Math.PI * 2,
@@ -3546,6 +3546,16 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             _launchVx: 0,
             _launchVy: 0,
             _wigglePhase: Math.random() * Math.PI * 2,
+            _tremblePhase: Math.random() * Math.PI * 2,
+            _coilProgress: 0,
+            _strikeDirection: 0,
+            _strikeProgress: 0,
+            _holdTimer: 0,
+            _throwAngle: 0,
+            _throwForce: 0,
+            _recoveryProgress: 0,
+            _mouthOpen: 0.4,
+            _particleTimer: 0,
             _leafParticles: []
           });
         }
@@ -4249,97 +4259,273 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       if (this.currentThemeKey === 'jungle' && this.track && this.track.obstacles) {
         this.track.obstacles.forEach(obs => {
           if (obs.type !== 'carnivorous_vine') return;
+
+          // Initialize vine properties if needed
+          if (obs._state === undefined) {
+            obs._state = 'idle';
+            obs._stateTimer = 0;
+            obs._cooldownTimer = 0;
+            obs._phase = Math.random() * Math.PI * 2;
+            obs._wigglePhase = Math.random() * Math.PI * 2;
+            obs._capturedBall = null;
+            obs._grabProgress = 0;
+            obs._strikeDirection = 0;
+            obs._strikeProgress = 0;
+            obs._holdTimer = 0;
+            obs._throwAngle = 0;
+            obs._throwForce = 0;
+            obs._recoveryProgress = 0;
+            obs._coilProgress = 0;
+            obs._mouthOpen = 0.4;
+            obs._tremblePhase = Math.random() * Math.PI * 2;
+            obs._particleTimer = 0;
+          }
+
+          const dt60 = dt * 60; // Convert to 60fps frames
+
+          // State machine: idle -> winding (90 frames) -> striking (9 frames) -> holding (60 frames) -> throwing (12 frames) -> recovery (30 frames) -> idle
           if (obs._state === 'idle') {
-            // Check for nearby balls to capture
+            // Check for nearby balls to capture (80px detection radius)
             for (const ball of this.balls) {
               if (ball.finished || ball.z > 0 || ball._capturedByVine) continue;
               const dx = ball.x - obs.x;
               const dy = ball.y - obs.y;
               const dist = Math.hypot(dx, dy);
-              if (dist < 45) {
-                obs._state = 'grabbing';
+              if (dist < 80) {
+                obs._state = 'winding';
                 obs._stateTimer = 0;
                 obs._grabProgress = 0;
+                obs._coilProgress = 0;
                 obs._capturedBall = ball;
                 ball._capturedByVine = obs;
                 ball.vx = 0;
                 ball.vy = 0;
-                // Particle burst on grab
-                for (let p = 0; p < 6; p++) {
+                // Initial tremble particles
+                for (let p = 0; p < 4; p++) {
                   const a = Math.random() * Math.PI * 2;
                   this.particles.push({
                     type: 'sparkle', x: ball.x, y: ball.y,
-                    vx: Math.cos(a) * (1 + Math.random()), vy: Math.sin(a) * (1 + Math.random()),
-                    alpha: 0.6, size: 2 + Math.random() * 2, life: 15 + Math.floor(Math.random() * 10),
-                    color: '#4a8a3a'
+                    vx: Math.cos(a) * 0.5, vy: Math.sin(a) * 0.5,
+                    alpha: 0.5, size: 2 + Math.random() * 1.5, life: 10 + Math.floor(Math.random() * 8),
+                    color: '#3a7a3a'
                   });
                 }
                 break;
               }
             }
-          } else if (obs._state === 'grabbing') {
-            obs._stateTimer += dt;
-            obs._grabProgress = Math.min(obs._stateTimer / 15, 1);
+          } else if (obs._state === 'winding') {
+            // Wind-up: 1.5 seconds (90 frames at 60fps)
+            obs._stateTimer += dt60;
+            obs._coilProgress = Math.min(obs._stateTimer / 90, 1);
+            obs._mouthOpen = 0.4 - 0.2 * obs._coilProgress; // Mouth closes slightly during wind-up
+            obs._tremblePhase += dt60 * 0.3;
+
+            // Trembling particles during wind-up
+            obs._particleTimer += dt60;
+            if (obs._particleTimer >= 3) {
+              obs._particleTimer = 0;
+              for (let p = 0; p < 2; p++) {
+                const a = Math.random() * Math.PI * 2;
+                const r = 15 + Math.random() * 10;
+                this.particles.push({
+                  type: 'sparkle', x: obs.x + Math.cos(a) * r, y: obs.y + Math.sin(a) * r,
+                  vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3,
+                  alpha: 0.4, size: 1.5 + Math.random(), life: 12 + Math.floor(Math.random() * 6),
+                  color: '#4a8a3a'
+                });
+              }
+            }
+
+            // Keep ball near vine during wind-up
             if (obs._capturedBall) {
-              const wiggle = Math.sin(obs._wigglePhase + obs._stateTimer * 0.15) * 2;
+              const wiggle = Math.sin(obs._wigglePhase + obs._stateTimer * 0.2) * 1.5;
               obs._capturedBall.x = obs.x + wiggle;
               obs._capturedBall.y = obs.y + wiggle;
               obs._capturedBall.vx = 0;
               obs._capturedBall.vy = 0;
             }
-            if (obs._grabProgress >= 1) {
-              obs._state = 'captured';
+
+            if (obs._coilProgress >= 1) {
+              obs._state = 'striking';
               obs._stateTimer = 0;
+              obs._strikeProgress = 0;
+              // Calculate strike direction toward ball
+              if (obs._capturedBall) {
+                const dx = obs._capturedBall.x - obs.x;
+                const dy = obs._capturedBall.y - obs.y;
+                obs._strikeDirection = Math.atan2(dy, dx);
+              }
             }
-          } else if (obs._state === 'captured') {
-            obs._stateTimer += dt;
+          } else if (obs._state === 'striking') {
+            // Strike: 0.15 seconds (9 frames at 60fps) - head extends 60px
+            obs._stateTimer += dt60;
+            obs._strikeProgress = Math.min(obs._stateTimer / 9, 1);
+            obs._mouthOpen = 0.1; // Mouth nearly closed during strike
+
+            // Move captured ball to strike position
             if (obs._capturedBall) {
-              const wiggle = Math.sin(obs._wigglePhase + obs._stateTimer * 0.2) * 3;
-              const wiggleY = Math.cos(obs._wigglePhase + obs._stateTimer * 0.15) * 2;
-              obs._capturedBall.x = obs.x + wiggle;
-              obs._capturedBall.y = obs.y + wiggleY;
+              const strikeDist = 60 * obs._strikeProgress;
+              const sx = obs.x + Math.cos(obs._strikeDirection) * strikeDist;
+              const sy = obs.y + Math.sin(obs._strikeDirection) * strikeDist;
+              obs._capturedBall.x = sx;
+              obs._capturedBall.y = sy;
               obs._capturedBall.vx = 0;
               obs._capturedBall.vy = 0;
             }
-            // Release after 1.5 seconds (90 frames at 60fps)
-            if (obs._stateTimer >= 90) {
-              obs._state = 'releasing';
+
+            // Strike particles
+            if (obs._strikeProgress > 0.5 && obs._stateTimer <= 9) {
+              for (let p = 0; p < 3; p++) {
+                const a = obs._strikeDirection + (Math.random() - 0.5) * 0.5;
+                this.particles.push({
+                  type: 'sparkle', x: obs.x + Math.cos(a) * 30, y: obs.y + Math.sin(a) * 30,
+                  vx: Math.cos(a) * 2, vy: Math.sin(a) * 2,
+                  alpha: 0.6, size: 2 + Math.random() * 2, life: 8 + Math.floor(Math.random() * 6),
+                  color: '#5a9a4a'
+                });
+              }
+            }
+
+            if (obs._strikeProgress >= 1) {
+              obs._state = 'holding';
               obs._stateTimer = 0;
+              obs._holdTimer = 0;
+              obs._mouthOpen = 0.05; // Mouth tightly closed
+            }
+          } else if (obs._state === 'holding') {
+            // Hold: 1 second (60 frames at 60fps)
+            obs._stateTimer += dt60;
+            obs._holdTimer += dt60;
+
+            // Squeeze animation
+            const squeeze = 0.95 + Math.sin(obs._stateTimer * 0.3) * 0.05;
+            obs._mouthOpen = 0.05;
+
+            if (obs._capturedBall) {
+              const holdDist = 60; // Held at extended position
+              const hx = obs.x + Math.cos(obs._strikeDirection) * holdDist;
+              const hy = obs.y + Math.sin(obs._strikeDirection) * holdDist;
+              // Gentle squeeze movement
+              const sqx = Math.sin(obs._stateTimer * 0.25) * 1.5;
+              const sqy = Math.cos(obs._stateTimer * 0.2) * 1;
+              obs._capturedBall.x = hx + sqx;
+              obs._capturedBall.y = hy + sqy;
+              obs._capturedBall.vx = 0;
+              obs._capturedBall.vy = 0;
+            }
+
+            // Hold particles (sap droplets)
+            obs._particleTimer += dt60;
+            if (obs._particleTimer >= 8) {
+              obs._particleTimer = 0;
               if (obs._capturedBall) {
-                const angle = Math.random() * Math.PI * 2;
-                const force = 3 + Math.random() * 2;
-                obs._capturedBall._capturedByVine = null;
-                obs._capturedBall.vx = Math.cos(angle) * force;
-                obs._capturedBall.vy = Math.sin(angle) * force;
-                obs._launchVx = obs._capturedBall.vx;
-                obs._launchVy = obs._capturedBall.vy;
-                // Leaf scatter on release
-                for (let p = 0; p < 10; p++) {
+                for (let p = 0; p < 2; p++) {
                   const a = Math.random() * Math.PI * 2;
                   this.particles.push({
-                    type: 'sparkle', x: obs.x, y: obs.y,
-                    vx: Math.cos(a) * (1.5 + Math.random() * 2), vy: Math.sin(a) * (1.5 + Math.random() * 2),
+                    type: 'sparkle', x: obs._capturedBall.x, y: obs._capturedBall.y,
+                    vx: Math.cos(a) * 0.4, vy: Math.sin(a) * 0.4 + 0.2,
+                    alpha: 0.3, size: 1 + Math.random(), life: 15 + Math.floor(Math.random() * 10),
+                    color: '#2a5a2a'
+                  });
+                }
+              }
+            }
+
+            if (obs._holdTimer >= 60) {
+              obs._state = 'throwing';
+              obs._stateTimer = 0;
+              // Calculate throw angle and force
+              obs._throwAngle = Math.random() * Math.PI * 2;
+              obs._throwForce = 6 + Math.random() * 3; // 6-9 speed
+            }
+          } else if (obs._state === 'throwing') {
+            // Throw: 0.2 seconds (12 frames at 60fps)
+            obs._stateTimer += dt60;
+            const throwProgress = Math.min(obs._stateTimer / 12, 1);
+            obs._mouthOpen = 0.1 + 0.3 * throwProgress; // Mouth opens during throw
+
+            if (obs._capturedBall) {
+              // Ball follows vine retraction briefly then launches
+              if (throwProgress < 0.5) {
+                // Retraction pull
+                const pullDist = 60 * (1 - throwProgress * 2);
+                const px = obs.x + Math.cos(obs._strikeDirection) * pullDist;
+                const py = obs.y + Math.sin(obs._strikeDirection) * pullDist;
+                obs._capturedBall.x = px;
+                obs._capturedBall.y = py;
+              } else {
+                // Launch
+                obs._capturedBall._capturedByVine = null;
+                obs._capturedBall.vx = Math.cos(obs._throwAngle) * obs._throwForce;
+                obs._capturedBall.vy = Math.sin(obs._throwAngle) * obs._throwForce;
+                obs._launchVx = obs._capturedBall.vx;
+                obs._launchVy = obs._capturedBall.vy;
+                // Throw particles - leaf scatter
+                for (let p = 0; p < 12; p++) {
+                  const a = Math.random() * Math.PI * 2;
+                  this.particles.push({
+                    type: 'sparkle', x: obs._capturedBall.x, y: obs._capturedBall.y,
+                    vx: Math.cos(a) * (2 + Math.random() * 3), vy: Math.sin(a) * (2 + Math.random() * 3),
                     alpha: 0.5, size: 1.5 + Math.random() * 2, life: 20 + Math.floor(Math.random() * 15),
-                    color: '#2a6a3a'
+                    color: '#3a7a3a'
                   });
                 }
                 obs._capturedBall = null;
               }
             }
-          } else if (obs._state === 'releasing') {
-            obs._stateTimer += dt;
-            if (obs._stateTimer >= 20) {
+
+            if (throwProgress >= 1) {
+              obs._state = 'recovery';
+              obs._stateTimer = 0;
+              obs._recoveryProgress = 0;
+              obs._mouthOpen = 0.4;
+            }
+          } else if (obs._state === 'recovery') {
+            // Recovery: 0.5 seconds (30 frames at 60fps) - vine retracts
+            obs._stateTimer += dt60;
+            obs._recoveryProgress = Math.min(obs._stateTimer / 30, 1);
+            obs._mouthOpen = 0.4 + 0.1 * Math.sin(obs._stateTimer * 0.5); // Breathing
+
+            // Recovery particles
+            obs._particleTimer += dt60;
+            if (obs._particleTimer >= 5) {
+              obs._particleTimer = 0;
+              for (let p = 0; p < 2; p++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle', x: obs.x + Math.cos(a) * 20, y: obs.y + Math.sin(a) * 20,
+                  vx: Math.cos(a) * 0.5, vy: Math.sin(a) * 0.5,
+                  alpha: 0.3, size: 1 + Math.random(), life: 10 + Math.floor(Math.random() * 8),
+                  color: '#4a8a3a'
+                });
+              }
+            }
+
+            if (obs._recoveryProgress >= 1) {
               obs._state = 'cooldown';
               obs._stateTimer = 0;
               obs._cooldownTimer = 0;
+              obs._grabProgress = 0;
+              obs._strikeProgress = 0;
+              obs._holdTimer = 0;
+              obs._recoveryProgress = 0;
+              obs._coilProgress = 0;
             }
           } else if (obs._state === 'cooldown') {
-            obs._cooldownTimer += dt;
-            if (obs._cooldownTimer >= 120) { // 2 seconds cooldown
+            // Cooldown: 2 seconds (120 frames at 60fps)
+            obs._cooldownTimer += dt60;
+            obs._mouthOpen = 0.4 + 0.05 * Math.sin(obs._stateTimer * 0.05); // Gentle breathing
+
+            if (obs._cooldownTimer >= 120) {
               obs._state = 'idle';
               obs._stateTimer = 0;
+              obs._cooldownTimer = 0;
               obs._capturedBall = null;
               obs._grabProgress = 0;
+              obs._strikeProgress = 0;
+              obs._holdTimer = 0;
+              obs._recoveryProgress = 0;
+              obs._coilProgress = 0;
             }
           }
         });
@@ -9633,147 +9819,543 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
           this.ctx.restore();
         } else if (obs.type === 'carnivorous_vine') {
-        // Carnivorous Vine — Amazon Canopy exclusive
+        // Carnivorous Vine — Realistic Amazon Liana
         try {
           const vineCamX = obs.x - camX;
-          const vineCullBuf = 300;
-          if (vineCamX + 200 < -vineCullBuf || vineCamX - 200 > screenW / zoom + vineCullBuf) return;
+          const vineCullBuf = 350;
+          if (vineCamX + 250 < -vineCullBuf || vineCamX - 250 > screenW / zoom + vineCullBuf) return;
           this.ctx.save();
 
           const isTop = obs.wallSide === 'top';
-          const headR = obs.headRadius || 12;
-          const stemH = obs.stemHeight || 22;
           const phase = obs._phase || 0;
           const state = obs._state || 'idle';
-          const swayAmt = Math.sin(performance.now() * 0.002 + phase) * 3;
-          const breatheAmt = Math.sin(performance.now() * 0.003 + phase) * 0.3 + 1;
+          const time = performance.now();
+          const dt60 = dt * 60;
 
-          // Head position (center of flytrap)
-          const headX = vineCamX + swayAmt;
-          const headY = isTop ? obs.y + stemH * 0.5 : obs.y - stemH * 0.5;
+          // Animation progress values
+          const coilProgress = obs._coilProgress || 0;
+          const strikeProgress = obs._strikeProgress || 0;
+          const holdTimer = obs._holdTimer || 0;
+          const throwProgress = obs._stateTimer && obs._state === 'throwing' ? Math.min(obs._stateTimer / 12, 1) : 0;
+          const recoveryProgress = obs._recoveryProgress || 0;
+          const mouthOpen = obs._mouthOpen || 0.4;
 
-          // Vine stem — thick curved stalk from track edge
-          this.ctx.globalAlpha = 0.7;
-          this.ctx.strokeStyle = '#2a3a28';
-          this.ctx.lineWidth = 3 + Math.sin(phase) * 0.5;
+          // Base geometry
+          const headR = 28; // Flytrap head radius
+          const stemThickness = 10; // Main vine thickness
+          const vineLen = 80; // Length of vine from wall to head
+          const headX = vineCamX;
+          const headY = isTop ? obs.y + vineLen * 0.5 : obs.y - vineLen * 0.5;
+
+          // Wind sway (always present)
+          const windSway = Math.sin(time * 0.0008 + phase) * 6;
+          const windSwayY = Math.sin(time * 0.0012 + phase + 1) * 3;
+          const headSwayX = headX + windSway;
+          const headSwayY = headY + windSwayY;
+
+          // Strike extension
+          let strikeExtX = 0, strikeExtY = 0;
+          if (state === 'striking' || state === 'holding' || state === 'throwing') {
+            const dir = obs._strikeDirection || 0;
+            const extDist = state === 'striking' ? 60 * strikeProgress : (state === 'holding' ? 60 : 60 * (1 - throwProgress * 2));
+            strikeExtX = Math.cos(dir) * extDist;
+            strikeExtY = Math.sin(dir) * extDist;
+          }
+
+          // Recovery retraction
+          let recoveryRetract = 0;
+          if (state === 'recovery') {
+            recoveryRetract = 60 * recoveryProgress;
+          }
+
+          const finalHeadX = headSwayX + strikeExtX - Math.cos(obs._strikeDirection || 0) * recoveryRetract;
+          const finalHeadY = headSwayY + strikeExtY - Math.sin(obs._strikeDirection || 0) * recoveryRetract;
+
+          // ========== MAIN VINE STEM ==========
+          // Draw thick woody vine with bark texture from wall to head
+          this.ctx.lineCap = 'round';
+          this.ctx.lineJoin = 'round';
+
+          // Vine segments for natural twisting
+          const segments = 12;
+          const points = [];
+          for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            // Natural curve with wind
+            const curveX = vineCamX + (finalHeadX - vineCamX) * t;
+            const curveY = (isTop ? obs.y : obs.y) + (finalHeadY - (isTop ? obs.y : obs.y)) * t;
+            // Add organic twist
+            const twist = Math.sin(time * 0.002 + phase + t * 4) * (3 + t * 4) * (1 - coilProgress * 0.5);
+            const twistY = Math.cos(time * 0.003 + phase + t * 3) * (2 + t * 2);
+            points.push({ x: curveX + twist, y: curveY + twistY });
+          }
+
+          // Draw vine bark - multiple layers for depth
+          // Layer 1: Deep shadow
+          this.ctx.globalAlpha = 0.4;
+          this.ctx.strokeStyle = '#1a1008';
+          this.ctx.lineWidth = stemThickness + 4;
           this.ctx.beginPath();
-          if (isTop) {
-            this.ctx.moveTo(vineCamX, obs.y);
-            this.ctx.quadraticCurveTo(headX - swayAmt * 0.5, obs.y + stemH * 0.3, headX, headY);
-          } else {
-            this.ctx.moveTo(vineCamX, obs.y);
-            this.ctx.quadraticCurveTo(headX - swayAmt * 0.5, obs.y - stemH * 0.3, headX, headY);
+          this.ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 1; i < points.length; i++) {
+            const xc = (points[i - 1].x + points[i].x) * 0.5;
+            const yc = (points[i - 1].y + points[i].y) * 0.5;
+            this.ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
           }
           this.ctx.stroke();
 
-          // Surrounding leaves at base
-          this.ctx.globalAlpha = 0.4;
-          this.ctx.fillStyle = '#1a4a28';
-          const baseLeafCount = 4;
-          for (let li = 0; li < baseLeafCount; li++) {
-            const la = (li / baseLeafCount) * Math.PI * 2 + phase;
-            const lx = vineCamX + Math.cos(la) * (8 + Math.sin(phase + li) * 2);
-            const ly = obs.y + Math.sin(la) * (4 + Math.cos(phase + li) * 1.5);
+          // Layer 2: Main bark
+          const barkGrad = this.ctx.createLinearGradient(vineCamX, isTop ? obs.y : obs.y, finalHeadX, finalHeadY);
+          barkGrad.addColorStop(0, '#4a2a18');
+          barkGrad.addColorStop(0.3, '#5a3a20');
+          barkGrad.addColorStop(0.7, '#4a2a18');
+          barkGrad.addColorStop(1, '#3a2010');
+          this.ctx.globalAlpha = 1;
+          this.ctx.strokeStyle = barkGrad;
+          this.ctx.lineWidth = stemThickness + 1;
+          this.ctx.beginPath();
+          this.ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 1; i < points.length; i++) {
+            const xc = (points[i - 1].x + points[i].x) * 0.5;
+            const yc = (points[i - 1].y + points[i].y) * 0.5;
+            this.ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+          }
+          this.ctx.stroke();
+
+          // Layer 3: Bark highlights (wet shine)
+          this.ctx.globalAlpha = 0.3;
+          this.ctx.strokeStyle = '#6a4a30';
+          this.ctx.lineWidth = 2;
+          this.ctx.beginPath();
+          this.ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 1; i < points.length; i++) {
+            const xc = (points[i - 1].x + points[i].x) * 0.5;
+            const yc = (points[i - 1].y + points[i].y) * 0.5;
+            this.ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+          }
+          this.ctx.stroke();
+
+          // Bark texture lines (vertical grooves)
+          this.ctx.globalAlpha = 0.25;
+          this.ctx.strokeStyle = '#2a1a08';
+          this.ctx.lineWidth = 1;
+          for (let g = 0; g < 3; g++) {
+            const offset = (g - 1) * 3;
             this.ctx.beginPath();
-            this.ctx.ellipse(lx, ly, 6, 3, la * 0.3, 0, Math.PI * 2);
-            this.ctx.fill();
+            for (let i = 0; i < points.length; i += 2) {
+              const p = points[i];
+              const perpX = -Math.sin((i / points.length) * Math.PI * 2) * offset;
+              const perpY = Math.cos((i / points.length) * Math.PI * 2) * offset;
+              if (i === 0) this.ctx.moveTo(p.x + perpX, p.y + perpY);
+              else this.ctx.lineTo(p.x + perpX, p.y + perpY);
+            }
+            this.ctx.stroke();
           }
 
-          // Flytrap head — two halves with teeth
-          const isGrabbing = state === 'grabbing';
-          const isCaptured = state === 'captured';
-          const isReleasing = state === 'releasing' || state === 'cooldown';
-          const headOpen = (state === 'idle' || state === 'cooldown');
-          const snapClose = isGrabbing ? 1 - (obs._grabProgress || 0) : (isCaptured ? 0 : 1);
-          const openAngle = headOpen ? 0.4 : (isReleasing ? 0.6 : 0.1);
-          const pulseOpen = headOpen ? 0.35 + 0.05 * Math.sin(performance.now() * 0.004 + phase) : openAngle;
-
-          // Outer jaw (bottom half)
-          this.ctx.globalAlpha = 0.6;
-          this.ctx.fillStyle = '#2a5a28';
-          this.ctx.beginPath();
-          this.ctx.ellipse(headX, headY + headR * 0.2 * snapClose, headR * 1.1 * breatheAmt, headR * 0.5 * snapClose, 0, 0, Math.PI * 2);
-          this.ctx.fill();
-
-          // Inner jaw (top half)
-          this.ctx.beginPath();
-          this.ctx.ellipse(headX, headY - headR * 0.2 * snapClose, headR * 1.1 * breatheAmt, headR * 0.5 * snapClose, 0, 0, Math.PI * 2);
-          this.ctx.fill();
-
-          // Red inner mouth (visible when open)
-          if (headOpen || isReleasing) {
-            this.ctx.globalAlpha = 0.3;
-            this.ctx.fillStyle = '#8a2a1a';
-            const mouthOpen = headOpen ? pulseOpen : 0.4;
+          // ========== THORNS ALONG VINE ==========
+          this.ctx.globalAlpha = 0.8;
+          this.ctx.fillStyle = '#3a2010';
+          for (let i = 2; i < points.length - 1; i += 2) {
+            const p = points[i];
+            const nextP = points[i + 1];
+            const angle = Math.atan2(nextP.y - p.y, nextP.x - p.x);
+            const thornAngle = angle + (isTop ? -Math.PI * 0.4 : Math.PI * 0.4) + Math.sin(time * 0.005 + i) * 0.1;
+            const thornLen = 6 + Math.sin(time * 0.003 + i) * 2;
+            const thornBaseX = p.x + Math.cos(angle + Math.PI * 0.5) * (stemThickness * 0.6);
+            const thornBaseY = p.y + Math.sin(angle + Math.PI * 0.5) * (stemThickness * 0.6);
             this.ctx.beginPath();
-            this.ctx.ellipse(headX, headY, headR * 0.6 * breatheAmt, headR * 0.3 * mouthOpen, 0, 0, Math.PI * 2);
-            this.ctx.fill();
-          }
-
-          // Teeth along the jaw edge
-          this.ctx.globalAlpha = 0.2;
-          this.ctx.fillStyle = '#4a6a3a';
-          const teethCount = 5;
-          for (let ti = 0; ti < teethCount; ti++) {
-            const ta = (ti / teethCount) * Math.PI * 2 + phase * 0.1;
-            const tx = headX + Math.cos(ta) * headR * 0.9 * breatheAmt;
-            const ty = headY + Math.sin(ta) * headR * 0.4 * snapClose;
-            this.ctx.beginPath();
-            this.ctx.moveTo(tx - 2, ty);
-            this.ctx.lineTo(tx, ty + 4 * (Math.sin(ta) > 0 ? 1 : -1));
-            this.ctx.lineTo(tx + 2, ty);
+            this.ctx.moveTo(thornBaseX, thornBaseY);
+            this.ctx.lineTo(
+              thornBaseX + Math.cos(thornAngle) * thornLen,
+              thornBaseY + Math.sin(thornAngle) * thornLen
+            );
+            this.ctx.lineTo(
+              thornBaseX + Math.cos(thornAngle + 0.3) * thornLen * 0.4,
+              thornBaseY + Math.sin(thornAngle + 0.3) * thornLen * 0.4
+            );
             this.ctx.closePath();
             this.ctx.fill();
           }
 
-          // Capture particle effects
-          if (isGrabbing) {
-            this.ctx.globalAlpha = 0.3;
-            for (let cp = 0; cp < 3; cp++) {
-              const ca = Math.random() * Math.PI * 2;
-              const cd = Math.random() * headR;
-              this.ctx.fillStyle = '#4a8a3a';
+          // ========== HANGING ROOTS & TENDRILS ==========
+          // Roots hanging from vine
+          this.ctx.globalAlpha = 0.5;
+          this.ctx.strokeStyle = '#3a3020';
+          this.ctx.lineWidth = 1.5;
+          for (let i = 3; i < points.length - 2; i += 2) {
+            const p = points[i];
+            const rootCount = 2;
+            for (let r = 0; r < rootCount; r++) {
+              const rootPhase = time * 0.002 + i * 1.5 + r * 2;
+              const rootLen = 15 + Math.sin(rootPhase) * 5;
+              const rootSway = Math.sin(rootPhase) * 4;
               this.ctx.beginPath();
-              this.ctx.arc(headX + Math.cos(ca) * cd, headY + Math.sin(ca) * cd, 1.5 + Math.random(), 0, Math.PI * 2);
-              this.ctx.fill();
-            }
-          }
-
-          // Captured ball indicator (green glow around captured ball)
-          if (isCaptured && obs._capturedBall) {
-            this.ctx.globalAlpha = 0.15 + 0.1 * Math.sin(performance.now() * 0.005);
-            this.ctx.fillStyle = '#4a8a3a';
-            this.ctx.beginPath();
-            this.ctx.arc(obs._capturedBall.x - camX, obs._capturedBall.y, 18, 0, Math.PI * 2);
-            this.ctx.fill();
-            // Tendril coils
-            this.ctx.globalAlpha = 0.2;
-            this.ctx.strokeStyle = '#3a6a3a';
-            this.ctx.lineWidth = 1.5;
-            const ballX = obs._capturedBall.x - camX;
-            const ballY = obs._capturedBall.y;
-            for (let tc = 0; tc < 3; tc++) {
-              const ta2 = tc * 2.1 + phase + performance.now() * 0.002;
-              this.ctx.beginPath();
-              this.ctx.moveTo(headX, headY);
+              this.ctx.moveTo(p.x, p.y);
               this.ctx.quadraticCurveTo(
-                (headX + ballX) / 2 + Math.cos(ta2) * 8,
-                (headY + ballY) / 2 + Math.sin(ta2) * 6,
-                ballX, ballY
+                p.x + rootSway * 0.5, p.y + rootLen * 0.3,
+                p.x + rootSway, p.y + rootLen
               );
               this.ctx.stroke();
             }
           }
 
-          // Release burst (leaf scatter for a few frames)
-          if (state === 'releasing') {
-            this.ctx.globalAlpha = 0.25 * (1 - (obs._stateTimer / 20));
-            for (let rp = 0; rp < 4; rp++) {
-              const ra = Math.random() * Math.PI * 2;
-              const rd = 5 + Math.random() * 15;
-              this.ctx.fillStyle = '#4a7a3a';
+          // ========== LEAVES ALONG VINE ==========
+          const leafColors = ['#1a4a1a', '#2a5a2a', '#1a5a1a', '#3a6a3a', '#0a3a0a'];
+          this.ctx.globalAlpha = 0.7;
+          for (let i = 2; i < points.length - 1; i += 1) {
+            if (Math.sin(phase + i * 0.7) > 0.2) continue; // Skip some for natural look
+            const p = points[i];
+            const nextP = points[Math.min(i + 1, points.length - 1)];
+            const angle = Math.atan2(nextP.y - p.y, nextP.x - p.x);
+            const leafAngle = angle + (isTop ? -Math.PI * 0.35 : Math.PI * 0.35) + Math.sin(time * 0.001 + i) * 0.15;
+            const leafLen = 14 + Math.sin(time * 0.002 + i) * 3;
+            const leafW = 6 + Math.sin(time * 0.003 + i) * 2;
+            const leafColor = leafColors[(i + Math.floor(phase * 10)) % leafColors.length];
+
+            this.ctx.fillStyle = leafColor;
+            this.ctx.beginPath();
+            this.ctx.moveTo(p.x, p.y);
+            this.ctx.quadraticCurveTo(
+              p.x + Math.cos(leafAngle) * leafLen * 0.5 - Math.sin(leafAngle) * leafW * 0.5,
+              p.y + Math.sin(leafAngle) * leafLen * 0.5 + Math.cos(leafAngle) * leafW * 0.5,
+              p.x + Math.cos(leafAngle) * leafLen, p.y + Math.sin(leafAngle) * leafLen
+            );
+            this.ctx.quadraticCurveTo(
+              p.x + Math.cos(leafAngle) * leafLen * 0.5 + Math.sin(leafAngle) * leafW * 0.5,
+              p.y + Math.sin(leafAngle) * leafLen * 0.5 - Math.cos(leafAngle) * leafW * 0.5,
+              p.x, p.y
+            );
+            this.ctx.closePath();
+            this.ctx.fill();
+
+            // Leaf vein
+            this.ctx.globalAlpha = 0.2;
+            this.ctx.strokeStyle = '#0a2a0a';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.beginPath();
+            this.ctx.moveTo(p.x, p.y);
+            this.ctx.lineTo(p.x + Math.cos(leafAngle) * leafLen * 0.8, p.y + Math.sin(leafAngle) * leafLen * 0.8);
+            this.ctx.stroke();
+            this.ctx.globalAlpha = 0.7;
+          }
+
+          // ========== FLYTRAP HEAD ==========
+          // Head position with all animations applied
+          const hx = finalHeadX;
+          const hy = finalHeadY;
+
+          // Breathing animation (always)
+          const breathe = 1 + Math.sin(time * 0.0025 + phase) * 0.04;
+          const headScale = breathe;
+
+          // Coiling during winding
+          let coilOffset = 0;
+          if (state === 'winding') {
+            coilOffset = Math.sin(time * 0.05 + phase) * 4 * coilProgress;
+          }
+
+          // Tremble during winding
+          let trembleX = 0, trembleY = 0;
+          if (state === 'winding') {
+            trembleX = Math.sin(time * 0.03 + obs._tremblePhase) * 1.5 * coilProgress;
+            trembleY = Math.cos(time * 0.025 + obs._tremblePhase) * 1 * coilProgress;
+          }
+
+          // Squeeze during hold
+          let squeezeX = 0, squeezeY = 0;
+          if (state === 'holding') {
+            squeezeX = Math.sin(time * 0.018) * 1.2;
+            squeezeY = Math.cos(time * 0.015) * 0.8;
+          }
+
+          const renderHeadX = hx + trembleX + squeezeX + coilOffset;
+          const renderHeadY = hy + trembleY + squeezeY;
+
+          // --- Draw Flytrap Head ---
+
+          // Outer head shape (woody base)
+          const headGrad = this.ctx.createRadialGradient(renderHeadX, renderHeadY, 0, renderHeadX, renderHeadY, headR * headScale);
+          headGrad.addColorStop(0, '#4a3a28');
+          headGrad.addColorStop(0.5, '#3a2a18');
+          headGrad.addColorStop(1, '#2a1a08');
+
+          this.ctx.globalAlpha = 1;
+          this.ctx.fillStyle = headGrad;
+          this.ctx.beginPath();
+          this.ctx.ellipse(renderHeadX, renderHeadY, headR * headScale * 1.1, headR * headScale * 0.9, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Head bark texture
+          this.ctx.globalAlpha = 0.3;
+          this.ctx.strokeStyle = '#1a0a00';
+          this.ctx.lineWidth = 1;
+          for (let t = 0; t < 5; t++) {
+            const ta = (t / 5) * Math.PI * 2 + time * 0.0005;
+            const tr = headR * headScale * (0.3 + t * 0.12);
+            this.ctx.beginPath();
+            this.ctx.ellipse(renderHeadX, renderHeadY, tr, tr * 0.8, 0, 0, Math.PI * 2);
+            this.ctx.stroke();
+          }
+
+          // --- JAWS ---
+          const jawOpen = mouthOpen; // 0 = closed, 0.4 = open
+          const upperJawY = renderHeadY - headR * headScale * 0.3 * (1 - jawOpen);
+          const lowerJawY = renderHeadY + headR * headScale * 0.3 * (1 - jawOpen);
+
+          // Upper jaw
+          const upperGrad = this.ctx.createRadialGradient(renderHeadX, upperJawY, 0, renderHeadX, upperJawY, headR * headScale);
+          upperGrad.addColorStop(0, '#3a5a28');
+          upperGrad.addColorStop(0.6, '#2a4a18');
+          upperGrad.addColorStop(1, '#1a3a08');
+
+          this.ctx.globalAlpha = 1;
+          this.ctx.fillStyle = upperGrad;
+          this.ctx.beginPath();
+          this.ctx.ellipse(renderHeadX, upperJawY, headR * headScale * 1.05, headR * headScale * 0.45, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Lower jaw
+          const lowerGrad = this.ctx.createRadialGradient(renderHeadX, lowerJawY, 0, renderHeadX, lowerJawY, headR * headScale);
+          lowerGrad.addColorStop(0, '#3a5a28');
+          lowerGrad.addColorStop(0.6, '#2a4a18');
+          lowerGrad.addColorStop(1, '#1a3a08');
+
+          this.ctx.fillStyle = lowerGrad;
+          this.ctx.beginPath();
+          this.ctx.ellipse(renderHeadX, lowerJawY, headR * headScale * 1.05, headR * headScale * 0.45, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // --- INNER MOUTH (red) ---
+          if (jawOpen > 0.05) {
+            const mouthH = headR * headScale * 0.35 * jawOpen;
+            const mouthGrad = this.ctx.createLinearGradient(renderHeadX, upperJawY, renderHeadX, lowerJawY);
+            mouthGrad.addColorStop(0, '#6a1a0a');
+            mouthGrad.addColorStop(0.5, '#8a2a1a');
+            mouthGrad.addColorStop(1, '#5a1005');
+
+            this.ctx.globalAlpha = 0.8;
+            this.ctx.fillStyle = mouthGrad;
+            this.ctx.beginPath();
+            this.ctx.ellipse(renderHeadX, renderHeadY, headR * headScale * 0.65, mouthH, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Throat darkness
+            this.ctx.globalAlpha = 0.5;
+            this.ctx.fillStyle = '#1a0500';
+            this.ctx.beginPath();
+            this.ctx.ellipse(renderHeadX, renderHeadY, headR * headScale * 0.35, mouthH * 0.6, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // --- TEETH ---
+          this.ctx.globalAlpha = 0.9;
+          this.ctx.fillStyle = '#2a1a08';
+          const teethCount = 8;
+          for (let ti = 0; ti < teethCount; ti++) {
+            const ta = (ti / teethCount) * Math.PI * 2;
+            // Upper teeth
+            const ux = renderHeadX + Math.cos(ta) * headR * headScale * 0.85;
+            const uy = upperJawY + Math.sin(ta) * headR * headScale * 0.3;
+            const toothLen = 6 + Math.sin(ta * 3) * 2;
+            const toothW = 2.5;
+            this.ctx.beginPath();
+            this.ctx.moveTo(ux - toothW * 0.5, uy);
+            this.ctx.lineTo(ux, uy + Math.sin(ta) > 0 ? toothLen : -toothLen);
+            this.ctx.lineTo(ux + toothW * 0.5, uy);
+            this.ctx.closePath();
+            this.ctx.fill();
+
+            // Lower teeth
+            const lx = renderHeadX + Math.cos(ta) * headR * headScale * 0.85;
+            const ly = lowerJawY + Math.sin(ta) * headR * headScale * 0.3;
+            this.ctx.beginPath();
+            this.ctx.moveTo(lx - toothW * 0.5, ly);
+            this.ctx.lineTo(lx, ly + Math.sin(ta) > 0 ? toothLen : -toothLen);
+            this.ctx.lineTo(lx + toothW * 0.5, ly);
+            this.ctx.closePath();
+            this.ctx.fill();
+          }
+
+          // --- HEAD THORNS ---
+          this.ctx.globalAlpha = 0.8;
+          this.ctx.fillStyle = '#2a1005';
+          const headThorns = 6;
+          for (let ht = 0; ht < headThorns; ht++) {
+            const hta = (ht / headThorns) * Math.PI * 2 + time * 0.001;
+            const htx = renderHeadX + Math.cos(hta) * headR * headScale * 1.15;
+            const hty = renderHeadY + Math.sin(hta) * headR * headScale * 0.9;
+            const hlen = 5 + Math.sin(hta * 4) * 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(htx, hty);
+            this.ctx.lineTo(htx + Math.cos(hta) * hlen, hty + Math.sin(hta) * hlen);
+            this.ctx.lineTo(htx + Math.cos(hta + 0.4) * hlen * 0.3, hty + Math.sin(hta + 0.4) * hlen * 0.3);
+            this.ctx.closePath();
+            this.ctx.fill();
+          }
+
+          // --- MOSS ACCENTS ON HEAD ---
+          this.ctx.globalAlpha = 0.4;
+          this.ctx.fillStyle = '#2a4a2a';
+          for (let m = 0; m < 4; m++) {
+            const ma = (m / 4) * Math.PI * 2 + time * 0.0008;
+            const mx = renderHeadX + Math.cos(ma) * headR * headScale * (0.7 + Math.random() * 0.2);
+            const my = renderHeadY + Math.sin(ma) * headR * headScale * (0.5 + Math.random() * 0.3);
+            this.ctx.beginPath();
+            this.ctx.arc(mx, my, 2 + Math.random() * 2, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // ========== CAPTURED BALL WRAPPING ==========
+          if ((state === 'winding' || state === 'striking' || state === 'holding' || state === 'throwing') && obs._capturedBall) {
+            const ball = obs._capturedBall;
+            const ballX = ball.x - camX;
+            const ballY = ball.y;
+            const ballR = ball.radius || 15;
+
+            // Multiple vine coils wrapping the ball
+            const coilCount = 5;
+            this.ctx.globalAlpha = 0.9;
+            this.ctx.strokeStyle = '#3a3018';
+            this.ctx.lineWidth = 6;
+            this.ctx.lineCap = 'round';
+
+            for (let c = 0; c < coilCount; c++) {
+              const coilPhase = (c / coilCount) * Math.PI * 4 + time * 0.01 * (state === 'holding' ? 1 : 0);
+              const coilRadius = ballR + 4 + c * 3;
               this.ctx.beginPath();
-              this.ctx.ellipse(headX + Math.cos(ra) * rd, headY + Math.sin(ra) * rd, 3, 1.5, ra, 0, Math.PI * 2);
+              for (let cp = 0; cp <= 8; cp++) {
+                const ca = (cp / 8) * Math.PI * 2 + coilPhase;
+                const cx = ballX + Math.cos(ca) * coilRadius;
+                const cy = ballY + Math.sin(ca) * coilRadius * 0.7;
+                if (cp === 0) this.ctx.moveTo(cx, cy);
+                else this.ctx.lineTo(cx, cy);
+              }
+              this.ctx.stroke();
+            }
+
+            // Highlight on coils
+            this.ctx.globalAlpha = 0.3;
+            this.ctx.strokeStyle = '#5a5028';
+            this.ctx.lineWidth = 2;
+            for (let c = 0; c < coilCount; c++) {
+              const coilPhase = (c / coilCount) * Math.PI * 4 + time * 0.01;
+              const coilRadius = ballR + 4 + c * 3;
+              this.ctx.beginPath();
+              for (let cp = 0; cp <= 8; cp++) {
+                const ca = (cp / 8) * Math.PI * 2 + coilPhase;
+                const cx = ballX + Math.cos(ca) * coilRadius;
+                const cy = ballY + Math.sin(ca) * coilRadius * 0.7;
+                if (cp === 0) this.ctx.moveTo(cx, cy);
+                else this.ctx.lineTo(cx, cy);
+              }
+              this.ctx.stroke();
+            }
+
+            // Thorns pressing into ball
+            this.ctx.globalAlpha = 0.7;
+            this.ctx.fillStyle = '#2a1005';
+            const pressThorns = 8;
+            for (let pt = 0; pt < pressThorns; pt++) {
+              const pta = (pt / pressThorns) * Math.PI * 2 + time * 0.02;
+              const ptx = ballX + Math.cos(pta) * (ballR + 2);
+              const pty = ballY + Math.sin(pta) * (ballR + 2);
+              const ptLen = 4 + Math.sin(pta * 5 + time * 0.05) * 2;
+              this.ctx.beginPath();
+              this.ctx.moveTo(ptx, pty);
+              this.ctx.lineTo(ptx + Math.cos(pta) * ptLen, pty + Math.sin(pta) * ptLen);
+              this.ctx.lineTo(ptx + Math.cos(pta + 0.5) * ptLen * 0.3, pty + Math.sin(pta + 0.5) * ptLen * 0.3);
+              this.ctx.closePath();
+              this.ctx.fill();
+            }
+
+            // Leaf fragments shaking loose during hold
+            if (state === 'holding' && Math.random() < 0.02) {
+              for (let lf = 0; lf < 2; lf++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle', x: ballX + Math.cos(a) * ballR, y: ballY + Math.sin(a) * ballR,
+                  vx: Math.cos(a) * 0.5, vy: Math.sin(a) * 0.5 + 0.3,
+                  alpha: 0.4, size: 2 + Math.random() * 2, life: 20 + Math.floor(Math.random() * 15),
+                  color: '#3a6a3a'
+                });
+              }
+            }
+
+            // Sap droplets
+            if (state === 'holding') {
+              obs._particleTimer = (obs._particleTimer || 0) + dt60;
+              if (obs._particleTimer >= 10) {
+                obs._particleTimer = 0;
+                for (let sd = 0; sd < 2; sd++) {
+                  const a = Math.random() * Math.PI * 2;
+                  this.particles.push({
+                    type: 'sparkle', x: ballX + Math.cos(a) * ballR, y: ballY + Math.sin(a) * ballR,
+                    vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3 + 0.5,
+                    alpha: 0.3, size: 1.5 + Math.random(), life: 18 + Math.floor(Math.random() * 12),
+                    color: '#1a3a1a'
+                  });
+                }
+              }
+            }
+          }
+
+          // ========== STATE-SPECIFIC EFFECTS ==========
+
+          // Winding: dust/tremble particles at base
+          if (state === 'winding') {
+            this.ctx.globalAlpha = 0.3;
+            for (let wp = 0; wp < 3; wp++) {
+              const wa = Math.random() * Math.PI * 2;
+              const wx = vineCamX + Math.cos(wa) * 20;
+              const wy = obs.y + Math.sin(wa) * 15;
+              this.ctx.fillStyle = '#4a4030';
+              this.ctx.beginPath();
+              this.ctx.arc(wx, wy, 1 + Math.random() * 2, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+          }
+
+          // Strike: motion blur lines
+          if (state === 'striking' && strikeProgress > 0.3) {
+            this.ctx.globalAlpha = 0.2 * (1 - strikeProgress);
+            this.ctx.strokeStyle = '#4a3a28';
+            this.ctx.lineWidth = 4;
+            const blurCount = 3;
+            for (let b = 0; b < blurCount; b++) {
+              const bx = headSwayX + Math.cos(obs._strikeDirection) * 60 * strikeProgress * (b / blurCount);
+              const by = headSwayY + Math.sin(obs._strikeDirection) * 60 * strikeProgress * (b / blurCount);
+              this.ctx.beginPath();
+              this.ctx.moveTo(vineCamX, obs.y);
+              this.ctx.quadraticCurveTo(
+                (vineCamX + bx) * 0.5, (obs.y + by) * 0.5,
+                bx, by
+              );
+              this.ctx.stroke();
+            }
+          }
+
+          // Throw: leaf burst
+          if (state === 'throwing' && throwProgress > 0.4 && throwProgress < 0.6) {
+            this.ctx.globalAlpha = 0.5 * (1 - Math.abs(throwProgress - 0.5) * 2);
+            for (let tb = 0; tb < 6; tb++) {
+              const ta = Math.random() * Math.PI * 2;
+              const td = 10 + Math.random() * 20;
+              this.ctx.fillStyle = '#3a6a3a';
+              this.ctx.beginPath();
+              this.ctx.ellipse(renderHeadX + Math.cos(ta) * td, renderHeadY + Math.sin(ta) * td, 4, 2, ta, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+          }
+
+          // Recovery: settling particles
+          if (state === 'recovery') {
+            this.ctx.globalAlpha = 0.2 * (1 - recoveryProgress);
+            for (let rp = 0; rp < 3; rp++) {
+              const ra = Math.random() * Math.PI * 2;
+              const rd = 15 + Math.random() * 25 * recoveryProgress;
+              this.ctx.fillStyle = '#3a5a3a';
+              this.ctx.beginPath();
+              this.ctx.ellipse(renderHeadX + Math.cos(ra) * rd, renderHeadY + Math.sin(ra) * rd, 2, 1, ra, 0, Math.PI * 2);
               this.ctx.fill();
             }
           }
