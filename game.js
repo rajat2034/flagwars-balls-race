@@ -28,8 +28,8 @@ const MAP_THEMES = {
   },
   jungle: {
     name: "Amazon Canopy",
-    bgGrad: ["#196f3d", "#145a32"],
-    wallColor: "#114f24",
+    bgGrad: ["#0d1f14", "#060f08"],
+    wallColor: "#3a3a3a",
     pegColor: "#229954",
     pegBouncyColor: "#f4d03f",
     particleColor: "#58d68d",
@@ -76,7 +76,7 @@ const MAP_THEMES = {
   }
 };
 
-// Data-driven obstacle registry — add new obstacles here; UI auto-populates
+// Data-driven obstacle registry ??? add new obstacles here; UI auto-populates
 const OBSTACLE_REGISTRY = [
   { type: 'portal', name: 'Portal', category: 'core', map: null },
   { type: 'boost', name: 'Boost Pad', category: 'core', map: null },
@@ -108,7 +108,7 @@ const OBSTACLE_REGISTRY = [
   // Amazon
   { type: 'swinging_vine', name: 'Swinging Vine', category: 'signature', map: 'jungle' },
   { type: 'rolling_log', name: 'Rolling Log', category: 'signature', map: 'jungle' },
-  { type: 'carnivorous_plant', name: 'Carnivorous Plant', category: 'signature', map: 'jungle' },
+  { type: 'carnivorous_vine', name: 'Carnivorous Vine', category: 'signature', map: 'jungle' },
   // Mariana
   { type: 'whirlpool', name: 'Whirlpool', category: 'signature', map: 'ocean' },
   { type: 'jellyfish', name: 'Jellyfish', category: 'signature', map: 'ocean' },
@@ -137,7 +137,7 @@ const EVENT_REGISTRY = [
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
 ];
 
-// Text contrast helper — returns appropriate colors based on map brightness
+// Text contrast helper ??? returns appropriate colors based on map brightness
 function getThemeColors(themeKey) {
   const theme = MAP_THEMES[themeKey];
   if (!theme) return { primary: '#ffffff', secondary: '#a0a5b5', accent: '#ffd700' };
@@ -159,7 +159,7 @@ function getThemeColors(themeKey) {
   };
 }
 
-// Web Audio API Synthesizer — countdown + winner sounds only
+// Web Audio API Synthesizer ??? countdown + winner sounds only
 class SoundSynth {
   constructor() {
     this.ctx = null;
@@ -404,7 +404,7 @@ class SoundSynth {
   }
 }
 
-// Dynamic Commentary System — generates race event messages and manages Match Events panel
+// Dynamic Commentary System ??? generates race event messages and manages Match Events panel
 class Commentary {
   constructor() {
     this.entries = [];
@@ -461,7 +461,7 @@ class Commentary {
   }
 }
 
-// Global Event Banner — queue-based animated banner displayed on canvas near lower-center
+// Global Event Banner ??? queue-based animated banner displayed on canvas near lower-center
 class GlobalEventBanner {
   constructor(engine) {
     this._engine = engine || null;
@@ -563,7 +563,7 @@ class GlobalEventBanner {
     ctx.roundRect(-bannerW / 2 - 3, -bannerH / 2 - 3, bannerW + 6, bannerH + 6, 31);
     ctx.stroke();
 
-    // Event name (large, bold) — always on dark pill, use white
+    // Event name (large, bold) ??? always on dark pill, use white
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(255, 200, 0, 0.3)';
@@ -587,7 +587,7 @@ class GlobalEventBanner {
   }
 }
 
-// Race Director — TV-style producer that watches the race and presents exciting moments
+// Race Director ??? TV-style producer that watches the race and presents exciting moments
 // Does NOT change gameplay, physics, or race balance
 class RaceDirector {
   constructor() {
@@ -1115,7 +1115,7 @@ class RaceDirector {
   }
 }
 
-// Broadcast Director — professional state-machine camera orchestration
+// Broadcast Director ??? professional state-machine camera orchestration
 // Decides WHAT the camera should watch and at what zoom.
 // Camera simply executes the shots with smooth cinematic movement.
 // Follows a strict state machine: only one state active at any time.
@@ -1137,7 +1137,7 @@ class BroadcastDirector {
     this._state = BroadcastDirector.STATE.LEADER_FOLLOW;
     this._stateTimer = 0;
     this._cooldownTimer = 0;
-    this._eventThreshold = 5; // 1-10 — only events >= threshold trigger EVENT_FOCUS
+    this._eventThreshold = 5; // 1-10 ??? only events >= threshold trigger EVENT_FOCUS
     this._targetBallId = 'leader';
     this._targetZoom = 1.0;
     this._manualOverride = false;
@@ -1375,7 +1375,7 @@ class BroadcastDirector {
   }
 }
 
-// Story Engine — continuously observes race data, identifies memorable narratives
+// Story Engine ??? continuously observes race data, identifies memorable narratives
 // Never changes gameplay. Produces Story Events for the Match Events UI.
 // Max one story per ~15-20s. Higher-priority stories override in a given frame.
 // Priority order: LeaderCrash > Comeback > Rivalry > Dominance > Underdog > Collapse
@@ -1457,30 +1457,30 @@ class StoryEngine {
     // Collect candidate stories this frame
     const candidates = [];
 
-    // 1. DOMINANCE — same country leading for > 30s continuous
+    // 1. DOMINANCE ??? same country leading for > 30s continuous
     this._detectDominance(active, candidates);
 
-    // 2. COMEBACK — gain >= 8 positions
+    // 2. COMEBACK ??? gain >= 8 positions
     this._detectComeback(active, leaderboard, candidates);
 
-    // 3. COLLAPSE — lose >= 7 positions
+    // 3. COLLAPSE ??? lose >= 7 positions
     this._detectCollapse(active, leaderboard, candidates);
 
-    // 4. RIVALRY — same pair exchange 3+ times
+    // 4. RIVALRY ??? same pair exchange 3+ times
     this._detectRivalry(active, leaderboard, candidates);
 
-    // 5. UNDERDOG — bottom-third racer enters top 5
+    // 5. UNDERDOG ??? bottom-third racer enters top 5
     this._detectUnderdog(active, leaderboard, candidates);
 
-    // 6. SURVIVAL — escapes bottom 2 in elimination mode
+    // 6. SURVIVAL ??? escapes bottom 2 in elimination mode
     if (gameMode === 'knockout') {
       this._detectSurvival(active, candidates);
     }
 
-    // 7. LEADER CRASH — leader hit by obstacle then loses lead
+    // 7. LEADER CRASH ??? leader hit by obstacle then loses lead
     this._detectLeaderCrash(active, candidates);
 
-    // 8. RECORD RUN — new max position gain
+    // 8. RECORD RUN ??? new max position gain
     this._detectRecordRun(active, leaderboard, candidates);
 
     // Update saved positions for next frame
@@ -1734,7 +1734,7 @@ class StoryEngine {
     const color = STORY_COLORS[type] || '#ffd700';
     const id = ++this._storyIdCounter;
     el.dataset.id = 'story-' + id;
-    el.innerHTML = `<span class="rd-ts" style="color:${color}">★ STORY</span><span class="rd-msg" style="color:${color}">${message}</span>`;
+    el.innerHTML = `<span class="rd-ts" style="color:${color}">??? STORY</span><span class="rd-msg" style="color:${color}">${message}</span>`;
     el.style.borderLeftColor = color;
 
     if (list.firstChild) {
@@ -1782,65 +1782,65 @@ class StoryEngine {
   }
 }
 
-// Story message templates — each with an emoji prefix
+// Story message templates ??? each with an emoji prefix
 const STORY_TEMPLATES = {
   dominance: [
-    ['👑', '{name} is dominating this race!'],
-    ['🔥', '{name} refuses to give up the lead!'],
-    ['👑', '{name} is in complete control!'],
-    ['🔥', 'Nobody can catch {name} today!'],
-    ['👑', '{name} makes it look easy!'],
-    ['🔥', '{name} is untouchable at the front!'],
+    ['????', '{name} is dominating this race!'],
+    ['????', '{name} refuses to give up the lead!'],
+    ['????', '{name} is in complete control!'],
+    ['????', 'Nobody can catch {name} today!'],
+    ['????', '{name} makes it look easy!'],
+    ['????', '{name} is untouchable at the front!'],
   ],
   comeback: [
-    ['🚀', 'Incredible comeback by {name}!'],
-    ['🔥', '{name} is charging through the field!'],
-    ['⭐', '{name} stages an amazing recovery!'],
-    ['🚀', '{name} rockets up the standings!'],
-    ['🔥', 'What a fightback from {name}!'],
-    ['⭐', '{name} defies the odds!'],
+    ['????', 'Incredible comeback by {name}!'],
+    ['????', '{name} is charging through the field!'],
+    ['???', '{name} stages an amazing recovery!'],
+    ['????', '{name} rockets up the standings!'],
+    ['????', 'What a fightback from {name}!'],
+    ['???', '{name} defies the odds!'],
   ],
   collapse: [
-    ['💥', "{name}'s race is falling apart!"],
-    ['😱', '{name} loses control!'],
-    ['💥', '{name} is tumbling down the order!'],
-    ['😱', 'Disaster for {name}!'],
-    ['💥', '{name} is in deep trouble!'],
-    ['😱', 'Things go from bad to worse for {name}!'],
+    ['????', "{name}'s race is falling apart!"],
+    ['????', '{name} loses control!'],
+    ['????', '{name} is tumbling down the order!'],
+    ['????', 'Disaster for {name}!'],
+    ['????', '{name} is in deep trouble!'],
+    ['????', 'Things go from bad to worse for {name}!'],
   ],
   rivalry: [
-    ['⚔', '{name} are battling for every position!'],
-    ['🔥', '{name} refuse to back down!'],
-    ['⚔', '{name} are locked in battle!'],
-    ['🔥', '{name} are trading places!'],
-    ['⚔', '{name} won\'t give an inch!'],
+    ['???', '{name} are battling for every position!'],
+    ['????', '{name} refuse to back down!'],
+    ['???', '{name} are locked in battle!'],
+    ['????', '{name} are trading places!'],
+    ['???', '{name} won\'t give an inch!'],
   ],
   underdog: [
-    ['⭐', '{name} shocks the field!'],
-    ['🚀', '{name} joins the front runners!'],
-    ['⭐', '{name} is climbing the ranks!'],
-    ['🚀', '{name} is making a name for themselves!'],
-    ['⭐', '{name} rises to the occasion!'],
+    ['???', '{name} shocks the field!'],
+    ['????', '{name} joins the front runners!'],
+    ['???', '{name} is climbing the ranks!'],
+    ['????', '{name} is making a name for themselves!'],
+    ['???', '{name} rises to the occasion!'],
   ],
   survival: [
-    ['😮', '{name} survives elimination!'],
-    ['🍀', '{name} escapes at the last second!'],
-    ['😮', '{name} cheats elimination!'],
-    ['🍀', 'Lucky escape for {name}!'],
-    ['😮', '{name} clings on!'],
+    ['????', '{name} survives elimination!'],
+    ['????', '{name} escapes at the last second!'],
+    ['????', '{name} cheats elimination!'],
+    ['????', 'Lucky escape for {name}!'],
+    ['????', '{name} clings on!'],
   ],
   leaderCrash: [
-    ['💥', 'The leader has been taken down!'],
-    ['🚨', 'Massive upset at the front!'],
-    ['💥', 'The leader is hit!'],
-    ['🚨', 'Chaos at the front of the race!'],
-    ['💥', 'The leader is in trouble!'],
+    ['????', 'The leader has been taken down!'],
+    ['????', 'Massive upset at the front!'],
+    ['????', 'The leader is hit!'],
+    ['????', 'Chaos at the front of the race!'],
+    ['????', 'The leader is in trouble!'],
   ],
   recordRun: [
-    ['🏆', 'Biggest comeback of today\'s stream by {name}!'],
-    ['🏆', '{name} sets a new record climb!'],
-    ['🏆', '{name} makes history with this charge!'],
-    ['🏆', 'Unbelievable run from {name}!'],
+    ['????', 'Biggest comeback of today\'s stream by {name}!'],
+    ['????', '{name} sets a new record climb!'],
+    ['????', '{name} makes history with this charge!'],
+    ['????', 'Unbelievable run from {name}!'],
   ],
 };
 
@@ -1974,15 +1974,22 @@ class GameEngine {
     this._firestormSkyTint = 0;
 
     // Jungle theme state
-    this._jungleParrots = [];
-    this._jungleToucans = [];
+    this._jungleGiantTrees = [];
+    this._jungleRoots = [];
+    this._jungleWaterfalls = [];
+    this._jungleSunRays = [];
+    this._jungleBirds = [];
     this._jungleButterflies = [];
+    this._jungleMonkeys = [];
     this._jungleDragonflies = [];
-    this._jungleBirdFlocks = [];
-    this._junglePollen = [];
-    this._jungleDriftingLeaves = [];
+    this._jungleLeaves = [];
     this._jungleMistParticles = [];
     this._jungleFlowers = [];
+    this._jungleWildlife = [];
+    this._jungleFireflies = [];
+    this._jungleAmbientParticles = [];
+    this._jungleRiver = [];
+    this._jungleCrossVines = [];
 
     this.directorMode = null;
     this._directorInput = '';
@@ -2098,7 +2105,7 @@ class GameEngine {
       enabledSet.delete('slow');
     }
 
-    // Build frequency weight map (1→1, 2→3, 3→5, 4→10, 5→20)
+    // Build frequency weight map (1???1, 2???3, 3???5, 4???10, 5???20)
     const freqWeights = {};
     if (obstacleFreqs) {
       OBSTACLE_REGISTRY.forEach(o => {
@@ -2134,7 +2141,7 @@ class GameEngine {
     let currentWidth = baseWidth;
 
     // Multi-directional track waypoints defining the path's overall direction
-    // Track snakes: right → down-right → right → up-right → right → down-right → finish
+    // Track snakes: right ??? down-right ??? right ??? up-right ??? right ??? down-right ??? finish
     const waypoints = [
       { t: 0.00, y: 280 },
       { t: 0.10, y: 300 },
@@ -2239,7 +2246,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       ice_cannon: { min: 200, preferred: 320, recovery: 150, safeLanding: 120 }
     };
 
-    // Zone-based pacing configuration (t = x / length) — higher density, intentional rhythm
+    // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.45,
         types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser']) },
@@ -2322,6 +2329,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
     // Helper to get bounding box for validation
     const getBB = (obs) => {
+      if (!obs || !obs.x || !obs.y) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
       let minX = obs.x;
       let maxX = obs.x;
       let minY = obs.y || 300;
@@ -2388,6 +2396,13 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         maxX = obs.x + crackW / 2;
         minY = obs.y - crackH / 2;
         maxY = obs.y + crackH / 2 + eruptionH;
+      } else if (obs.type === 'carnivorous_vine') {
+        if (!obs || !obs.x || !obs.y) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+        const vineR = 30;
+        minX = obs.x - vineR;
+        maxX = obs.x + vineR;
+        minY = obs.y - vineR * 2;
+        maxY = obs.y + vineR;
       } else if (obs.type === 'collapsing_pillar') {
         if (obs._state === 'fallen' || obs._state === 'disappearing') {
           const fw = obs._fallenWidth || 80;
@@ -2666,7 +2681,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       const segObstaclePositions = [];
 
       // Density slider (20-100%): higher = more obstacles, tighter spacing
-      // multiplier: 1.8 at 20% → 0.5 at 100% (3.6x range)
+      // multiplier: 1.8 at 20% ??? 0.5 at 100% (3.6x range)
       const pct = densityPct || 80;
       const densityMult = 1.8 - (pct / 100) * 1.3;
       // Cap to avoid division by zero / negative
@@ -2903,12 +2918,12 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           const portalSize = 50;
           const p1Y = clampY(centerY + (Math.random() - 0.5) * 30, bounds, portalSize / 2 + 8);
           
-          // Exit portal — must be placeable for the pair to exist
+          // Exit portal ??? must be placeable for the pair to exist
           const x2 = Math.min(x + distAhead, segEnd - 100);
           const bounds2 = getBounds(x2);
           if (bounds2 && x2 > x + 250) {
             const p2Y = clampY((bounds2.topY + bounds2.bottomY) / 2, bounds2, portalSize / 2 + 10);
-            // Both portals confirmed — push entry then exit
+            // Both portals confirmed ??? push entry then exit
             track.zones.push({
               type: 'portal', x: x - portalSize / 2, y: p1Y - portalSize / 2,
               width: portalSize, height: portalSize, pairId, radius: portalSize / 2
@@ -3438,7 +3453,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       if (_removeZone.size > 0) track.zones = track.zones.filter((_, i) => !_removeZone.has(i) || track.zones[i].type === 'finish');
     }
 
-    // Remove orphan portal zones (no matching pair — entry whose exit couldn't be placed)
+    // Remove orphan portal zones (no matching pair ??? entry whose exit couldn't be placed)
     {
       const portalCounts = new Map();
       track.zones.filter(z => z.type === 'portal').forEach(z => portalCounts.set(z.pairId, (portalCounts.get(z.pairId) || 0) + 1));
@@ -3490,6 +3505,52 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           _timer: _phase,
           _irregularity: (Math.random() - 0.5) * 3
         });
+      }
+    }
+
+    // Generate Carnivorous Vines for Amazon Canopy
+    if (enabledSet.has('carnivorous_vine') && themeKey === 'jungle') {
+      try {
+        const vineCount = 20 + Math.floor(Math.random() * 11); // 20-30
+        for (let vi = 0; vi < vineCount; vi++) {
+          const vx = 200 + (vi / vineCount) * (finishX - 400) + (Math.random() - 0.5) * 60;
+          if (Math.abs(vx - finishX) < 500) continue;
+          const vb = this.physics.getWallBoundaries(vx, track);
+          if (!vb || vb.bottomY - vb.topY < 100) continue;
+          const onTop = Math.random() < 0.5;
+          const wallY = onTop ? vb.topY : vb.bottomY;
+          const vy = onTop ? wallY + 10 + Math.random() * 15 : wallY - 10 - Math.random() * 15;
+          let overlap = false;
+          for (const o of track.obstacles) {
+            if (Math.abs(o.x - vx) < 80) { overlap = true; break; }
+          }
+          if (overlap) continue;
+          for (const z of track.zones) {
+            if (z.type === 'boost' || z.type === 'portal') {
+              if (Math.abs(z.x + z.width / 2 - vx) < 90) { overlap = true; break; }
+            }
+          }
+          if (overlap) continue;
+          track.obstacles.push({
+            type: 'carnivorous_vine',
+            x: vx, y: vy,
+            wallSide: onTop ? 'top' : 'bottom',
+            stemHeight: 20 + Math.random() * 25,
+            headRadius: 10 + Math.random() * 4,
+            _state: 'idle',
+            _stateTimer: 0,
+            _phase: Math.random() * Math.PI * 2,
+            _capturedBall: null,
+            _cooldownTimer: 0,
+            _grabProgress: 0,
+            _launchVx: 0,
+            _launchVy: 0,
+            _wigglePhase: Math.random() * Math.PI * 2,
+            _leafParticles: []
+          });
+        }
+      } catch (e) {
+        console.warn('Carnivorous vine spawning failed:', e.message);
       }
     }
 
@@ -3823,7 +3884,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           }
         }
         obs._prevProgress = _iProgress;
-        // Collision — only when extended
+        // Collision ??? only when extended
         if (this.balls && _iProgress > 0.5) {
           const _iLen = obs.length || 45;
           const _iDir = obs.wallSide === 'top' ? 1 : -1;
@@ -4181,6 +4242,110 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           }
         }
       });
+    }
+
+    // Carnivorous Vine state machine (Amazon Canopy exclusive)
+    try {
+      if (this.currentThemeKey === 'jungle' && this.track && this.track.obstacles) {
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'carnivorous_vine') return;
+          if (obs._state === 'idle') {
+            // Check for nearby balls to capture
+            for (const ball of this.balls) {
+              if (ball.finished || ball.z > 0 || ball._capturedByVine) continue;
+              const dx = ball.x - obs.x;
+              const dy = ball.y - obs.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist < 45) {
+                obs._state = 'grabbing';
+                obs._stateTimer = 0;
+                obs._grabProgress = 0;
+                obs._capturedBall = ball;
+                ball._capturedByVine = obs;
+                ball.vx = 0;
+                ball.vy = 0;
+                // Particle burst on grab
+                for (let p = 0; p < 6; p++) {
+                  const a = Math.random() * Math.PI * 2;
+                  this.particles.push({
+                    type: 'sparkle', x: ball.x, y: ball.y,
+                    vx: Math.cos(a) * (1 + Math.random()), vy: Math.sin(a) * (1 + Math.random()),
+                    alpha: 0.6, size: 2 + Math.random() * 2, life: 15 + Math.floor(Math.random() * 10),
+                    color: '#4a8a3a'
+                  });
+                }
+                break;
+              }
+            }
+          } else if (obs._state === 'grabbing') {
+            obs._stateTimer += dt;
+            obs._grabProgress = Math.min(obs._stateTimer / 15, 1);
+            if (obs._capturedBall) {
+              const wiggle = Math.sin(obs._wigglePhase + obs._stateTimer * 0.15) * 2;
+              obs._capturedBall.x = obs.x + wiggle;
+              obs._capturedBall.y = obs.y + wiggle;
+              obs._capturedBall.vx = 0;
+              obs._capturedBall.vy = 0;
+            }
+            if (obs._grabProgress >= 1) {
+              obs._state = 'captured';
+              obs._stateTimer = 0;
+            }
+          } else if (obs._state === 'captured') {
+            obs._stateTimer += dt;
+            if (obs._capturedBall) {
+              const wiggle = Math.sin(obs._wigglePhase + obs._stateTimer * 0.2) * 3;
+              const wiggleY = Math.cos(obs._wigglePhase + obs._stateTimer * 0.15) * 2;
+              obs._capturedBall.x = obs.x + wiggle;
+              obs._capturedBall.y = obs.y + wiggleY;
+              obs._capturedBall.vx = 0;
+              obs._capturedBall.vy = 0;
+            }
+            // Release after 1.5 seconds (90 frames at 60fps)
+            if (obs._stateTimer >= 90) {
+              obs._state = 'releasing';
+              obs._stateTimer = 0;
+              if (obs._capturedBall) {
+                const angle = Math.random() * Math.PI * 2;
+                const force = 3 + Math.random() * 2;
+                obs._capturedBall._capturedByVine = null;
+                obs._capturedBall.vx = Math.cos(angle) * force;
+                obs._capturedBall.vy = Math.sin(angle) * force;
+                obs._launchVx = obs._capturedBall.vx;
+                obs._launchVy = obs._capturedBall.vy;
+                // Leaf scatter on release
+                for (let p = 0; p < 10; p++) {
+                  const a = Math.random() * Math.PI * 2;
+                  this.particles.push({
+                    type: 'sparkle', x: obs.x, y: obs.y,
+                    vx: Math.cos(a) * (1.5 + Math.random() * 2), vy: Math.sin(a) * (1.5 + Math.random() * 2),
+                    alpha: 0.5, size: 1.5 + Math.random() * 2, life: 20 + Math.floor(Math.random() * 15),
+                    color: '#2a6a3a'
+                  });
+                }
+                obs._capturedBall = null;
+              }
+            }
+          } else if (obs._state === 'releasing') {
+            obs._stateTimer += dt;
+            if (obs._stateTimer >= 20) {
+              obs._state = 'cooldown';
+              obs._stateTimer = 0;
+              obs._cooldownTimer = 0;
+            }
+          } else if (obs._state === 'cooldown') {
+            obs._cooldownTimer += dt;
+            if (obs._cooldownTimer >= 120) { // 2 seconds cooldown
+              obs._state = 'idle';
+              obs._stateTimer = 0;
+              obs._capturedBall = null;
+              obs._grabProgress = 0;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Carnivorous vine state machine error:', e.message);
     }
 
     // Collapsing Rock Pillar state machine (Magma Crater exclusive)
@@ -5791,7 +5956,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             });
           }
 
-          // Chunks pass through everything — only removed when off-screen or expired
+          // Chunks pass through everything ??? only removed when off-screen or expired
           if (chunk.life <= 0 || chunk.y > this.canvas.height / this.cameraZoom + 200) {
             // Recycle chunk
             this._lavaChunks.splice(ci, 1);
@@ -5881,6 +6046,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         radius: 15,
         mass: 0.8 + Math.random() * 0.4,
         restitution: 0.3,
+        _capturedByVine: null,
         finished: false,
         eliminated: false,
         finishTime: 0,
@@ -5920,11 +6086,11 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       if (this.state === 'racing') {
         this.raceTimer += (16.666 * dt) / 1000;
 
-        // Event scheduling — uses config computed once in startRace()
+        // Event scheduling ??? uses config computed once in startRace()
         const evtCfg = this._eventIntensityCfg || { base: 20, variation: 3, maxEvents: 18 };
         if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime) {
           this.triggerRandomEvent();
-          // Next event: base interval ± random variation
+          // Next event: base interval ?? random variation
           const offset = (Math.random() - 0.5) * 2 * evtCfg.variation;
           this._nextEventRaceTime += evtCfg.base + offset;
         }
@@ -5950,7 +6116,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         }
       }
 
-      // Winner flash → champion overlay transition
+      // Winner flash ??? champion overlay transition
       if (this._winnerFlashActive && this._winnerFlashBall) {
         if (performance.now() - this._winnerFlashStart >= 2000) {
           this._championOverlayShown = true;
@@ -6074,7 +6240,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         }
       }
 
-      // Ice Ramp freeze management (Glacier Summit slow zones → speed cap on exit)
+      // Ice Ramp freeze management (Glacier Summit slow zones ??? speed cap on exit)
       if (this.balls) {
         for (const ball of this.balls) {
           if (ball.finished) continue;
@@ -6092,7 +6258,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
             ball._iceRampExitSpeed = speed;
             ball._iceRampFrozen = true;
-            ball._iceRampFreezeTimer = 210; // 210 dt ≈ 3.5s at 60fps
+            ball._iceRampFreezeTimer = 210; // 210 dt ??? 3.5s at 60fps
           }
 
           // Speed cap while frozen
@@ -6104,7 +6270,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
               // Phase 1: full freeze at 50% for first ~2s
               speedCapRatio = 0.5;
             } else if (ball._iceRampFreezeTimer > 0) {
-              // Phase 2: gradual recovery from 0.5→1.0 over ~1.5s
+              // Phase 2: gradual recovery from 0.5???1.0 over ~1.5s
               const recoveryProgress = 1 - (ball._iceRampFreezeTimer / 90);
               speedCapRatio = 0.5 + recoveryProgress * 0.5;
             } else {
@@ -6142,7 +6308,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         }
       }
 
-      // Lava Pool burn effect (Magma Crater exclusive — applies on exit from lava pool)
+      // Lava Pool burn effect (Magma Crater exclusive ??? applies on exit from lava pool)
       if (this.currentThemeKey === 'volcano' && this.balls) {
         for (const ball of this.balls) {
           if (ball.finished || ball.eliminated) continue;
@@ -6167,7 +6333,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
               // Phase 1: full burn at 50% for first ~0.5s
               speedCapRatio = 0.5;
             } else if (ball._lavaBurnTimer > 0) {
-              // Phase 2: smooth recovery from 0.5→1.0 over ~1.5s (ease-out)
+              // Phase 2: smooth recovery from 0.5???1.0 over ~1.5s (ease-out)
               const progress = 1 - (ball._lavaBurnTimer / 90);
               const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
               speedCapRatio = 0.5 + eased * 0.5;
@@ -6220,7 +6386,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
               // Phase 1: full burn at 50% for first ~0.5s
               speedCapRatio = 0.5;
             } else if (ball._geyserBurnTimer > 0) {
-              // Phase 2: smooth recovery from 0.5→1.0 over ~1.5s (ease-out)
+              // Phase 2: smooth recovery from 0.5???1.0 over ~1.5s (ease-out)
               const progress = 1 - (ball._geyserBurnTimer / 90);
               const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
               speedCapRatio = 0.5 + eased * 0.5;
@@ -6285,7 +6451,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
               // Phase 1: full burn at 40% for first ~2s
               speedCapRatio = 0.4;
             } else if (ball._showerBurnTimer > 0) {
-              // Phase 2: smooth recovery from 0.4→1.0 over ~1s (ease-out)
+              // Phase 2: smooth recovery from 0.4???1.0 over ~1s (ease-out)
               const progress = 1 - (ball._showerBurnTimer / 120);
               const eased = 1 - Math.pow(1 - progress, 3);
               speedCapRatio = 0.4 + eased * 0.6;
@@ -6457,7 +6623,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           }
         }
 
-        // Update ambient ash particles — 5 emitters across full viewport, rising from bottom
+        // Update ambient ash particles ??? 5 emitters across full viewport, rising from bottom
         const ashEmitters = [0.05, 0.25, 0.5, 0.75, 0.95];
         const ashColors = ['#3a3028', '#2a2218', '#4a3a30', '#1e1814', '#332a22'];
         for (const ax of ashEmitters) {
@@ -6482,7 +6648,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         }
         this._volcanoAshParticles = this._volcanoAshParticles.filter(p => p.life > 0 && p.y > 0);
 
-        // Update ambient ember particles — 5 emitters across full viewport, rising from bottom
+        // Update ambient ember particles ??? 5 emitters across full viewport, rising from bottom
         const emberEmitters = [0.05, 0.25, 0.5, 0.75, 0.95];
         const emberColors = ['#ff6600', '#ff8800', '#ffaa00', '#ff4400', '#ff7700'];
         for (const ex of emberEmitters) {
@@ -6725,11 +6891,11 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       }
     }
 
-    // Broadcast Director — observe and decide camera state
+    // Broadcast Director ??? observe and decide camera state
     this.broadcastDirector.observe(this.balls, this.leaderboard, this.raceTimer, this.track, this.gameMode, this.activeEvent);
     this.broadcastDirector.update(dt);
 
-    // Story Engine — observe race data, produce narratives for the event feed
+    // Story Engine ??? observe race data, produce narratives for the event feed
     this.storyEngine.observe(this.balls, this.leaderboard, this.raceTimer, this.track, this.gameMode);
 
     // Camera executes the Broadcast Director's shot with smooth movement
@@ -6943,7 +7109,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
     }
   }
 
-  // Smooth camera follow — leader-centered, lerp-based
+  // Smooth camera follow ??? leader-centered, lerp-based
   updateCameraController(dt) {
     if (this.balls.length === 0) return;
 
@@ -6984,7 +7150,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
     const maxCamX = this.track ? Math.max(0, this.track.length - this.canvas.width / this.cameraZoom) : 0;
     targetX = Math.max(0, Math.min(targetX, maxCamX));
 
-    // Smooth camera follow — frame-rate independent lerp for buttery motion
+    // Smooth camera follow ??? frame-rate independent lerp for buttery motion
     const lerpFactor = 1 - Math.pow(1 - 0.06, dt);
     this.cameraX += (targetX - this.cameraX) * lerpFactor;
 
@@ -7049,7 +7215,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       const spawnY = -20;
 
       if (pType === 'snow') {
-        // Main snowfall — subtle, blue-tinted, smaller flakes
+        // Main snowfall ??? subtle, blue-tinted, smaller flakes
         if (Math.random() < 0.6) {
           const flakeSize = Math.random() * 3 + 0.5;
           this.particles.push({
@@ -7102,7 +7268,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         });
       } else if (pType === 'ember' && this.currentThemeKey !== 'volcano') {
         // Volcano: embers rise from bottom lava grids
-        // Skipped for Magma Crater — volcano-specific atmo overlay handles embers in the correct layer (behind track, obstacles, balls)
+        // Skipped for Magma Crater ??? volcano-specific atmo overlay handles embers in the correct layer (behind track, obstacles, balls)
         this.particles.push({
           type: 'ember',
           x: Math.random() * 500,
@@ -7125,7 +7291,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           size: Math.random() * 3 + 1
         });
       } else if (pType === 'cosmic' || pType === 'star') {
-        // Cosmic space dust — tiny, slow, ethereal
+        // Cosmic space dust ??? tiny, slow, ethereal
         this.particles.push({
           type: 'dust',
           x: spawnX,
@@ -7376,6 +7542,10 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
   // Primary rendering cycle (scales and draws track, particles, UI overlays)
   render() {
+    try {
+    // 0. Reset canvas transform to prevent corrupt state from carrying over
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+
     // 1. Clear screen
     const screenW = this.canvas.width;
     const screenH = this.canvas.height;
@@ -7389,8 +7559,15 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
     // Draw dynamic background elements (map-specific atmospheric effects)
     // All volcano decorative effects (lava, smoke, embers, ash, eruption, heat shimmer)
-    // are rendered inside renderDynamicBackground — nothing decorative above the track.
-    this.renderDynamicBackground(screenW, screenH);
+    // are rendered inside renderDynamicBackground ??? nothing decorative above the track.
+    // Wrapped in save/restore with try/finally to absorb any unbalanced ctx saves from
+    // internal rendering errors — guarantees clean canvas state when background finishes.
+    this.ctx.save();
+    try {
+      this.renderDynamicBackground(screenW, screenH);
+    } finally {
+      this.ctx.restore();
+    }
 
     // Apply camera shake offset
     // Calculate scaling coordinates based on aspect ratio
@@ -7415,6 +7592,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
     // 2. Render track contents (Walls, Pegs, Boosts, Balls) inside scaled wrapper
     this.ctx.save();
+    // Use try/finally to guarantee ctx.restore() even if rendering throws
+    try {
     this.ctx.translate(trackOffset, 0);
     this.ctx.scale(zoom, zoom);
 
@@ -7430,7 +7609,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         if (zX + zone.width < -zoneCullBuffer || zX > screenW / zoom + zoneCullBuffer) return; // offscreen cull
 
         if (zone.type === 'boost') {
-          // Boost zone — green fill, forward arrows
+          // Boost zone ??? green fill, forward arrows
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(46,204,113,0.25)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
@@ -7836,14 +8015,14 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.restore();
           }
         } else if (zone.type === 'ice') {
-          // Ice zone — label only
+          // Ice zone ??? label only
           this.ctx.fillStyle = 'rgba(100,200,255,0.2)';
           this.ctx.font = 'bold 11px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           this.ctx.fillText('ICE', zX + zone.width / 2, zone.y + zone.height / 2);
         } else if (zone.type === 'oil') {
-          // Oil zone — label only
+          // Oil zone ??? label only
           this.ctx.fillStyle = 'rgba(100,80,60,0.2)';
           this.ctx.font = 'bold 11px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
@@ -7860,7 +8039,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           const isSnow = this.currentThemeKey === 'snow';
           const approachW = 150;
 
-          // Approach zone — subtle gradient 150px before the finish line
+          // Approach zone ??? subtle gradient 150px before the finish line
           this.ctx.save();
           const approachGrad = this.ctx.createLinearGradient(finishX - approachW, 0, finishX, 0);
           if (isSnow) {
@@ -8054,7 +8233,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           this.ctx.restore();
 
         } else if (zone.type === 'portal') {
-          // Portal — purple vortex, direction-agnostic
+          // Portal ??? purple vortex, direction-agnostic
           this.ctx.save();
           const cx = zX + zone.width / 2;
           const cy = zone.y + zone.height / 2;
@@ -8102,10 +8281,10 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             }
             this.ctx.stroke();
           }
-          // Direction arrow — shows whether paired portal is ahead (→) or behind (←)
+          // Direction arrow ??? shows whether paired portal is ahead (???) or behind (???)
           const pairPortal = this.track.zones.find(z => z !== zone && z.type === 'portal' && z.pairId === zone.pairId);
           if (pairPortal) {
-            const arrow = pairPortal.x > zone.x ? '→' : '←';
+            const arrow = pairPortal.x > zone.x ? '???' : '???';
             this.ctx.fillStyle = 'rgba(200,160,255,0.75)';
             this.ctx.font = 'bold 20px Montserrat, sans-serif';
             this.ctx.textAlign = 'center';
@@ -8114,11 +8293,11 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           }
           this.ctx.restore();
         } else if (zone.type === 'shortcutEntry') {
-          // Removed shortcut label — replaced with wind zone logic
+          // Removed shortcut label ??? replaced with wind zone logic
         } else if (zone.type === 'shortcutExit') {
-          // Removed shortcut label — replaced with wind zone logic
+          // Removed shortcut label ??? replaced with wind zone logic
         } else if (zone.type === 'bottleneck') {
-          // Narrow corridor zone — subtle wall indicators
+          // Narrow corridor zone ??? subtle wall indicators
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(231,76,60,0.08)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
@@ -8133,7 +8312,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           this.ctx.fillText('MERGE', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.restore();
         } else if (zone.type === 'jump') {
-          // Jump zone — upward arrow and light fill
+          // Jump zone ??? upward arrow and light fill
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(155,89,182,0.15)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
@@ -8145,7 +8324,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           this.ctx.fillText('\u2191', zX + zone.width / 2, zone.y + zone.height / 2 + bounce);
           this.ctx.restore();
         } else if (zone.type === 'launch') {
-          // Bounce pad — upward launch zone
+          // Bounce pad ??? upward launch zone
           this.ctx.save();
           const bounceY = Math.sin(Date.now() * 0.01) * 2;
           this.ctx.fillStyle = 'rgba(46,204,113,0.25)';
@@ -8161,7 +8340,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       };
       if (this.currentThemeKey !== 'volcano') renderTrackZones();
 
-      // Draw Static Pegs (Bumpers) — white, shiny, glossy
+      // Draw Static Pegs (Bumpers) ??? white, shiny, glossy
       this.track.pegs.forEach(peg => {
         const pegX = peg.x - camX;
         const pegCullBuffer = Math.max(200, 300 / this.userZoomMultiplier);
@@ -8279,8 +8458,13 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           let surfaceColor = wallRgba;
           // Volcano: use dark metallic graphite instead of red wall color for track surface
           if (this.currentThemeKey === 'volcano') {
-            surfaceColor = '#1a1612'; // Dark volcanic rock / graphite
+            surfaceColor = '#1a1612';
             surfAlpha = 0.85;
+          }
+          // Jungle: use opaque stone-gray pathway that stands out from the dark forest
+          if (this.currentThemeKey === 'jungle') {
+            surfaceColor = '#6a5a48';
+            surfAlpha = 1.0;
           }
           this.ctx.fillStyle = hexToRgba(surfaceColor, surfAlpha);
           this.ctx.beginPath();
@@ -8300,7 +8484,17 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
             this.ctx.fill();
           }
-          // Edge lighting — subtle gradient near track boundaries
+          // Jungle: ancient stone pathway overlay for track separation
+          if (this.currentThemeKey === 'jungle') {
+            this.ctx.fillStyle = 'rgba(60, 50, 40, 0.10)';
+            this.ctx.beginPath();
+            this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
+            for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
+            this.ctx.fill();
+          }
+          // Edge lighting ??? subtle gradient near track boundaries
           const topEdgeY = visibleTop[0].y;
           const botEdgeY = visibleBot[0].y;
 
@@ -8365,6 +8559,22 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
               this.ctx.lineTo(cx + 18 + (c * 19) % 12, cy - 10 + (c * 5) % 6);
               this.ctx.stroke();
             }
+          } else if (this.currentThemeKey === 'jungle') {
+            // Jungle: mossy stone paver cracks instead of grass
+            this.ctx.strokeStyle = 'rgba(50, 60, 40, 0.05)';
+            this.ctx.lineWidth = 1;
+            const paverSeed = Math.floor(camX / 20);
+            for (let p = 0; p < 8; p++) {
+              const px = visibleTop[0].x + ((paverSeed * 53 + p * 67) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const py = topEdgeY + 6 + ((paverSeed * 31 + p * 89) % (botEdgeY - topEdgeY - 12));
+              const pw = 6 + ((paverSeed * 41 + p * 53) % 12);
+              this.ctx.beginPath();
+              this.ctx.moveTo(px, py);
+              this.ctx.lineTo(px + pw, py - 2 + ((p * 7) % 5));
+              this.ctx.moveTo(px + pw * 0.3, py + 3);
+              this.ctx.lineTo(px + pw * 0.7, py + 1);
+              this.ctx.stroke();
+            }
           } else {
             this.ctx.strokeStyle = 'rgba(46,204,113,0.03)';
             this.ctx.lineWidth = 1.5;
@@ -8396,7 +8606,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           this.ctx.stroke();
           this.ctx.setLineDash([]);
 
-          // Wear marks — subtle dark streaks
+          // Wear marks ??? subtle dark streaks
           this.ctx.strokeStyle = 'rgba(0,0,0,0.04)';
           this.ctx.lineWidth = 1;
           const wearSeed = Math.floor(camX / 20);
@@ -8720,7 +8930,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           this.ctx.fill();
           this.ctx.restore();
         } else if (obs.type === 'c_bumper') {
-          // Rotating C-bumper — small semicircular arc like a pinball bumper
+          // Rotating C-bumper ??? small semicircular arc like a pinball bumper
           const R = obs.radius || 70;
           const rot = obs.rotation || 0;
           const lw = obs.thickness || 8;
@@ -8786,7 +8996,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           bgGrad.addColorStop(1, 'rgba(243,156,18,0.12)');
           this.ctx.fillStyle = bgGrad;
           this.ctx.fillRect(obsX, topY, obs.length, obs.width);
-          // Top wall — yellow hazard stripe
+          // Top wall ??? yellow hazard stripe
           this.ctx.strokeStyle = '#f39c12';
           this.ctx.lineWidth = 6;
           this.ctx.shadowColor = 'rgba(243,156,18,0.4)';
@@ -9047,7 +9257,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           // Wall switcher: panel slides between blocking top and bottom
           const bounds = this.physics.getWallBoundaries(obs.x, this.track);
           const trackH = bounds.bottomY - bounds.topY;
-          const gapH = 80; // 2.67× ball diameter open gap
+          const gapH = 80; // 2.67?? ball diameter open gap
           // Calculate panel height based on open/closed state
           const targetPanelH = obs.isOpen ? gapH : trackH;
           const panelH = gapH + (targetPanelH - gapH) * obs._slide;
@@ -9238,7 +9448,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           }
 
         } else if (obs.type === 'collapsing_pillar') {
-          // Collapsing Rock Pillar — Magma Crater exclusive volcanic obstacle
+          // Collapsing Rock Pillar ??? Magma Crater exclusive volcanic obstacle
           const pState = obs._state || 'standing';
           const pCamX = obs.x - camX;
           const pSide = obs._wallSide || 'top';
@@ -9422,10 +9632,161 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           }
 
           this.ctx.restore();
+        } else if (obs.type === 'carnivorous_vine') {
+        // Carnivorous Vine — Amazon Canopy exclusive
+        try {
+          const vineCamX = obs.x - camX;
+          const vineCullBuf = 300;
+          if (vineCamX + 200 < -vineCullBuf || vineCamX - 200 > screenW / zoom + vineCullBuf) return;
+          this.ctx.save();
+
+          const isTop = obs.wallSide === 'top';
+          const headR = obs.headRadius || 12;
+          const stemH = obs.stemHeight || 22;
+          const phase = obs._phase || 0;
+          const state = obs._state || 'idle';
+          const swayAmt = Math.sin(performance.now() * 0.002 + phase) * 3;
+          const breatheAmt = Math.sin(performance.now() * 0.003 + phase) * 0.3 + 1;
+
+          // Head position (center of flytrap)
+          const headX = vineCamX + swayAmt;
+          const headY = isTop ? obs.y + stemH * 0.5 : obs.y - stemH * 0.5;
+
+          // Vine stem — thick curved stalk from track edge
+          this.ctx.globalAlpha = 0.7;
+          this.ctx.strokeStyle = '#2a3a28';
+          this.ctx.lineWidth = 3 + Math.sin(phase) * 0.5;
+          this.ctx.beginPath();
+          if (isTop) {
+            this.ctx.moveTo(vineCamX, obs.y);
+            this.ctx.quadraticCurveTo(headX - swayAmt * 0.5, obs.y + stemH * 0.3, headX, headY);
+          } else {
+            this.ctx.moveTo(vineCamX, obs.y);
+            this.ctx.quadraticCurveTo(headX - swayAmt * 0.5, obs.y - stemH * 0.3, headX, headY);
+          }
+          this.ctx.stroke();
+
+          // Surrounding leaves at base
+          this.ctx.globalAlpha = 0.4;
+          this.ctx.fillStyle = '#1a4a28';
+          const baseLeafCount = 4;
+          for (let li = 0; li < baseLeafCount; li++) {
+            const la = (li / baseLeafCount) * Math.PI * 2 + phase;
+            const lx = vineCamX + Math.cos(la) * (8 + Math.sin(phase + li) * 2);
+            const ly = obs.y + Math.sin(la) * (4 + Math.cos(phase + li) * 1.5);
+            this.ctx.beginPath();
+            this.ctx.ellipse(lx, ly, 6, 3, la * 0.3, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Flytrap head — two halves with teeth
+          const isGrabbing = state === 'grabbing';
+          const isCaptured = state === 'captured';
+          const isReleasing = state === 'releasing' || state === 'cooldown';
+          const headOpen = (state === 'idle' || state === 'cooldown');
+          const snapClose = isGrabbing ? 1 - (obs._grabProgress || 0) : (isCaptured ? 0 : 1);
+          const openAngle = headOpen ? 0.4 : (isReleasing ? 0.6 : 0.1);
+          const pulseOpen = headOpen ? 0.35 + 0.05 * Math.sin(performance.now() * 0.004 + phase) : openAngle;
+
+          // Outer jaw (bottom half)
+          this.ctx.globalAlpha = 0.6;
+          this.ctx.fillStyle = '#2a5a28';
+          this.ctx.beginPath();
+          this.ctx.ellipse(headX, headY + headR * 0.2 * snapClose, headR * 1.1 * breatheAmt, headR * 0.5 * snapClose, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Inner jaw (top half)
+          this.ctx.beginPath();
+          this.ctx.ellipse(headX, headY - headR * 0.2 * snapClose, headR * 1.1 * breatheAmt, headR * 0.5 * snapClose, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Red inner mouth (visible when open)
+          if (headOpen || isReleasing) {
+            this.ctx.globalAlpha = 0.3;
+            this.ctx.fillStyle = '#8a2a1a';
+            const mouthOpen = headOpen ? pulseOpen : 0.4;
+            this.ctx.beginPath();
+            this.ctx.ellipse(headX, headY, headR * 0.6 * breatheAmt, headR * 0.3 * mouthOpen, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Teeth along the jaw edge
+          this.ctx.globalAlpha = 0.2;
+          this.ctx.fillStyle = '#4a6a3a';
+          const teethCount = 5;
+          for (let ti = 0; ti < teethCount; ti++) {
+            const ta = (ti / teethCount) * Math.PI * 2 + phase * 0.1;
+            const tx = headX + Math.cos(ta) * headR * 0.9 * breatheAmt;
+            const ty = headY + Math.sin(ta) * headR * 0.4 * snapClose;
+            this.ctx.beginPath();
+            this.ctx.moveTo(tx - 2, ty);
+            this.ctx.lineTo(tx, ty + 4 * (Math.sin(ta) > 0 ? 1 : -1));
+            this.ctx.lineTo(tx + 2, ty);
+            this.ctx.closePath();
+            this.ctx.fill();
+          }
+
+          // Capture particle effects
+          if (isGrabbing) {
+            this.ctx.globalAlpha = 0.3;
+            for (let cp = 0; cp < 3; cp++) {
+              const ca = Math.random() * Math.PI * 2;
+              const cd = Math.random() * headR;
+              this.ctx.fillStyle = '#4a8a3a';
+              this.ctx.beginPath();
+              this.ctx.arc(headX + Math.cos(ca) * cd, headY + Math.sin(ca) * cd, 1.5 + Math.random(), 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+          }
+
+          // Captured ball indicator (green glow around captured ball)
+          if (isCaptured && obs._capturedBall) {
+            this.ctx.globalAlpha = 0.15 + 0.1 * Math.sin(performance.now() * 0.005);
+            this.ctx.fillStyle = '#4a8a3a';
+            this.ctx.beginPath();
+            this.ctx.arc(obs._capturedBall.x - camX, obs._capturedBall.y, 18, 0, Math.PI * 2);
+            this.ctx.fill();
+            // Tendril coils
+            this.ctx.globalAlpha = 0.2;
+            this.ctx.strokeStyle = '#3a6a3a';
+            this.ctx.lineWidth = 1.5;
+            const ballX = obs._capturedBall.x - camX;
+            const ballY = obs._capturedBall.y;
+            for (let tc = 0; tc < 3; tc++) {
+              const ta2 = tc * 2.1 + phase + performance.now() * 0.002;
+              this.ctx.beginPath();
+              this.ctx.moveTo(headX, headY);
+              this.ctx.quadraticCurveTo(
+                (headX + ballX) / 2 + Math.cos(ta2) * 8,
+                (headY + ballY) / 2 + Math.sin(ta2) * 6,
+                ballX, ballY
+              );
+              this.ctx.stroke();
+            }
+          }
+
+          // Release burst (leaf scatter for a few frames)
+          if (state === 'releasing') {
+            this.ctx.globalAlpha = 0.25 * (1 - (obs._stateTimer / 20));
+            for (let rp = 0; rp < 4; rp++) {
+              const ra = Math.random() * Math.PI * 2;
+              const rd = 5 + Math.random() * 15;
+              this.ctx.fillStyle = '#4a7a3a';
+              this.ctx.beginPath();
+              this.ctx.ellipse(headX + Math.cos(ra) * rd, headY + Math.sin(ra) * rd, 3, 1.5, ra, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+          }
+
+          this.ctx.globalAlpha = 1;
+          this.ctx.restore();
+        } catch (e) {
+          console.warn('Carnivorous vine render error:', e.message);
         }
+      }
       });
 
-      // Lava Shower — render molten lava chunks
+      // Lava Shower ??? render molten lava chunks
       if (this._lavaChunks && this._lavaChunks.length > 0) {
         for (const chunk of this._lavaChunks) {
           const cX = chunk.x - camX;
@@ -9515,7 +9876,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       }
 
 
-      // Draw Retractable Wall Icicles — natural ice formations on track boundaries
+      // Draw Retractable Wall Icicles ??? natural ice formations on track boundaries
       if (this.track && this.track.obstacles) {
         this.track.obstacles.forEach(obs => {
           if (obs.type !== 'icicle') return;
@@ -9582,7 +9943,7 @@ this.ctx.restore();
       }
     }
 
-      // Draw Lava Geysers — Magma Crater exclusive volcanic hazard
+      // Draw Lava Geysers ??? Magma Crater exclusive volcanic hazard
       if (this.currentThemeKey === 'volcano' && this.track && this.track.obstacles) {
         this.track.obstacles.forEach(obs => {
           if (obs.type !== 'lava_geyser') return;
@@ -9813,7 +10174,7 @@ this.ctx.restore();
           this.ctx.restore();
         }
 
-        // 3) Flag ball body — redesigned with professional lighting
+        // 3) Flag ball body ??? redesigned with professional lighting
         this.ctx.save();
 
         // --- Antialiasing via sub-pixel offset ---
@@ -9858,7 +10219,7 @@ this.ctx.restore();
           this.ctx.fillText(ball.code.toUpperCase().substring(0, 3), bX, ball.y);
         }
 
-        // Subtle ambient occlusion — darker near edges opposite light
+        // Subtle ambient occlusion ??? darker near edges opposite light
         const aoGrad = this.ctx.createRadialGradient(
           bX + renderRadius * 0.25, ball.y + renderRadius * 0.25, 0,
           bX, ball.y, renderRadius * 1.1
@@ -9872,7 +10233,7 @@ this.ctx.restore();
         this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Rim light — thin bright edge on light-facing side
+        // Rim light ??? thin bright edge on light-facing side
         const rimGrad = this.ctx.createRadialGradient(
           bX + renderRadius * lx * 0.5, ball.y + renderRadius * ly * 0.5, renderRadius * 0.55,
           bX, ball.y, renderRadius
@@ -10355,14 +10716,16 @@ this.ctx.restore();
         // 4) Country label (with auto text contrast)
         this.ctx.save();
         const tColors = getThemeColors(this.currentThemeKey);
-        this.ctx.fillStyle = tColors.primary;
-        this.ctx.shadowColor = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'rgba(255,255,255,0.5)';
-        this.ctx.shadowBlur = 4;
         this.ctx.font = 'bold 9px Montserrat, sans-serif';
         this.ctx.textAlign = 'center';
 
         if (ball.eliminated) {
           this.ctx.fillStyle = '#e74c3c';
+          this.ctx.shadowColor = '#000000';
+          this.ctx.shadowBlur = 4;
+          this.ctx.lineWidth = 2.5;
+          this.ctx.strokeStyle = '#000000';
+          this.ctx.strokeText('ELIMINATED', bX, ball.y + renderRadius + 11);
           this.ctx.fillText('ELIMINATED', bX, ball.y + renderRadius + 11);
         } else {
           let labelName = ball.name;
@@ -10372,10 +10735,16 @@ this.ctx.restore();
             this.ctx.fillStyle = '#FFD700';
             this.ctx.shadowColor = '#FFD700';
             this.ctx.shadowBlur = 6;
+            this.ctx.lineWidth = 2.5;
+            this.ctx.strokeStyle = '#000000';
+            this.ctx.strokeText(displayLabel, bX, ball.y + renderRadius + 11);
           } else {
             this.ctx.fillStyle = tColors.primary;
             this.ctx.shadowColor = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'rgba(255,255,255,0.5)';
             this.ctx.shadowBlur = 4;
+            this.ctx.lineWidth = 2.5;
+            this.ctx.strokeStyle = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'transparent';
+            this.ctx.strokeText(displayLabel, bX, ball.y + renderRadius + 11);
           }
           this.ctx.fillText(displayLabel, bX, ball.y + renderRadius + 11);
         }
@@ -10395,7 +10764,7 @@ this.ctx.restore();
           this.ctx.restore();
         }
 
-        // 6) Leader crown — gold star above 1st place
+        // 6) Leader crown ??? gold star above 1st place
         if (ball.rank === 1 && !ball.finished) {
           this.ctx.save();
           const crownY = ball.y - renderRadius - 18;
@@ -10519,18 +10888,26 @@ this.ctx.restore();
         });
       }
 
-      this.ctx.restore(); // restore translate and scale zoom
+      } finally { this.ctx.restore(); }
 
       // Full screen UI overlays (canvas overlay space)
-      this.renderScreenOverlays(screenW, screenH);
+      // Wrapped in save/restore with try/finally to absorb any unbalanced ctx saves
+      this.ctx.save();
+      try {
+        this.renderScreenOverlays(screenW, screenH);
+      } finally {
+        this.ctx.restore();
+      }
 
       // Director Mode overlay (tiny, bottom-left, semi-transparent)
       if (this.directorMode) {
         this._renderDirectorOverlay(screenW, screenH);
       }
-    }
+    } catch (e) {
+      console.warn('Render error:', e.message);
+    }}
 
-    // Draw map-specific animated background elements — parallax stadium scene
+    // Draw map-specific animated background elements ??? parallax stadium scene
     renderDynamicBackground(screenW, screenH) {
       const ctx = this.ctx;
       const theme = this.currentThemeKey;
@@ -10538,15 +10915,18 @@ this.ctx.restore();
       const time = Date.now() / 1000;
 
       // ---- LAYER 1: Deep background gradient (ambient light) ----
-      ctx.save();
-      const ambGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.3, 0, screenW * 0.5, screenH * 0.3, screenH * 1.2);
-      ambGrad.addColorStop(0, 'rgba(255,255,255,0.03)');
-      ambGrad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = ambGrad;
-      ctx.fillRect(0, 0, screenW, screenH);
-      ctx.restore();
+      // Skipped for jungle — no fullscreen overlays; background uses individual elements only
+      if (theme !== 'jungle') {
+        ctx.save();
+        const ambGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.3, 0, screenW * 0.5, screenH * 0.3, screenH * 1.2);
+        ambGrad.addColorStop(0, 'rgba(255,255,255,0.03)');
+        ambGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = ambGrad;
+        ctx.fillRect(0, 0, screenW, screenH);
+        ctx.restore();
+      }
 
-      // ---- LAYER 2: Crowd silhouettes (low contrast — support the race, never compete) ----
+      // ---- LAYER 2: Crowd silhouettes (low contrast, support the race, never compete) ----
       ctx.save();
       ctx.globalAlpha = 0.07;
       const crowdWave = Math.sin(time * 0.8) * 2;
@@ -10571,15 +10951,18 @@ this.ctx.restore();
       ctx.restore();
 
       // ---- LAYER 3: Focus gradient — saturate near track, darken edges ----
-      ctx.save();
-      const focusGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.5, screenH * 0.15, screenW * 0.5, screenH * 0.5, screenH * 0.7);
-      focusGrad.addColorStop(0, 'rgba(0,0,0,0)');
-      focusGrad.addColorStop(0.5, 'rgba(0,0,0,0)');
-      focusGrad.addColorStop(0.85, 'rgba(0,0,0,0.04)');
-      focusGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
-      ctx.fillStyle = focusGrad;
-      ctx.fillRect(0, 0, screenW, screenH);
-      ctx.restore();
+      // Skipped for jungle — no fullscreen overlays
+      if (theme !== 'jungle') {
+        ctx.save();
+        const focusGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.5, screenH * 0.15, screenW * 0.5, screenH * 0.5, screenH * 0.7);
+        focusGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        focusGrad.addColorStop(0.5, 'rgba(0,0,0,0)');
+        focusGrad.addColorStop(0.85, 'rgba(0,0,0,0.04)');
+        focusGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
+        ctx.fillStyle = focusGrad;
+        ctx.fillRect(0, 0, screenW, screenH);
+        ctx.restore();
+      }
 
       // ---- LAYER 4: Map-specific atmospheric effects (reduced opacity) ----
       if (theme === 'desert') {
@@ -10753,7 +11136,7 @@ this.ctx.restore();
         ctx.fill();
         ctx.restore();
 
-        // ========== MID LAYER: Aurora borealis (skip during aurora event — enhanced version renders above) ==========
+        // ========== MID LAYER: Aurora borealis (skip during aurora event ??? enhanced version renders above) ==========
         if (!this._auroraActive) {
           ctx.save();
           const aurAlpha = 0.07 + Math.sin(time * 0.07) * 0.05;
@@ -12029,7 +12412,7 @@ this.ctx.restore();
           a.trail.push({ x: a.x, y: a.y });
           if (a.trail.length > a.maxTrail) a.trail.shift();
           ctx.save();
-          // --- Draw trail (segments: blue-grey smoke → white → yellow → orange) ---
+          // --- Draw trail (segments: blue-grey smoke ??? white ??? yellow ??? orange) ---
           if (a.trail.length > 2) {
             for (let t = 1; t < a.trail.length; t++) {
               const tf = t / a.trail.length;
@@ -12139,390 +12522,875 @@ this.ctx.restore();
         try {
         const camParallax = (this.cameraX || 0) * 0.02;
 
-        // ========== LAYER 1: Sky gradient (warm humid tropical sky) ==========
+        // ================================================================
+        // DEPTH LAYER 1 — VERY FAR BACKGROUND (sky, mountains, silhouettes, fog)
+        // Parallax: 0.02–0.08x. Deepest atmospheric backdrop.
+        // ================================================================
+
+        // 1a. Sky — pale morning sky through canopy gap
         ctx.save();
         const skyGrad = ctx.createLinearGradient(0, 0, 0, screenH * 0.5);
-        skyGrad.addColorStop(0, 'rgba(135, 180, 210, 0.30)');
-        skyGrad.addColorStop(0.3, 'rgba(160, 200, 180, 0.20)');
-        skyGrad.addColorStop(0.6, 'rgba(180, 210, 160, 0.12)');
-        skyGrad.addColorStop(1, 'rgba(100, 140, 80, 0)');
+        skyGrad.addColorStop(0, 'rgba(70, 100, 120, 0.12)');
+        skyGrad.addColorStop(0.3, 'rgba(60, 95, 100, 0.08)');
+        skyGrad.addColorStop(0.6, 'rgba(50, 85, 75, 0.04)');
+        skyGrad.addColorStop(1, 'rgba(30, 60, 45, 0)');
         ctx.fillStyle = skyGrad;
         ctx.fillRect(0, 0, screenW, screenH * 0.5);
         ctx.restore();
 
-        // ========== LAYER 2: Distant jungle mountains (parallax 0.02) ==========
+        // 1b. Distant rainforest mountains (3 overlapping layers)
         ctx.save();
-        const mountOffset = camParallax * 0.3;
+        const mountOffset = camParallax * 0.02;
         ctx.globalAlpha = 0.12;
-        ctx.fillStyle = '#2d4a3e';
+        ctx.fillStyle = '#1a3a2a';
         ctx.beginPath();
         ctx.moveTo(0, screenH);
         for (let x = 0; x <= screenW; x += 3) {
-          const m1 = Math.sin((x + mountOffset) * 0.0012 + time * 0.002) * 60;
-          const m2 = Math.sin((x + mountOffset) * 0.0035 + time * 0.003 + 1.5) * 40;
-          const m3 = Math.sin((x + mountOffset) * 0.006 + time * 0.004 + 3.0) * 25;
-          const y = screenH * 0.22 + m1 + m2 * 0.6 + m3 * 0.4;
-          ctx.lineTo(x, y);
+          const m1 = Math.sin((x + mountOffset) * 0.001 + time * 0.001) * 50;
+          const m2 = Math.sin((x + mountOffset) * 0.003 + time * 0.0015 + 1.5) * 30;
+          const m3 = Math.sin((x + mountOffset) * 0.006 + time * 0.0008 + 3.0) * 18;
+          ctx.lineTo(x, screenH * 0.30 + m1 + m2 * 0.5 + m3 * 0.3);
         }
         ctx.lineTo(screenW, screenH);
         ctx.closePath();
         ctx.fill();
-        // Lighter distant hills
-        ctx.globalAlpha = 0.08;
-        ctx.fillStyle = '#3a5a48';
-        ctx.beginPath();
-        ctx.moveTo(0, screenH);
-        for (let x = 0; x <= screenW; x += 3) {
-          const m1 = Math.sin((x + mountOffset) * 0.0018 + time * 0.001 + 0.5) * 50;
-          const m2 = Math.sin((x + mountOffset) * 0.004 + time * 0.002 + 2.0) * 30;
-          const y = screenH * 0.18 + m1 + m2 * 0.5;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(screenW, screenH);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-
-        // ========== LAYER 3: Morning haze / atmospheric fog (soft gradient) ==========
-        ctx.save();
-        const hazeGrad = ctx.createLinearGradient(0, screenH * 0.15, 0, screenH * 0.55);
-        hazeGrad.addColorStop(0, 'rgba(200, 220, 200, 0)');
-        hazeGrad.addColorStop(0.4, 'rgba(180, 210, 180, 0.04)');
-        hazeGrad.addColorStop(0.7, 'rgba(160, 190, 160, 0.06)');
-        hazeGrad.addColorStop(1, 'rgba(140, 170, 140, 0.03)');
-        ctx.fillStyle = hazeGrad;
-        ctx.fillRect(0, 0, screenW, screenH);
-        ctx.restore();
-
-        // ========== LAYER 4: Distant rainforest canopy (parallax 0.05) ==========
-        ctx.save();
-        const canopyOffset = camParallax * 0.6;
-        ctx.globalAlpha = 0.20;
-        ctx.fillStyle = '#1e3a2a';
-        ctx.beginPath();
-        ctx.moveTo(0, screenH);
-        for (let x = 0; x <= screenW; x += 2) {
-          const c1 = Math.sin((x + canopyOffset) * 0.003 + time * 0.001) * 35;
-          const c2 = Math.sin((x + canopyOffset) * 0.007 + time * 0.002 + 1.0) * 22;
-          const c3 = Math.sin((x + canopyOffset) * 0.015 + time * 0.001 + 2.5) * 12;
-          const y = screenH * 0.30 + c1 + c2 * 0.6 + c3 * 0.4;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(screenW, screenH);
-        ctx.closePath();
-        ctx.fill();
-        // Second canopy layer (slightly brighter, offset)
-        ctx.globalAlpha = 0.15;
+        ctx.globalAlpha = 0.09;
         ctx.fillStyle = '#2a4a38';
         ctx.beginPath();
         ctx.moveTo(0, screenH);
-        for (let x = 0; x <= screenW; x += 2) {
-          const c1 = Math.sin((x + canopyOffset) * 0.004 + time * 0.002 + 0.7) * 30;
-          const c2 = Math.sin((x + canopyOffset) * 0.009 + time * 0.001 + 3.0) * 18;
-          const y = screenH * 0.26 + c1 + c2 * 0.5;
-          ctx.lineTo(x, y);
+        for (let x = 0; x <= screenW; x += 3) {
+          const m1 = Math.sin((x + mountOffset) * 0.0015 + time * 0.0008 + 0.5) * 42;
+          const m2 = Math.sin((x + mountOffset) * 0.004 + time * 0.0012 + 2.0) * 25;
+          ctx.lineTo(x, screenH * 0.27 + m1 + m2 * 0.5);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.06;
+        ctx.fillStyle = '#3a5a3a';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const m1 = Math.sin((x + mountOffset * 1.3) * 0.002 + time * 0.001 + 1.2) * 35;
+          ctx.lineTo(x, screenH * 0.24 + m1);
         }
         ctx.lineTo(screenW, screenH);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
 
-        // ========== LAYER 5: Mid-ground tree trunks (dark brown silhouettes) ==========
+        // 1c. Atmospheric haze / soft morning fog (very top)
         ctx.save();
-        const treeData = [
-          { x: 0.06, w: 8, h: 140, phase: 0 },
-          { x: 0.15, w: 6, h: 110, phase: 1.2 },
-          { x: 0.22, w: 10, h: 160, phase: 2.5 },
-          { x: 0.30, w: 5, h: 95, phase: 3.8 },
-          { x: 0.38, w: 9, h: 130, phase: 0.5 },
-          { x: 0.45, w: 7, h: 120, phase: 1.8 },
-          { x: 0.52, w: 11, h: 170, phase: 3.0 },
-          { x: 0.60, w: 6, h: 100, phase: 4.2 },
-          { x: 0.68, w: 8, h: 145, phase: 0.8 },
-          { x: 0.75, w: 5, h: 90, phase: 2.0 },
-          { x: 0.82, w: 10, h: 155, phase: 3.5 },
-          { x: 0.90, w: 7, h: 115, phase: 4.8 },
-          { x: 0.96, w: 6, h: 105, phase: 1.5 },
+        const hazeGrad = ctx.createLinearGradient(0, 0, 0, screenH * 0.35);
+        hazeGrad.addColorStop(0, 'rgba(180, 210, 200, 0.06)');
+        hazeGrad.addColorStop(0.4, 'rgba(160, 200, 190, 0.04)');
+        hazeGrad.addColorStop(1, 'rgba(140, 180, 170, 0)');
+        ctx.fillStyle = hazeGrad;
+        ctx.fillRect(0, 0, screenW, screenH * 0.35);
+        ctx.restore();
+
+        // 1d. Distant jungle silhouette (noise-based continuous strip)
+        ctx.save();
+        const silOffset = camParallax * 0.04;
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#0d2a18';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 2) {
+          const n1 = Math.sin((x + silOffset) * 0.004 + time * 0.0005) * 18;
+          const n2 = Math.sin((x + silOffset) * 0.009 + time * 0.0008 + 1.7) * 12;
+          const n3 = Math.sin((x + silOffset) * 0.015 + time * 0.001 + 4.2) * 7;
+          ctx.lineTo(x, screenH * 0.35 + n1 + n2 + n3);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // ================================================================
+        // DEPTH LAYER 2 — FAR BACKGROUND CONTINUOUS CANOPY
+        // Parallax: 0.08–0.20x. Blended thousands of crowns — aerial view.
+        // ================================================================
+
+        ctx.save();
+        const canopyBaseX = camParallax * 0.10;
+        const canopyLayers = [
+          { y: 0.34, amp: 35, freq1: 0.003, freq2: 0.007, alpha: 0.22, color: '#0d3b1c', offset: 0 },
+          { y: 0.30, amp: 30, freq1: 0.0035, freq2: 0.008, alpha: 0.18, color: '#1a5e2a', offset: 0.7 },
+          { y: 0.27, amp: 26, freq1: 0.004, freq2: 0.009, alpha: 0.14, color: '#2d6a30', offset: 1.5 },
+          { y: 0.24, amp: 22, freq1: 0.0045, freq2: 0.01, alpha: 0.11, color: '#4a7a3a', offset: 2.2 },
+          { y: 0.21, amp: 18, freq1: 0.005, freq2: 0.011, alpha: 0.08, color: '#6a8a3a', offset: 3.0 }
         ];
-        const trunkOffset = camParallax * 0.8;
-        for (const t of treeData) {
-          const tx = t.x * screenW + Math.sin(t.phase + time * 0.002) * 8 + trunkOffset;
-          const baseY = screenH * 0.76 + Math.sin(t.phase + time * 0.001) * 4;
-          const h = t.h + Math.sin(t.phase + time * 0.003) * 8;
-          ctx.globalAlpha = 0.20;
-          ctx.fillStyle = '#2a1f18';
-          ctx.fillRect(tx - t.w * 0.5, baseY - h, t.w, h);
-          // Root flare
+        for (const cl of canopyLayers) {
+          const cx = canopyBaseX * (1 + cl.offset * 0.1);
+          ctx.globalAlpha = cl.alpha;
+          ctx.fillStyle = cl.color;
           ctx.beginPath();
-          ctx.moveTo(tx - t.w * 0.8, baseY);
-          ctx.quadraticCurveTo(tx - t.w * 0.3, baseY + 5, tx, baseY + 2);
-          ctx.quadraticCurveTo(tx + t.w * 0.3, baseY + 5, tx + t.w * 0.8, baseY);
+          ctx.moveTo(0, screenH);
+          for (let x = 0; x <= screenW; x += 2) {
+            const w1 = Math.sin((x + cx) * cl.freq1 + time * 0.0006 + cl.offset) * cl.amp;
+            const w2 = Math.sin((x + cx) * cl.freq2 + time * 0.001 + cl.offset * 1.3) * cl.amp * 0.5;
+            ctx.lineTo(x, screenH * cl.y + w1 + w2);
+          }
+          ctx.lineTo(screenW, screenH);
+          ctx.closePath();
           ctx.fill();
         }
         ctx.restore();
 
-        // ========== LAYER 6: Mid-ground canopy (large leafy crowns) ==========
+        // ================================================================
+        // DEPTH LAYER 3 — MIDDLE BACKGROUND (individual Amazon trees)
+        // Parallax: 0.25–0.50x. Kapok, rubber, palm — massive trunks & crowns.
+        // ================================================================
+
         ctx.save();
-        const canopyTrees = [
-          { x: 0.04, w: 110, h: 70, yOff: 0.50, phase: 0, color: '#1a3a28' },
-          { x: 0.12, w: 80, h: 55, yOff: 0.55, phase: 1.5, color: '#1e4028' },
-          { x: 0.20, w: 130, h: 85, yOff: 0.48, phase: 3.0, color: '#1a3a28' },
-          { x: 0.30, w: 90, h: 60, yOff: 0.53, phase: 0.8, color: '#224430' },
-          { x: 0.38, w: 120, h: 75, yOff: 0.50, phase: 2.2, color: '#1a3a28' },
-          { x: 0.48, w: 85, h: 50, yOff: 0.56, phase: 3.7, color: '#1e4028' },
-          { x: 0.56, w: 140, h: 90, yOff: 0.46, phase: 1.0, color: '#1a3a28' },
-          { x: 0.66, w: 95, h: 65, yOff: 0.52, phase: 2.8, color: '#224430' },
-          { x: 0.74, w: 110, h: 70, yOff: 0.50, phase: 4.2, color: '#1a3a28' },
-          { x: 0.82, w: 80, h: 55, yOff: 0.55, phase: 0.5, color: '#1e4028' },
-          { x: 0.90, w: 100, h: 65, yOff: 0.52, phase: 2.0, color: '#1a3a28' },
-          { x: 0.97, w: 90, h: 60, yOff: 0.54, phase: 3.5, color: '#224430' },
-        ];
-        const canopyOffset2 = camParallax * 0.7;
-        for (const c of canopyTrees) {
-          const cx = c.x * screenW + Math.sin(c.phase + time * 0.001) * 10 + canopyOffset2;
-          const cy = screenH * c.yOff + Math.sin(c.phase + time * 0.002) * 6;
+        const midTreeOff = camParallax * 0.50;
+        for (const t of this._jungleGiantTrees) {
+          const tx = t.x * screenW + midTreeOff * t.parallax;
+          const baseY = t.baseY * screenH;
+          const trunkW = t.trunkW;
+          const trunkH = t.trunkH * screenH;
+          const sway = Math.sin(time * 0.001 + t.phase) * 2;
+          const leanX = t.lean || 0;
+          const crownCY = baseY - trunkH + (t.crownY || -0.06) * screenH;
+          const cw = t.crownW || 25;
+          const ch = t.crownH || 16;
+
+          // Bark texture — vertical stripes on trunk
           ctx.globalAlpha = 0.18;
-          ctx.fillStyle = c.color;
+          ctx.fillStyle = t.barkColor;
           ctx.beginPath();
-          ctx.ellipse(cx, cy, c.w * 0.5, c.h * 0.5, 0.1, 0, Math.PI * 2);
-          ctx.fill();
-          // Lighter highlight
-          ctx.globalAlpha = 0.08;
-          ctx.fillStyle = '#2a5a38';
-          ctx.beginPath();
-          ctx.ellipse(cx - c.w * 0.12, cy - c.h * 0.15, c.w * 0.3, c.h * 0.3, 0.1, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-
-        // ========== LAYER 7: Hanging vines from canopy ==========
-        ctx.save();
-        const vineOffset = camParallax * 0.6;
-        ctx.globalAlpha = 0.10;
-        ctx.strokeStyle = '#2a3a28';
-        ctx.lineWidth = 1.5;
-        for (let i = 0; i < 10; i++) {
-          const vx = ((i / 10) * screenW + Math.sin(i * 2.3 + time * 0.003) * 15 + vineOffset) % (screenW + 20) - 10;
-          const vineLen = 50 + Math.sin(i * 3.7 + time * 0.002) * 20;
-          const topY = screenH * (0.42 + Math.sin(i * 1.3) * 0.04);
-          ctx.beginPath();
-          ctx.moveTo(vx, topY);
-          for (let vy = 0; vy < vineLen; vy += 3) {
-            const sway = Math.sin(vy * 0.08 + time * 0.001 + i * 2.0) * 4;
-            ctx.lineTo(vx + sway, topY + vy);
-          }
-          ctx.stroke();
-          // Small leaf at end
-          ctx.fillStyle = '#3a5a38';
-          ctx.beginPath();
-          const endX = vx + Math.sin(vineLen * 0.08 + time * 0.001 + i * 2.0) * 4;
-          const endY = topY + vineLen;
-          ctx.ellipse(endX, endY, 4, 2, 0.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-
-        // ========== LAYER 8: Sunlight rays through canopy ==========
-        ctx.save();
-        const rayPhase = Math.sin(time * 0.02) * 0.3 + 0.7;
-        for (let i = 0; i < 5; i++) {
-          const rx = (i * screenW / 4 + Math.sin(time * 0.008 + i * 1.5 + camParallax * 0.2) * 40) % screenW;
-          ctx.globalAlpha = 0.035 * rayPhase;
-          ctx.fillStyle = `rgba(230, 210, 160, ${0.15 * rayPhase})`;
-          ctx.beginPath();
-          ctx.moveTo(rx - 8, 0);
-          ctx.lineTo(rx + 12, 0);
-          ctx.lineTo(rx + 50, screenH * 0.65);
-          ctx.lineTo(rx - 45, screenH * 0.65);
+          ctx.moveTo(tx - trunkW * 0.5 + sway + leanX, baseY);
+          ctx.lineTo(tx - trunkW * 0.35 + sway + leanX, baseY - trunkH);
+          ctx.lineTo(tx + trunkW * 0.35 + sway, baseY - trunkH);
+          ctx.lineTo(tx + trunkW * 0.5 + sway, baseY);
           ctx.closePath();
           ctx.fill();
-        }
-        // Secondary softer rays
-        ctx.globalAlpha = 0.02 * rayPhase;
-        ctx.fillStyle = 'rgba(220, 200, 150, 0.12)';
-        for (let i = 0; i < 3; i++) {
-          const rx = ((i + 0.5) * screenW / 3 + Math.sin(time * 0.005 + i * 2.0 + camParallax * 0.15) * 30) % screenW;
-          ctx.beginPath();
-          ctx.moveTo(rx - 5, 0);
-          ctx.lineTo(rx + 8, 0);
-          ctx.lineTo(rx + 35, screenH * 0.55);
-          ctx.lineTo(rx - 30, screenH * 0.55);
-          ctx.closePath();
-          ctx.fill();
-        }
-        ctx.restore();
-
-        // ========== LAYER 9: River reflections (subtle water hints) ==========
-        ctx.save();
-        const riverTime = time * 0.005;
-        for (let r = 0; r < 3; r++) {
-          const rx = (r * 0.33 + 0.08) * screenW + Math.sin(riverTime + r * 2.0) * 15;
-          const ry = screenH * (0.60 + r * 0.06);
-          ctx.globalAlpha = 0.05 + 0.02 * Math.sin(riverTime + r);
-          const waterGrad = ctx.createLinearGradient(rx - 40, ry, rx + 40, ry);
-          waterGrad.addColorStop(0, 'rgba(60, 120, 140, 0)');
-          waterGrad.addColorStop(0.3, 'rgba(60, 140, 160, 0.08)');
-          waterGrad.addColorStop(0.5, 'rgba(80, 160, 180, 0.10)');
-          waterGrad.addColorStop(0.7, 'rgba(60, 140, 160, 0.08)');
-          waterGrad.addColorStop(1, 'rgba(60, 120, 140, 0)');
-          ctx.fillStyle = waterGrad;
-          ctx.beginPath();
-          ctx.ellipse(rx, ry, 35, 6 + 2 * Math.sin(riverTime * 0.5 + r), 0.2, 0, Math.PI * 2);
-          ctx.fill();
-          // Reflection shimmer line
-          ctx.globalAlpha = 0.03;
-          ctx.strokeStyle = 'rgba(100, 200, 220, 0.06)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          for (let sx = rx - 25; sx <= rx + 25; sx += 3) {
-            const sy = ry + Math.sin(sx * 0.3 + riverTime * 2 + r) * 3;
-            sx === rx - 25 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
-          }
-          ctx.stroke();
-        }
-        ctx.restore();
-
-        // ========== LAYER 10: Near vegetation (large leaves, ferns, bushes) ==========
-        ctx.save();
-        const vegOffset = camParallax * 1.0;
-        // Large Monstera-style leaves
-        const leafTypes = [
-          { w: 45, h: 30, color1: '#1a4a28', color2: '#2a5a38' },
-          { w: 35, h: 25, color1: '#1e4028', color2: '#2e5038' },
-          { w: 50, h: 35, color1: '#1a3a28', color2: '#2a4a30' },
-        ];
-        for (let i = 0; i < 10; i++) {
-          const lt = leafTypes[i % leafTypes.length];
-          const lx = (i / 10) * screenW + Math.sin(i * 4.1 + time * 0.002) * 20 + vegOffset;
-          const ly = screenH * (0.60 + Math.sin(i * 2.3) * 0.06) + Math.sin(time * 0.003 + i) * 5;
-          const angle = 0.3 + Math.sin(i * 1.7 + time * 0.002) * 0.2;
-          ctx.globalAlpha = 0.15;
-          ctx.fillStyle = lt.color1;
-          ctx.save();
-          ctx.translate(lx, ly);
-          ctx.rotate(angle);
-          ctx.beginPath();
-          ctx.ellipse(0, 0, lt.w, lt.h, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 0.08;
-          ctx.fillStyle = lt.color2;
-          ctx.beginPath();
-          ctx.ellipse(-lt.w * 0.15, -lt.h * 0.1, lt.w * 0.5, lt.h * 0.5, 0.2, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }
-        // Palm fronds at edges
-        const frondPositions = [
-          { x: 0.02, side: 1, phase: 0 },
-          { x: 0.50, side: -1, phase: 2.0 },
-          { x: 0.98, side: 1, phase: 4.0 },
-        ];
-        for (const fp of frondPositions) {
-          const fBaseX = fp.x * screenW + vegOffset;
-          const fBaseY = screenH * 0.52 + Math.sin(fp.phase + time * 0.002) * 8;
-          const dir = fp.side;
-          ctx.globalAlpha = 0.12;
-          ctx.save();
-          ctx.translate(fBaseX, fBaseY);
-          ctx.scale(dir, 1);
-          for (let j = 0; j < 6; j++) {
-            const angle = -0.8 + j * 0.3 + Math.sin(time * 0.002 + fp.phase + j) * 0.05;
-            const len = 30 + j * 8;
-            ctx.fillStyle = j % 2 === 0 ? '#1a4a28' : '#224430';
+          // Bark texture lines
+          ctx.globalAlpha = 0.06;
+          ctx.strokeStyle = '#0d1a10';
+          ctx.lineWidth = 0.5;
+          for (let bt = 0; bt < 5; bt++) {
+            const bx = tx + sway + leanX * (1 - bt * 0.15) + (bt - 2) * trunkW * 0.12;
             ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(len * 0.4, -10 - j * 3, len, -3 - Math.sin(j * 0.7 + time * 0.003) * 4);
-            ctx.quadraticCurveTo(len * 0.4, 5 + j * 2, 0, 0);
+            ctx.moveTo(bx, baseY);
+            ctx.lineTo(bx, baseY - trunkH * 0.9);
+            ctx.stroke();
+          }
+
+          // Crown — deep shadow layer (back)
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = t.crownColor || '#0d3b1c';
+          const cPhase1 = Math.sin(t.phase + time * 0.0005) * cw * 0.15;
+          const cPhase2 = Math.cos(t.phase * 0.7 + time * 0.0008) * ch * 0.12;
+          ctx.beginPath();
+          ctx.ellipse(tx + cPhase1 + leanX + sway, crownCY + cPhase2, cw, ch, 0.1, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(tx - cw * 0.35 + cPhase1 * 0.5 + leanX * 0.5 + sway, crownCY + ch * 0.15, cw * 0.7, ch * 0.65, -0.15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(tx + cw * 0.3 - cPhase1 * 0.5 + sway, crownCY - ch * 0.1, cw * 0.6, ch * 0.7, 0.15, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Crown — main dome
+          ctx.globalAlpha = 0.20;
+          ctx.fillStyle = t.crownHighlight || '#1a5e2a';
+          ctx.beginPath();
+          ctx.ellipse(tx + sway + leanX * 0.3, crownCY, cw * 0.9, ch * 0.85, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Crown — sunlit top highlight
+          ctx.globalAlpha = 0.08;
+          ctx.fillStyle = '#3a7a3a';
+          ctx.beginPath();
+          ctx.ellipse(tx - cw * 0.1 + sway + leanX * 0.2, crownCY - ch * 0.2, cw * 0.35, ch * 0.28, -0.15, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Leaf cluster bumps around crown edge
+          ctx.globalAlpha = 0.12;
+          ctx.fillStyle = t.crownColor || '#0d3b1c';
+          const bumpCount = 5 + (t.species === 'kapok' ? 2 : 0);
+          for (let bi = 0; bi < bumpCount; bi++) {
+            const ba = bi * (Math.PI * 2 / bumpCount) + t.phase * 0.3;
+            const bx = tx + sway + leanX * 0.3 + Math.cos(ba) * cw * 0.7;
+            const by = crownCY + Math.sin(ba) * ch * 0.6;
+            const bw = cw * 0.25 + Math.sin(t.phase + bi * 1.3) * cw * 0.05;
+            const bh = ch * 0.30 + Math.cos(t.phase * 0.5 + bi * 0.7) * ch * 0.04;
+            ctx.beginPath();
+            ctx.ellipse(bx, by, bw, bh, Math.sin(bi + t.phase) * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Smaller leaf detail clusters (lighter green dots)
+          ctx.globalAlpha = 0.06;
+          ctx.fillStyle = '#4a8a3a';
+          for (let li = 0; li < 6; li++) {
+            const la = li * 1.05 + t.phase;
+            const lx = tx + sway + leanX * 0.3 + Math.cos(la) * cw * 0.5 + Math.sin(time * 0.0008 + li) * 3;
+            const ly = crownCY + Math.sin(la) * ch * 0.4 + Math.cos(time * 0.001 + li) * 2;
+            ctx.beginPath();
+            ctx.arc(lx, ly, 2 + Math.sin(t.phase + li) * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Branches extending outward
+          ctx.globalAlpha = 0.12;
+          ctx.strokeStyle = t.barkColor;
+          ctx.lineWidth = trunkW * 0.12;
+          const branchCount = 3 + ((t.species === 'rubber') ? 1 : 0);
+          for (let b = 0; b < branchCount; b++) {
+            const ba = -0.7 + b * 0.45 + Math.sin(t.phase + b) * 0.2;
+            const bStartY = baseY - trunkH * (0.45 + b * 0.15);
+            const bLen = trunkH * (0.12 + Math.sin(t.phase + b * 1.3) * 0.04);
+            const bEndX = tx + sway + leanX * (1 - b * 0.15) + Math.cos(ba) * bLen;
+            const bEndY = bStartY + Math.sin(ba) * bLen * 0.3;
+            ctx.beginPath();
+            ctx.moveTo(tx + sway + leanX * (1 - b * 0.15), bStartY);
+            ctx.quadraticCurveTo(tx + sway + leanX * (1 - b * 0.15) + Math.cos(ba) * bLen * 0.5, bStartY - bLen * 0.1, bEndX, bEndY);
+            ctx.stroke();
+            // Small leaf cluster at branch tip
+            ctx.globalAlpha = 0.05;
+            ctx.fillStyle = '#2a6a2a';
+            ctx.beginPath();
+            ctx.ellipse(bEndX, bEndY, 4, 3, ba, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.12;
+          }
+
+          // Buttress roots (kapok-style)
+          if (t.species === 'kapok' || t.hasButtress) {
+            ctx.globalAlpha = 0.16;
+            ctx.fillStyle = t.barkColor;
+            ctx.beginPath();
+            ctx.moveTo(tx - trunkW * 1.0 + sway + leanX, baseY);
+            ctx.quadraticCurveTo(tx - trunkW * 0.3 + sway + leanX * 0.5, baseY + 8, tx + sway + leanX * 0.3, baseY + 4);
+            ctx.quadraticCurveTo(tx + trunkW * 0.3 + sway, baseY + 8, tx + trunkW * 1.0 + sway, baseY);
+            ctx.fill();
+            // Second buttress layer
+            ctx.globalAlpha = 0.10;
+            ctx.beginPath();
+            ctx.moveTo(tx - trunkW * 1.3 + sway + leanX, baseY);
+            ctx.quadraticCurveTo(tx - trunkW * 0.4 + sway + leanX * 0.3, baseY + 12, tx + sway + leanX * 0.3, baseY + 6);
+            ctx.quadraticCurveTo(tx + trunkW * 0.4 + sway, baseY + 12, tx + trunkW * 1.3 + sway, baseY);
+            ctx.fill();
+          }
+
+          // Moss patches on trunk
+          ctx.globalAlpha = 0.07;
+          for (let m = 0; m < 3; m++) {
+            const my = baseY - trunkH * (0.25 + m * 0.3);
+            const mw = trunkW * (0.3 + Math.sin(t.phase + m * 2.0) * 0.15);
+            ctx.fillStyle = '#2a5a28';
+            ctx.beginPath();
+            ctx.ellipse(tx + sway + leanX * (1 - m * 0.1) + Math.sin(t.phase + m * 1.5) * trunkW * 0.2, my, mw, mw * 0.3, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Vines wrapped around trunk
+          ctx.globalAlpha = 0.05;
+          ctx.strokeStyle = '#3a4a38';
+          ctx.lineWidth = 0.8;
+          const vineWrapCount = 2 + (t.species === 'rubber' ? 1 : 0);
+          for (let vw = 0; vw < vineWrapCount; vw++) {
+            const vwStart = baseY - trunkH * (0.3 + vw * 0.25);
+            ctx.beginPath();
+            for (let vwy = 0; vwy < trunkH * 0.25; vwy += 2) {
+              const vwx = tx + sway + leanX * (1 - vw * 0.1) + Math.sin(vwy * 0.08 + time * 0.0005 + t.phase + vw) * trunkW * 0.4;
+              const vwy2 = vwStart - vwy;
+              if (vwy === 0) ctx.moveTo(vwx, vwy2);
+              else ctx.lineTo(vwx, vwy2);
+            }
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+
+        // ================================================================
+        // DEPTH LAYER 3b — MIDDLE BACKGROUND (distant waterfalls)
+        // Parallax: 0.15–0.30x. Soft, semi-transparent, behind everything.
+        // ================================================================
+
+        ctx.save();
+        for (const wf of this._jungleWaterfalls) {
+          const wfx = wf.x * screenW + camParallax * wf.parallax;
+          const wfy = wf.y * screenH;
+          const wfw = wf.width;
+          const wfh = wf.height * screenH;
+          ctx.globalAlpha = 0.07 + 0.02 * Math.sin(time * 0.002 + wf.phase);
+          const waterGrad = ctx.createLinearGradient(wfx - wfw * 0.5, wfy, wfx + wfw * 0.5, wfy);
+          waterGrad.addColorStop(0, 'rgba(200, 230, 255, 0)');
+          waterGrad.addColorStop(0.2, 'rgba(200, 235, 255, 0.08)');
+          waterGrad.addColorStop(0.5, 'rgba(220, 240, 255, 0.12)');
+          waterGrad.addColorStop(0.8, 'rgba(200, 235, 255, 0.08)');
+          waterGrad.addColorStop(1, 'rgba(200, 230, 255, 0)');
+          ctx.fillStyle = waterGrad;
+          ctx.fillRect(wfx - wfw * 0.5, wfy, wfw, wfh);
+          // Waterfall strands
+          ctx.globalAlpha = 0.04;
+          ctx.fillStyle = 'rgba(220, 240, 255, 0.08)';
+          for (let s = 0; s < 4; s++) {
+            const sx = wfx - wfw * 0.3 + s * wfw * 0.2 + Math.sin(time * 0.003 + s + wf.phase) * 2;
+            ctx.fillRect(sx, wfy + Math.sin(s * 2.0 + time * 0.004 + wf.phase) * 5, 1.5, wfh * 0.7);
+          }
+          // Mist at base
+          ctx.globalAlpha = 0.05;
+          const mistGrad = ctx.createRadialGradient(wfx, wfy + wfh, 0, wfx, wfy + wfh, wfw * 2.5);
+          mistGrad.addColorStop(0, 'rgba(200, 230, 240, 0.07)');
+          mistGrad.addColorStop(1, 'rgba(200, 230, 240, 0)');
+          ctx.fillStyle = mistGrad;
+          ctx.beginPath();
+          ctx.arc(wfx, wfy + wfh, wfw * 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ================================================================
+        // DEPTH LAYER 3c — AMAZON RIVER (winding, behind trees)
+        // Parallax: 0.20–0.30x. Muddy water visible through canopy openings.
+        // ================================================================
+
+        if (this._jungleRiver && this._jungleRiver.segments) {
+          ctx.save();
+          const segments = this._jungleRiver.segments;
+          const riverParallax = this._jungleRiver.parallax || 0.25;
+          const riverOffset = camParallax * riverParallax;
+          ctx.beginPath();
+          const pts = segments.map((s, i) => ({
+            x: s.x * screenW + riverOffset,
+            y: s.y * screenH + Math.sin(time * 0.0006 + s.phase) * 4,
+            w: s.width + Math.sin(time * 0.0008 + s.phase * 0.7) * 1.5
+          }));
+          ctx.moveTo(pts[0].x, pts[0].y - pts[0].w);
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y - pts[i].w);
+          }
+          for (let i = pts.length - 1; i >= 0; i--) {
+            ctx.lineTo(pts[i].x, pts[i].y + pts[i].w);
+          }
+          ctx.closePath();
+          ctx.globalAlpha = 0.10;
+          ctx.fillStyle = '#4a5a3a';
+          ctx.fill();
+          ctx.globalAlpha = 0.03;
+          ctx.strokeStyle = '#6a7a5a';
+          ctx.lineWidth = 1;
+          for (let r = 0; r < 4; r++) {
+            const rippleY = 0.38 + r * 0.05 + Math.sin(time * 0.001 + r * 1.3) * 0.015;
+            ctx.beginPath();
+            for (let i = 0; i < pts.length; i++) {
+              const rx = pts[i].x;
+              const ry = rippleY * screenH + Math.sin(time * 0.002 + r * 2.0 + i * 0.5) * 2;
+              if (i === 0) ctx.moveTo(rx, ry);
+              else ctx.lineTo(rx + Math.sin(time * 0.0015 + r + i) * 3, ry);
+            }
+            ctx.stroke();
+          }
+          // Tiny river reflections (light glints on water)
+          ctx.globalAlpha = 0.02;
+          ctx.fillStyle = 'rgba(200, 220, 180, 0.3)';
+          for (let ri = 0; ri < 5; ri++) {
+            const riX = pts[ri * 2 < pts.length ? ri * 2 : pts.length - 1].x + Math.sin(time * 0.002 + ri * 2) * 8;
+            const riY = pts[ri * 2 < pts.length ? ri * 2 : pts.length - 1].y + Math.sin(time * 0.003 + ri * 1.5) * 5;
+            ctx.beginPath();
+            ctx.ellipse(riX, riY, 3, 1.5, Math.sin(time * 0.001 + ri) * 0.5, 0, Math.PI * 2);
             ctx.fill();
           }
           ctx.restore();
         }
-        ctx.restore();
 
-        // ========== LAYER 11: Tropical flowers (scattered accents) ==========
+        // ================================================================
+        // DEPTH LAYER 4 — FOREGROUND BACKGROUND (roots, logs, bushes, ferns, bamboo)
+        // Parallax: 0.50–0.60x. Near track level but strictly behind gameplay.
+        // ================================================================
+
+        // 4a. Tree roots and fallen logs
         ctx.save();
-        for (const f of this._jungleFlowers) {
-          const sway = Math.sin(f.phase + time * f.swaySpeed) * 3;
-          const fx = f.x * screenW + sway;
-          const fy = f.y * screenH + Math.sin(f.phase + time * 0.002) * 2;
-          ctx.globalAlpha = 0.20 + 0.05 * Math.sin(f.phase + time * 0.002);
-          ctx.fillStyle = f.color;
-          // Petal cross
+        const rootOff = camParallax * 0.55;
+        for (const r of this._jungleRoots) {
+          const rx = r.x * screenW + rootOff * r.parallax;
+          const ry = r.y * screenH;
+          const rLen = r.len;
+          const rWid = r.width;
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = '#2a1f18';
           ctx.beginPath();
-          for (let p = 0; p < 5; p++) {
-            const a = (p / 5) * Math.PI * 2 + Math.sin(time * 0.001 + f.phase) * 0.1;
-          const fpx = fx + Math.cos(a) * f.size;
-          const fpy = fy + Math.sin(a) * f.size;
-          p === 0 ? ctx.moveTo(fpx, fpy) : ctx.lineTo(fpx, fpy);
-          }
+          ctx.moveTo(rx, ry);
+          ctx.quadraticCurveTo(rx + r.dirX * rLen * 0.5, ry - rLen * 0.3, rx + r.dirX * rLen, ry - rLen * 0.6);
+          ctx.quadraticCurveTo(rx + r.dirX * rLen * 0.7, ry - rLen * 0.4, rx + r.dirX * rLen * 0.3, ry);
           ctx.closePath();
           ctx.fill();
-          // Center
-          ctx.globalAlpha = 0.25;
-          ctx.fillStyle = '#f1c40f';
+          if (r.wrapRock) {
+            ctx.globalAlpha = 0.10;
+            ctx.fillStyle = '#3a3a30';
+            ctx.beginPath();
+            ctx.ellipse(rx + r.dirX * rLen * 0.4, ry - rLen * 0.35, rWid * 0.8, rWid * 0.5, r.dirX * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+
+        // 4b. Foreground bushes (broad leaf clusters near track edges)
+        ctx.save();
+        const bushOff = camParallax * 0.60;
+        for (let i = 0; i < 8; i++) {
+          const seed = i * 73.1;
+          const bx = ((i / 8) * screenW + Math.sin(seed + time * 0.0005) * 15 + bushOff * (0.5 + Math.sin(seed * 0.3) * 0.1)) % (screenW + 20) - 10;
+          const by = screenH * (0.72 + Math.sin(seed * 1.7) * 0.06);
+          const bushSize = 10 + Math.sin(seed * 0.9) * 4;
+          const sway2 = Math.sin(time * 0.0006 + seed) * 2;
+          ctx.globalAlpha = 0.10 + Math.sin(seed * 0.5) * 0.03;
+          // Main bush mass
+          ctx.fillStyle = '#1a4a28';
           ctx.beginPath();
-          ctx.arc(fx, fy, f.size * 0.3, 0, Math.PI * 2);
+          ctx.ellipse(bx + sway2, by, bushSize, bushSize * 0.6, 0.2, 0, Math.PI * 2);
+          ctx.fill();
+          // Lighter highlight
+          ctx.globalAlpha *= 0.6;
+          ctx.fillStyle = '#2a6a3a';
+          ctx.beginPath();
+          ctx.ellipse(bx + sway2 - bushSize * 0.2, by - bushSize * 0.15, bushSize * 0.5, bushSize * 0.35, -0.1, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
 
-        // ========== LAYER 12: Mist near forest floor ==========
+        // 4c. Ferns near ground
+        ctx.save();
+        const fernOff = camParallax * 0.55;
+        for (let i = 0; i < 6; i++) {
+          const seed = i * 53.7;
+          const fx = ((i / 6) * screenW * 1.1 - screenW * 0.05 + fernOff * (0.4 + Math.sin(seed * 0.2) * 0.1)) % (screenW + 10);
+          const fy = screenH * (0.75 + Math.sin(seed * 2.1) * 0.05);
+          const fLen = 15 + Math.sin(seed) * 5;
+          const fSway = Math.sin(time * 0.0007 + seed) * 2;
+          ctx.globalAlpha = 0.08;
+          ctx.strokeStyle = '#2a5a2a';
+          ctx.lineWidth = 0.8;
+          // Fern fronds radiating from base
+          for (let fr = 0; fr < 4; fr++) {
+            const fAngle = -0.6 + fr * 0.4 + Math.sin(seed + fr) * 0.1;
+            ctx.beginPath();
+            ctx.moveTo(fx + fSway, fy);
+            for (let fl = 0; fl < fLen; fl += 2) {
+              const fdx = Math.cos(fAngle) * fl + Math.sin(fl * 0.2 + time * 0.001 + seed + fr) * 1.5;
+              const fdy = -Math.sin(fAngle) * fl * 0.4;
+              ctx.lineTo(fx + fSway + fdx, fy + fdy);
+            }
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+
+        // 4d. Bamboo clusters
+        ctx.save();
+        const bambooOff = camParallax * 0.52;
+        for (let i = 0; i < 4; i++) {
+          const seed = i * 97.3;
+          const bx = ((i / 4) * screenW * 1.0 + bambooOff * 0.6) % (screenW + 20);
+          const by = screenH * 0.78;
+          const bSway = Math.sin(time * 0.0008 + seed) * 2;
+          ctx.globalAlpha = 0.09;
+          ctx.strokeStyle = '#3a5a2a';
+          ctx.lineWidth = 1.2;
+          for (let bc = 0; bc < 4; bc++) {
+            const bOffX = (bc - 1.5) * 3 + bSway;
+            const bH = 25 + Math.sin(seed + bc * 1.5) * 6;
+            ctx.beginPath();
+            ctx.moveTo(bx + bOffX, by);
+            ctx.lineTo(bx + bOffX + Math.sin(time * 0.0005 + seed + bc) * 1.5, by - bH);
+            ctx.stroke();
+            // Bamboo nodes
+            ctx.fillStyle = '#4a6a3a';
+            for (let bn = 0; bn < 3; bn++) {
+              const ny = by - bH * (0.2 + bn * 0.25);
+              ctx.beginPath();
+              ctx.ellipse(bx + bOffX + Math.sin(time * 0.0005 + seed + bc) * 1.5, ny, 1.5, 0.5, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+        ctx.restore();
+
+        // ================================================================
+        // DEPTH LAYER 5 — UPPER BORDER (branches, vines, leaves from above)
+        // Parallax: 0.45–0.55x. Surrounds the race from above — behind gameplay.
+        // ================================================================
+
+        // 5a. Hanging vines from upper canopy (increased density)
+        ctx.save();
+        const vineOff = camParallax * 0.50;
+        for (let i = 0; i < 28; i++) {
+          const vx = ((i / 28) * screenW + Math.sin(i * 2.3 + time * 0.002) * 30 + vineOff) % (screenW + 25) - 12;
+          const vineLen = 50 + Math.sin(i * 3.7 + time * 0.001) * 25 + (i % 5) * 15;
+          const topY = screenH * (0.25 + Math.sin(i * 1.3) * 0.08);
+          ctx.globalAlpha = 0.05 + (i % 4) * 0.015;
+          ctx.strokeStyle = i % 3 === 0 ? '#2a3a28' : (i % 3 === 1 ? '#3a4a38' : '#4a5a3a');
+          ctx.lineWidth = 0.6 + (i % 5) * 0.25;
+          ctx.beginPath();
+          ctx.moveTo(vx, topY);
+          for (let vy = 0; vy < vineLen; vy += 2) {
+            const sway = Math.sin(vy * 0.04 + time * 0.0006 + i * 2.0) * (2 + (i % 4));
+            ctx.lineTo(vx + sway, topY + vy);
+          }
+          ctx.stroke();
+          // Leaf or bud at vine tip for some vines
+          if (i % 4 === 0) {
+            ctx.fillStyle = '#3a5a38';
+            ctx.globalAlpha = 0.04;
+            const endX = vx + Math.sin(vineLen * 0.04 + time * 0.0006 + i * 2.0) * (2 + (i % 4));
+            const endY = topY + vineLen;
+            ctx.beginPath();
+            ctx.ellipse(endX, endY, 2.5, 1.5, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+
+        // 5b. Cross-vines connecting upper tree branches
+        if (this._jungleCrossVines) {
+          ctx.save();
+          const crossVineOff = camParallax * 0.48;
+          for (const cv of this._jungleCrossVines) {
+            const x1 = cv.x1 * screenW + crossVineOff;
+            const y1 = cv.y1 * screenH;
+            const x2 = cv.x2 * screenW + crossVineOff;
+            const y2 = cv.y2 * screenH;
+            const sag = cv.sag + Math.sin(time * 0.0006 + cv.phase) * 3;
+            ctx.globalAlpha = 0.05;
+            ctx.strokeStyle = '#2a3a28';
+            ctx.lineWidth = cv.width;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2 + sag;
+            ctx.quadraticCurveTo(mx + Math.sin(time * 0.0005 + cv.phase) * 5, my, x2, y2);
+            ctx.stroke();
+            // Thin secondary strand
+            ctx.globalAlpha = 0.03;
+            ctx.strokeStyle = '#3a4a38';
+            ctx.lineWidth = cv.width * 0.3;
+            ctx.beginPath();
+            ctx.moveTo(x1 + 3, y1 + 2);
+            const mx2 = mx + Math.sin(time * 0.0007 + cv.phase + 1) * 4;
+            ctx.quadraticCurveTo(mx2, my + 2, x2 + 3, y2 + 2);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // 5c. Upper border branches (extending from top of screen downward)
+        ctx.save();
+        const brOff = camParallax * 0.50;
+        for (let i = 0; i < 5; i++) {
+          const seed = i * 83.2;
+          const bx = ((i / 5) * screenW + brOff * 0.7 + Math.sin(time * 0.0003 + seed) * 15) % (screenW + 10);
+          const branchLen = 40 + Math.sin(seed * 1.5) * 15;
+          const angle = 0.3 + Math.sin(seed * 0.7) * 0.15;
+          ctx.globalAlpha = 0.08;
+          ctx.strokeStyle = '#2a1f18';
+          ctx.lineWidth = 4 + Math.sin(seed) * 1.5;
+          ctx.beginPath();
+          ctx.moveTo(bx, 0);
+          ctx.quadraticCurveTo(bx + Math.cos(angle) * branchLen * 0.5, branchLen * 0.5, bx + Math.cos(angle) * branchLen, branchLen);
+          ctx.stroke();
+          // Thinner sub-branches
+          ctx.lineWidth = 1.5;
+          for (let sb = 0; sb < 2; sb++) {
+            const sbAngle = angle + (-0.2 + sb * 0.4) + Math.sin(seed + sb) * 0.1;
+            const sbStart = branchLen * (0.3 + sb * 0.2);
+            const sbLen = 15 + Math.sin(seed + sb * 2) * 5;
+            ctx.beginPath();
+            ctx.moveTo(bx + Math.cos(angle) * sbStart, sbStart);
+            ctx.quadraticCurveTo(bx + Math.cos(angle) * sbStart + Math.cos(sbAngle) * sbLen * 0.5, sbStart - sbLen * 0.3, bx + Math.cos(angle) * sbStart + Math.cos(sbAngle) * sbLen, sbStart - sbLen);
+            ctx.stroke();
+          }
+          // Leaf clusters at branch ends
+          ctx.globalAlpha = 0.05;
+          ctx.fillStyle = '#1a4a28';
+          const leafX = bx + Math.cos(angle) * branchLen;
+          const leafY = branchLen;
+          ctx.beginPath();
+          ctx.ellipse(leafX + Math.sin(time * 0.0005 + seed) * 2, leafY, 7, 4, angle - 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#2a6a3a';
+          ctx.beginPath();
+          ctx.ellipse(leafX + 4 + Math.sin(time * 0.0006 + seed + 1) * 2, leafY - 3, 5, 3, angle, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ================================================================
+        // DEPTH LAYER 6 — LOWER BORDER (river banks, rocks, vegetation near bottom)
+        // Parallax: 0.55–0.70x. Surrounds the race from below.
+        // ================================================================
+
+        // 6a. River banks and exposed roots near water
+        ctx.save();
+        const bankOff = camParallax * 0.60;
+        for (let i = 0; i < 6; i++) {
+          const seed = i * 67.4;
+          const bx = ((i / 6) * screenW * 1.1 - screenW * 0.05 + bankOff * 0.7 + Math.sin(seed + time * 0.0003) * 10) % (screenW + 15);
+          const by = screenH * (0.80 + Math.sin(seed * 1.3) * 0.04);
+          ctx.globalAlpha = 0.12;
+          // Mud bank
+          ctx.fillStyle = '#3a3a28';
+          ctx.beginPath();
+          ctx.ellipse(bx, by, 20 + Math.sin(seed) * 5, 6 + Math.sin(seed * 0.7) * 2, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          // Roots emerging from bank
+          ctx.globalAlpha = 0.10;
+          ctx.strokeStyle = '#2a1f18';
+          ctx.lineWidth = 1.5 + Math.sin(seed * 0.5) * 0.5;
+          for (let ri = 0; ri < 2; ri++) {
+            const rAngle = 0.5 + ri * 0.8 + Math.sin(seed + ri) * 0.15;
+            const rLen = 10 + Math.sin(seed + ri * 2) * 4;
+            ctx.beginPath();
+            ctx.moveTo(bx + (ri - 0.5) * 8, by);
+            ctx.quadraticCurveTo(bx + (ri - 0.5) * 8 + Math.cos(rAngle) * rLen * 0.5, by - rLen * 0.3, bx + (ri - 0.5) * 8 + Math.cos(rAngle) * rLen, by - rLen * 0.5);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+
+        // 6b. Rocks near river edge
+        ctx.save();
+        const rockOff = camParallax * 0.62;
+        for (let i = 0; i < 5; i++) {
+          const seed = i * 43.9;
+          const rx = ((i / 5) * screenW + rockOff * 0.6 + Math.sin(seed + time * 0.0002) * 8) % (screenW + 10);
+          const ry = screenH * (0.82 + Math.sin(seed * 2.1) * 0.04);
+          const rSize = 5 + Math.sin(seed) * 2;
+          ctx.globalAlpha = 0.12;
+          ctx.fillStyle = '#3a3a30';
+          ctx.beginPath();
+          ctx.ellipse(rx, ry, rSize, rSize * 0.6, Math.sin(seed * 0.3) * 0.2, 0, Math.PI * 2);
+          ctx.fill();
+          // Highlight
+          ctx.globalAlpha = 0.04;
+          ctx.fillStyle = '#5a5a50';
+          ctx.beginPath();
+          ctx.ellipse(rx - rSize * 0.2, ry - rSize * 0.2, rSize * 0.4, rSize * 0.25, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // 6c. Lower border ferns and broad leaves
+        ctx.save();
+        const lowerOff = camParallax * 0.58;
+        for (let i = 0; i < 7; i++) {
+          const seed = i * 61.5;
+          const lx = ((i / 7) * screenW * 1.15 - screenW * 0.07 + lowerOff * 0.65 + Math.sin(seed * 0.5 + time * 0.0004) * 12) % (screenW + 15);
+          const ly = screenH * (0.84 + Math.sin(seed * 1.9) * 0.03);
+          const lSway = Math.sin(time * 0.0005 + seed) * 2;
+          ctx.globalAlpha = 0.09;
+          // Broad tropical leaf
+          ctx.fillStyle = '#1a4a2a';
+          ctx.beginPath();
+          ctx.ellipse(lx + lSway, ly, 12 + Math.sin(seed) * 3, 5 + Math.sin(seed * 0.7) * 1.5, 0.4 + Math.sin(seed) * 0.1, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#2a6a3a';
+          ctx.beginPath();
+          ctx.ellipse(lx + lSway - 3, ly - 2, 6 + Math.sin(seed * 0.5) * 2, 3, 0.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ================================================================
+        // SUN RAYS (soft light filtering through canopy, between layers 3-5)
+        // Parallax: 0.10x. Gentle golden shafts.
+        // ================================================================
+
+        ctx.save();
+        const rayPhase = Math.sin(time * 0.015) * 0.2 + 0.8;
+        for (let i = 0; i < this._jungleSunRays.length; i++) {
+          const sr = this._jungleSunRays[i];
+          const rx = sr.x * screenW + camParallax * sr.parallax + Math.sin(time * 0.008 + i * 1.5) * 20;
+          const pulse = rayPhase * (0.7 + 0.3 * Math.sin(time * 0.01 + sr.phase));
+          ctx.globalAlpha = 0.025 * pulse;
+          const grad = ctx.createLinearGradient(rx, 0, rx + sr.width * 0.3, screenH * 0.5);
+          grad.addColorStop(0, 'rgba(240, 220, 170, 0.10)');
+          grad.addColorStop(0.5, 'rgba(230, 210, 160, 0.05)');
+          grad.addColorStop(1, 'rgba(220, 200, 150, 0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.moveTo(rx - sr.width * 0.3, 0);
+          ctx.lineTo(rx + sr.width * 0.3, 0);
+          ctx.lineTo(rx + sr.width * 0.3, screenH * 0.50);
+          ctx.lineTo(rx - sr.width * 0.3, screenH * 0.50);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ================================================================
+        // ATMOSPHERIC MIST (low fog, drifts across scene, behind gameplay)
+        // ================================================================
+
         ctx.save();
         for (const m of this._jungleMistParticles) {
-          const mx = (m.x * screenW + camParallax * 0.3 + Math.sin(time * 0.001 + m.phase) * 15) % (screenW + 30) - 15;
-          const my = m.y * screenH + Math.sin(time * 0.0015 + m.phase * 0.7) * 5;
-          ctx.globalAlpha = m.alpha;
-          ctx.fillStyle = 'rgba(180, 210, 190, 0.04)';
+          const mx = (m.x * screenW + camParallax * 0.15 + Math.sin(time * 0.0008 + m.phase) * 25) % (screenW + 40) - 20;
+          const my = m.y * screenH + Math.sin(time * 0.001 + m.phase * 0.7) * 8;
+          ctx.globalAlpha = m.alpha * (0.7 + 0.3 * Math.sin(time * 0.002 + m.phase));
+          const mistGrad = ctx.createRadialGradient(mx, my, 0, mx, my, m.size);
+          mistGrad.addColorStop(0, 'rgba(190, 220, 200, 0.05)');
+          mistGrad.addColorStop(0.5, 'rgba(180, 210, 190, 0.03)');
+          mistGrad.addColorStop(1, 'rgba(170, 200, 180, 0)');
+          ctx.fillStyle = mistGrad;
           ctx.beginPath();
-          ctx.ellipse(mx, my, m.size, m.size * 0.4, 0, 0, Math.PI * 2);
+          ctx.arc(mx, my, m.size, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
 
-        // ========== LAYER 13: Pollen particles (soft floating specks) ==========
+        // ================================================================
+        // AMBIENT WILDLIFE & PARTICLES (tiny, sparse, very slow)
+        // Strictly behind gameplay, low opacity.
+        // ================================================================
+
+        // Distant birds (parrots, toucans flying across)
         ctx.save();
-        for (const p of this._junglePollen) {
-          const px = (p.x * screenW + camParallax * 0.15 + Math.sin(time * p.speed + p.phase) * 20) % (screenW + 20) - 10;
-          const py = p.y * screenH + Math.sin(time * p.drift + p.phaseY) * 10;
-          ctx.globalAlpha = p.alpha * (0.7 + 0.3 * Math.sin(time * 0.002 + p.phase));
-          ctx.fillStyle = 'rgba(230, 220, 180, 0.06)';
+        for (const b of this._jungleBirds) {
+          const elapsed = (time * 60 - b.delay) % b.interval;
+          const progress = Math.min(elapsed / (b.interval * 0.6), 1);
+          if (progress <= 0 || progress >= 1) continue;
+          const bx = (b.startX * screenW + progress * screenW * 1.5 + camParallax * 0.08) % (screenW + 100) - 50;
+          const by = b.y * screenH + Math.sin(progress * Math.PI + b.phase) * 10;
+          ctx.globalAlpha = 0.10 * (1 - Math.abs(progress - 0.5) * 0.6);
+          ctx.fillStyle = b.color || '#1a1a2a';
           ctx.beginPath();
-          ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          ctx.ellipse(bx, by, 5, 2.5, -0.1, 0, Math.PI * 2);
+          ctx.fill();
+          const wingUp = Math.sin(progress * 20 + b.phase) * 0.3;
+          ctx.beginPath();
+          ctx.moveTo(bx - 3, by - 1);
+          ctx.lineTo(bx - 7, by - 3 - wingUp * 3);
+          ctx.lineTo(bx - 1, by - 1);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(bx + 3, by - 1);
+          ctx.lineTo(bx + 7, by - 3 - wingUp * 3);
+          ctx.lineTo(bx + 1, by - 1);
+          ctx.fill();
+          if (b.hasLongTail) {
+            ctx.fillStyle = b.tailColor || '#1a1a2a';
+            ctx.beginPath();
+            ctx.moveTo(bx + 4, by + 2);
+            ctx.lineTo(bx + 8, by + 8);
+            ctx.lineTo(bx + 5, by + 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+
+        // Butterflies (blue, orange, yellow, tiny)
+        ctx.save();
+        for (const b of this._jungleButterflies) {
+          const bx = (b.x * screenW + camParallax * 0.15 + Math.sin(time * b.speed + b.phase) * 30) % (screenW + 20) - 10;
+          const by = b.y * screenH + Math.sin(time * b.drift + b.phase * 0.7) * 15;
+          const flap = 0.3 + 0.7 * Math.abs(Math.sin(time * 0.005 + b.phase));
+          ctx.globalAlpha = 0.10 * flap;
+          ctx.fillStyle = b.color;
+          ctx.beginPath();
+          ctx.ellipse(bx - b.size * 0.4, by, b.size * 0.7, b.size * 0.5 * flap, -0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(bx + b.size * 0.4, by, b.size * 0.7, b.size * 0.5 * flap, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 0.05;
+          ctx.fillStyle = '#2a3a2a';
+          ctx.beginPath();
+          ctx.arc(bx, by, b.size * 0.15, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
 
-        // ========== LAYER 14: Drifting leaves ==========
+        // Monkeys (tiny silhouettes)
         ctx.save();
-        for (const l of this._jungleDriftingLeaves) {
-          const lx = (l.x * screenW + camParallax * 0.4 + Math.sin(time * l.speed + l.phase) * 25) % (screenW + 20) - 10;
-          const ly = l.y * screenH + Math.abs(Math.sin(time * l.drift + l.phase)) * 15;
-          ctx.globalAlpha = l.alpha;
+        for (const mk of this._jungleMonkeys) {
+          const elapsed = (time * 60 - mk.delay) % mk.interval;
+          const progress = Math.min(elapsed / (mk.interval * 0.5), 1);
+          if (progress <= 0 || progress >= 1) continue;
+          const mkx = mk.x * screenW + camParallax * 0.6 + Math.sin(time * 0.001 + mk.phase) * 3;
+          const mky = mk.y * screenH + (progress < 0.5 ? -progress * 20 : -(1 - progress) * 20);
+          ctx.globalAlpha = 0.07 * (1 - Math.abs(progress - 0.5) * 0.6);
+          ctx.fillStyle = '#1a1a1a';
+          ctx.beginPath();
+          ctx.ellipse(mkx, mky, 4, 3, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(mkx, mky - 3, 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#1a1a1a';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(mkx - 2, mky + 2);
+          ctx.quadraticCurveTo(mkx - 6, mky + 8, mkx - 3, mky + 12);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(mkx + 3, mky - 1);
+          ctx.lineTo(mkx + 7, mky - 5);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // Falling leaves (varied colors, sizes)
+        ctx.save();
+        for (const l of this._jungleLeaves) {
+          const lx = (l.x * screenW + camParallax * 0.3 + Math.sin(time * l.sway + l.phase) * 15) % (screenW + 20) - 10;
+          const ly = (l.y * screenH + l.fall * time * 0.005) % (screenH * 1.1);
+          const rot = l.rotation + time * 0.002 * l.rotSpeed;
+          ctx.globalAlpha = l.alpha * (0.7 + 0.3 * Math.sin(time * 0.003 + l.phase));
           ctx.fillStyle = l.color;
           ctx.save();
           ctx.translate(lx, ly);
-          ctx.rotate(Math.sin(time * 0.002 + l.phase) * 0.3);
+          ctx.rotate(rot);
           ctx.beginPath();
-          ctx.ellipse(0, 0, l.size, l.size * 0.4, 0, 0, Math.PI * 2);
+          ctx.ellipse(0, 0, l.size, l.size * 0.35, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         }
         ctx.restore();
 
-        // ========== LAYER 15: Dragonflies (tiny, near bottom) ==========
+        // Tropical flowers (orchids, heliconias near edges)
+        ctx.save();
+        for (const f of this._jungleFlowers) {
+          const sway = Math.sin(f.phase + time * f.swaySpeed) * 2;
+          const fx = f.x * screenW + sway;
+          const fy = f.y * screenH + Math.sin(f.phase + time * 0.002) * 2;
+          ctx.globalAlpha = 0.12 + 0.03 * Math.sin(f.phase + time * 0.002);
+          ctx.fillStyle = f.color;
+          for (let p = 0; p < (f.isHeliconia ? 3 : (f.isOrchid ? 5 : 4)); p++) {
+            const a = (p / (f.isHeliconia ? 3 : (f.isOrchid ? 5 : 4))) * Math.PI * 2 + Math.sin(time * 0.001 + f.phase) * 0.1;
+            const px = fx + Math.cos(a) * f.size * (f.isHeliconia ? 0.5 : 0.7);
+            const py = fy + Math.sin(a) * f.size * (f.isHeliconia ? 0.5 : 0.7);
+            ctx.beginPath();
+            if (f.isHeliconia) {
+              ctx.ellipse(px, py, f.size * 0.8, f.size * 0.2, a, 0, Math.PI * 2);
+            } else {
+              ctx.ellipse(px, py, f.size * 0.5, f.size * 0.3, a, 0, Math.PI * 2);
+            }
+            ctx.fill();
+          }
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = '#f1c40f';
+          ctx.beginPath();
+          ctx.arc(fx, fy, f.size * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Dragonflies (tiny, near water)
         ctx.save();
         for (const d of this._jungleDragonflies) {
           const dx = (d.x * screenW + camParallax * 0.3 + Math.sin(time * d.speed + d.phase) * 30) % (screenW + 20) - 10;
           const dy = d.y * screenH + Math.sin(time * 0.003 + d.phase * 0.5) * 5;
           const wingPulse = 0.3 + 0.7 * Math.sin(time * 0.01 + d.phase);
-          ctx.globalAlpha = 0.15 * wingPulse;
-          // Body
+          ctx.globalAlpha = 0.12 * wingPulse;
           ctx.fillStyle = '#4a7a8a';
           ctx.beginPath();
           ctx.arc(dx, dy, d.size * 0.4, 0, Math.PI * 2);
           ctx.fill();
-          // Wings
-          ctx.fillStyle = 'rgba(180, 220, 240, 0.10)';
+          ctx.fillStyle = 'rgba(180, 220, 240, 0.08)';
           ctx.beginPath();
           ctx.ellipse(dx - d.size * 0.5, dy - d.size * 0.2, d.size * 0.8, d.size * 0.15 * wingPulse, -0.3, 0, Math.PI * 2);
           ctx.fill();
@@ -12532,144 +13400,75 @@ this.ctx.restore();
         }
         ctx.restore();
 
-        // ========== LAYER 16: Blue morpho butterflies ==========
+        // Tiny wildlife (frogs, lizards near forest floor)
         ctx.save();
-        for (const b of this._jungleButterflies) {
-          const bx = (b.x * screenW + camParallax * 0.2 + Math.sin(time * b.speed + b.phase) * 35) % (screenW + 20) - 10;
-          const by = b.y * screenH + Math.sin(time * b.drift + b.phase * 0.7) * 12;
-          const flap = 0.3 + 0.7 * Math.abs(Math.sin(time * 0.006 + b.phase));
-          ctx.globalAlpha = 0.15 * flap;
-          ctx.fillStyle = `hsla(${b.hue}, 80%, 60%, 0.12)`;
-          // Left wing
-          ctx.beginPath();
-          ctx.ellipse(bx - b.size * 0.5, by, b.size, b.size * 0.6 * flap, -0.3, 0, Math.PI * 2);
-          ctx.fill();
-          // Right wing
-          ctx.beginPath();
-          ctx.ellipse(bx + b.size * 0.5, by, b.size, b.size * 0.6 * flap, 0.3, 0, Math.PI * 2);
-          ctx.fill();
-          // Body
-          ctx.globalAlpha = 0.08;
-          ctx.fillStyle = '#2a3a4a';
-          ctx.beginPath();
-          ctx.arc(bx, by, b.size * 0.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-
-        // ========== LAYER 17: Parrots flying across ==========
-        ctx.save();
-        for (const p of this._jungleParrots) {
-          const elapsed = (time * 60 - p.delay) % 900;
-          const progress = Math.min(elapsed / 600, 1);
-          if (progress <= 0 || progress >= 1) continue;
-          const px = (p.startX * screenW + progress * screenW * 1.3 * p.speed * 1000 + camParallax * 0.1) % (screenW + 100) - 50;
-          const py = p.y * screenH + Math.sin(progress * Math.PI * 2 + p.phase) * 8;
-          const wingAngle = 0.3 * Math.sin(progress * 30 + p.phase);
-          ctx.globalAlpha = 0.20 * (1 - Math.abs(progress - 0.5) * 0.6);
-          // Body
-          ctx.fillStyle = p.color[0];
-          ctx.beginPath();
-          ctx.ellipse(px, py, p.size * 0.8, p.size * 0.4, 0, 0, Math.PI * 2);
-          ctx.fill();
-          // Wing
-          ctx.fillStyle = p.color[1];
-          ctx.beginPath();
-          ctx.ellipse(px - p.size * 0.3, py - p.size * 0.15, p.size * 0.5, p.size * 0.3 * (0.5 + 0.5 * Math.sin(wingAngle)), -0.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.ellipse(px + p.size * 0.3, py - p.size * 0.15, p.size * 0.5, p.size * 0.3 * (0.5 + 0.5 * Math.sin(wingAngle)), 0.5, 0, Math.PI * 2);
-          ctx.fill();
-          // Tail
-          ctx.fillStyle = p.color[1];
-          ctx.beginPath();
-          ctx.moveTo(px + p.size * 0.6, py + p.size * 0.1);
-          ctx.lineTo(px + p.size * 1.0, py + p.size * 0.3);
-          ctx.lineTo(px + p.size * 0.8, py + p.size * 0.2);
-          ctx.fill();
-        }
-        ctx.restore();
-
-        // ========== LAYER 18: Toucans (larger, slower) ==========
-        ctx.save();
-        for (const t of this._jungleToucans) {
-          const elapsed = (time * 60 - t.delay) % 1200;
-          const progress = Math.min(elapsed / 900, 1);
-          if (progress <= 0 || progress >= 1) continue;
-          const tx = (t.startX * screenW + progress * screenW * 1.3 * t.speed * 1000 + camParallax * 0.1) % (screenW + 100) - 50;
-          const ty = t.y * screenH + Math.sin(progress * Math.PI + t.phase) * 5;
-          ctx.globalAlpha = 0.18 * (1 - Math.abs(progress - 0.5) * 0.5);
-          // Body (dark)
-          ctx.fillStyle = '#1a1a2a';
-          ctx.beginPath();
-          ctx.ellipse(tx, ty, t.size * 0.7, t.size * 0.4, 0, 0, Math.PI * 2);
-          ctx.fill();
-          // Chest (white)
-          ctx.fillStyle = '#d4c8a0';
-          ctx.beginPath();
-          ctx.ellipse(tx + t.size * 0.1, ty + t.size * 0.05, t.size * 0.3, t.size * 0.25, 0, 0, Math.PI * 2);
-          ctx.fill();
-          // Beak (large, orange/yellow)
-          ctx.fillStyle = '#e67e22';
-          ctx.beginPath();
-          ctx.moveTo(tx + t.size * 0.5, ty - t.size * 0.05);
-          ctx.lineTo(tx + t.size * 1.0, ty + t.size * 0.05);
-          ctx.lineTo(tx + t.size * 0.5, ty + t.size * 0.15);
-          ctx.closePath();
-          ctx.fill();
-          // Beak tip
-          ctx.fillStyle = '#f1c40f';
-          ctx.beginPath();
-          ctx.arc(tx + t.size * 0.85, ty + t.size * 0.05, t.size * 0.08, 0, Math.PI * 2);
-          ctx.fill();
-          // Wing
-          ctx.fillStyle = '#2a2a3a';
-          ctx.beginPath();
-          ctx.ellipse(tx - t.size * 0.2, ty - t.size * 0.1, t.size * 0.4, t.size * 0.25, -0.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-
-        // ========== LAYER 19: Bird flocks (distant, every 20-40s) ==========
-        ctx.save();
-        for (const flock of this._jungleBirdFlocks) {
-          const elapsed = (time * 60 - flock.delay) % 1800;
-          const progress = Math.min(elapsed / 1200, 1);
-          if (progress <= 0 || progress >= 1) continue;
-          const flockX = (flock.startX * screenW + progress * screenW * 1.3 * flock.speed * 1000 + camParallax * 0.05) % (screenW + 150) - 75;
-          const flockY = flock.y * screenH + Math.sin(progress * Math.PI * 1.5 + flock.phase) * 5;
-          ctx.globalAlpha = 0.12 * (1 - Math.abs(progress - 0.5) * 0.6);
-          for (const bird of flock.birds) {
-            const bx = flockX + bird.offsetX * screenW;
-            const by = flockY + bird.offsetY * screenH;
-            const wingFlap = 0.3 * Math.sin(progress * 40 + bird.offsetX * 5);
-            ctx.fillStyle = flock.color;
+        for (const w of this._jungleWildlife) {
+          const wx = w.x * screenW + camParallax * 0.5;
+          const wy = w.y * screenH + Math.sin(time * 0.002 + w.phase) * 1;
+          ctx.globalAlpha = 0.07;
+          if (w.type === 'frog') {
+            ctx.fillStyle = '#4a8a4a';
             ctx.beginPath();
-            ctx.ellipse(bx, by, bird.size, bird.size * 0.35, -0.2 + wingFlap * 0.1, 0, Math.PI * 2);
+            ctx.ellipse(wx, wy, 3, 2, 0, 0, Math.PI * 2);
             ctx.fill();
+            ctx.beginPath();
+            ctx.arc(wx - 1.5, wy - 1.5, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(wx + 1.5, wy - 1.5, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (w.type === 'lizard') {
+            ctx.fillStyle = '#5a7a4a';
+            ctx.beginPath();
+            ctx.ellipse(wx, wy, 4, 1.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(wx + 4, wy);
+            ctx.lineTo(wx + 8, wy - 1);
+            ctx.strokeStyle = '#5a7a4a';
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
           }
         }
         ctx.restore();
 
-        // ========== LAYER 20: Fireflies (subtle warm dots near vegetation) ==========
+        // Fireflies (subtle glowing dots)
         ctx.save();
-        ctx.globalAlpha = 0.25;
-        for (let i = 0; i < 12; i++) {
-          const fx = ((i * 89.7 + 30 + camParallax * 0.2) % screenW);
-          const fy = ((i * 53.1 + 100) % (screenH * 0.4) + screenH * 0.50);
-          const pulse = 0.2 + Math.sin(time * 1.5 + i * 2.3) * 0.3;
-          if (pulse < 0) continue;
-          ctx.fillStyle = `rgba(200, 230, 100, ${pulse * 0.3})`;
+        for (const f of this._jungleFireflies) {
+          const fx = (f.x * screenW + camParallax * 0.1 + Math.sin(time * 0.001 + f.phase) * 5) % screenW;
+          const fy = f.y * screenH + Math.sin(time * 0.0015 + f.phase * 0.7) * 3;
+          const blink = Math.max(0, Math.sin(time * f.speed + f.phase));
+          if (blink < 0.1) continue;
+          ctx.globalAlpha = f.alpha * blink;
+          ctx.fillStyle = 'rgba(210, 230, 140, 0.5)';
           ctx.beginPath();
-          ctx.arc(fx, fy, 1.5 + pulse * 0.5, 0, Math.PI * 2);
+          ctx.arc(fx, fy, f.size * (0.5 + 0.5 * blink), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = f.alpha * blink * 0.3;
+          ctx.beginPath();
+          ctx.arc(fx, fy, f.size * 2, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
+
+        // Ambient particles (pollen, dust, tiny seeds)
+        ctx.save();
+        for (const p of this._jungleAmbientParticles) {
+          const px = (p.x * screenW + camParallax * 0.1 + Math.sin(time * p.speed + p.phase) * 25) % (screenW + 20) - 10;
+          const py = p.y * screenH + Math.sin(time * p.drift + p.phaseY) * 12;
+          ctx.globalAlpha = p.alpha * (0.6 + 0.4 * Math.sin(time * 0.002 + p.phase));
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
         } catch (e) { console.warn('Jungle render error:', e); }
       }
     }
 
-    // Generate decorative celestial objects for Nebula Cosmos — no collisions, pure atmosphere
+    // Generate decorative celestial objects for Nebula Cosmos ??? no collisions, pure atmosphere
     _generateAsteroidShape(numVerts) {
       const verts = [];
       for (let i = 0; i < numVerts; i++) {
@@ -12705,128 +13504,248 @@ this.ctx.restore();
       }
     }
 
+    // Safe decoration init — called after gameplay starts, never blocks the race
+    _initDecorationsForTheme() {
+      try {
+        if (this.currentThemeKey === 'jungle') {
+          this._initJungleObjects();
+        }
+      } catch (e) {
+        console.warn('Decoration init failed for', this.currentThemeKey, ':', e.message);
+      }
+    }
+
     // Generate decorative jungle wildlife and atmosphere objects for Amazon Canopy
     _initJungleObjects() {
-      this._jungleParrots = [];
+      this._jungleGiantTrees = [];
+      const species = [
+        { name: 'kapok', trunkScale: 1.3, crownScale: 1.2, buttress: true, branchCount: 4, leanRange: 0.04 },
+        { name: 'rubber', trunkScale: 1.1, crownScale: 1.0, buttress: false, branchCount: 4, leanRange: 0.02 },
+        { name: 'palm', trunkScale: 0.7, crownScale: 0.8, buttress: false, branchCount: 2, leanRange: 0.06 },
+        { name: 'kapok', trunkScale: 1.2, crownScale: 1.3, buttress: true, branchCount: 5, leanRange: 0.03 },
+        { name: 'rubber', trunkScale: 1.0, crownScale: 1.1, buttress: false, branchCount: 3, leanRange: 0.01 },
+        { name: 'palm', trunkScale: 0.8, crownScale: 0.9, buttress: false, branchCount: 2, leanRange: 0.05 },
+        { name: 'kapok', trunkScale: 1.4, crownScale: 1.1, buttress: true, branchCount: 4, leanRange: 0.02 },
+        { name: 'rubber', trunkScale: 1.2, crownScale: 0.9, buttress: false, branchCount: 3, leanRange: 0.03 },
+        { name: 'cedro', trunkScale: 1.0, crownScale: 0.9, buttress: false, branchCount: 3, leanRange: 0.04 },
+        { name: 'palm', trunkScale: 0.6, crownScale: 0.7, buttress: false, branchCount: 2, leanRange: 0.07 }
+      ];
+      const crownColors = ['#0d3b1c', '#1a5e2a', '#2d6a30', '#3a7a3a', '#1e4e28', '#0f4a20', '#2a6a30', '#1a5a2a', '#3a6a2a', '#4a7a3a'];
+      const crownHighlights = ['#1a5e2a', '#3a7a3a', '#4a8a48', '#5a9a50', '#2a6a30', '#1a5e2a', '#4a8a48', '#3a7a3a', '#5a8a4a', '#6a9a5a'];
+      for (let i = 0; i < species.length; i++) {
+        const sp = species[i];
+        const tScale = sp.trunkScale;
+        const cScale = sp.crownScale;
+        this._jungleGiantTrees.push({
+          x: 0.02 + (i / species.length) * 0.96 + Math.random() * 0.04,
+          baseY: 0.60 + Math.random() * 0.18,
+          trunkW: 5 * tScale + Math.random() * 3,
+          trunkH: (0.20 + Math.random() * 0.10) * tScale,
+          crownW: 25 * cScale + Math.random() * 15,
+          crownH: 16 * cScale + Math.random() * 10,
+          crownY: -0.10 + Math.random() * -0.04,
+          crownColor: crownColors[i % crownColors.length],
+          crownHighlight: crownHighlights[i % crownHighlights.length],
+          species: sp.name,
+          lean: (Math.random() - 0.5) * sp.leanRange * 2,
+          hasButtress: sp.buttress,
+          branchCount: sp.branchCount,
+          parallax: 0.25 + Math.random() * 0.20,
+          phase: Math.random() * Math.PI * 2,
+          barkColor: ['#1a2a20', '#2a3a28', '#1f2f22', '#2f3f2a', '#253525', '#2f4030', '#1d2d1d', '#2a3a2a', '#1e2e1e', '#2b3b2b'][i]
+        });
+      }
+      this._jungleRoots = [];
+      for (let i = 0; i < 5; i++) {
+        this._jungleRoots.push({
+          x: Math.random() * 0.9 + 0.05,
+          y: 0.72 + Math.random() * 0.12,
+          len: 30 + Math.random() * 25,
+          width: 4 + Math.random() * 3,
+          dirX: Math.random() > 0.5 ? 1 : -1,
+          parallax: 0.55 + Math.random() * 0.15,
+          wrapRock: Math.random() > 0.5
+        });
+      }
+      this._jungleWaterfalls = [];
       for (let i = 0; i < 4; i++) {
-        this._jungleParrots.push({
-          startX: Math.random() < 0.5 ? -0.1 : 1.1,
-          y: 0.08 + Math.random() * 0.25,
-          speed: 0.0006 + Math.random() * 0.0006,
-          size: 6 + Math.random() * 4,
-          color: [['#e74c3c','#f39c12'], ['#2ecc71','#f1c40f'], ['#3498db','#e74c3c'], ['#9b59b6','#f39c12']][i],
-          delay: i * 180 + Math.random() * 120,
+        this._jungleWaterfalls.push({
+          x: 0.1 + i * 0.25 + Math.random() * 0.05,
+          y: 0.15 + Math.random() * 0.10,
+          width: Math.random() * 8 + 4,
+          height: 0.25 + Math.random() * 0.15,
+          parallax: 0.3 + Math.random() * 0.15,
           phase: Math.random() * Math.PI * 2
         });
       }
-      this._jungleToucans = [];
-      for (let i = 0; i < 2; i++) {
-        this._jungleToucans.push({
-          startX: i === 0 ? -0.15 : 1.15,
-          y: 0.12 + i * 0.10,
-          speed: 0.0003 + Math.random() * 0.0002,
-          size: 10 + Math.random() * 4,
-          delay: i * 300 + Math.random() * 200,
+      this._jungleSunRays = [];
+      for (let i = 0; i < 5; i++) {
+        this._jungleSunRays.push({
+          x: 0.1 + i * 0.18 + Math.random() * 0.04,
+          width: 12 + Math.random() * 15,
+          parallax: 0.1 + Math.random() * 0.1,
           phase: Math.random() * Math.PI * 2
+        });
+      }
+      // Amazon river — winding muddy path visible through tree openings
+      this._jungleRiver = { segments: [] };
+      for (let i = 0; i < 12; i++) {
+        this._jungleRiver.segments.push({
+          x: i / 11,
+          y: 0.45 + Math.sin(i * 1.1) * 0.12 + Math.sin(i * 0.4) * 0.06,
+          width: 8 + Math.sin(i * 0.7) * 3 + Math.random() * 2,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleRiver.parallax = 0.25;
+      // Cross-vines connecting between tree positions
+      this._jungleCrossVines = [];
+      for (let i = 0; i < 6; i++) {
+        this._jungleCrossVines.push({
+          x1: Math.random() * 0.7 + 0.05,
+          y1: 0.25 + Math.random() * 0.15,
+          x2: Math.random() * 0.7 + 0.2,
+          y2: 0.35 + Math.random() * 0.20,
+          sag: 15 + Math.random() * 20,
+          phase: Math.random() * Math.PI * 2,
+          width: 0.8 + Math.random() * 0.6
+        });
+      }
+      this._jungleBirds = [];
+      const birdSpecies = [
+        { color: '#c0392b', tailColor: '#8b0000', hasLongTail: true },
+        { color: '#2ecc71', tailColor: '#1a6b3a', hasLongTail: false },
+        { color: '#f39c12', tailColor: '#d4880f', hasLongTail: false },
+        { color: '#3498db', tailColor: '#1a5f8a', hasLongTail: true },
+        { color: '#9b59b6', tailColor: '#6a3f7a', hasLongTail: true },
+        { color: '#e67e22', tailColor: '#a05515', hasLongTail: false },
+        { color: '#1abc9c', tailColor: '#0f7a6a', hasLongTail: false }
+      ];
+      for (let i = 0; i < 7; i++) {
+        const sp = birdSpecies[i % birdSpecies.length];
+        this._jungleBirds.push({
+          startX: Math.random() * 0.3 + (i % 2 === 0 ? -0.15 : 0.85),
+          y: 0.06 + Math.random() * 0.18,
+          interval: 1200 + Math.random() * 800,
+          phase: Math.random() * Math.PI * 2,
+          delay: i * 200 + Math.random() * 300,
+          color: sp.color,
+          tailColor: sp.tailColor,
+          hasLongTail: sp.hasLongTail,
+          size: 4 + Math.random() * 3
         });
       }
       this._jungleButterflies = [];
-      for (let i = 0; i < 6; i++) {
+      const butterflyColors = ['#3498db', '#e74c3c', '#f39c12', '#2ecc71', '#9b59b6', '#f1c40f', '#1abc9c', '#e67e22', '#ff6b9d', '#4a9eff', '#7bed9f', '#ffa502'];
+      for (let i = 0; i < 10; i++) {
         this._jungleButterflies.push({
           x: Math.random() * 1.2 - 0.1,
-          y: 0.15 + Math.random() * 0.45,
-          speed: 0.0002 + Math.random() * 0.0004,
-          drift: 0.0003 + Math.random() * 0.0003,
-          size: 3 + Math.random() * 2,
+          y: 0.10 + Math.random() * 0.45,
+          speed: 0.0003 + Math.random() * 0.0005,
+          drift: 0.0004 + Math.random() * 0.0004,
+          size: 3 + Math.random() * 2.5,
           phase: Math.random() * Math.PI * 2,
-          hue: 190 + Math.floor(Math.random() * 30),
-          delay: Math.random() * 600
+          color: butterflyColors[i % butterflyColors.length]
+        });
+      }
+      this._jungleMonkeys = [];
+      for (let i = 0; i < 3; i++) {
+        this._jungleMonkeys.push({
+          x: 0.1 + i * 0.3 + Math.random() * 0.1,
+          y: 0.20 + Math.random() * 0.15,
+          interval: 2000 + Math.random() * 1500,
+          phase: Math.random() * Math.PI * 2,
+          delay: i * 500 + Math.random() * 400
         });
       }
       this._jungleDragonflies = [];
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 4; i++) {
         this._jungleDragonflies.push({
           x: Math.random() * 1.2 - 0.1,
           y: 0.60 + Math.random() * 0.20,
-          speed: 0.0003 + Math.random() * 0.0005,
+          speed: 0.0004 + Math.random() * 0.0005,
           size: 2 + Math.random() * 1.5,
-          phase: Math.random() * Math.PI * 2,
-          delay: Math.random() * 400
+          phase: Math.random() * Math.PI * 2
         });
       }
-      this._jungleBirdFlocks = [];
-      for (let i = 0; i < 3; i++) {
-        const count = 5 + Math.floor(Math.random() * 8);
-        const birds = [];
-        for (let j = 0; j < count; j++) {
-          birds.push({
-            offsetX: (j / count) * 0.15 - 0.075,
-            offsetY: (j / count) * 0.03 - 0.015,
-            size: 3 + Math.random() * 2
-          });
-        }
-        this._jungleBirdFlocks.push({
-          birds,
-          startX: Math.random() < 0.5 ? -0.2 : 1.2,
-          y: 0.06 + Math.random() * 0.12,
-          speed: 0.0008 + Math.random() * 0.0004,
-          delay: 600 + i * 480 + Math.random() * 300,
-          phase: Math.random() * Math.PI * 2,
-          color: ['#34495e', '#2c3e50', '#4a6741'][i % 3]
-        });
-      }
-      this._junglePollen = [];
-      for (let i = 0; i < 25; i++) {
-        this._junglePollen.push({
-          x: Math.random() * 1.2 - 0.1,
-          y: Math.random() * 0.7 + 0.05,
-          speed: 0.0001 + Math.random() * 0.0002,
-          drift: 0.0001 + Math.random() * 0.0002,
-          size: 1 + Math.random() * 1.5,
-          alpha: 0.04 + Math.random() * 0.06,
-          phase: Math.random() * Math.PI * 2,
-          phaseY: Math.random() * Math.PI * 2
-        });
-      }
-      this._jungleDriftingLeaves = [];
-      for (let i = 0; i < 6; i++) {
-        this._jungleDriftingLeaves.push({
+      this._jungleLeaves = [];
+      const leafColors = ['#6b8e23', '#556b2f', '#8fbc8f', '#228b22', '#3a6b2a', '#7a9e4a', '#5a7a3a', '#9acd32'];
+      for (let i = 0; i < 10; i++) {
+        this._jungleLeaves.push({
           x: Math.random() * 1.2 - 0.1,
           y: Math.random() * 0.3 + 0.02,
-          speed: 0.0002 + Math.random() * 0.0003,
-          drift: 0.0004 + Math.random() * 0.0004,
-          size: 4 + Math.random() * 5,
-          alpha: 0.06 + Math.random() * 0.06,
+          fall: 0.2 + Math.random() * 0.4,
+          sway: 0.0003 + Math.random() * 0.0004,
+          size: 3 + Math.random() * 4,
+          alpha: 0.05 + Math.random() * 0.06,
           phase: Math.random() * Math.PI * 2,
-          color: ['#6b8e23', '#556b2f', '#8fbc8f', '#228b22'][Math.floor(Math.random() * 4)]
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: 0.5 + Math.random() * 0.5,
+          color: leafColors[i % leafColors.length]
         });
       }
       this._jungleMistParticles = [];
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < 20; i++) {
         this._jungleMistParticles.push({
           x: Math.random() * 1.2 - 0.1,
-          y: 0.65 + Math.random() * 0.25,
-          speed: 0.0001 + Math.random() * 0.00015,
-          size: 15 + Math.random() * 20,
+          y: 0.55 + Math.random() * 0.30,
+          size: 12 + Math.random() * 25,
           alpha: 0.02 + Math.random() * 0.03,
           phase: Math.random() * Math.PI * 2
         });
       }
       this._jungleFlowers = [];
-      const flowerColors = ['#e74c3c', '#f39c12', '#f1c40f', '#e67e22', '#9b59b6', '#ff6b6b'];
-      for (let i = 0; i < 12; i++) {
+      const flowerColors = ['#e74c3c', '#f39c12', '#f1c40f', '#e67e22', '#9b59b6', '#ff6b6b', '#ff4757', '#ffa502', '#7bed9f', '#ff6b9d'];
+      for (let i = 0; i < 10; i++) {
         this._jungleFlowers.push({
           x: Math.random() * 0.9 + 0.05,
           y: 0.55 + Math.random() * 0.30,
           size: 3 + Math.random() * 4,
           color: flowerColors[i % flowerColors.length],
           phase: Math.random() * Math.PI * 2,
-          swaySpeed: 0.002 + Math.random() * 0.003
+          swaySpeed: 0.002 + Math.random() * 0.003,
+          isOrchid: Math.random() > 0.6,
+          isHeliconia: Math.random() > 0.7
+        });
+      }
+      this._jungleWildlife = [];
+      for (let i = 0; i < 4; i++) {
+        this._jungleWildlife.push({
+          x: Math.random() * 0.9 + 0.05,
+          y: 0.70 + Math.random() * 0.15,
+          type: i < 2 ? 'frog' : 'lizard',
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleFireflies = [];
+      for (let i = 0; i < 14; i++) {
+        this._jungleFireflies.push({
+          x: Math.random() * 1.0 + 0.0,
+          y: 0.40 + Math.random() * 0.30,
+          size: 1 + Math.random() * 1.5,
+          alpha: 0.08 + Math.random() * 0.10,
+          speed: 0.002 + Math.random() * 0.003,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleAmbientParticles = [];
+      for (let i = 0; i < 20; i++) {
+        this._jungleAmbientParticles.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: Math.random() * 0.7 + 0.05,
+          speed: 0.00015 + Math.random() * 0.00025,
+          drift: 0.00015 + Math.random() * 0.00025,
+          size: 0.8 + Math.random() * 1.2,
+          alpha: 0.04 + Math.random() * 0.06,
+          phase: Math.random() * Math.PI * 2,
+          phaseY: Math.random() * Math.PI * 2,
+          color: ['rgba(255,255,200,0.3)', 'rgba(200,255,200,0.3)', 'rgba(255,200,200,0.3)', 'rgba(200,200,255,0.3)',
+                   'rgba(255,240,180,0.3)', 'rgba(210,255,210,0.3)'][i % 6]
         });
       }
     }
 
-    // Render celestial objects with parallax — called inside scaled draw section (virtual coordinates)
+    // Render celestial objects with parallax ??? called inside scaled draw section (virtual coordinates)
     _renderSpaceObjects(camX) {
       if (this.currentThemeKey !== 'space' || !this._spaceObjects) return;
       const ctx = this.ctx;
@@ -13218,8 +14137,8 @@ this.ctx.restore();
     }
 
     renderScreenOverlays(screenW, screenH) {
-      // A0. Vignette overlay around screen edges
-      if (this.state === 'racing' || this.state === 'finished' || this.state === 'champion_screen') {
+      // A0. Vignette overlay around screen edges (skipped for jungle — no fullscreen overlays)
+      if ((this.state === 'racing' || this.state === 'finished' || this.state === 'champion_screen') && this.currentThemeKey !== 'jungle') {
         this.ctx.save();
         const vigGrad = this.ctx.createRadialGradient(
           screenW / 2, screenH / 2, screenH * 0.3,
@@ -13319,7 +14238,7 @@ this.ctx.restore();
       // A0ac. Lava Shower sky dimming overlay (Magma Crater global event)
       if (this._lavaShowerActive && this._lavaShowerSkyDim > 0 && this.state === 'racing') {
         this.ctx.save();
-        // Warm dark overlay — darkens sky while adding faint amber tone
+        // Warm dark overlay ??? darkens sky while adding faint amber tone
         const dim = this._lavaShowerSkyDim;
         const vig = this.ctx.createRadialGradient(
           screenW / 2, screenH * 0.4, screenH * 0.05,
@@ -13333,7 +14252,7 @@ this.ctx.restore();
         this.ctx.restore();
       }
 
-      // A0aa. Aurora Borealis — comprehensive atmospheric overlay
+      // A0aa. Aurora Borealis ??? comprehensive atmospheric overlay
       if (this._auroraActive && this.state === 'racing') {
         const fade = this._auroraFadeProgress;
         const pulse = this._auroraPulseValue;
@@ -13856,7 +14775,7 @@ this.ctx.restore();
         this.ctx.restore();
       });
 
-      // F. Winner Flash — shown for 2 seconds before champion overlay activates
+      // F. Winner Flash ??? shown for 2 seconds before champion overlay activates
       if (this._winnerFlashActive && this._winnerFlashBall) {
         this.ctx.save();
         const flashElapsed = performance.now() - this._winnerFlashStart;
@@ -13899,12 +14818,12 @@ this.ctx.restore();
         this.ctx.restore();
       }
 
-      // D. Global Event Banner (animated near lower-center) — hide after race ends or when champion overlay shown
+      // D. Global Event Banner (animated near lower-center) ??? hide after race ends or when champion overlay shown
       if (this.state === 'racing' && !this._championOverlayShown) {
         this.eventBanner.render(this.ctx, screenW, screenH);
       }
 
-      // E. Top-Middle Event Capsule — prominent active event display below timer
+      // E. Top-Middle Event Capsule ??? prominent active event display below timer
       if ((this.state === 'racing' || this.state === 'finished') && !this._championOverlayShown) {
         if (this.activeEvent) {
           this.ctx.save();
@@ -13962,7 +14881,7 @@ this.ctx.restore();
         return;
       }
 
-      // ── Guard against duplicate loops ──
+      // ?????? Guard against duplicate loops ??????
       if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
       if (this.hudUpdateTimer) { clearInterval(this.hudUpdateTimer); this.hudUpdateTimer = null; }
       if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
@@ -14019,19 +14938,22 @@ this.ctx.restore();
       this._auroraSceneBrightness = 1.0;
 
       // Jungle theme init
-      this._jungleParrots = [];
-      this._jungleToucans = [];
+      this._jungleGiantTrees = [];
+      this._jungleRoots = [];
+      this._jungleWaterfalls = [];
+      this._jungleSunRays = [];
+      this._jungleBirds = [];
       this._jungleButterflies = [];
+      this._jungleMonkeys = [];
       this._jungleDragonflies = [];
-      this._jungleBirdFlocks = [];
-      this._junglePollen = [];
-      this._jungleDriftingLeaves = [];
+      this._jungleLeaves = [];
       this._jungleMistParticles = [];
       this._jungleFlowers = [];
-      if (this.currentThemeKey === 'jungle') {
-        try { this._initJungleObjects(); } catch (e) { console.warn('Jungle init error:', e); }
-      }
-
+      this._jungleWildlife = [];
+      this._jungleFireflies = [];
+      this._jungleAmbientParticles = [];
+      this._jungleRiver = [];
+      this._jungleCrossVines = [];
       // Volcano eruption state reset
       this._volcanoEruptionActive = false;
       this._volcanoEruptionTimer = 0;
@@ -14088,7 +15010,7 @@ this.ctx.restore();
 
       this._eventToggle = false;
 
-      // Event intensity config — computed once, consumed by tick()
+      // Event intensity config ??? computed once, consumed by tick()
       const evtIntensity = (this._loadout && this._loadout.eventIntensity) || 'medium';
       const evtCfg = {
         low: { base: 60, variation: 5, maxEvents: 6 },
@@ -14161,6 +15083,9 @@ this.ctx.restore();
       // Start central animation tick
       this._rafId = requestAnimationFrame((t) => this.tick(t));
 
+      // Load background decorations after gameplay is running
+      this._initDecorationsForTheme();
+
       // Update live HUD overlays continuously
       this.hudUpdateTimer = setInterval(() => this.updateHUD(), 150);
     }
@@ -14189,18 +15114,18 @@ this.ctx.restore();
       const camSelect = document.getElementById('hud-camera-select');
       if (camSelect) {
         const currentVal = camSelect.value;
-        camSelect.innerHTML = '<option value="leader">🎯 Auto-Follow Leader</option>';
+        camSelect.innerHTML = '<option value="leader">???? Auto-Follow Leader</option>';
         this.leaderboard.forEach(b => {
           const opt = document.createElement('option');
           opt.value = b.code;
           opt.textContent = `${b.code.toUpperCase()} - ${b.name}`;
-          if (b.finished) opt.textContent += ' ✓';
+          if (b.finished) opt.textContent += ' ???';
           if (b.code === currentVal) opt.selected = true;
           camSelect.appendChild(opt);
         });
       }
 
-      // Podium — show top 3 racers at bottom
+      // Podium ??? show top 3 racers at bottom
       const podiumContainer = document.getElementById('hud-podium-list');
       if (podiumContainer) {
         podiumContainer.innerHTML = '';
@@ -14242,13 +15167,13 @@ this.ctx.restore();
           gapColor = '#ffd700';
         } else if (gapTime < 0.5) {
           gapText = `+${gapTime.toFixed(2)}s`;
-          gapColor = '#2ecc71'; // green — close
+          gapColor = '#2ecc71'; // green ??? close
         } else if (gapTime < 2) {
           gapText = `+${gapTime.toFixed(2)}s`;
-          gapColor = '#f5c842'; // yellow — mid
+          gapColor = '#f5c842'; // yellow ??? mid
         } else {
           gapText = `+${gapTime.toFixed(2)}s`;
-          gapColor = '#e74c3c'; // red — far
+          gapColor = '#e74c3c'; // red ??? far
         }
 
         row.innerHTML = `
@@ -14257,7 +15182,7 @@ this.ctx.restore();
           <img class="hud-flag-icon" src="https://flagcdn.com/w40/${b.code}.png" alt="${b.name}" onerror="this.style.display='none'">
           <span class="hud-country-name">${b.name}</span>
         </div>
-        <span class="gap-badge" style="color:${gapColor}">${b.finished ? gapText + ' ✓' : gapText}</span>
+        <span class="gap-badge" style="color:${gapColor}">${b.finished ? gapText + ' ???' : gapText}</span>
       `;
         listContainer.appendChild(row);
       });
@@ -14336,7 +15261,7 @@ this.ctx.restore();
     }
 
     resetRace() {
-      // ── Full cleanup before restart ──
+      // ?????? Full cleanup before restart ??????
       // Kill RAF loop immediately so no duplicate loops accumulate
       if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
       this.isRunning = false;
@@ -14379,7 +15304,7 @@ this.ctx.restore();
       this.broadcastDirector.reset();
       this.storyEngine.reset();
       this.raceDirector.stop();
-      // Now safe to restart — preserve current loadout so settings persist
+      // Now safe to restart ??? preserve current loadout so settings persist
       this.startRace(this._loadout);
     }
 
@@ -14397,7 +15322,7 @@ this.ctx.restore();
     }
 
     stopRace() {
-      // ── Full cleanup ──
+      // ?????? Full cleanup ??????
       if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
       this.isRunning = false;
       this.state = 'menu';
@@ -14454,15 +15379,22 @@ this.ctx.restore();
       this._firestormWhirls = [];
       this._firestormWhirlTimer = 0;
       this._firestormSkyTint = 0;
-      this._jungleParrots = [];
-      this._jungleToucans = [];
+      this._jungleGiantTrees = [];
+      this._jungleRoots = [];
+      this._jungleWaterfalls = [];
+      this._jungleSunRays = [];
+      this._jungleBirds = [];
       this._jungleButterflies = [];
+      this._jungleMonkeys = [];
       this._jungleDragonflies = [];
-      this._jungleBirdFlocks = [];
-      this._junglePollen = [];
-      this._jungleDriftingLeaves = [];
+      this._jungleLeaves = [];
       this._jungleMistParticles = [];
       this._jungleFlowers = [];
+      this._jungleWildlife = [];
+      this._jungleFireflies = [];
+      this._jungleAmbientParticles = [];
+      this._jungleRiver = [];
+      this._jungleCrossVines = [];
       this.directorMode = null;
       this.obstacleZoneOccupancy = {};
       this.commentary.clear();

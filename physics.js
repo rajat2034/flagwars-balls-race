@@ -46,7 +46,7 @@ class PhysicsEngine {
 
     // 1. Apply forward force, damping, and AI assistance
     balls.forEach(ball => {
-      if (ball.finished) return;
+      if (ball.finished || ball._capturedByVine) return;
 
       // Handle vertical altitude (Z-axis) for jumps
       if (ball.z > 0 || ball.vz !== 0) {
@@ -336,7 +336,7 @@ class PhysicsEngine {
 
     // 2. Ball vs Wall collisions (culled by distance)
     balls.forEach(ball => {
-      if (ball.finished) return;
+      if (ball.finished || ball._capturedByVine) return;
       track.walls.forEach(wall => {
         if (Math.abs(wall.p1.x - ball.x) > 300) return;
         const prevVx = ball.vx, prevVy = ball.vy;
@@ -349,7 +349,7 @@ class PhysicsEngine {
 
     // 3. Ball vs Peg collisions (culled by distance)
     balls.forEach(ball => {
-      if (ball.finished || ball.z > 0) return;
+      if (ball.finished || ball.z > 0 || ball._capturedByVine) return;
       track.pegs.forEach(peg => {
         if (Math.abs(peg.x - ball.x) > 250) return;
         if (Math.abs(peg.y - ball.y) > 150) return;
@@ -363,7 +363,7 @@ class PhysicsEngine {
 
     // 4. Ball vs Moving Obstacles (culled by distance)
     balls.forEach(ball => {
-      if (ball.finished || ball.z > 0) return;
+      if (ball.finished || ball.z > 0 || ball._capturedByVine) return;
       track.obstacles.forEach(obs => {
         // Skip obstacles temporarily disabled by anti-stuck system (Layer 2: 0.5s)
         if (typeof obs._collisionOffUntil === 'number' && this._timeNowSeconds < obs._collisionOffUntil) return;
@@ -764,14 +764,14 @@ class PhysicsEngine {
     });
 
     // 5. Ball vs Ball collisions (spatially filtered - skip distant pairs)
-    const activeBallCount = balls.filter(b => !b.finished && b.z <= 0).length;
+    const activeBallCount = balls.filter(b => !b.finished && b.z <= 0 && !b._capturedByVine).length;
     if (activeBallCount > 1) {
       for (let i = 0; i < balls.length; i++) {
         const b1 = balls[i];
-        if (b1.finished || b1.z > 0) continue;
+        if (b1.finished || b1.z > 0 || b1._capturedByVine) continue;
         for (let j = i + 1; j < balls.length; j++) {
           const b2 = balls[j];
-          if (b2.finished || b2.z > 0) continue;
+          if (b2.finished || b2.z > 0 || b2._capturedByVine) continue;
           if (Math.abs(b1.x - b2.x) > 200) continue; // skip far-apart pairs
           if (Math.abs(b1.y - b2.y) > 120) continue;
           const prevVx1 = b1.vx, prevVy1 = b1.vy;
@@ -788,7 +788,7 @@ class PhysicsEngine {
     // 5b. Stationary ball escape: only nudge after 10+ seconds of near-zero velocity
     if (track) {
       balls.forEach(ball => {
-        if (ball.finished || ball.z > 0) return;
+        if (ball.finished || ball.z > 0 || ball._capturedByVine) return;
         const speed = Math.hypot(ball.vx, ball.vy);
         if (speed < 0.1) {
           ball._stationaryTime = (ball._stationaryTime || 0) + dt;
@@ -1047,7 +1047,7 @@ class PhysicsEngine {
 
     // Group balls by obstacle zone
     balls.forEach(ball => {
-      if (ball.finished || ball.eliminated) return;
+      if (ball.finished || ball.eliminated || ball._capturedByVine) return;
       track.obstacles.forEach((obs, idx) => {
         if (obs._remove || obs.broken) return;
         const dx = ball.x - obs.x;
@@ -1093,7 +1093,7 @@ class PhysicsEngine {
 
         // Push all nearby balls away from the jam
         balls.forEach(ball => {
-          if (ball.finished) return;
+          if (ball.finished || ball._capturedByVine) return;
           const dx = ball.x - obs.x;
           const dy = ball.y - obs.y;
           const dist = Math.hypot(dx, dy);
