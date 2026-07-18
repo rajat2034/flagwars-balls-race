@@ -3932,62 +3932,55 @@ class GameEngine {
             pathPoints.push({ x, y, width, t });
           }
           
-          // Vine base color gradient
-          const vineGrad = this.ctx.createLinearGradient(baseX, baseY, baseX, baseY + wallDir * vineLength);
-          vineGrad.addColorStop(0, '#5A3B20');
-          vineGrad.addColorStop(0.5, '#4A2E18');
-          vineGrad.addColorStop(1, '#352112');
+// ===== IDLE / ALL STATES: Render vine body behind ball (permanent base plant) =====
+          // Base plant is ALWAYS visible - only wrapping animation appears/disappears
+          this.ctx.save();
+          this.ctx.lineCap = 'round';
+          this.ctx.lineJoin = 'round';
           
-// ===== IDLE / CAPTURING STATES: Render vine body behind ball =====
-          if (obs.captureState === 'idle' || obs.captureState === 'capturing' || obs.captureState === 'capturing_hold') {
-            // Main vine body - thick trunk with high contrast
-            this.ctx.save();
-            this.ctx.lineCap = 'round';
-            this.ctx.lineJoin = 'round';
-            
-            // Shadow
-            this.ctx.shadowColor = 'rgba(0,0,0,0.5)';
-            this.ctx.shadowBlur = 10;
-            this.ctx.shadowOffsetY = 4;
-            
-            // Base vine gradient - dark bark
-            const vineGrad = this.ctx.createLinearGradient(baseX, baseY, baseX, baseY + wallDir * vineLength);
-            vineGrad.addColorStop(0, '#5A3A22');
-            vineGrad.addColorStop(0.3, '#4A2E18');
-            vineGrad.addColorStop(0.6, '#3A2414');
-            vineGrad.addColorStop(1, '#2A1A0E');
-            
-            // === IDLE: Thicker trunk (1.3-1.5x ball size) leaning toward track ===
-            const isIdle = obs.captureState === 'idle';
-            const idleScale = isIdle ? 1.4 : 1.0;
-            const leanTowardTrack = isIdle ? (wallDir > 0 ? -0.15 : 0.15) * vineLength : 0;
-            
-            this.ctx.strokeStyle = vineGrad;
-            this.ctx.lineWidth = pathPoints[0].width * idleScale;
+          // Shadow
+          this.ctx.shadowColor = 'rgba(0,0,0,0.5)';
+          this.ctx.shadowBlur = 10;
+          this.ctx.shadowOffsetY = 4;
+          
+          // Base vine gradient - dark bark (requested palette)
+          const vineGrad = this.ctx.createLinearGradient(baseX, baseY, baseX, baseY + wallDir * vineLength);
+          vineGrad.addColorStop(0, '#5B3821');  // Primary bark
+          vineGrad.addColorStop(0.3, '#4A2E18');
+          vineGrad.addColorStop(0.6, '#3A2414');
+          vineGrad.addColorStop(1, '#2A1A0E');
+          
+          // === IDLE: Thicker trunk (1.3-1.5x ball size) leaning toward track ===
+          const isIdle = obs.captureState === 'idle';
+          const idleScale = isIdle ? 1.4 : 1.0;
+          const leanTowardTrack = isIdle ? (wallDir > 0 ? -0.15 : 0.15) * vineLength : 0;
+          
+          this.ctx.strokeStyle = vineGrad;
+          this.ctx.lineWidth = pathPoints[0].width * idleScale;
+          this.ctx.beginPath();
+          this.ctx.moveTo(pathPoints[0].x + leanTowardTrack, pathPoints[0].y);
+          for (let s = 1; s < pathPoints.length; s++) {
+            const t = s / (pathPoints.length - 1);
+            const lean = leanTowardTrack * Math.sin(t * Math.PI);
+            this.ctx.lineTo(pathPoints[s].x + lean, pathPoints[s].y);
+          }
+          this.ctx.stroke();
+          
+          // Bark texture lines
+          this.ctx.shadowBlur = 0;
+          this.ctx.strokeStyle = '#372113';  // Shadow bark
+          this.ctx.lineWidth = Math.max(1.5, pathPoints[0].width * 0.12 * idleScale);
+          for (let s = 0; s < pathPoints.length - 1; s += 2) {
+            const p = pathPoints[s];
+            const nextP = pathPoints[Math.min(s + 2, pathPoints.length - 1)];
+            const cx = (p.x + nextP.x) * 0.5;
+            const cy = (p.y + nextP.y) * 0.5;
+            const angle = Math.atan2(nextP.y - p.y, nextP.x - p.x) + Math.PI * 0.5;
             this.ctx.beginPath();
-            this.ctx.moveTo(pathPoints[0].x + leanTowardTrack, pathPoints[0].y);
-            for (let s = 1; s < pathPoints.length; s++) {
-              const t = s / (pathPoints.length - 1);
-              const lean = leanTowardTrack * Math.sin(t * Math.PI);
-              this.ctx.lineTo(pathPoints[s].x + lean, pathPoints[s].y);
-            }
+            this.ctx.moveTo(cx + Math.cos(angle) * p.width * 0.45 * idleScale, cy + Math.sin(angle) * p.width * 0.45 * idleScale);
+            this.ctx.lineTo(cx - Math.cos(angle) * p.width * 0.45 * idleScale, cy - Math.sin(angle) * p.width * 0.45 * idleScale);
             this.ctx.stroke();
-            
-            // Bark texture lines
-            this.ctx.shadowBlur = 0;
-            this.ctx.strokeStyle = '#352112';
-            this.ctx.lineWidth = Math.max(1.5, pathPoints[0].width * 0.12 * idleScale);
-            for (let s = 0; s < pathPoints.length - 1; s += 2) {
-              const p = pathPoints[s];
-              const nextP = pathPoints[Math.min(s + 2, pathPoints.length - 1)];
-              const cx = (p.x + nextP.x) * 0.5;
-              const cy = (p.y + nextP.y) * 0.5;
-              const angle = Math.atan2(nextP.y - p.y, nextP.x - p.x) + Math.PI * 0.5;
-              this.ctx.beginPath();
-              this.ctx.moveTo(cx + Math.cos(angle) * p.width * 0.45 * idleScale, cy + Math.sin(angle) * p.width * 0.45 * idleScale);
-              this.ctx.lineTo(cx - Math.cos(angle) * p.width * 0.45 * idleScale, cy - Math.sin(angle) * p.width * 0.45 * idleScale);
-              this.ctx.stroke();
-            }
+          }
             
             // === HANGING ROOTS (idle only) ===
             if (isIdle) {
@@ -4121,8 +4114,7 @@ class GameEngine {
               this.ctx.restore();
             }
             
-            this.ctx.restore();
-          }
+this.ctx.restore();
           
           // Idle particles (falling leaves, dust)
           if (obs.captureState === 'idle' && obs.particles) {
