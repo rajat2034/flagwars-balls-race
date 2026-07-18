@@ -3400,7 +3400,9 @@ class GameEngine {
             // Visual
             leafOffsets: Array(_leafCount).fill(0).map(() => Math.random() * Math.PI * 2),
             thornOffsets: Array(_thornCount).fill(0).map(() => Math.random() * Math.PI * 2),
-            particles: []
+            particles: [],
+            // Capture history - prevents infinite retrigger
+            capturedBallIds: new Set()
           });
         }
       }
@@ -3705,6 +3707,9 @@ class GameEngine {
               const alreadyCaptured = this.track.obstacles.some(o => 
                 o.type === 'carnivorous_vine' && o.captureState !== 'idle' && o.captureBallId === ball.id
               );
+              // Check if THIS vine has already captured this ball before (permanent memory)
+              if (obs.capturedBallIds && obs.capturedBallIds.has(ball.id)) continue;
+
               if (alreadyCaptured) continue;
               
               const dx = ball.x - triggerX;
@@ -3716,6 +3721,10 @@ class GameEngine {
                 obs.captureState = 'capturing';
                 obs.captureTimer = 0;
                 obs.captureBallId = ball.id;
+obs.captureBallId = ball.id;
+                // Record this ball as captured by this vine (permanent memory)
+                if (!obs.capturedBallIds) obs.capturedBallIds = new Set();
+                obs.capturedBallIds.add(ball.id);
                 obs.captureProgress = 0;
                 obs.wrapSegments = [];
                 
@@ -3899,7 +3908,7 @@ class GameEngine {
             this.ctx.restore();
           }
         } else if (obs.type === 'carnivorous_vine') {
-          // ===== CARNIVOROUS VINE RENDERING =====
+          // ===== CARNIVOROUS VINE RENDERING (permanent base plant) =====
           // Only render on jungle map
           if (this.currentThemeKey !== 'jungle') return;
           
@@ -3932,7 +3941,7 @@ class GameEngine {
             pathPoints.push({ x, y, width, t });
           }
           
-// ===== IDLE / ALL STATES: Render vine body behind ball (permanent base plant) =====
+          // ===== IDLE / ALL STATES: Render vine body behind ball (permanent base plant) =====
           // Base plant is ALWAYS visible - only wrapping animation appears/disappears
           this.ctx.save();
           this.ctx.lineCap = 'round';
@@ -3981,140 +3990,390 @@ class GameEngine {
             this.ctx.lineTo(cx - Math.cos(angle) * p.width * 0.45 * idleScale, cy - Math.sin(angle) * p.width * 0.45 * idleScale);
             this.ctx.stroke();
           }
-            
-            // === HANGING ROOTS (idle only) ===
-            if (isIdle) {
-              this.ctx.strokeStyle = '#3A2414';
-              this.ctx.lineWidth = Math.max(1, pathPoints[0].width * 0.08 * idleScale);
-              this.ctx.lineCap = 'round';
-              for (let r = 0; r < 6; r++) {
-                const rootProgress = 0.15 + (r / 6) * 0.7;
-                const rootIdx = Math.floor(rootProgress * (pathPoints.length - 1));
-                const rp = pathPoints[rootIdx];
-                const rootLen = 8 + Math.random() * 12 * idleScale;
-                const rootSway = Math.sin(time * 0.4 + r * 1.3) * 4;
-                const rootSide = (r % 2 === 0 ? 1 : -1) * (wallDir > 0 ? -1 : 1);
-                
-                this.ctx.beginPath();
-                this.ctx.moveTo(rp.x, rp.y);
-                for (let seg = 0; seg < 4; seg++) {
-                  const segT = seg / 3;
-                  const sx = rp.x + rootSide * rp.width * 0.5 + rootSway * segT + Math.sin(time * 0.7 + r + seg) * 2;
-                  const sy = rp.y + wallDir * rootLen * segT;
-                  this.ctx.lineTo(sx, sy);
-                }
-                this.ctx.stroke();
+          
+          // === HANGING ROOTS (idle only) ===
+          if (isIdle) {
+            this.ctx.strokeStyle = '#3A2414';
+            this.ctx.lineWidth = Math.max(1, pathPoints[0].width * 0.08 * idleScale);
+            this.ctx.lineCap = 'round';
+            for (let r = 0; r < 6; r++) {
+              const rootProgress = 0.15 + (r / 6) * 0.7;
+              const rootIdx = Math.floor(rootProgress * (pathPoints.length - 1));
+              const rp = pathPoints[rootIdx];
+              const rootLen = 8 + Math.random() * 12 * idleScale;
+              const rootSway = Math.sin(time * 0.4 + r * 1.3) * 4;
+              const rootSide = (r % 2 === 0 ? 1 : -1) * (wallDir > 0 ? -1 : 1);
+              
+              this.ctx.beginPath();
+              this.ctx.moveTo(rp.x, rp.y);
+              for (let seg = 0; seg < 4; seg++) {
+                const segT = seg / 3;
+                const sx = rp.x + rootSide * rp.width * 0.5 + rootSway * segT + Math.sin(time * 0.7 + r + seg) * 2;
+                const sy = rp.y + wallDir * rootLen * segT;
+                this.ctx.lineTo(sx, sy);
               }
-            }
-            
-            // Moss patches on vine - more visible
-            this.ctx.fillStyle = '#4D6F35';
-            for (let m = 0; m < 6 + Math.floor(Math.random() * 4); m++) {
-              const mp = pathPoints[Math.floor(Math.random() * pathPoints.length)];
-              const mx = mp.x + (Math.random() - 0.5) * mp.width * 0.8 * idleScale;
-              const my = mp.y + (Math.random() - 0.5) * mp.width * 0.8 * idleScale;
-              this.ctx.beginPath();
-              this.ctx.arc(mx, my, (3 + Math.random() * 4) * idleScale, 0, Math.PI * 2);
-              this.ctx.fill();
-              // Moss highlight
-              this.ctx.fillStyle = '#5A8A3E';
-              this.ctx.beginPath();
-              this.ctx.arc(mx - 1, my - 1, (1.5 + Math.random() * 1.5) * idleScale, 0, Math.PI * 2);
-              this.ctx.fill();
-              this.ctx.fillStyle = '#4D6F35';
-            }
-            
-            // === LARGE LEAVES WITH HIGH CONTRAST ===
-            const effectiveLeafCount = isIdle ? Math.max(leafCount, 8) : leafCount;
-            for (let l = 0; l < effectiveLeafCount; l++) {
-              const progress = (l / effectiveLeafCount) * 0.9 + 0.05;
-              const pi = Math.floor(progress * (pathPoints.length - 1));
-              const p = pathPoints[pi];
-              // Idle leaves are larger and lean toward track
-              const leanAngle = isIdle ? leanTowardTrack * 0.05 : 0;
-              const leafAngle = Math.sin(time * 1.5 + leafOffsets[l]) * (isIdle ? 0.6 : 0.5) + (Math.random() - 0.5) * (isIdle ? 0.7 : 0.6) + leanAngle;
-              const leafSize = (isIdle ? 10 : 8) + Math.sin(leafOffsets[l]) * (isIdle ? 5 : 4);
-              
-              this.ctx.save();
-              this.ctx.translate(p.x, p.y);
-              this.ctx.rotate(leafAngle + (wallDir > 0 ? 0 : Math.PI));
-              
-              // Leaf shadow
-              this.ctx.fillStyle = '#163E1B';
-              this.ctx.beginPath();
-              this.ctx.ellipse(2, 2, leafSize, leafSize * 0.45, 0, 0, Math.PI * 2);
-              this.ctx.fill();
-              
-              // Leaf base
-              this.ctx.fillStyle = '#215A2A';
-              this.ctx.beginPath();
-              this.ctx.ellipse(0, 0, leafSize, leafSize * 0.45, 0, 0, Math.PI * 2);
-              this.ctx.fill();
-              
-              // Leaf highlight
-              this.ctx.fillStyle = '#2E8A3A';
-              this.ctx.beginPath();
-              this.ctx.ellipse(-2, -2, leafSize * 0.65, leafSize * 0.25, 0, 0, Math.PI * 2);
-              this.ctx.fill();
-              
-              // Leaf vein
-              this.ctx.strokeStyle = '#154D22';
-              this.ctx.lineWidth = 2;
-              this.ctx.beginPath();
-              this.ctx.moveTo(-leafSize * 0.7, 0);
-              this.ctx.lineTo(leafSize * 0.7, 0);
               this.ctx.stroke();
+            }
+          }
+          
+          // Moss patches on vine - more visible
+          this.ctx.fillStyle = '#4D6F35';
+          for (let m = 0; m < 6 + Math.floor(Math.random() * 4); m++) {
+            const mp = pathPoints[Math.floor(Math.random() * pathPoints.length)];
+            const mx = mp.x + (Math.random() - 0.5) * mp.width * 0.8 * idleScale;
+            const my = mp.y + (Math.random() - 0.5) * mp.width * 0.8 * idleScale;
+            this.ctx.beginPath();
+            this.ctx.arc(mx, my, (3 + Math.random() * 4) * idleScale, 0, Math.PI * 2);
+            this.ctx.fill();
+            // Moss highlight
+            this.ctx.fillStyle = '#5A8A3E';
+            this.ctx.beginPath();
+            this.ctx.arc(mx - 1, my - 1, (1.5 + Math.random() * 1.5) * idleScale, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.fillStyle = '#4D6F35';
+          }
+          
+          // === LARGE LEAVES WITH HIGH CONTRAST ===
+          const effectiveLeafCount = isIdle ? Math.max(leafCount, 8) : leafCount;
+          for (let l = 0; l < effectiveLeafCount; l++) {
+            const progress = (l / effectiveLeafCount) * 0.9 + 0.05;
+            const pi = Math.floor(progress * (pathPoints.length - 1));
+            const p = pathPoints[pi];
+            // Idle leaves are larger and lean toward track
+            const leanAngle = isIdle ? leanTowardTrack * 0.05 : 0;
+            const leafAngle = Math.sin(time * 1.5 + leafOffsets[l]) * (isIdle ? 0.6 : 0.5) + (Math.random() - 0.5) * (isIdle ? 0.7 : 0.6) + leanAngle;
+            const leafSize = (isIdle ? 10 : 8) + Math.sin(leafOffsets[l]) * (isIdle ? 5 : 4);
+            
+            this.ctx.save();
+            this.ctx.translate(p.x, p.y);
+            this.ctx.rotate(leafAngle + (wallDir > 0 ? 0 : Math.PI));
+            
+            // Leaf shadow
+            this.ctx.fillStyle = '#163E1B';
+            this.ctx.beginPath();
+            this.ctx.ellipse(2, 2, leafSize, leafSize * 0.45, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Leaf base
+            this.ctx.fillStyle = '#215A2A';
+            this.ctx.beginPath();
+            this.ctx.ellipse(0, 0, leafSize, leafSize * 0.45, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Leaf highlight
+            this.ctx.fillStyle = '#2E8A3A';
+            this.ctx.beginPath();
+            this.ctx.ellipse(-2, -2, leafSize * 0.65, leafSize * 0.25, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Leaf vein
+            this.ctx.strokeStyle = '#154D22';
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(-leafSize * 0.7, 0);
+            this.ctx.lineTo(leafSize * 0.7, 0);
+            this.ctx.stroke();
+            
+            // Secondary veins
+            this.ctx.strokeStyle = '#154D22';
+            this.ctx.lineWidth = 1;
+            for (let v = 1; v <= 3; v++) {
+              const vo = leafSize * 0.2 * v;
+              this.ctx.beginPath();
+              this.ctx.moveTo(-leafSize * 0.4, -vo);
+              this.ctx.lineTo(leafSize * 0.4, vo);
+              this.ctx.stroke();
+              this.ctx.beginPath();
+              this.ctx.moveTo(-leafSize * 0.4, vo);
+              this.ctx.lineTo(leafSize * 0.4, -vo);
+              this.ctx.stroke();
+            }
+            
+            this.ctx.restore();
+          }
+          
+          // Thorns - sharp and visible
+          this.ctx.fillStyle = '#0A0A0A';
+          for (let t = 0; t < thornCount; t++) {
+            const progress = (t / thornCount) * 0.8 + 0.1;
+            const pi = Math.floor(progress * (pathPoints.length - 1));
+            const p = pathPoints[pi];
+            const thornAngle = Math.sin(time * 1.2 + thornOffsets[t]) * 0.4;
+            const thornSize = (isIdle ? 6 : 5) + Math.sin(thornOffsets[t]) * (isIdle ? 4 : 3);
+            const side = (t % 2 === 0 ? 1 : -1) * (wallDir > 0 ? 1 : -1);
+            
+            this.ctx.save();
+            this.ctx.translate(p.x, p.y);
+            this.ctx.rotate(thornAngle);
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, 0);
+            this.ctx.lineTo(side * thornSize, -thornSize * 0.4);
+            this.ctx.lineTo(side * thornSize * 0.6, thornSize * 0.2);
+            this.ctx.closePath();
+            this.ctx.fill();
+            
+            // Thorn highlight
+            this.ctx.fillStyle = '#1A1A1A';
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, 0);
+            this.ctx.lineTo(side * thornSize * 0.4, -thornSize * 0.2);
+            this.ctx.lineTo(side * thornSize * 0.2, 0);
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.restore();
+          }
+          
+          this.ctx.restore();
+          
+          // ===== CAPTURING / HOLD / RELEASING: Render wrap animation ABOVE ball =====
+          if (obs.captureState === 'capturing' || obs.captureState === 'capturing_hold' || obs.captureState === 'releasing') {
+            const ball = this.balls ? this.balls.find(b => b.id === obs.captureBallId) : null;
+            if (ball) {
+              const ballX = ball.x - camX;
+              const ballY = ball.y;
+              const ballR = ball.radius;
+              const progress = obs.captureProgress || 0;
+              const holdProgress = obs.captureState === 'capturing_hold' ? 1 : progress;
               
-              // Secondary veins
-              this.ctx.strokeStyle = '#154D22';
-              this.ctx.lineWidth = 1;
-              for (let v = 1; v <= 3; v++) {
-                const vo = leafSize * 0.2 * v;
+              this.ctx.save();
+              this.ctx.lineCap = 'round';
+              this.ctx.lineJoin = 'round';
+              
+              // Main wrapping vines - thick, dark, visible
+              const segments = obs.wrapSegments || [];
+              const maxLayers = obs.captureState === 'capturing_hold' ? 5 : Math.max(2, Math.floor(holdProgress * 5));
+              
+              for (let s = 0; s < segments.length; s++) {
+                const seg = segments[s];
+                const segProgress = holdProgress * seg.progress;
+                const wrapAngle = seg.angle + time * 4 * (1 - holdProgress * 0.3) + seg.phase;
+                const currentRadius = ballR * (0.75 + holdProgress * 0.5) * (1 - segProgress * 0.25);
+                
+                for (let layer = 0; layer < maxLayers; layer++) {
+                  const layerOffset = (layer / maxLayers) * Math.PI * 2;
+                  const radius = currentRadius * (0.8 + layer * 0.08);
+                  const startAngle = wrapAngle + layerOffset;
+                  const endAngle = startAngle + Math.PI * 1.8 * holdProgress;
+                  
+                  // Vine colors - opaque, visible
+                  const vineColors = ['#5A3A22', '#4A2E18', '#3A2414', '#2A1A0E', '#1A120A'];
+                  this.ctx.strokeStyle = vineColors[Math.min(layer, vineColors.length - 1)];
+                  this.ctx.lineWidth = Math.max(3, baseWidth * (0.7 - layer * 0.1) * holdProgress);
+                  this.ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                  this.ctx.shadowBlur = 8;
+                  
+                  this.ctx.beginPath();
+                  this.ctx.arc(ballX, ballY, radius, startAngle, endAngle);
+                  this.ctx.stroke();
+                  
+                  // Leaves on wraps (only during hold)
+                  if (obs.captureState === 'capturing_hold' && Math.random() < 0.4) {
+                    this.ctx.fillStyle = '#154D22';
+                    const leafAngle = (startAngle + endAngle) * 0.5 + (Math.random() - 0.5) * 0.3;
+                    const lx = ballX + Math.cos(leafAngle) * radius;
+                    const ly = ballY + Math.sin(leafAngle) * radius;
+                    this.ctx.beginPath();
+                    this.ctx.ellipse(lx, ly, 5, 2.5, leafAngle, 0, Math.PI * 2);
+                    this.ctx.fill();
+                  }
+                  
+                  // Thorns on wraps
+                  if (obs.captureState === 'capturing_hold' && Math.random() < 0.2) {
+                    this.ctx.fillStyle = '#0A0A0A';
+                    const thornAngle = (startAngle + endAngle) * 0.5 + Math.random() * 0.2;
+                    const tx = ballX + Math.cos(thornAngle) * radius;
+                    const ty = ballY + Math.sin(thornAngle) * radius;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(tx, ty);
+                    this.ctx.lineTo(tx + Math.cos(thornAngle) * 6, ty + Math.sin(thornAngle) * 6);
+                    this.ctx.stroke();
+                  }
+                }
+              }
+              
+              // Squeeze overlay on ball
+              if (obs.captureState === 'capturing_hold') {
+                // Dark vine squeeze
+                this.ctx.fillStyle = 'rgba(26, 30, 18, 0.5)';
                 this.ctx.beginPath();
-                this.ctx.moveTo(-leafSize * 0.4, -vo);
-                this.ctx.lineTo(leafSize * 0.4, vo);
-                this.ctx.stroke();
+                this.ctx.arc(ballX, ballY, ballR * 0.92, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Pulsing highlight
+                const squeezeAlpha = 0.2 + Math.sin(time * 5) * 0.1;
+                this.ctx.fillStyle = 'rgba(70, 90, 45, ' + squeezeAlpha + ')';
                 this.ctx.beginPath();
-                this.ctx.moveTo(-leafSize * 0.4, vo);
-                this.ctx.lineTo(leafSize * 0.4, -vo);
+                this.ctx.arc(ballX, ballY, ballR * 0.6, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Tightening ring
+                this.ctx.strokeStyle = '#3A2A14';
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.arc(ballX, ballY, ballR * 0.95 + Math.sin(time * 4) * 1.5, 0, Math.PI * 2);
                 this.ctx.stroke();
+              }
+              
+              // Release unwind animation
+              if (obs.captureState === 'releasing') {
+                this.ctx.strokeStyle = '#4A2E18';
+                this.ctx.lineWidth = Math.max(2, baseWidth * 0.6 * progress);
+                this.ctx.globalAlpha = progress;
+                
+                for (let layer = 0; layer < 3; layer++) {
+                  const layerOffset = (layer / 3) * Math.PI * 2;
+                  const radius = ballR * (0.9 + layer * 0.1) * progress;
+                  const startAngle = time * 2 + layerOffset;
+                  const endAngle = startAngle + Math.PI * 1.5 * progress;
+                  
+                  this.ctx.beginPath();
+                  this.ctx.arc(ballX, ballY, radius, startAngle, endAngle);
+                  this.ctx.stroke();
+                }
+                
+                // Falling leaf particles
+                this.ctx.fillStyle = '#1E5C2A';
+                for (let p = 0; p < 10; p++) {
+                  const angle = (p / 10) * Math.PI * 2 + time * 3;
+                  const dist = ballR + (1 - progress) * 40;
+                  const px = ballX + Math.cos(angle) * dist;
+                  const py = ballY + Math.sin(angle) * dist;
+                  this.ctx.beginPath();
+                  this.ctx.arc(px, py, 2.5 + Math.random() * 2, 0, Math.PI * 2);
+                  this.ctx.fill();
+                }
+                
+                this.ctx.globalAlpha = 1;
               }
               
               this.ctx.restore();
             }
-            
-            // Thorns - sharp and visible
-            this.ctx.fillStyle = '#0A0A0A';
-            for (let t = 0; t < thornCount; t++) {
-              const progress = (t / thornCount) * 0.8 + 0.1;
-              const pi = Math.floor(progress * (pathPoints.length - 1));
-              const p = pathPoints[pi];
-              const thornAngle = Math.sin(time * 1.2 + thornOffsets[t]) * 0.4;
-              const thornSize = (isIdle ? 6 : 5) + Math.sin(thornOffsets[t]) * (isIdle ? 4 : 3);
-              const side = (t % 2 === 0 ? 1 : -1) * (wallDir > 0 ? 1 : -1);
+          
+          // ===== CAPTURING / HOLD / RELEASING: Render wrap animation ABOVE ball =====
+          if (obs.captureState === 'capturing' || obs.captureState === 'capturing_hold' || obs.captureState === 'releasing') {
+            const ball = this.balls ? this.balls.find(b => b.id === obs.captureBallId) : null;
+            if (ball) {
+              const ballX = ball.x - camX;
+              const ballY = ball.y;
+              const ballR = ball.radius;
+              const progress = obs.captureProgress || 0;
+              const holdProgress = obs.captureState === 'capturing_hold' ? 1 : progress;
               
               this.ctx.save();
-              this.ctx.translate(p.x, p.y);
-              this.ctx.rotate(thornAngle);
-              this.ctx.beginPath();
-              this.ctx.moveTo(0, 0);
-              this.ctx.lineTo(side * thornSize, -thornSize * 0.4);
-              this.ctx.lineTo(side * thornSize * 0.6, thornSize * 0.2);
-              this.ctx.closePath();
-              this.ctx.fill();
+              this.ctx.lineCap = 'round';
+              this.ctx.lineJoin = 'round';
               
-              // Thorn highlight
-              this.ctx.fillStyle = '#1A1A1A';
-              this.ctx.beginPath();
-              this.ctx.moveTo(0, 0);
-              this.ctx.lineTo(side * thornSize * 0.4, -thornSize * 0.2);
-              this.ctx.lineTo(side * thornSize * 0.2, 0);
-              this.ctx.closePath();
-              this.ctx.fill();
+              // Main wrapping vines - thick, dark, visible
+              const segments = obs.wrapSegments || [];
+              const maxLayers = obs.captureState === 'capturing_hold' ? 5 : Math.max(2, Math.floor(holdProgress * 5));
+              
+              for (let s = 0; s < segments.length; s++) {
+                const seg = segments[s];
+                const segProgress = holdProgress * seg.progress;
+                const wrapAngle = seg.angle + time * 4 * (1 - holdProgress * 0.3) + seg.phase;
+                const currentRadius = ballR * (0.75 + holdProgress * 0.5) * (1 - segProgress * 0.25);
+                
+                for (let layer = 0; layer < maxLayers; layer++) {
+                  const layerOffset = (layer / maxLayers) * Math.PI * 2;
+                  const radius = currentRadius * (0.8 + layer * 0.08);
+                  const startAngle = wrapAngle + layerOffset;
+                  const endAngle = startAngle + Math.PI * 1.8 * holdProgress;
+                  
+                  // Vine colors - opaque, visible
+                  const vineColors = ['#5A3A22', '#4A2E18', '#3A2414', '#2A1A0E', '#1A120A'];
+                  this.ctx.strokeStyle = vineColors[Math.min(layer, vineColors.length - 1)];
+                  this.ctx.lineWidth = Math.max(3, baseWidth * (0.7 - layer * 0.1) * holdProgress);
+                  this.ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                  this.ctx.shadowBlur = 8;
+                  
+                  this.ctx.beginPath();
+                  this.ctx.arc(ballX, ballY, radius, startAngle, endAngle);
+                  this.ctx.stroke();
+                  
+                  // Leaves on wraps (only during hold)
+                  if (obs.captureState === 'capturing_hold' && Math.random() < 0.4) {
+                    this.ctx.fillStyle = '#154D22';
+                    const leafAngle = (startAngle + endAngle) * 0.5 + (Math.random() - 0.5) * 0.3;
+                    const lx = ballX + Math.cos(leafAngle) * radius;
+                    const ly = ballY + Math.sin(leafAngle) * radius;
+                    this.ctx.beginPath();
+                    this.ctx.ellipse(lx, ly, 5, 2.5, leafAngle, 0, Math.PI * 2);
+                    this.ctx.fill();
+                  }
+                  
+                  // Thorns on wraps
+                  if (obs.captureState === 'capturing_hold' && Math.random() < 0.2) {
+                    this.ctx.fillStyle = '#0A0A0A';
+                    const thornAngle = (startAngle + endAngle) * 0.5 + Math.random() * 0.2;
+                    const tx = ballX + Math.cos(thornAngle) * radius;
+                    const ty = ballY + Math.sin(thornAngle) * radius;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(tx, ty);
+                    this.ctx.lineTo(tx + Math.cos(thornAngle) * 6, ty + Math.sin(thornAngle) * 6);
+                    this.ctx.stroke();
+                  }
+                }
+              }
+              
+              // Squeeze overlay on ball
+              if (obs.captureState === 'capturing_hold') {
+                // Dark vine squeeze
+                this.ctx.fillStyle = 'rgba(26, 30, 18, 0.5)';
+                this.ctx.beginPath();
+                this.ctx.arc(ballX, ballY, ballR * 0.92, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Pulsing highlight
+                const squeezeAlpha = 0.2 + Math.sin(time * 5) * 0.1;
+                this.ctx.fillStyle = 'rgba(70, 90, 45, ' + squeezeAlpha + ')';
+                this.ctx.beginPath();
+                this.ctx.arc(ballX, ballY, ballR * 0.6, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Tightening ring
+                this.ctx.strokeStyle = '#3A2A14';
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.arc(ballX, ballY, ballR * 0.95 + Math.sin(time * 4) * 1.5, 0, Math.PI * 2);
+                this.ctx.stroke();
+              }
+              
+              // Release unwind animation
+              if (obs.captureState === 'releasing') {
+                this.ctx.strokeStyle = '#4A2E18';
+                this.ctx.lineWidth = Math.max(2, baseWidth * 0.6 * progress);
+                this.ctx.globalAlpha = progress;
+                
+                for (let layer = 0; layer < 3; layer++) {
+                  const layerOffset = (layer / 3) * Math.PI * 2;
+                  const radius = ballR * (0.9 + layer * 0.1) * progress;
+                  const startAngle = time * 2 + layerOffset;
+                  const endAngle = startAngle + Math.PI * 1.5 * progress;
+                  
+                  this.ctx.beginPath();
+                  this.ctx.arc(ballX, ballY, radius, startAngle, endAngle);
+                  this.ctx.stroke();
+                }
+                
+                // Falling leaf particles
+                this.ctx.fillStyle = '#1E5C2A';
+                for (let p = 0; p < 10; p++) {
+                  const angle = (p / 10) * Math.PI * 2 + time * 3;
+                  const dist = ballR + (1 - progress) * 40;
+                  const px = ballX + Math.cos(angle) * dist;
+                  const py = ballY + Math.sin(angle) * dist;
+                  this.ctx.beginPath();
+                  this.ctx.arc(px, py, 2.5 + Math.random() * 2, 0, Math.PI * 2);
+                  this.ctx.fill();
+                }
+                
+                this.ctx.globalAlpha = 1;
+              }
+              
               this.ctx.restore();
             }
-            
-this.ctx.restore();
+          }
+}
           
           // Idle particles (falling leaves, dust)
           if (obs.captureState === 'idle' && obs.particles) {
@@ -4128,6 +4387,8 @@ this.ctx.restore();
             }
           }
         }
+          
+
       });
 
     // Remove old off-camera falling rocks/meteors and broken walls
