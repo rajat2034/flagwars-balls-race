@@ -3938,7 +3938,7 @@ class GameEngine {
           vineGrad.addColorStop(0.5, '#4A2E18');
           vineGrad.addColorStop(1, '#352112');
           
-          // ===== IDLE / CAPTURING STATES: Render vine body behind ball =====
+// ===== IDLE / CAPTURING STATES: Render vine body behind ball =====
           if (obs.captureState === 'idle' || obs.captureState === 'capturing' || obs.captureState === 'capturing_hold') {
             // Main vine body - thick trunk with high contrast
             this.ctx.save();
@@ -3957,19 +3957,26 @@ class GameEngine {
             vineGrad.addColorStop(0.6, '#3A2414');
             vineGrad.addColorStop(1, '#2A1A0E');
             
+            // === IDLE: Thicker trunk (1.3-1.5x ball size) leaning toward track ===
+            const isIdle = obs.captureState === 'idle';
+            const idleScale = isIdle ? 1.4 : 1.0;
+            const leanTowardTrack = isIdle ? (wallDir > 0 ? -0.15 : 0.15) * vineLength : 0;
+            
             this.ctx.strokeStyle = vineGrad;
-            this.ctx.lineWidth = pathPoints[0].width;
+            this.ctx.lineWidth = pathPoints[0].width * idleScale;
             this.ctx.beginPath();
-            this.ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+            this.ctx.moveTo(pathPoints[0].x + leanTowardTrack, pathPoints[0].y);
             for (let s = 1; s < pathPoints.length; s++) {
-              this.ctx.lineTo(pathPoints[s].x, pathPoints[s].y);
+              const t = s / (pathPoints.length - 1);
+              const lean = leanTowardTrack * Math.sin(t * Math.PI);
+              this.ctx.lineTo(pathPoints[s].x + lean, pathPoints[s].y);
             }
             this.ctx.stroke();
             
             // Bark texture lines
             this.ctx.shadowBlur = 0;
             this.ctx.strokeStyle = '#352112';
-            this.ctx.lineWidth = Math.max(1, pathPoints[0].width * 0.15);
+            this.ctx.lineWidth = Math.max(1.5, pathPoints[0].width * 0.12 * idleScale);
             for (let s = 0; s < pathPoints.length - 1; s += 2) {
               const p = pathPoints[s];
               const nextP = pathPoints[Math.min(s + 2, pathPoints.length - 1)];
@@ -3977,48 +3984,76 @@ class GameEngine {
               const cy = (p.y + nextP.y) * 0.5;
               const angle = Math.atan2(nextP.y - p.y, nextP.x - p.x) + Math.PI * 0.5;
               this.ctx.beginPath();
-              this.ctx.moveTo(cx + Math.cos(angle) * p.width * 0.4, cy + Math.sin(angle) * p.width * 0.4);
-              this.ctx.lineTo(cx - Math.cos(angle) * p.width * 0.4, cy - Math.sin(angle) * p.width * 0.4);
+              this.ctx.moveTo(cx + Math.cos(angle) * p.width * 0.45 * idleScale, cy + Math.sin(angle) * p.width * 0.45 * idleScale);
+              this.ctx.lineTo(cx - Math.cos(angle) * p.width * 0.45 * idleScale, cy - Math.sin(angle) * p.width * 0.45 * idleScale);
               this.ctx.stroke();
             }
             
+            // === HANGING ROOTS (idle only) ===
+            if (isIdle) {
+              this.ctx.strokeStyle = '#3A2414';
+              this.ctx.lineWidth = Math.max(1, pathPoints[0].width * 0.08 * idleScale);
+              this.ctx.lineCap = 'round';
+              for (let r = 0; r < 6; r++) {
+                const rootProgress = 0.15 + (r / 6) * 0.7;
+                const rootIdx = Math.floor(rootProgress * (pathPoints.length - 1));
+                const rp = pathPoints[rootIdx];
+                const rootLen = 8 + Math.random() * 12 * idleScale;
+                const rootSway = Math.sin(time * 0.4 + r * 1.3) * 4;
+                const rootSide = (r % 2 === 0 ? 1 : -1) * (wallDir > 0 ? -1 : 1);
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(rp.x, rp.y);
+                for (let seg = 0; seg < 4; seg++) {
+                  const segT = seg / 3;
+                  const sx = rp.x + rootSide * rp.width * 0.5 + rootSway * segT + Math.sin(time * 0.7 + r + seg) * 2;
+                  const sy = rp.y + wallDir * rootLen * segT;
+                  this.ctx.lineTo(sx, sy);
+                }
+                this.ctx.stroke();
+              }
+            }
+            
             // Moss patches on vine - more visible
-            this.ctx.fillStyle = '#3F6B2E';
-            for (let m = 0; m < 5 + Math.floor(Math.random() * 4); m++) {
+            this.ctx.fillStyle = '#4D6F35';
+            for (let m = 0; m < 6 + Math.floor(Math.random() * 4); m++) {
               const mp = pathPoints[Math.floor(Math.random() * pathPoints.length)];
-              const mx = mp.x + (Math.random() - 0.5) * mp.width * 0.8;
-              const my = mp.y + (Math.random() - 0.5) * mp.width * 0.8;
+              const mx = mp.x + (Math.random() - 0.5) * mp.width * 0.8 * idleScale;
+              const my = mp.y + (Math.random() - 0.5) * mp.width * 0.8 * idleScale;
               this.ctx.beginPath();
-              this.ctx.arc(mx, my, 3 + Math.random() * 4, 0, Math.PI * 2);
+              this.ctx.arc(mx, my, (3 + Math.random() * 4) * idleScale, 0, Math.PI * 2);
               this.ctx.fill();
               // Moss highlight
               this.ctx.fillStyle = '#5A8A3E';
               this.ctx.beginPath();
-              this.ctx.arc(mx - 1, my - 1, 1.5 + Math.random() * 1.5, 0, Math.PI * 2);
+              this.ctx.arc(mx - 1, my - 1, (1.5 + Math.random() * 1.5) * idleScale, 0, Math.PI * 2);
               this.ctx.fill();
-              this.ctx.fillStyle = '#3F6B2E';
+              this.ctx.fillStyle = '#4D6F35';
             }
             
-            // Large leaves with high contrast
-            for (let l = 0; l < leafCount; l++) {
-              const progress = (l / leafCount) * 0.9 + 0.05;
+            // === LARGE LEAVES WITH HIGH CONTRAST ===
+            const effectiveLeafCount = isIdle ? Math.max(leafCount, 8) : leafCount;
+            for (let l = 0; l < effectiveLeafCount; l++) {
+              const progress = (l / effectiveLeafCount) * 0.9 + 0.05;
               const pi = Math.floor(progress * (pathPoints.length - 1));
               const p = pathPoints[pi];
-              const leafAngle = Math.sin(time * 1.5 + leafOffsets[l]) * 0.5 + (Math.random() - 0.5) * 0.6;
-              const leafSize = 8 + Math.sin(leafOffsets[l]) * 4;
+              // Idle leaves are larger and lean toward track
+              const leanAngle = isIdle ? leanTowardTrack * 0.05 : 0;
+              const leafAngle = Math.sin(time * 1.5 + leafOffsets[l]) * (isIdle ? 0.6 : 0.5) + (Math.random() - 0.5) * (isIdle ? 0.7 : 0.6) + leanAngle;
+              const leafSize = (isIdle ? 10 : 8) + Math.sin(leafOffsets[l]) * (isIdle ? 5 : 4);
               
               this.ctx.save();
               this.ctx.translate(p.x, p.y);
               this.ctx.rotate(leafAngle + (wallDir > 0 ? 0 : Math.PI));
               
               // Leaf shadow
-              this.ctx.fillStyle = '#143D1C';
+              this.ctx.fillStyle = '#163E1B';
               this.ctx.beginPath();
               this.ctx.ellipse(2, 2, leafSize, leafSize * 0.45, 0, 0, Math.PI * 2);
               this.ctx.fill();
               
               // Leaf base
-              this.ctx.fillStyle = '#1E5C2A';
+              this.ctx.fillStyle = '#215A2A';
               this.ctx.beginPath();
               this.ctx.ellipse(0, 0, leafSize, leafSize * 0.45, 0, 0, Math.PI * 2);
               this.ctx.fill();
@@ -4031,11 +4066,26 @@ class GameEngine {
               
               // Leaf vein
               this.ctx.strokeStyle = '#154D22';
-              this.ctx.lineWidth = 1.5;
+              this.ctx.lineWidth = 2;
               this.ctx.beginPath();
               this.ctx.moveTo(-leafSize * 0.7, 0);
               this.ctx.lineTo(leafSize * 0.7, 0);
               this.ctx.stroke();
+              
+              // Secondary veins
+              this.ctx.strokeStyle = '#154D22';
+              this.ctx.lineWidth = 1;
+              for (let v = 1; v <= 3; v++) {
+                const vo = leafSize * 0.2 * v;
+                this.ctx.beginPath();
+                this.ctx.moveTo(-leafSize * 0.4, -vo);
+                this.ctx.lineTo(leafSize * 0.4, vo);
+                this.ctx.stroke();
+                this.ctx.beginPath();
+                this.ctx.moveTo(-leafSize * 0.4, vo);
+                this.ctx.lineTo(leafSize * 0.4, -vo);
+                this.ctx.stroke();
+              }
               
               this.ctx.restore();
             }
@@ -4047,7 +4097,7 @@ class GameEngine {
               const pi = Math.floor(progress * (pathPoints.length - 1));
               const p = pathPoints[pi];
               const thornAngle = Math.sin(time * 1.2 + thornOffsets[t]) * 0.4;
-              const thornSize = 5 + Math.sin(thornOffsets[t]) * 3;
+              const thornSize = (isIdle ? 6 : 5) + Math.sin(thornOffsets[t]) * (isIdle ? 4 : 3);
               const side = (t % 2 === 0 ? 1 : -1) * (wallDir > 0 ? 1 : -1);
               
               this.ctx.save();
@@ -4072,7 +4122,7 @@ class GameEngine {
             }
             
             this.ctx.restore();
-}
+          }
           
           // Idle particles (falling leaves, dust)
           if (obs.captureState === 'idle' && obs.particles) {
