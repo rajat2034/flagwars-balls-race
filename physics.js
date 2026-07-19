@@ -35,6 +35,7 @@ class PhysicsEngine {
       b._enteredBoostThisFrame = false;
       b._enteredSlowThisFrame = false;
       b._exitedSlowThisFrame = false;
+      b._enteredMudPuddleThisFrame = false;
       b._enteredLavaPoolThisFrame = false;
       b._hitCollapsingPillarThisFrame = false;
     });
@@ -89,6 +90,8 @@ class PhysicsEngine {
       let inBoost = false;
       ball._wasInBoost = ball._wasInBoost || false;
       ball._wasInSlow = ball._wasInSlow || false;
+      ball._wasInLavaPool = ball._wasInLavaPool || false;
+      ball._wasInMudPuddle = ball._wasInMudPuddle || false;
 
       track.zones.forEach(zone => {
         // Portal zones use circle-rectangle overlap for reliable entry (ball center need not be inside tiny 50×50 zone)
@@ -124,9 +127,12 @@ class PhysicsEngine {
               ball.vy *= boostMult;
               ball._wasInBoost = true;
             }
-          } else if (zone.type === 'slow' || zone.type === 'sand' || zone.type === 'lava_pool') {
-            if (ball.z === 0 && !ball._wasInSlow && (zone.type === 'slow' || zone.type === 'lava_pool')) {
+          } else if (zone.type === 'slow' || zone.type === 'sand' || zone.type === 'lava_pool' || zone.type === 'mud_puddle') {
+            if (ball.z === 0 && !ball._wasInSlow && (zone.type === 'slow' || zone.type === 'lava_pool' || zone.type === 'mud_puddle')) {
               if (!this._isGlacier && zone.type === 'slow') {
+                ball.vx *= 0.7;
+              }
+              if (zone.type === 'mud_puddle') {
                 ball.vx *= 0.7;
               }
               ball._wasInSlow = true;
@@ -134,8 +140,12 @@ class PhysicsEngine {
               if (zone.type === 'lava_pool') {
                 ball._enteredLavaPoolThisFrame = true;
                 ball._wasInLavaPool = true;
+              } else if (zone.type === 'mud_puddle') {
+                ball._enteredMudPuddleThisFrame = true;
+                ball._wasInMudPuddle = true;
               } else {
                 ball._wasInLavaPool = false;
+                ball._wasInMudPuddle = false;
               }
             }
             if (zone.type === 'sand') inSand = true;
@@ -174,12 +184,14 @@ class PhysicsEngine {
 
       // Reset zone visit flags (only when outside the respective zones)
       if (!inBoost) ball._wasInBoost = false;
-      const slowZones = track.zones.filter(z => z.type === 'slow' || z.type === 'lava_pool');
+      const slowZones = track.zones.filter(z => z.type === 'slow' || z.type === 'lava_pool' || z.type === 'mud_puddle');
       if (slowZones.every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
         if (ball._wasInSlow) {
           ball._exitedSlowThisFrame = true;
         }
         ball._wasInSlow = false;
+        ball._wasInLavaPool = false;
+        ball._wasInMudPuddle = false;
       }
       // Decrement portal cooldown
       if (ball._portalCooldown > 0) {
@@ -754,6 +766,79 @@ class PhysicsEngine {
             }
 
             // No burning, no slowdown, no stun, no freezing — pure physical bounce
+          }
+        } else if (obs.type === 'carnivorous_vine') {
+          // Carnivorous Vine — solid trunk on wall with 2 capture voids (above/below)
+          // Only collides at ground level (z === 0)
+          
+          const vineH = obs.cannonHeight || 50; // vine trunk height
+          const vineW = 20; // vine trunk width (physical collision width)
+          const vineX = obs.x;
+          const vineY = obs.y;
+          const wallDir = obs.wallSide === 'top' ? 1 : -1; // top=1 (extends down), bottom=-1 (extends up)
+          
+          // Check if ball is at ground level and horizontally aligned with vine trunk
+          if (ball.z === 0 && ball.x > vineX - vineW/2 && ball.x < vineX + vineW/2) {
+            // Vine trunk vertical bounds
+            // Top vine: trunk extends DOWN from wall (y - H/2 to y + H/2)
+            // Bottom vine: trunk extends UP from wall (y - H/2 to y + H/2)
+            const trunkTop = vineY - vineH * 0.5;
+            const trunkBot = vineY + vineH * 0.5;
+            
+            // Check if ball vertically overlaps with trunk
+            const ballTop = ball.y - ball.radius;
+            const ballBot = ball.y + ball.radius;
+            
+            if (ballBot > trunkTop && ballTop < trunkBot) {
+              // Ball overlaps trunk vertically - collision!
+              const capturedBalls = obs.capturedBalls || [];
+              
+              if (!capturedBalls.some(id => id === ball.id) && capturedBalls.length < 2) {
+                // CAPTURE: vine has capacity, trap the ball
+                obs.captureState = 'capturing';
+                obs.captureBallId = ball.id;
+                obs.captureTimer = 0;
+                obs.captureProgress = 0;
+                if (!obs.capturedBallIds) obs.capturedBallIds = new Set();
+                obs.capturedBallIds.add(ball.id);
+                ball._capturedByVine = true;
+                ball._vineCaptureVx = ball.vx;
+                ball._vineCaptureVy = ball.vy;
+                ball._vineCaptureX = ball.x;
+                ball._vineCaptureY = ball.y;
+                ball.vx = 0;
+                ball.vy = 0;
+                ball._vineCaptured = true;
+                
+                if (!obs.capturedBalls) obs.capturedBalls = [];
+                obs.capturedBalls.push(ball.id);
+              } else {
+                // VINE FULL or already captured - SLIDE along wall around vine
+                // Vine is on wall, so ball should slide UP or DOWN along wall to go around
+                // Push ball away from trunk center along wall direction
+                
+                const trunkCenterY = (trunkTop + trunkBot) / 2;
+                const dy = ball.y - trunkCenterY;
+                
+                // Determine which void to slide toward (above or below trunk)
+                const slideDir = dy >= 0 ? 1 : -1; // 1 = down/up along wall, -1 = up/down
+                
+                // Push ball out of trunk horizontally first
+                const overlapX = vineW/2 - Math.abs(ball.x - vineX) + 2;
+                if (overlapX > 0) {
+                  const pushX = ball.x > vineX ? overlapX : -overlapX;
+                  ball.x += pushX;
+                }
+                
+                // Then slide along wall (vertical movement) to go around vine
+                // Strong vertical push to slide past the vine
+                const slideForce = slideDir * 2;
+                ball.vy += slideForce;
+                
+                // Reduce forward velocity slightly
+                ball.vx *= 0.7;
+              }
+            }
           }
         }
       });
