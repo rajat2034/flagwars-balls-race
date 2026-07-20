@@ -9422,13 +9422,13 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.rotate(armAngle);
             
             // Vine pivot point - organic attachment
+            // Vine extends along +X axis (matching original arm collision)
             const time = Date.now() * 0.001;
             const swayPhase = (obs.x + obs.y) * 0.01;
             const swayAmount = Math.sin(time * 0.5 + swayPhase) * 3;
             
-            // Draw vine as curved segments
+            // Draw vine as curved segments along +X axis (matching collision)
             const segments = 8;
-            const segmentLen = armLen / segments;
             this.ctx.lineCap = 'round';
             this.ctx.lineJoin = 'round';
             
@@ -9450,8 +9450,9 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             let prevX = 0, prevY = 0;
             for (let s = 1; s <= segments; s++) {
               const t = s / segments;
-              const curveX = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
-              const curveY = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              // Curve along +X axis (matching collision arm direction)
+              const curveX = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              const curveY = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
               const width = 8 * (1 - t * 0.4);
               this.ctx.lineWidth = width;
               this.ctx.lineTo(curveX, curveY);
@@ -9464,8 +9465,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.lineWidth = 1;
             for (let s = 1; s <= segments; s++) {
               const t = s / segments;
-              const curveX = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
-              const curveY = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              const curveX = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              const curveY = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
               const angle = Math.atan2(curveY - prevY, curveX - prevX) + Math.PI * 0.5;
               this.ctx.beginPath();
               this.ctx.moveTo(curveX + Math.cos(angle) * 3 * (1 - t), curveY + Math.sin(angle) * 3 * (1 - t));
@@ -9479,8 +9480,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.fillStyle = '#1a4a1a';
             for (let l = 0; l < 6; l++) {
               const t = (l / 6) * 0.8 + 0.1;
-              const leafX = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
-              const leafY = t * armLen;
+              const leafX = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              const leafY = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
               const leafAngle = Math.sin(time * 1.2 + l * 1.5) * 0.4;
               const leafSize = 7 + Math.sin(l * 2) * 2;
               
@@ -9503,8 +9504,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.fillStyle = '#080808';
             for (let th = 0; th < 4; th++) {
               const t = (th / 4) * 0.85 + 0.1;
-              const thornX = Math.sin(t * Math.PI * 1.5 + time * 0.2 + swayPhase) * swayAmount * t;
-              const thornY = t * armLen;
+              const thornX = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              const thornY = Math.sin(t * Math.PI * 1.5 + time * 0.2 + swayPhase) * swayAmount * t;
               const thornSize = 5;
               const side = th % 2 === 0 ? 1 : -1;
               
@@ -9521,8 +9522,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             
             // End tip - curled leaf
             this.ctx.fillStyle = '#2a5a2a';
-            const tipX = Math.sin(Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount;
-            const tipY = armLen;
+            const tipX = armLen + Math.sin(Math.PI * 2 + time * 0.2) * 2;
+            const tipY = Math.sin(Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount;
             this.ctx.beginPath();
             this.ctx.ellipse(tipX, tipY, 8, 4, Math.PI * 0.3, 0, Math.PI * 2);
             this.ctx.fill();
@@ -9571,7 +9572,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.arc(armLen, 0, 12, 0, Math.PI * 2);
             this.ctx.fill();
             this.ctx.restore();
-          }
+        }
         } else if (obs.type === 'c_bumper') {
           // Rotating C-bumper ??? small semicircular arc like a pinball bumper
           const R = obs.radius || 70;

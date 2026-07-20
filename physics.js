@@ -586,6 +586,7 @@ class PhysicsEngine {
           }
         } else if (obs.type === 'sweep_arm') {
           // Jungle vine collision - match the curved visual vine
+          // Visual vine extends along +X in local space (matching original arm collision)
           const isJungle = obs._isJungle === true; // only true on jungle map
           const armLen = obs.length || 120;
           const angle = obs.angle || 0;
@@ -593,7 +594,7 @@ class PhysicsEngine {
           const sinA = Math.sin(angle);
           
           if (isJungle) {
-            // Use same curved segments as visual rendering
+            // Use same curved segments as visual rendering (vine extends along +X in local space)
             const segments = 8;
             const time = Date.now() * 0.001;
             const swayPhase = (obs.x + obs.y) * 0.01;
@@ -605,13 +606,13 @@ class PhysicsEngine {
             
             for (let s = 1; s <= segments; s++) {
               const t = s / segments;
-              // Same curve math as visual
-              const curveLocalX = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
-              const curveLocalY = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              // Local coordinates: vine extends along +X (t * armLen), curve along Y
+              const localX = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              const localY = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
               
-              // Rotate curve to arm angle
-              const curveX = obs.x + cosA * curveLocalY - sinA * curveLocalX;
-              const curveY = obs.y + sinA * curveLocalY + cosA * curveLocalX;
+              // Rotate to world space (arm extends along +X in local space)
+              const curveX = obs.x + cosA * localX - sinA * localY;
+              const curveY = obs.y + sinA * localX + cosA * localY;
               
               // Check ball vs this segment
               const dx = curveX - prevX;
