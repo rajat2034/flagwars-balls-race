@@ -10126,7 +10126,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         } else if (obs.type === 'carnivorous_vine') {
           // ===== CARNIVOROUS VINE RENDERING =====
           // Thin green wire extending from wall with leaves and thorns
-          // Wire extends ~2x ball diameter (60px) from wall
+          // Wire length matches physics (obs.length || 120) to cover both voids
           if (this.currentThemeKey !== 'jungle') return;
           
           const time = Date.now() * 0.001;
@@ -10135,11 +10135,11 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           
           const baseY = obs.y;
           const wallDir = obs.wallSide === 'top' ? 1 : -1;
-          const wireLen = 60; // ~2x ball diameter
+          const wireLen = obs.length || 120; // match physics wire length
           const wireWidth = 2; // thin wire
           const curvature = obs.curvature || 0;
-          const leafCount = 6;
-          const thornCount = 10;
+          const leafCount = 8;
+          const thornCount = 12;
           const leafOffsets = obs.leafOffsets || Array(leafCount).fill(0).map(() => Math.random() * Math.PI * 2);
           const thornOffsets = obs.thornOffsets || Array(thornCount).fill(0).map(() => Math.random() * Math.PI * 2);
           

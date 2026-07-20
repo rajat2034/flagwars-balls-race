@@ -133,7 +133,17 @@ class PhysicsEngine {
                 ball.vx *= 0.7;
               }
               if (zone.type === 'mud_puddle') {
-                ball.vx *= 0.7;
+                // Store original speed and decelerate to 0.3x on entry
+                const speed = Math.hypot(ball.vx, ball.vy);
+                ball._mudOriginalSpeed = speed > 0 ? speed : 1;
+                ball._mudOriginalVx = ball.vx;
+                ball._mudOriginalVy = ball.vy;
+                const targetSpeed = speed * 0.3;
+                if (speed > 0) {
+                  ball.vx = (ball.vx / speed) * targetSpeed;
+                  ball.vy = (ball.vy / speed) * targetSpeed;
+                }
+                currentDamping = 0.92;
               }
               ball._wasInSlow = true;
               ball._enteredSlowThisFrame = true;
@@ -147,6 +157,10 @@ class PhysicsEngine {
                 ball._wasInLavaPool = false;
                 ball._wasInMudPuddle = false;
               }
+            }
+            // Continuous mud damping while in puddle
+            if (zone.type === 'mud_puddle' && ball.z === 0) {
+              currentDamping = 0.92;
             }
             if (zone.type === 'sand') inSand = true;
           } else if (zone.type === 'ice') {
@@ -185,9 +199,22 @@ class PhysicsEngine {
       // Reset zone visit flags (only when outside the respective zones)
       if (!inBoost) ball._wasInBoost = false;
       const slowZones = track.zones.filter(z => z.type === 'slow' || z.type === 'lava_pool' || z.type === 'mud_puddle');
+      const wasInMud = ball._wasInMudPuddle;
       if (slowZones.every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
         if (ball._wasInSlow) {
           ball._exitedSlowThisFrame = true;
+          // Restore original speed when exiting mud puddle
+          if (wasInMud && ball._mudOriginalSpeed !== undefined) {
+            const currentSpeed = Math.hypot(ball.vx, ball.vy);
+            if (currentSpeed > 0 && ball._mudOriginalSpeed > currentSpeed * 1.5) {
+              // Restore to original speed
+              ball.vx = ball._mudOriginalVx || ball.vx;
+              ball.vy = ball._mudOriginalVy || ball.vy;
+            }
+            delete ball._mudOriginalSpeed;
+            delete ball._mudOriginalVx;
+            delete ball._mudOriginalVy;
+          }
         }
         ball._wasInSlow = false;
         ball._wasInLavaPool = false;
@@ -848,9 +875,9 @@ class PhysicsEngine {
                 const slideForce = wallDir * 3;
                 ball.vy += slideForce;
                 ball.vx *= 0.6;
-              }
-            }
 }
+            }
+          }
         }
       });
     });
