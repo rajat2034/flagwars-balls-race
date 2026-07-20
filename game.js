@@ -13282,14 +13282,16 @@ this.ctx.restore();
         const midTreeOff = camParallax * 0.50;
         for (const t of this._jungleGiantTrees) {
           const tx = t.x * screenW + midTreeOff * t.parallax;
-          const baseY = t.baseY * screenH;
+          // Trees grow from bottom of screen upward - baseY is 1.0 (screen bottom)
+          const baseY = screenH; // anchored at bottom
           const trunkW = t.trunkW;
           const trunkH = t.trunkH * screenH;
-          const sway = Math.sin(time * 0.001 + t.phase) * 2;
+          const sway = Math.sin(time * 0.001 + t.phase) * 3;
           const leanX = t.lean || 0;
-          const crownCY = baseY - trunkH + (t.crownY || -0.06) * screenH;
-          const cw = t.crownW || 25;
-          const ch = t.crownH || 16;
+          // Crown sits above trunk - trunk grows from bottom up
+          const crownCY = baseY - trunkH + (t.crownY || -0.12) * screenH;
+          const cw = t.crownW || 30;
+          const ch = t.crownH || 22;
 
           // Bark texture ??? vertical stripes on trunk
           ctx.globalAlpha = 0.18;
@@ -13488,12 +13490,12 @@ this.ctx.restore();
         if (this._jungleRiver && this._jungleRiver.segments) {
           ctx.save();
           const segments = this._jungleRiver.segments;
-          const riverParallax = this._jungleRiver.parallax || 0.25;
+          const riverParallax = this._jungleRiver.parallax || 0.22;
           const riverOffset = camParallax * riverParallax;
           ctx.beginPath();
           const pts = segments.map((s, i) => ({
             x: s.x * screenW + riverOffset,
-            y: s.y * screenH + Math.sin(time * 0.0006 + s.phase) * 4,
+            y: s.y * screenH + Math.sin(time * 0.0006 + s.phase) * 3,
             w: s.width + Math.sin(time * 0.0008 + s.phase * 0.7) * 1.5
           }));
           ctx.moveTo(pts[0].x, pts[0].y - pts[0].w);
@@ -13504,31 +13506,48 @@ this.ctx.restore();
             ctx.lineTo(pts[i].x, pts[i].y + pts[i].w);
           }
           ctx.closePath();
-          ctx.globalAlpha = 0.10;
-          ctx.fillStyle = '#4a5a3a';
+          // Main river body - muddy Amazon water
+          const riverGrad = ctx.createLinearGradient(0, 0, 0, screenH);
+          riverGrad.addColorStop(0, '#5d4e37');
+          riverGrad.addColorStop(0.4, '#4a3e28');
+          riverGrad.addColorStop(0.7, '#3a3020');
+          riverGrad.addColorStop(1, '#2d2418');
+          ctx.globalAlpha = 0.18;
+          ctx.fillStyle = riverGrad;
           ctx.fill();
-          ctx.globalAlpha = 0.03;
-          ctx.strokeStyle = '#6a7a5a';
+          // Deeper center line
+          ctx.globalAlpha = 0.10;
+          ctx.strokeStyle = '#2a2014';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+          }
+          ctx.stroke();
+          // Ripples on surface
+          ctx.globalAlpha = 0.04;
+          ctx.strokeStyle = '#5a4a3a';
           ctx.lineWidth = 1;
-          for (let r = 0; r < 4; r++) {
-            const rippleY = 0.38 + r * 0.05 + Math.sin(time * 0.001 + r * 1.3) * 0.015;
+          for (let r = 0; r < 5; r++) {
+            const rippleY = 0.38 + r * 0.045 + Math.sin(time * 0.001 + r * 1.3) * 0.012;
             ctx.beginPath();
             for (let i = 0; i < pts.length; i++) {
               const rx = pts[i].x;
               const ry = rippleY * screenH + Math.sin(time * 0.002 + r * 2.0 + i * 0.5) * 2;
               if (i === 0) ctx.moveTo(rx, ry);
-              else ctx.lineTo(rx + Math.sin(time * 0.0015 + r + i) * 3, ry);
+              else ctx.lineTo(rx + Math.sin(time * 0.0015 + r + i) * 4, ry);
             }
             ctx.stroke();
           }
-          // Tiny river reflections (light glints on water)
-          ctx.globalAlpha = 0.02;
-          ctx.fillStyle = 'rgba(200, 220, 180, 0.3)';
-          for (let ri = 0; ri < 5; ri++) {
-            const riX = pts[ri * 2 < pts.length ? ri * 2 : pts.length - 1].x + Math.sin(time * 0.002 + ri * 2) * 8;
-            const riY = pts[ri * 2 < pts.length ? ri * 2 : pts.length - 1].y + Math.sin(time * 0.003 + ri * 1.5) * 5;
+          // Light glints on water surface
+          ctx.globalAlpha = 0.035;
+          ctx.fillStyle = 'rgba(180, 170, 150, 0.4)';
+          for (let ri = 0; ri < 8; ri++) {
+            const riX = pts[ri * 2 < pts.length ? ri * 2 : pts.length - 1].x + Math.sin(time * 0.002 + ri * 2) * 10;
+            const riY = pts[ri * 2 < pts.length ? ri * 2 : pts.length - 1].y + Math.sin(time * 0.003 + ri * 1.5) * 6;
             ctx.beginPath();
-            ctx.ellipse(riX, riY, 3, 1.5, Math.sin(time * 0.001 + ri) * 0.5, 0, Math.PI * 2);
+            ctx.ellipse(riX, riY, 5, 2, Math.sin(time * 0.001 + ri) * 0.5, 0, Math.PI * 2);
             ctx.fill();
           }
           ctx.restore();
@@ -13679,7 +13698,38 @@ this.ctx.restore();
             ctx.fill();
           }
         }
-        ctx.restore();
+ctx.restore();
+        
+        // Hanging lianas / vines from canopy - dense curtain effect
+        if (this._jungleHangingVines) {
+          ctx.save();
+          for (const hv of this._jungleHangingVines) {
+            const vx = hv.x * screenW + camParallax * hv.parallax;
+            const topY = hv.topY * screenH;
+            const vineLen = hv.len * screenH;
+            ctx.globalAlpha = 0.04 + Math.sin(hv.swayPhase * 0.5) * 0.015;
+            ctx.strokeStyle = hv.color;
+            ctx.lineWidth = hv.width;
+            ctx.beginPath();
+            ctx.moveTo(vx, topY);
+            for (let vy = 0; vy < vineLen; vy += 3) {
+              const sway = Math.sin(vy * 0.02 + time * 0.0004 + hv.swayPhase) * hv.swayAmp;
+              ctx.lineTo(vx + sway, topY + vy);
+            }
+            ctx.stroke();
+            // Leaves at bottom of some vines
+            if (hv.hasLeaves) {
+              ctx.globalAlpha = 0.03;
+              ctx.fillStyle = '#2a5a2a';
+              const endX = vx + Math.sin(vineLen * 0.02 + time * 0.0004 + hv.swayPhase) * hv.swayAmp;
+              const endY = topY + vineLen;
+              ctx.beginPath();
+              ctx.ellipse(endX, endY, 4, 2.5, 0.3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          ctx.restore();
+        }
 
         // 5b. Cross-vines connecting upper tree branches
         if (this._jungleCrossVines) {
@@ -13709,6 +13759,38 @@ this.ctx.restore();
             const mx2 = mx + Math.sin(time * 0.0007 + cv.phase + 1) * 4;
             ctx.quadraticCurveTo(mx2, my + 2, x2 + 3, y2 + 2);
             ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // Hanging lianas/vines from canopy - dense curtain
+        if (this._jungleHangingVines) {
+          ctx.save();
+          for (const hv of this._jungleHangingVines) {
+            const vx = hv.x * screenW + camParallax * hv.parallax;
+            const topY = hv.topY * screenH;
+            const vineLen = hv.len * screenH;
+            ctx.globalAlpha = 0.04;
+            ctx.strokeStyle = hv.color || '#2a3a28';
+            ctx.lineWidth = hv.width || 1;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(vx, topY);
+            for (let vy = 0; vy < vineLen; vy += 3) {
+              const sway = Math.sin(vy * 0.03 + time * 0.0005 + hv.swayPhase) * (hv.swayAmp || 2);
+              ctx.lineTo(vx + sway, topY + vy);
+            }
+            ctx.stroke();
+            // Leaf/bud at tip
+            if (hv.hasLeaves) {
+              ctx.globalAlpha = 0.03;
+              ctx.fillStyle = '#3a5a38';
+              const endX = vx + Math.sin(vineLen * 0.03 + time * 0.0005 + hv.swayPhase) * (hv.swayAmp || 2);
+              const endY = topY + vineLen;
+              ctx.beginPath();
+              ctx.ellipse(endX, endY, 3, 1.8, 0.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
           }
           ctx.restore();
         }
@@ -13882,56 +13964,132 @@ this.ctx.restore();
         // Strictly behind gameplay, low opacity.
         // ================================================================
 
-        // Distant birds (parrots, toucans flying across)
+        // ================================================================
+        // AMBIENT WILDLIFE & PARTICLES (tiny, sparse, very slow)
+        // Strictly behind gameplay, low opacity.
+        // ================================================================
+
+        // Distant birds (macaws, toucans, harpy eagles, parrots flying across)
         ctx.save();
         for (const b of this._jungleBirds) {
           const elapsed = (time * 60 - b.delay) % b.interval;
           const progress = Math.min(elapsed / (b.interval * 0.6), 1);
           if (progress <= 0 || progress >= 1) continue;
           const bx = (b.startX * screenW + progress * screenW * 1.5 + camParallax * 0.08) % (screenW + 100) - 50;
-          const by = b.y * screenH + Math.sin(progress * Math.PI + b.phase) * 10;
-          ctx.globalAlpha = 0.10 * (1 - Math.abs(progress - 0.5) * 0.6);
+          const by = b.y * screenH + Math.sin(progress * Math.PI + b.phase) * 12;
+          const isToucan = b.species === 'toucan';
+          const isHarpy = b.species === 'harpy';
+          const isMacaw = b.species === 'macaw';
+          ctx.globalAlpha = 0.12 * (1 - Math.abs(progress - 0.5) * 0.6);
           ctx.fillStyle = b.color || '#1a1a2a';
           ctx.beginPath();
-          ctx.ellipse(bx, by, 5, 2.5, -0.1, 0, Math.PI * 2);
+          const bodyW = isHarpy ? 8 : (isToucan ? 6 : 5);
+          const bodyH = isHarpy ? 4 : (isToucan ? 3 : 2.5);
+          ctx.ellipse(bx, by, bodyW, bodyH, b.angle || -0.1, 0, Math.PI * 2);
           ctx.fill();
-          const wingUp = Math.sin(progress * 20 + b.phase) * 0.3;
+          // Wings
+          const wingUp = Math.sin(progress * 18 + b.phase) * 0.35;
+          const wingSpan = isHarpy ? 14 : (isToucan ? 8 : 7);
           ctx.beginPath();
-          ctx.moveTo(bx - 3, by - 1);
-          ctx.lineTo(bx - 7, by - 3 - wingUp * 3);
-          ctx.lineTo(bx - 1, by - 1);
+          ctx.moveTo(bx - bodyW * 0.5, by - 1);
+          ctx.lineTo(bx - wingSpan, by - 3 - wingUp * 4);
+          ctx.lineTo(bx - bodyW * 0.3, by - 1);
           ctx.fill();
           ctx.beginPath();
-          ctx.moveTo(bx + 3, by - 1);
-          ctx.lineTo(bx + 7, by - 3 - wingUp * 3);
-          ctx.lineTo(bx + 1, by - 1);
+          ctx.moveTo(bx + bodyW * 0.5, by - 1);
+          ctx.lineTo(bx + wingSpan, by - 3 - wingUp * 4);
+          ctx.lineTo(bx + bodyW * 0.3, by - 1);
           ctx.fill();
-          if (b.hasLongTail) {
-            ctx.fillStyle = b.tailColor || '#1a1a2a';
+          // Toucan beak
+          if (isToucan) {
+            ctx.fillStyle = '#f39c12';
             ctx.beginPath();
-            ctx.moveTo(bx + 4, by + 2);
-            ctx.lineTo(bx + 8, by + 8);
-            ctx.lineTo(bx + 5, by + 2);
+            ctx.moveTo(bx + bodyW * 0.5, by - 1);
+            ctx.lineTo(bx + bodyW * 0.5 + 10, by - 0.5);
+            ctx.lineTo(bx + bodyW * 0.5 + 8, by + 1);
+            ctx.lineTo(bx + bodyW * 0.5 + 2, by + 0.5);
+            ctx.fill();
+          }
+          // Harpy eagle crest
+          if (isHarpy) {
+            ctx.fillStyle = b.crestColor || '#2a2a3a';
+            ctx.beginPath();
+            ctx.moveTo(bx, by - bodyH);
+            ctx.lineTo(bx + 3, by - bodyH - 6);
+            ctx.lineTo(bx - 2, by - bodyH - 4);
+            ctx.fill();
+          }
+          // Long tail feathers for macaws
+          if (isMacaw && b.hasLongTail) {
+            ctx.fillStyle = b.tailColor || b.color;
+            ctx.beginPath();
+            ctx.moveTo(bx - bodyW * 0.3, by + bodyH * 0.5);
+            ctx.lineTo(bx - 10, by + 12);
+            ctx.lineTo(bx - 5, by + 4);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(bx + bodyW * 0.3, by + bodyH * 0.5);
+            ctx.lineTo(bx + 10, by + 12);
+            ctx.lineTo(bx + 5, by + 4);
             ctx.fill();
           }
         }
         ctx.restore();
 
-        // Butterflies (blue, orange, yellow, tiny)
+        // Butterflies (morpho, owl, heliconius - Amazon species)
         ctx.save();
         for (const b of this._jungleButterflies) {
           const bx = (b.x * screenW + camParallax * 0.15 + Math.sin(time * b.speed + b.phase) * 30) % (screenW + 20) - 10;
           const by = b.y * screenH + Math.sin(time * b.drift + b.phase * 0.7) * 15;
           const flap = 0.3 + 0.7 * Math.abs(Math.sin(time * 0.005 + b.phase));
-          ctx.globalAlpha = 0.10 * flap;
+          const isMorpho = b.species === 'morpho';
+          const isOwl = b.species === 'owl';
+          const isHeliconius = b.species === 'heliconius';
+          ctx.globalAlpha = 0.12 * flap;
           ctx.fillStyle = b.color;
+          // Upper wings
           ctx.beginPath();
           ctx.ellipse(bx - b.size * 0.4, by, b.size * 0.7, b.size * 0.5 * flap, -0.3, 0, Math.PI * 2);
           ctx.fill();
+          // Lower wings
           ctx.beginPath();
           ctx.ellipse(bx + b.size * 0.4, by, b.size * 0.7, b.size * 0.5 * flap, 0.3, 0, Math.PI * 2);
           ctx.fill();
-          ctx.globalAlpha = 0.05;
+          // Morpho iridescent flash
+          if (isMorpho) {
+            ctx.globalAlpha = 0.15 * flap * (0.5 + 0.5 * Math.sin(time * 0.02 + b.phase));
+            ctx.fillStyle = '#00ffff';
+            ctx.beginPath();
+            ctx.ellipse(bx - b.size * 0.3, by, b.size * 0.5, b.size * 0.3 * flap, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(bx + b.size * 0.3, by, b.size * 0.5, b.size * 0.3 * flap, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          // Owl butterfly eyespots
+          if (isOwl) {
+            ctx.globalAlpha = 0.15;
+            ctx.fillStyle = '#1a1a2a';
+            ctx.beginPath();
+            ctx.arc(bx + b.size * 0.3, by, b.size * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffff00';
+            ctx.beginPath();
+            ctx.arc(bx + b.size * 0.3, by, b.size * 0.1, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          // Heliconius stripes
+          if (isHeliconius) {
+            ctx.globalAlpha = 0.2;
+            ctx.fillStyle = '#ffff00';
+            for (let s = 0; s < 3; s++) {
+              ctx.beginPath();
+              ctx.ellipse(bx + (s - 1) * b.size * 0.3, by, b.size * 0.15, b.size * 0.5 * flap, 0.3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          // Body
+          ctx.globalAlpha = 0.08;
           ctx.fillStyle = '#2a3a2a';
           ctx.beginPath();
           ctx.arc(bx, by, b.size * 0.15, 0, Math.PI * 2);
@@ -14154,49 +14312,50 @@ this.ctx.restore();
     _initJungleObjects() {
       this._jungleGiantTrees = [];
       const species = [
-        { name: 'kapok', trunkScale: 1.3, crownScale: 1.2, buttress: true, branchCount: 4, leanRange: 0.04 },
-        { name: 'rubber', trunkScale: 1.1, crownScale: 1.0, buttress: false, branchCount: 4, leanRange: 0.02 },
-        { name: 'palm', trunkScale: 0.7, crownScale: 0.8, buttress: false, branchCount: 2, leanRange: 0.06 },
-        { name: 'kapok', trunkScale: 1.2, crownScale: 1.3, buttress: true, branchCount: 5, leanRange: 0.03 },
-        { name: 'rubber', trunkScale: 1.0, crownScale: 1.1, buttress: false, branchCount: 3, leanRange: 0.01 },
-        { name: 'palm', trunkScale: 0.8, crownScale: 0.9, buttress: false, branchCount: 2, leanRange: 0.05 },
-        { name: 'kapok', trunkScale: 1.4, crownScale: 1.1, buttress: true, branchCount: 4, leanRange: 0.02 },
-        { name: 'rubber', trunkScale: 1.2, crownScale: 0.9, buttress: false, branchCount: 3, leanRange: 0.03 },
-        { name: 'cedro', trunkScale: 1.0, crownScale: 0.9, buttress: false, branchCount: 3, leanRange: 0.04 },
-        { name: 'palm', trunkScale: 0.6, crownScale: 0.7, buttress: false, branchCount: 2, leanRange: 0.07 }
+        { name: 'kapok', trunkScale: 1.4, crownScale: 1.3, buttress: true, branchCount: 5, leanRange: 0.05, crownShape: 'umbrella' },
+        { name: 'rubber', trunkScale: 1.2, crownScale: 1.1, buttress: false, branchCount: 4, leanRange: 0.03, crownShape: 'rounded' },
+        { name: 'brazil_nut', trunkScale: 1.3, crownScale: 1.2, buttress: true, branchCount: 4, leanRange: 0.04, crownShape: 'spreading' },
+        { name: 'kapok', trunkScale: 1.3, crownScale: 1.4, buttress: true, branchCount: 6, leanRange: 0.04, crownShape: 'umbrella' },
+        { name: 'rubber', trunkScale: 1.1, crownScale: 1.2, buttress: false, branchCount: 4, leanRange: 0.02, crownShape: 'rounded' },
+        { name: 'ironwood', trunkScale: 1.2, crownScale: 1.0, buttress: false, branchCount: 3, leanRange: 0.03, crownShape: 'conical' },
+        { name: 'kapok', trunkScale: 1.5, crownScale: 1.2, buttress: true, branchCount: 5, leanRange: 0.03, crownShape: 'umbrella' },
+        { name: 'rubber', trunkScale: 1.3, crownScale: 1.0, buttress: false, branchCount: 4, leanRange: 0.04, crownShape: 'rounded' },
+        { name: 'mahogany', trunkScale: 1.1, crownScale: 1.0, buttress: false, branchCount: 3, leanRange: 0.05, crownShape: 'broad' },
+        { name: 'palm', trunkScale: 0.8, crownScale: 0.9, buttress: false, branchCount: 2, leanRange: 0.08, crownShape: 'fan' }
       ];
-      const crownColors = ['#0d3b1c', '#1a5e2a', '#2d6a30', '#3a7a3a', '#1e4e28', '#0f4a20', '#2a6a30', '#1a5a2a', '#3a6a2a', '#4a7a3a'];
-      const crownHighlights = ['#1a5e2a', '#3a7a3a', '#4a8a48', '#5a9a50', '#2a6a30', '#1a5e2a', '#4a8a48', '#3a7a3a', '#5a8a4a', '#6a9a5a'];
+      const crownColors = ['#082510', '#0a2d12', '#0d3516', '#103d1a', '#1a4e22', '#0c3818', '#1a5020', '#0e3a16', '#1e521e', '#2a6a2a'];
+      const crownHighlights = ['#1a5e2a', '#2a6e3a', '#3a7e48', '#4a8e50', '#2a6e30', '#1a5e2a', '#4a8a48', '#2a6a3a', '#4a8a3a', '#5a9a4a'];
       for (let i = 0; i < species.length; i++) {
         const sp = species[i];
         const tScale = sp.trunkScale;
         const cScale = sp.crownScale;
         this._jungleGiantTrees.push({
-          x: 0.02 + (i / species.length) * 0.96 + Math.random() * 0.04,
-          baseY: 0.60 + Math.random() * 0.18,
-          trunkW: 5 * tScale + Math.random() * 3,
-          trunkH: (0.20 + Math.random() * 0.10) * tScale,
-          crownW: 25 * cScale + Math.random() * 15,
-          crownH: 16 * cScale + Math.random() * 10,
-          crownY: -0.10 + Math.random() * -0.04,
+          x: 0.03 + (i / species.length) * 0.94 + Math.random() * 0.03,
+          baseY: 1.0, // anchored at bottom of screen - trees grow from ground up
+          trunkW: 7 * tScale + Math.random() * 5,
+          trunkH: (0.80 + Math.random() * 0.15) * tScale, // very tall - 80-95% of screen height
+          crownW: 30 * cScale + Math.random() * 20,
+          crownH: 22 * cScale + Math.random() * 16,
+          crownY: -0.18 + Math.random() * -0.06,
           crownColor: crownColors[i % crownColors.length],
           crownHighlight: crownHighlights[i % crownHighlights.length],
           species: sp.name,
           lean: (Math.random() - 0.5) * sp.leanRange * 2,
           hasButtress: sp.buttress,
           branchCount: sp.branchCount,
-          parallax: 0.25 + Math.random() * 0.20,
+          crownShape: sp.crownShape,
+          parallax: 0.20 + Math.random() * 0.15,
           phase: Math.random() * Math.PI * 2,
-          barkColor: ['#1a2a20', '#2a3a28', '#1f2f22', '#2f3f2a', '#253525', '#2f4030', '#1d2d1d', '#2a3a2a', '#1e2e1e', '#2b3b2b'][i]
+          barkColor: ['#0d1a10', '#1a2a18', '#102012', '#1f2f1a', '#152512', '#1f3018', '#0d1d0d', '#1a2a18', '#0e1e0e', '#1b2b1b'][i]
         });
       }
       this._jungleRoots = [];
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 10; i++) {
         this._jungleRoots.push({
           x: Math.random() * 0.9 + 0.05,
-          y: 0.72 + Math.random() * 0.12,
-          len: 30 + Math.random() * 25,
-          width: 4 + Math.random() * 3,
+          y: 0.88 + Math.random() * 0.08,
+          len: 50 + Math.random() * 40,
+          width: 6 + Math.random() * 5,
           dirX: Math.random() > 0.5 ? 1 : -1,
           parallax: 0.55 + Math.random() * 0.15,
           wrapRock: Math.random() > 0.5
@@ -14205,11 +14364,11 @@ this.ctx.restore();
       this._jungleWaterfalls = [];
       for (let i = 0; i < 4; i++) {
         this._jungleWaterfalls.push({
-          x: 0.1 + i * 0.25 + Math.random() * 0.05,
-          y: 0.15 + Math.random() * 0.10,
-          width: Math.random() * 8 + 4,
-          height: 0.25 + Math.random() * 0.15,
-          parallax: 0.3 + Math.random() * 0.15,
+          x: 0.1 + i * 0.25 + Math.random() * 0.08,
+          y: 0.1 + Math.random() * 0.06,
+          width: 6 + Math.random() * 5,
+          height: 0.40 + Math.random() * 0.20,
+          parallax: 0.12 + Math.random() * 0.08,
           phase: Math.random() * Math.PI * 2
         });
       }
@@ -14222,65 +14381,107 @@ this.ctx.restore();
           phase: Math.random() * Math.PI * 2
         });
       }
-      // Amazon river ??? winding muddy path visible through tree openings
+      // Amazon river ??? winding muddy path visible through tree openings - more prominent, central
       this._jungleRiver = { segments: [] };
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 16; i++) {
+        const t = i / 15;
         this._jungleRiver.segments.push({
-          x: i / 11,
-          y: 0.45 + Math.sin(i * 1.1) * 0.12 + Math.sin(i * 0.4) * 0.06,
-          width: 8 + Math.sin(i * 0.7) * 3 + Math.random() * 2,
+          x: t * 0.95 + 0.025,
+          y: 0.35 + Math.sin(t * Math.PI * 2.5) * 0.18 + Math.sin(t * Math.PI * 5) * 0.06,
+          width: 22 + Math.sin(t * Math.PI * 3) * 8 + Math.random() * 4,
           phase: Math.random() * Math.PI * 2
         });
       }
-      this._jungleRiver.parallax = 0.25;
-      // Cross-vines connecting between tree positions
+      this._jungleRiver.parallax = 0.22;
+      // Cross-vines connecting between tree positions - more dense, like lianas
       this._jungleCrossVines = [];
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 18; i++) {
         this._jungleCrossVines.push({
-          x1: Math.random() * 0.7 + 0.05,
-          y1: 0.25 + Math.random() * 0.15,
-          x2: Math.random() * 0.7 + 0.2,
-          y2: 0.35 + Math.random() * 0.20,
-          sag: 15 + Math.random() * 20,
+          x1: Math.random() * 0.85 + 0.05,
+          y1: 0.15 + Math.random() * 0.25,
+          x2: Math.random() * 0.85 + 0.1,
+          y2: 0.25 + Math.random() * 0.30,
+          sag: 20 + Math.random() * 35,
           phase: Math.random() * Math.PI * 2,
-          width: 0.8 + Math.random() * 0.6
+          width: 1.0 + Math.random() * 1.0
+        });
+      }
+      // Hanging lianas from canopy - dense curtain of vines
+      this._jungleHangingVines = [];
+      for (let i = 0; i < 45; i++) {
+        this._jungleHangingVines.push({
+          x: Math.random(),
+          topY: 0.08 + Math.random() * 0.15,
+          len: 0.45 + Math.random() * 0.35,
+          width: 0.8 + Math.random() * 1.2,
+          swayPhase: Math.random() * Math.PI * 2,
+          swayAmp: 1.5 + Math.random() * 2.5,
+          color: Math.random() > 0.6 ? '#2a3a28' : (Math.random() > 0.5 ? '#3a4a38' : '#4a5a3a'),
+          hasLeaves: Math.random() > 0.7,
+          parallax: 0.4 + Math.random() * 0.15
         });
       }
       this._jungleBirds = [];
+      // Amazon-specific birds: macaws, toucans, parrots, harpy eagles
       const birdSpecies = [
-        { color: '#c0392b', tailColor: '#8b0000', hasLongTail: true },
-        { color: '#2ecc71', tailColor: '#1a6b3a', hasLongTail: false },
-        { color: '#f39c12', tailColor: '#d4880f', hasLongTail: false },
-        { color: '#3498db', tailColor: '#1a5f8a', hasLongTail: true },
-        { color: '#9b59b6', tailColor: '#6a3f7a', hasLongTail: true },
-        { color: '#e67e22', tailColor: '#a05515', hasLongTail: false },
-        { color: '#1abc9c', tailColor: '#0f7a6a', hasLongTail: false }
+        { type: 'macaw', color: '#0066cc', tailColor: '#003366', hasLongTail: true, wingColor: '#004499' },
+        { type: 'macaw', color: '#cc0000', tailColor: '#660000', hasLongTail: true, wingColor: '#990000' },
+        { type: 'toucan', color: '#1a1a2e', tailColor: '#0d0d1a', hasLongTail: false, beakColor: '#ffaa00', beakSize: 1.5 },
+        { type: 'parrot', color: '#00aa44', tailColor: '#006622', hasLongTail: true, wingColor: '#008833' },
+        { type: 'macaw', color: '#ffcc00', tailColor: '#cc9900', hasLongTail: true, wingColor: '#ccaa00' },
+        { type: 'harpy', color: '#3a3a4a', tailColor: '#2a2a3a', hasLongTail: true, wingColor: '#4a4a5a' },
+        { type: 'parrot', color: '#00cc66', tailColor: '#008844', hasLongTail: true, wingColor: '#00aa55' },
+        { type: 'toucan', color: '#1a1a1a', tailColor: '#0d0d0d', hasLongTail: false, beakColor: '#ff6600', beakSize: 1.3 },
+        { type: 'macaw', color: '#00ffff', tailColor: '#00aaaa', hasLongTail: true, wingColor: '#00cccc' }
       ];
-      for (let i = 0; i < 7; i++) {
-        const sp = birdSpecies[i % birdSpecies.length];
+      for (let i = 0; i < 9; i++) {
+        const sp = birdSpecies[i];
         this._jungleBirds.push({
-          startX: Math.random() * 0.3 + (i % 2 === 0 ? -0.15 : 0.85),
-          y: 0.06 + Math.random() * 0.18,
-          interval: 1200 + Math.random() * 800,
+          type: sp.type,
+          startX: Math.random() * 0.3 + (i % 2 === 0 ? -0.2 : 1.05),
+          y: 0.04 + Math.random() * 0.22,
+          interval: 1000 + Math.random() * 1200,
           phase: Math.random() * Math.PI * 2,
-          delay: i * 200 + Math.random() * 300,
+          delay: i * 180 + Math.random() * 400,
           color: sp.color,
           tailColor: sp.tailColor,
+          wingColor: sp.wingColor || sp.color,
+          beakColor: sp.beakColor || '#ffaa00',
+          beakSize: sp.beakSize || 1.0,
           hasLongTail: sp.hasLongTail,
-          size: 4 + Math.random() * 3
+          size: 5 + Math.random() * 4
         });
       }
       this._jungleButterflies = [];
-      const butterflyColors = ['#3498db', '#e74c3c', '#f39c12', '#2ecc71', '#9b59b6', '#f1c40f', '#1abc9c', '#e67e22', '#ff6b9d', '#4a9eff', '#7bed9f', '#ffa502'];
-      for (let i = 0; i < 10; i++) {
+      // Amazon butterflies: Morpho (blue), Glasswing (transparent), Owl butterfly, Heliconius
+      const butterflyTypes = [
+        { type: 'morpho', color: '#0088ff', shimmer: '#00aaff', size: 6 },
+        { type: 'morpho', color: '#00aaff', shimmer: '#00ccff', size: 5 },
+        { type: 'glasswing', color: 'rgba(255,255,255,0.3)', shimmer: 'rgba(200,255,255,0.5)', size: 4 },
+        { type: 'owl', color: '#8b5a2b', shimmer: '#a07030', size: 7, eyeSpot: true },
+        { type: 'heliconius', color: '#cc0000', shimmer: '#ff4444', size: 5, pattern: 'striped' },
+        { type: 'heliconius', color: '#ff6600', shimmer: '#ff8800', size: 5, pattern: 'banded' },
+        { type: 'morpho', color: '#0077dd', shimmer: '#0099ff', size: 6 },
+        { type: 'swallowtail', color: '#ffdd00', shimmer: '#ffee00', size: 6, tail: true },
+        { type: 'glasswing', color: 'rgba(255,255,255,0.25)', shimmer: 'rgba(200,255,255,0.4)', size: 4 },
+        { type: 'morpho', color: '#0099ff', shimmer: '#00bbff', size: 5 }
+      ];
+      for (let i = 0; i < 12; i++) {
+        const bt = butterflyTypes[i % butterflyTypes.length];
         this._jungleButterflies.push({
-          x: Math.random() * 1.2 - 0.1,
-          y: 0.10 + Math.random() * 0.45,
-          speed: 0.0003 + Math.random() * 0.0005,
-          drift: 0.0004 + Math.random() * 0.0004,
-          size: 3 + Math.random() * 2.5,
+          type: bt.type,
+          x: Math.random() * 1.3 - 0.15,
+          y: 0.08 + Math.random() * 0.55,
+          speed: 0.00035 + Math.random() * 0.0006,
+          drift: 0.00045 + Math.random() * 0.0005,
           phase: Math.random() * Math.PI * 2,
-          color: butterflyColors[i % butterflyColors.length]
+          driftPhase: Math.random() * Math.PI * 2,
+          color: bt.color,
+          shimmer: bt.shimmer,
+          size: bt.size + Math.random() * 2,
+          eyeSpot: bt.eyeSpot || false,
+          pattern: bt.pattern || 'solid',
+          tail: bt.tail || false
         });
       }
       this._jungleMonkeys = [];
