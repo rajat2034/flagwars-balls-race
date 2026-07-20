@@ -6947,6 +6947,39 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         if (b.finished || b.eliminated) return;
         if (b._hitSweepArmThisFrame && Math.random() < 0.15) {
           this.commentary.add(b.name + ' hit by sweep arm!', 'crash');
+          // Jungle vine hit effects - leaves, bark, dust
+          if (this.currentThemeKey === 'jungle' && this.particles) {
+            for (let p = 0; p < 8; p++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 1 + Math.random() * 3;
+              this.particles.push({
+                type: 'sparkle',
+                x: b.x,
+                y: b.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.8,
+                size: 2 + Math.random() * 3,
+                life: 15 + Math.floor(Math.random() * 10),
+                color: '#2a5a2a' // leaf green
+              });
+            }
+            for (let p = 0; p < 5; p++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 0.5 + Math.random() * 2;
+              this.particles.push({
+                type: 'dust',
+                x: b.x,
+                y: b.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.6,
+                size: 1 + Math.random() * 2,
+                life: 10 + Math.floor(Math.random() * 8),
+                color: '#3a3a2a' // bark brown
+              });
+            }
+          }
         }
         if (b._hitHammerThisFrame && Math.random() < 0.2) {
           this.commentary.add(b.name + ' smashed by hammer!', 'crash');
@@ -9379,47 +9412,165 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           this.ctx.shadowBlur = 0;
           this.ctx.restore();
         } else if (obs.type === 'sweep_arm') {
-          this.ctx.save();
-          const armLen = obs.length || 120;
-          const armAngle = obs.angle || 0;
-          this.ctx.translate(obsX, obs.y);
-          this.ctx.rotate(armAngle);
-          // Pivot hub
-          this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
-          this.ctx.shadowBlur = 8;
-          this.ctx.fillStyle = '#34495e';
-          this.ctx.beginPath();
-          this.ctx.arc(0, 0, 8, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.shadowBlur = 0;
-          // Arm bar
-          this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 6;
-          const armGrad = this.ctx.createLinearGradient(0, -4, 0, 4);
-          armGrad.addColorStop(0, '#e67e22');
-          armGrad.addColorStop(0.5, '#f39c12');
-          armGrad.addColorStop(1, '#d35400');
-          this.ctx.fillStyle = armGrad;
-          this.ctx.fillRect(0, -4, armLen, 8);
-          this.ctx.shadowBlur = 0;
-          // Stripe pattern on arm
-          this.ctx.fillStyle = 'rgba(255,255,255,0.15)';
-          for (let s = 10; s < armLen; s += 20) {
-            this.ctx.fillRect(s, -4, 6, 8);
+          // Jungle theme: render as a hanging vine instead of mechanical arm
+          if (this.currentThemeKey === 'jungle') {
+            this.ctx.save();
+            const armLen = obs.length || 120;
+            const armAngle = obs.angle || 0;
+            this.ctx.translate(obsX, obs.y);
+            this.ctx.rotate(armAngle);
+            
+            // Vine pivot point - organic attachment
+            const time = Date.now() * 0.001;
+            const swayPhase = (obs.x + obs.y) * 0.01;
+            const swayAmount = Math.sin(time * 0.5 + swayPhase) * 3;
+            
+            // Draw vine as curved segments
+            const segments = 8;
+            const segmentLen = armLen / segments;
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+            
+            // Main vine stem - dark green/brown
+            this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            this.ctx.shadowBlur = 8;
+            this.ctx.shadowOffsetY = 3;
+            
+            const vineGrad = this.ctx.createLinearGradient(0, -4, 0, 4);
+            vineGrad.addColorStop(0, '#1a3a1a');
+            vineGrad.addColorStop(0.5, '#153015');
+            vineGrad.addColorStop(1, '#0d200d');
+            
+            this.ctx.strokeStyle = vineGrad;
+            this.ctx.lineWidth = 8;
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, 0);
+            
+            let prevX = 0, prevY = 0;
+            for (let s = 1; s <= segments; s++) {
+              const t = s / segments;
+              const curveX = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
+              const curveY = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              const width = 8 * (1 - t * 0.4);
+              this.ctx.lineWidth = width;
+              this.ctx.lineTo(curveX, curveY);
+            }
+            this.ctx.stroke();
+            
+            // Vine texture lines
+            this.ctx.shadowBlur = 0;
+            this.ctx.strokeStyle = '#0a1a0a';
+            this.ctx.lineWidth = 1;
+            for (let s = 1; s <= segments; s++) {
+              const t = s / segments;
+              const curveX = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
+              const curveY = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              const angle = Math.atan2(curveY - prevY, curveX - prevX) + Math.PI * 0.5;
+              this.ctx.beginPath();
+              this.ctx.moveTo(curveX + Math.cos(angle) * 3 * (1 - t), curveY + Math.sin(angle) * 3 * (1 - t));
+              this.ctx.lineTo(curveX - Math.cos(angle) * 3 * (1 - t), curveY - Math.sin(angle) * 3 * (1 - t));
+              this.ctx.stroke();
+              prevX = curveX;
+              prevY = curveY;
+            }
+            
+            // Leaves along vine
+            this.ctx.fillStyle = '#1a4a1a';
+            for (let l = 0; l < 6; l++) {
+              const t = (l / 6) * 0.8 + 0.1;
+              const leafX = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
+              const leafY = t * armLen;
+              const leafAngle = Math.sin(time * 1.2 + l * 1.5) * 0.4;
+              const leafSize = 7 + Math.sin(l * 2) * 2;
+              
+              this.ctx.save();
+              this.ctx.translate(leafX, leafY);
+              this.ctx.rotate(leafAngle);
+              
+              this.ctx.beginPath();
+              this.ctx.ellipse(0, 0, leafSize, leafSize * 0.35, 0, 0, Math.PI * 2);
+              this.ctx.fill();
+              
+              this.ctx.fillStyle = '#2a6a2a';
+              this.ctx.beginPath();
+              this.ctx.ellipse(-1, -1, leafSize * 0.6, leafSize * 0.15, 0, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.restore();
+            }
+            
+            // Thorns
+            this.ctx.fillStyle = '#080808';
+            for (let th = 0; th < 4; th++) {
+              const t = (th / 4) * 0.85 + 0.1;
+              const thornX = Math.sin(t * Math.PI * 1.5 + time * 0.2 + swayPhase) * swayAmount * t;
+              const thornY = t * armLen;
+              const thornSize = 5;
+              const side = th % 2 === 0 ? 1 : -1;
+              
+              this.ctx.save();
+              this.ctx.translate(thornX, thornY);
+              this.ctx.beginPath();
+              this.ctx.moveTo(0, 0);
+              this.ctx.lineTo(side * thornSize, -thornSize * 0.3);
+              this.ctx.lineTo(side * thornSize * 0.5, thornSize * 0.15);
+              this.ctx.closePath();
+              this.ctx.fill();
+              this.ctx.restore();
+            }
+            
+            // End tip - curled leaf
+            this.ctx.fillStyle = '#2a5a2a';
+            const tipX = Math.sin(Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount;
+            const tipY = armLen;
+            this.ctx.beginPath();
+            this.ctx.ellipse(tipX, tipY, 8, 4, Math.PI * 0.3, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            this.ctx.restore();
+          } else {
+            // Original mechanical arm for other themes
+            this.ctx.save();
+            const armLen = obs.length || 120;
+            const armAngle = obs.angle || 0;
+            this.ctx.translate(obsX, obs.y);
+            this.ctx.rotate(armAngle);
+            // Pivot hub
+            this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            this.ctx.shadowBlur = 8;
+            this.ctx.fillStyle = '#34495e';
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, 8, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+            // Arm bar
+            this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            this.ctx.shadowBlur = 6;
+            const armGrad = this.ctx.createLinearGradient(0, -4, 0, 4);
+            armGrad.addColorStop(0, '#e67e22');
+            armGrad.addColorStop(0.5, '#f39c12');
+            armGrad.addColorStop(1, '#d35400');
+            this.ctx.fillStyle = armGrad;
+            this.ctx.fillRect(0, -4, armLen, 8);
+            this.ctx.shadowBlur = 0;
+            // Stripe pattern on arm
+            this.ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            for (let s = 10; s < armLen; s += 20) {
+              this.ctx.fillRect(s, -4, 6, 8);
+            }
+            // End cap
+            this.ctx.fillStyle = '#c0392b';
+            this.ctx.beginPath();
+            this.ctx.arc(armLen, 0, 6, 0, Math.PI * 2);
+            this.ctx.fill();
+            // Glow at tip
+            this.ctx.shadowColor = 'rgba(231,76,60,0.5)';
+            this.ctx.shadowBlur = 15;
+            this.ctx.fillStyle = 'rgba(231,76,60,0.2)';
+            this.ctx.beginPath();
+            this.ctx.arc(armLen, 0, 12, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
           }
-          // End cap
-          this.ctx.fillStyle = '#c0392b';
-          this.ctx.beginPath();
-          this.ctx.arc(armLen, 0, 6, 0, Math.PI * 2);
-          this.ctx.fill();
-          // Glow at tip
-          this.ctx.shadowColor = 'rgba(231,76,60,0.5)';
-          this.ctx.shadowBlur = 15;
-          this.ctx.fillStyle = 'rgba(231,76,60,0.2)';
-          this.ctx.beginPath();
-          this.ctx.arc(armLen, 0, 12, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.restore();
         } else if (obs.type === 'c_bumper') {
           // Rotating C-bumper ??? small semicircular arc like a pinball bumper
           const R = obs.radius || 70;
