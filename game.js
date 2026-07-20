@@ -28,8 +28,8 @@ const MAP_THEMES = {
   },
   jungle: {
     name: "Amazon Canopy",
-    bgGrad: ["#196f3d", "#145a32"],
-    wallColor: "#114f24",
+    bgGrad: ["#0d1f14", "#060f08"],
+    wallColor: "#3a3a3a",
     pegColor: "#229954",
     pegBouncyColor: "#f4d03f",
     particleColor: "#58d68d",
@@ -76,7 +76,7 @@ const MAP_THEMES = {
   }
 };
 
-// Data-driven obstacle registry — add new obstacles here; UI auto-populates
+// Data-driven obstacle registry ??? add new obstacles here; UI auto-populates
 const OBSTACLE_REGISTRY = [
   { type: 'portal', name: 'Portal', category: 'core', map: null },
   { type: 'boost', name: 'Boost Pad', category: 'core', map: null },
@@ -100,14 +100,20 @@ const OBSTACLE_REGISTRY = [
   { type: 'icicle', name: 'Animated Icicle', category: 'signature', map: 'snow' },
   { type: 'icicle_drop', name: 'Icicle Drop', category: 'signature', map: 'snow' },
   // Magma
+  { type: 'lava_pool', name: 'Lava Pool', category: 'signature', map: 'volcano' },
   { type: 'lava_geyser', name: 'Lava Geyser', category: 'signature', map: 'volcano' },
   { type: 'rolling_boulder', name: 'Rolling Boulder', category: 'signature', map: 'volcano' },
   { type: 'flame_jet', name: 'Flame Jet', category: 'signature', map: 'volcano' },
+  { type: 'collapsing_pillar', name: 'Collapsing Rock Pillar', category: 'signature', map: 'volcano' },
   // Amazon
   { type: 'carnivorous_vine', name: 'Carnivorous Vine', category: 'signature', map: 'jungle' },
   { type: 'rolling_log', name: 'Rolling Log', category: 'signature', map: 'jungle' },
+<<<<<<< HEAD
   { type: 'carnivorous_plant', name: 'Carnivorous Plant', category: 'signature', map: 'jungle' },
   { type: 'mud_puddle', name: 'Mud Puddle', category: 'signature', map: 'jungle' },
+=======
+  { type: 'carnivorous_vine', name: 'Carnivorous Vine', category: 'signature', map: 'jungle' },
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
   // Mariana
   { type: 'whirlpool', name: 'Whirlpool', category: 'signature', map: 'ocean' },
   { type: 'jellyfish', name: 'Jellyfish', category: 'signature', map: 'ocean' },
@@ -129,12 +135,14 @@ const EVENT_REGISTRY = [
   { key: 'meteor_storm', name: 'Meteor Storm', implemented: false },
   { key: 'blizzard', name: 'Blizzard', implemented: true },
   { key: 'aurora_borealis', name: 'Aurora Borealis', implemented: true },
-  { key: 'volcanic_eruption', name: 'Volcanic Eruption', implemented: false },
+  { key: 'volcanic_eruption', name: 'Volcanic Eruption', implemented: true },
+  { key: 'firestorm', name: 'Firestorm', implemented: true },
+  { key: 'lava_shower', name: 'Lava Shower', implemented: true },
   { key: 'sandstorm', name: 'Sandstorm', implemented: false },
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
 ];
 
-// Text contrast helper — returns appropriate colors based on map brightness
+// Text contrast helper ??? returns appropriate colors based on map brightness
 function getThemeColors(themeKey) {
   const theme = MAP_THEMES[themeKey];
   if (!theme) return { primary: '#ffffff', secondary: '#a0a5b5', accent: '#ffd700' };
@@ -156,7 +164,7 @@ function getThemeColors(themeKey) {
   };
 }
 
-// Web Audio API Synthesizer — countdown + winner sounds only
+// Web Audio API Synthesizer ??? countdown + winner sounds only
 class SoundSynth {
   constructor() {
     this.ctx = null;
@@ -401,7 +409,7 @@ class SoundSynth {
   }
 }
 
-// Dynamic Commentary System — generates race event messages and manages Match Events panel
+// Dynamic Commentary System ??? generates race event messages and manages Match Events panel
 class Commentary {
   constructor() {
     this.entries = [];
@@ -458,7 +466,7 @@ class Commentary {
   }
 }
 
-// Global Event Banner — queue-based animated banner displayed on canvas near lower-center
+// Global Event Banner ??? queue-based animated banner displayed on canvas near lower-center
 class GlobalEventBanner {
   constructor(engine) {
     this._engine = engine || null;
@@ -560,7 +568,7 @@ class GlobalEventBanner {
     ctx.roundRect(-bannerW / 2 - 3, -bannerH / 2 - 3, bannerW + 6, bannerH + 6, 31);
     ctx.stroke();
 
-    // Event name (large, bold) — always on dark pill, use white
+    // Event name (large, bold) ??? always on dark pill, use white
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(255, 200, 0, 0.3)';
@@ -584,7 +592,7 @@ class GlobalEventBanner {
   }
 }
 
-// Race Director — TV-style producer that watches the race and presents exciting moments
+// Race Director ??? TV-style producer that watches the race and presents exciting moments
 // Does NOT change gameplay, physics, or race balance
 class RaceDirector {
   constructor() {
@@ -1112,7 +1120,7 @@ class RaceDirector {
   }
 }
 
-// Broadcast Director — professional state-machine camera orchestration
+// Broadcast Director ??? professional state-machine camera orchestration
 // Decides WHAT the camera should watch and at what zoom.
 // Camera simply executes the shots with smooth cinematic movement.
 // Follows a strict state machine: only one state active at any time.
@@ -1134,7 +1142,7 @@ class BroadcastDirector {
     this._state = BroadcastDirector.STATE.LEADER_FOLLOW;
     this._stateTimer = 0;
     this._cooldownTimer = 0;
-    this._eventThreshold = 5; // 1-10 — only events >= threshold trigger EVENT_FOCUS
+    this._eventThreshold = 5; // 1-10 ??? only events >= threshold trigger EVENT_FOCUS
     this._targetBallId = 'leader';
     this._targetZoom = 1.0;
     this._manualOverride = false;
@@ -1372,7 +1380,7 @@ class BroadcastDirector {
   }
 }
 
-// Story Engine — continuously observes race data, identifies memorable narratives
+// Story Engine ??? continuously observes race data, identifies memorable narratives
 // Never changes gameplay. Produces Story Events for the Match Events UI.
 // Max one story per ~15-20s. Higher-priority stories override in a given frame.
 // Priority order: LeaderCrash > Comeback > Rivalry > Dominance > Underdog > Collapse
@@ -1454,30 +1462,30 @@ class StoryEngine {
     // Collect candidate stories this frame
     const candidates = [];
 
-    // 1. DOMINANCE — same country leading for > 30s continuous
+    // 1. DOMINANCE ??? same country leading for > 30s continuous
     this._detectDominance(active, candidates);
 
-    // 2. COMEBACK — gain >= 8 positions
+    // 2. COMEBACK ??? gain >= 8 positions
     this._detectComeback(active, leaderboard, candidates);
 
-    // 3. COLLAPSE — lose >= 7 positions
+    // 3. COLLAPSE ??? lose >= 7 positions
     this._detectCollapse(active, leaderboard, candidates);
 
-    // 4. RIVALRY — same pair exchange 3+ times
+    // 4. RIVALRY ??? same pair exchange 3+ times
     this._detectRivalry(active, leaderboard, candidates);
 
-    // 5. UNDERDOG — bottom-third racer enters top 5
+    // 5. UNDERDOG ??? bottom-third racer enters top 5
     this._detectUnderdog(active, leaderboard, candidates);
 
-    // 6. SURVIVAL — escapes bottom 2 in elimination mode
+    // 6. SURVIVAL ??? escapes bottom 2 in elimination mode
     if (gameMode === 'knockout') {
       this._detectSurvival(active, candidates);
     }
 
-    // 7. LEADER CRASH — leader hit by obstacle then loses lead
+    // 7. LEADER CRASH ??? leader hit by obstacle then loses lead
     this._detectLeaderCrash(active, candidates);
 
-    // 8. RECORD RUN — new max position gain
+    // 8. RECORD RUN ??? new max position gain
     this._detectRecordRun(active, leaderboard, candidates);
 
     // Update saved positions for next frame
@@ -1731,7 +1739,7 @@ class StoryEngine {
     const color = STORY_COLORS[type] || '#ffd700';
     const id = ++this._storyIdCounter;
     el.dataset.id = 'story-' + id;
-    el.innerHTML = `<span class="rd-ts" style="color:${color}">★ STORY</span><span class="rd-msg" style="color:${color}">${message}</span>`;
+    el.innerHTML = `<span class="rd-ts" style="color:${color}">??? STORY</span><span class="rd-msg" style="color:${color}">${message}</span>`;
     el.style.borderLeftColor = color;
 
     if (list.firstChild) {
@@ -1779,65 +1787,65 @@ class StoryEngine {
   }
 }
 
-// Story message templates — each with an emoji prefix
+// Story message templates ??? each with an emoji prefix
 const STORY_TEMPLATES = {
   dominance: [
-    ['👑', '{name} is dominating this race!'],
-    ['🔥', '{name} refuses to give up the lead!'],
-    ['👑', '{name} is in complete control!'],
-    ['🔥', 'Nobody can catch {name} today!'],
-    ['👑', '{name} makes it look easy!'],
-    ['🔥', '{name} is untouchable at the front!'],
+    ['????', '{name} is dominating this race!'],
+    ['????', '{name} refuses to give up the lead!'],
+    ['????', '{name} is in complete control!'],
+    ['????', 'Nobody can catch {name} today!'],
+    ['????', '{name} makes it look easy!'],
+    ['????', '{name} is untouchable at the front!'],
   ],
   comeback: [
-    ['🚀', 'Incredible comeback by {name}!'],
-    ['🔥', '{name} is charging through the field!'],
-    ['⭐', '{name} stages an amazing recovery!'],
-    ['🚀', '{name} rockets up the standings!'],
-    ['🔥', 'What a fightback from {name}!'],
-    ['⭐', '{name} defies the odds!'],
+    ['????', 'Incredible comeback by {name}!'],
+    ['????', '{name} is charging through the field!'],
+    ['???', '{name} stages an amazing recovery!'],
+    ['????', '{name} rockets up the standings!'],
+    ['????', 'What a fightback from {name}!'],
+    ['???', '{name} defies the odds!'],
   ],
   collapse: [
-    ['💥', "{name}'s race is falling apart!"],
-    ['😱', '{name} loses control!'],
-    ['💥', '{name} is tumbling down the order!'],
-    ['😱', 'Disaster for {name}!'],
-    ['💥', '{name} is in deep trouble!'],
-    ['😱', 'Things go from bad to worse for {name}!'],
+    ['????', "{name}'s race is falling apart!"],
+    ['????', '{name} loses control!'],
+    ['????', '{name} is tumbling down the order!'],
+    ['????', 'Disaster for {name}!'],
+    ['????', '{name} is in deep trouble!'],
+    ['????', 'Things go from bad to worse for {name}!'],
   ],
   rivalry: [
-    ['⚔', '{name} are battling for every position!'],
-    ['🔥', '{name} refuse to back down!'],
-    ['⚔', '{name} are locked in battle!'],
-    ['🔥', '{name} are trading places!'],
-    ['⚔', '{name} won\'t give an inch!'],
+    ['???', '{name} are battling for every position!'],
+    ['????', '{name} refuse to back down!'],
+    ['???', '{name} are locked in battle!'],
+    ['????', '{name} are trading places!'],
+    ['???', '{name} won\'t give an inch!'],
   ],
   underdog: [
-    ['⭐', '{name} shocks the field!'],
-    ['🚀', '{name} joins the front runners!'],
-    ['⭐', '{name} is climbing the ranks!'],
-    ['🚀', '{name} is making a name for themselves!'],
-    ['⭐', '{name} rises to the occasion!'],
+    ['???', '{name} shocks the field!'],
+    ['????', '{name} joins the front runners!'],
+    ['???', '{name} is climbing the ranks!'],
+    ['????', '{name} is making a name for themselves!'],
+    ['???', '{name} rises to the occasion!'],
   ],
   survival: [
-    ['😮', '{name} survives elimination!'],
-    ['🍀', '{name} escapes at the last second!'],
-    ['😮', '{name} cheats elimination!'],
-    ['🍀', 'Lucky escape for {name}!'],
-    ['😮', '{name} clings on!'],
+    ['????', '{name} survives elimination!'],
+    ['????', '{name} escapes at the last second!'],
+    ['????', '{name} cheats elimination!'],
+    ['????', 'Lucky escape for {name}!'],
+    ['????', '{name} clings on!'],
   ],
   leaderCrash: [
-    ['💥', 'The leader has been taken down!'],
-    ['🚨', 'Massive upset at the front!'],
-    ['💥', 'The leader is hit!'],
-    ['🚨', 'Chaos at the front of the race!'],
-    ['💥', 'The leader is in trouble!'],
+    ['????', 'The leader has been taken down!'],
+    ['????', 'Massive upset at the front!'],
+    ['????', 'The leader is hit!'],
+    ['????', 'Chaos at the front of the race!'],
+    ['????', 'The leader is in trouble!'],
   ],
   recordRun: [
-    ['🏆', 'Biggest comeback of today\'s stream by {name}!'],
-    ['🏆', '{name} sets a new record climb!'],
-    ['🏆', '{name} makes history with this charge!'],
-    ['🏆', 'Unbelievable run from {name}!'],
+    ['????', 'Biggest comeback of today\'s stream by {name}!'],
+    ['????', '{name} sets a new record climb!'],
+    ['????', '{name} makes history with this charge!'],
+    ['????', 'Unbelievable run from {name}!'],
   ],
 };
 
@@ -1891,6 +1899,9 @@ class GameEngine {
     this.particles = [];
     this.selectedBallId = null;
     this._footballShowerActive = false;
+    this._lavaShowerActive = false;
+    this._lavaChunks = [];
+    this._lavaShowerSkyDim = 0;
     this._speedSurgeActive = false;
     this._speedSurgeMultipliers = new Map();
     this._blackoutActive = false;
@@ -1935,6 +1946,56 @@ class GameEngine {
     this._volcanoAshParticles = [];
     this._volcanoEmberParticles = [];
     this._volcanoSmokeColumns = [];
+
+    // Volcanic Eruption global event state
+    this._volcanicEruptionActive = false;
+    this._volcanicEruptionPhase = null; // 'warning', 'eruption', 'ending'
+    this._volcanicEruptionTimer = 0;
+    this._volcanicEruptionFadeProgress = 0;
+    this._volcanicEruptionBombs = [];
+    this._volcanicEruptionSkyDarkness = 0;
+    this._volcanicEruptionGlowIntensity = 0;
+    this._volcanicEruptionAshParticles = [];
+    this._volcanicEruptionSmokeParticles = [];
+    this._volcanicEruptionEmberParticles = [];
+    this._volcanicEruptionFountainParticles = [];
+    this._volcanicEruptionBombSpawnCounter = 0;
+    this._volcanicEruptionScreenFlash = 0;
+
+    // Firestorm event state
+    this._firestormActive = false;
+    this._firestormPhase = null; // 'build_up', 'active', 'fade_out'
+    this._firestormTimer = 0;
+    this._firestormFadeProgress = 0;
+    this._firestormSkyDarkness = 0;
+    this._firestormGlowIntensity = 0;
+    this._firestormEmbers = [];
+    this._firestormAsh = [];
+    this._firestormWindStreaks = [];
+    this._firestormSparks = [];
+    this._firestormLargeClouds = [];
+    this._firestormWhirls = [];
+    this._firestormWhirlTimer = 0;
+    this._firestormSkyTint = 0;
+
+    // Jungle theme state
+    this._jungleGiantTrees = [];
+    this._jungleRoots = [];
+    this._jungleWaterfalls = [];
+    this._jungleSunRays = [];
+    this._jungleBirds = [];
+    this._jungleButterflies = [];
+    this._jungleMonkeys = [];
+    this._jungleDragonflies = [];
+    this._jungleLeaves = [];
+    this._jungleMistParticles = [];
+    this._jungleFlowers = [];
+    this._jungleWildlife = [];
+    this._jungleFireflies = [];
+    this._jungleAmbientParticles = [];
+    this._jungleRiver = [];
+    this._jungleCrossVines = [];
+
     this.directorMode = null;
     this._directorInput = '';
     this._directorSuggestions = [];
@@ -2044,7 +2105,12 @@ class GameEngine {
       ? new Set(enabledObstacles)
       : new Set(OBSTACLE_REGISTRY.filter(o => o.category === 'core' || o.map === themeKey).map(o => o.type));
 
-    // Build frequency weight map (1→1, 2→3, 3→5, 4→10, 5→20)
+    // Magma Crater: replace Slow Ramp with Lava Pool entirely
+    if (themeKey === 'volcano') {
+      enabledSet.delete('slow');
+    }
+
+    // Build frequency weight map (1???1, 2???3, 3???5, 4???10, 5???20)
     const freqWeights = {};
     if (obstacleFreqs) {
       OBSTACLE_REGISTRY.forEach(o => {
@@ -2052,6 +2118,11 @@ class GameEngine {
         const w = f <= 1 ? 1 : f === 2 ? 3 : f === 3 ? 5 : f === 4 ? 10 : 20;
         freqWeights[o.type] = w;
       });
+    }
+
+    // Magma Crater: significantly boost Lava Pool spawn rate to match Boost Pad count
+    if (themeKey === 'volcano' && freqWeights.lava_pool) {
+      freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15); // High weight ~same as boost
     }
 
     const track = {
@@ -2075,7 +2146,7 @@ class GameEngine {
     let currentWidth = baseWidth;
 
     // Multi-directional track waypoints defining the path's overall direction
-    // Track snakes: right → down-right → right → up-right → right → down-right → finish
+    // Track snakes: right ??? down-right ??? right ??? up-right ??? right ??? down-right ??? finish
     const waypoints = [
       { t: 0.00, y: 280 },
       { t: 0.10, y: 300 },
@@ -2172,22 +2243,24 @@ class GameEngine {
       punchfist: { min: 180, preferred: 260, recovery: 130, safeLanding: 80 },
       barrier: { min: 140, preferred: 200, recovery: 100, safeLanding: 80 },
 
-      peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
+peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       slow: { min: 100, preferred: 160, recovery: 80, safeLanding: 60 },
+      lava_pool: { min: 80, preferred: 120, recovery: 60, safeLanding: 40 },
+      lava_geyser: { min: 180, preferred: 300, recovery: 200, safeLanding: 100 },
       launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       ice_cannon: { min: 200, preferred: 320, recovery: 150, safeLanding: 120 }
     };
 
-    // Zone-based pacing configuration (t = x / length) — higher density, intentional rhythm
+    // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.45,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm']) },
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser']) },
       { start: 0.20, end: 0.60, density: 0.35,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon']) },
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser']) },
       { start: 0.60, end: 0.85, density: 0.40,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon']) },
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser']) },
       { start: 0.85, end: 1.00, density: 0.45,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner']) }
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -2208,6 +2281,22 @@ class GameEngine {
       { weight: 2, types: ['punchfist', 'hammer'], gap: 40 },
       { weight: 1, types: ['hammer', 'portal'], gap: 50 },
       { weight: 1, types: ['c_bumper', 'spinner'], gap: 40 },
+      // Magma Crater: Lava Pool combinations (replace slow ramp combos)
+      { weight: 4, types: ['boost', 'lava_pool'], gap: 40 },
+      { weight: 3, types: ['lava_pool', 'hammer'], gap: 40 },
+      { weight: 3, types: ['spinner', 'lava_pool'], gap: 40 },
+      { weight: 2, types: ['lava_pool', 'boost'], gap: 40 },
+      { weight: 2, types: ['barrier', 'lava_pool'], gap: 40 },
+      { weight: 2, types: ['lava_pool', 'sweep_arm'], gap: 40 },
+      { weight: 1, types: ['lava_pool', 'punchfist'], gap: 40 },
+      // Magma Crater: Lava Geyser combinations
+      { weight: 3, types: ['boost', 'lava_geyser'], gap: 50 },
+      { weight: 3, types: ['spinner', 'lava_geyser'], gap: 50 },
+      { weight: 2, types: ['lava_geyser', 'hammer'], gap: 50 },
+      { weight: 2, types: ['barrier', 'lava_geyser'], gap: 50 },
+      { weight: 2, types: ['lava_geyser', 'sweep_arm'], gap: 50 },
+      { weight: 1, types: ['lava_geyser', 'punchfist'], gap: 50 },
+      { weight: 1, types: ['lava_geyser', 'portal'], gap: 60 },
     ].filter(c => _allEnabled(c.types));
 
     // 3-obstacle templates that shuffle per race for variety
@@ -2223,6 +2312,16 @@ class GameEngine {
       ['portal', 'boost', 'spinner'],
       ['hammer', 'barrier', 'boost'],
       ['hammer', 'hammer', 'hammer'],
+      // Magma Crater: Lava Pool templates
+      ['boost', 'lava_pool', 'hammer'],
+      ['lava_pool', 'spinner', 'hammer'],
+      ['barrier', 'lava_pool', 'boost'],
+      ['hammer', 'lava_pool', 'sweep_arm'],
+      // Magma Crater: Lava Geyser templates
+      ['boost', 'lava_geyser', 'hammer'],
+      ['lava_geyser', 'spinner', 'barrier'],
+      ['hammer', 'lava_geyser', 'sweep_arm'],
+      ['portal', 'lava_geyser', 'boost'],
     ].filter(t => _allEnabled(t));
     // Shuffle templates once per race
     const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
@@ -2235,6 +2334,7 @@ class GameEngine {
 
     // Helper to get bounding box for validation
     const getBB = (obs) => {
+      if (!obs || !obs.x || !obs.y) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
       let minX = obs.x;
       let maxX = obs.x;
       let minY = obs.y || 300;
@@ -2292,6 +2392,48 @@ class GameEngine {
         maxX = obs.x + r;
         minY = obs.y - r;
         maxY = obs.y + r;
+      } else if (obs.type === 'lava_geyser') {
+        // Lava geyser: crack in ground with vertical eruption column
+        const crackW = obs.crackWidth || 30;
+        const crackH = obs.crackHeight || 60;
+        const eruptionH = obs.eruptionHeight || 200;
+        minX = obs.x - crackW / 2;
+        maxX = obs.x + crackW / 2;
+        minY = obs.y - crackH / 2;
+        maxY = obs.y + crackH / 2 + eruptionH;
+      } else if (obs.type === 'carnivorous_vine') {
+        if (!obs || !obs.x || !obs.y) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+        const vineR = 30;
+        minX = obs.x - vineR;
+        maxX = obs.x + vineR;
+        minY = obs.y - vineR * 2;
+        maxY = obs.y + vineR;
+      } else if (obs.type === 'collapsing_pillar') {
+        if (obs._state === 'fallen' || obs._state === 'disappearing') {
+          const fw = obs._fallenWidth || 80;
+          const fh = obs._fallenHeight || 35;
+          minX = obs.x - fw / 2;
+          maxX = obs.x + fw / 2;
+          if (obs._wallSide === 'top') {
+            minY = obs.y;
+            maxY = obs.y + fh;
+          } else {
+            minY = obs.y - fh;
+            maxY = obs.y;
+          }
+        } else {
+          const pw = obs._pillarWidth || 20;
+          const ph = obs._pillarHeight || 80;
+          minX = obs.x - pw / 2;
+          maxX = obs.x + pw / 2;
+          if (obs._wallSide === 'top') {
+            minY = obs.y;
+            maxY = obs.y + ph;
+          } else {
+            minY = obs.y - ph;
+            maxY = obs.y;
+          }
+        }
       } else {
         const halfW = w / 2;
         const halfH = h / 2;
@@ -2544,7 +2686,7 @@ class GameEngine {
       const segObstaclePositions = [];
 
       // Density slider (20-100%): higher = more obstacles, tighter spacing
-      // multiplier: 1.8 at 20% → 0.5 at 100% (3.6x range)
+      // multiplier: 1.8 at 20% ??? 0.5 at 100% (3.6x range)
       const pct = densityPct || 80;
       const densityMult = 1.8 - (pct / 100) * 1.3;
       // Cap to avoid division by zero / negative
@@ -2726,7 +2868,11 @@ class GameEngine {
             });
           }
         } else if (type === 'boost') {
+<<<<<<< HEAD
           const boostClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle') && Math.abs(z.x + z.width / 2 - x) < 400);
+=======
+          const boostClose = track.zones.some(z => (z.type === 'slow' || z.type === 'lava_pool') && Math.abs(z.x + z.width / 2 - x) < 400);
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
           if (boostClose) { x += 200; continue; }
           const w = 75;
           const h = 45;
@@ -2735,18 +2881,36 @@ class GameEngine {
             y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
             width: w, height: h, force: 0.20
           });
-        } else if (type === 'slow') {
+        } else if (type === 'lava_pool') {
+          // Magma Crater: Lava Pool (replaces Slow Ramp)
           const slowClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - x) < 400);
           if (slowClose) { x += 200; continue; }
+<<<<<<< HEAD
           const w = themeKey === 'jungle' ? 135 : 60;
           const h = themeKey === 'jungle' ? 101 : 45;
           const zoneType = themeKey === 'jungle' ? 'mud_puddle' : 'slow';
           track.zones.push({
             type: zoneType, x: x - w / 2,
+=======
+          const w = 70;
+          const h = 50;
+          track.zones.push({
+            type: 'lava_pool', x: x - w / 2,
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
             y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
             width: w, height: h
           });
-
+        } else if (type === 'slow') {
+          // Standard Slow Ramp (non-volcano maps only)
+          const slowClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - x) < 400);
+            if (slowClose) { x += 200; continue; }
+            const w = 60;
+            const h = 45;
+            track.zones.push({
+              type: 'slow', x: x - w / 2,
+              y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
+              width: w, height: h
+            });
         } else if (type === 'punchfist') {
           const punchAngle = Math.random() * Math.PI * 2;
           const punchRadius = 28 + Math.random() * 6;
@@ -2771,12 +2935,12 @@ class GameEngine {
           const portalSize = 50;
           const p1Y = clampY(centerY + (Math.random() - 0.5) * 30, bounds, portalSize / 2 + 8);
           
-          // Exit portal — must be placeable for the pair to exist
+          // Exit portal ??? must be placeable for the pair to exist
           const x2 = Math.min(x + distAhead, segEnd - 100);
           const bounds2 = getBounds(x2);
           if (bounds2 && x2 > x + 250) {
             const p2Y = clampY((bounds2.topY + bounds2.bottomY) / 2, bounds2, portalSize / 2 + 10);
-            // Both portals confirmed — push entry then exit
+            // Both portals confirmed ??? push entry then exit
             track.zones.push({
               type: 'portal', x: x - portalSize / 2, y: p1Y - portalSize / 2,
               width: portalSize, height: portalSize, pairId, radius: portalSize / 2
@@ -2868,6 +3032,24 @@ class GameEngine {
             cannonHeight: cannonH, barrelLength: barrelLen,
             _lastFireTime: Math.floor(Math.random() * 120), _fireInterval: 120,
             _projectiles: [], _splashEffects: []
+          });
+        } else if (type === 'lava_geyser') {
+          // Magma Crater exclusive: Lava Geyser - periodic eruption from ground crack
+          const geyserY = clampY(centerY + (Math.random() - 0.5) * availH * 0.4, bounds, 20);
+          track.obstacles.push({
+            type: 'lava_geyser', x, y: geyserY,
+            // Cycle timing (in frames at 60fps)
+            _hiddenDuration: 180 + Math.floor(Math.random() * 180), // 3-6 seconds hidden
+            _warningDuration: 30, // 0.5 seconds warning
+            _eruptionDuration: 60, // 1 second eruption
+            _cycleTimer: Math.floor(Math.random() * 420), // Random start offset
+            _state: 'hidden', // 'hidden' | 'warning' | 'erupting'
+            // Visual properties
+            _crackWidth: 8 + Math.random() * 6, // 8-14px crack width
+            crackHeight: 60 + Math.random() * 20, // 60-80px crack height
+            _eruptionHeight: 180 + Math.random() * 60, // 180-240px lava column height
+            _eruptionWidth: 24 + Math.random() * 12, // 24-36px column width
+            _seed: Math.random() * 1000 // For deterministic particle positions
           });
         }
 
@@ -3002,7 +3184,7 @@ class GameEngine {
                 if (fb.length === 0) continue;
                 const ft = fb[Math.floor(Math.random() * fb.length)];
                 if (ft === 'boost') {
-                  const bClose = track.zones.some(z => z.type === 'slow' && Math.abs(z.x + z.width / 2 - insX) < 400);
+                  const bClose = track.zones.some(z => (z.type === 'slow' || z.type === 'lava_pool') && Math.abs(z.x + z.width / 2 - insX) < 400);
                   if (bClose) continue;
                   track.zones.push({ type: 'boost', x: insX - 37, y: clampY(icY - 22, ib, 27), width: 75, height: 45, force: 0.20 });
                 } else if (ft === 'spinner') {
@@ -3082,7 +3264,11 @@ class GameEngine {
     const MIN_COUNT = 30;
     const TYPE_COUNTS = {};
     ['hammer', 'spinner', 'barrier', 'sweep_arm', 'punchfist',
+<<<<<<< HEAD
      'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon', 'mud_puddle']
+=======
+     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon', 'lava_geyser']
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
       .filter(t => enabledSet.has(t))
       .forEach(t => { TYPE_COUNTS[t] = 0; });
     track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
@@ -3157,13 +3343,44 @@ class GameEngine {
           });
 
         } else if (ut === 'boost') {
+<<<<<<< HEAD
           const tooClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle') && Math.abs(z.x + z.width / 2 - tryX) < 400);
+=======
+          const tooClose = track.zones.some(z => (z.type === 'slow' || z.type === 'lava_pool') && Math.abs(z.x + z.width / 2 - tryX) < 400);
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
           if (tooClose) continue;
           track.zones.push({
             type: 'boost', x: tryX - 37, y: clampY(cY - 22, b, 27),
             width: 75, height: 45, force: 0.20
           });
+        } else if (ut === 'lava_pool') {
+          // Magma Crater: Lava Pool (replaces Slow Ramp)
+          const tooClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - tryX) < 400);
+          if (tooClose) continue;
+          track.zones.push({
+            type: 'lava_pool', x: tryX - 35, y: clampY(cY - 25, b, 25),
+            width: 70, height: 50
+          });
+        } else if (ut === 'lava_geyser') {
+          // Magma Crater: Lava Geyser (exclusive to volcano)
+          track.obstacles.push({
+            type: 'lava_geyser', x: tryX, y: clampY(cY, b, 40),
+            crackWidth: 25 + Math.random() * 10,
+            crackHeight: 60 + Math.random() * 20,
+            eruptionHeight: 150 + Math.random() * 80,
+            // Cycle timing
+            _state: 'hidden', // 'hidden' | 'warning' | 'erupting'
+            _stateTimer: 0,
+            _cycleTimer: 0,
+            _cycleDuration: (180 + Math.floor(Math.random() * 180)) * (60 / 60), // 3-6 seconds at 60fps
+            _warningDuration: 30, // 0.5 seconds at 60fps
+            _eruptionDuration: 60, // 1 second at 60fps
+            // Visual
+            _warningGlow: 0,
+            _eruptionParticles: []
+          });
         } else if (ut === 'slow') {
+          // Standard Slow Ramp (non-volcano maps only)
           const tooClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - tryX) < 400);
           if (tooClose) continue;
           const zoneType = themeKey === 'jungle' ? 'mud_puddle' : 'slow';
@@ -3264,7 +3481,7 @@ class GameEngine {
       if (_removeZone.size > 0) track.zones = track.zones.filter((_, i) => !_removeZone.has(i) || track.zones[i].type === 'finish');
     }
 
-    // Remove orphan portal zones (no matching pair — entry whose exit couldn't be placed)
+    // Remove orphan portal zones (no matching pair ??? entry whose exit couldn't be placed)
     {
       const portalCounts = new Map();
       track.zones.filter(z => z.type === 'portal').forEach(z => portalCounts.set(z.pairId, (portalCounts.get(z.pairId) || 0) + 1));
@@ -3320,6 +3537,7 @@ class GameEngine {
     }
 
     // Generate Carnivorous Vines for Amazon Canopy
+<<<<<<< HEAD
     if (enabledSet.has('carnivorous_vine')) {
       const _numVines = 30 + Math.floor(Math.random() * 11); // 30-40 vines
       const _minSpacing = 350; // Minimum spacing between vines
@@ -3410,6 +3628,145 @@ class GameEngine {
             capturedBallIds: new Set()
           });
         }
+=======
+    if (enabledSet.has('carnivorous_vine') && themeKey === 'jungle') {
+      try {
+        const vineCount = 20 + Math.floor(Math.random() * 11); // 20-30
+        for (let vi = 0; vi < vineCount; vi++) {
+          const vx = 200 + (vi / vineCount) * (finishX - 400) + (Math.random() - 0.5) * 60;
+          if (Math.abs(vx - finishX) < 500) continue;
+          const vb = this.physics.getWallBoundaries(vx, track);
+          if (!vb || vb.bottomY - vb.topY < 100) continue;
+          const onTop = Math.random() < 0.5;
+          const wallY = onTop ? vb.topY : vb.bottomY;
+          const vy = onTop ? wallY + 10 + Math.random() * 15 : wallY - 10 - Math.random() * 15;
+          let overlap = false;
+          for (const o of track.obstacles) {
+            if (Math.abs(o.x - vx) < 80) { overlap = true; break; }
+          }
+          if (overlap) continue;
+          for (const z of track.zones) {
+            if (z.type === 'boost' || z.type === 'portal') {
+              if (Math.abs(z.x + z.width / 2 - vx) < 90) { overlap = true; break; }
+            }
+          }
+          if (overlap) continue;
+          track.obstacles.push({
+            type: 'carnivorous_vine',
+            x: vx, y: vy,
+            wallSide: onTop ? 'top' : 'bottom',
+            stemHeight: 20 + Math.random() * 25,
+            headRadius: 10 + Math.random() * 4,
+            _state: 'idle',
+            _stateTimer: 0,
+            _phase: Math.random() * Math.PI * 2,
+            _capturedBall: null,
+            _cooldownTimer: 0,
+            _grabProgress: 0,
+            _launchVx: 0,
+            _launchVy: 0,
+            _wigglePhase: Math.random() * Math.PI * 2,
+            _leafParticles: []
+          });
+        }
+      } catch (e) {
+        console.warn('Carnivorous vine spawning failed:', e.message);
+      }
+    }
+
+    // Generate Collapsing Rock Pillars for Magma Crater
+    if (enabledSet.has('collapsing_pillar')) {
+      const numPillars = 12 + Math.floor(Math.random() * 5); // 12-16
+      let lastSide = 'bottom';
+      let lastX = -1000;
+      let pillarPositions = [];
+
+      // Scan from start to finish collecting valid placement candidates
+      for (let px = 400; px < finishX - 600; px += 80) {
+        if (Math.abs(px - finishX) < 800) continue;
+        const pb = this.physics.getWallBoundaries(px, track);
+        if (!pb || pb.bottomY - pb.topY < 160) continue;
+
+        // Check overlap with existing obstacles and zones
+        let overlap = false;
+        for (const _o of track.obstacles) {
+          if (Math.abs(_o.x - px) < 120) { overlap = true; break; }
+        }
+        if (overlap) continue;
+        for (const _z of track.zones) {
+          if (_z.type === 'finish') continue;
+          if (Math.abs(_z.x + _z.width / 2 - px) < 120) { overlap = true; break; }
+        }
+        if (overlap) continue;
+        if (track.pegs) {
+          for (const _p of track.pegs) {
+            if (Math.abs(_p.x - px) < 80) { overlap = true; break; }
+          }
+        }
+        if (overlap) continue;
+
+        pillarPositions.push({ x: px, bounds: pb });
+      }
+
+      // Select positions with alternating sides, avoiding direct opposites
+      let selected = [];
+      let lastSelectedSide = null;
+      for (let i = 0; i < pillarPositions.length && selected.length < numPillars; i++) {
+        const pos = pillarPositions[i];
+        const side = (selected.length % 2 === 0) ? 'top' : 'bottom';
+
+        // Avoid placing directly opposite another pillar
+        let opposite = false;
+        for (const s of selected) {
+          if (Math.abs(s.x - pos.x) < 60 && s.side !== side) {
+            opposite = true;
+            break;
+          }
+        }
+        if (opposite) continue;
+
+        // Ensure minimum spacing
+        let tooClose = false;
+        for (const s of selected) {
+          if (Math.abs(s.x - pos.x) < 200) {
+            tooClose = true;
+            break;
+          }
+        }
+        if (tooClose) continue;
+
+        const wallY = side === 'top' ? pos.bounds.topY - 5 : pos.bounds.bottomY + 5;
+        selected.push({ x: pos.x, y: wallY, side: side });
+      }
+
+      // Create pillar obstacles
+      for (const sp of selected) {
+        const pillarHeight = 65 + Math.random() * 25;
+        const pillarWidth = 18 + Math.random() * 7;
+        const wallSide = sp.side;
+        track.obstacles.push({
+          type: 'collapsing_pillar',
+          x: sp.x,
+          y: sp.y,
+          _wallSide: wallSide,
+          _state: 'standing',
+          _stateTimer: 0,
+          _standingDuration: 480 + Math.floor(Math.random() * 420),
+          _warningDuration: 60,
+          _fallenDuration: 240 + Math.floor(Math.random() * 60),
+          _disappearDuration: 30,
+          _pillarHeight: pillarHeight,
+          _pillarWidth: pillarWidth,
+          _fallenWidth: 55 + Math.random() * 20,
+          _fallenHeight: 28 + Math.random() * 8,
+          _seed: Math.random() * 1000,
+          _shakePhase: Math.random() * Math.PI * 2,
+          _fallDirection: wallSide === 'top' ? 1 : -1,
+          _fallProgress: 0,
+          _crumbleProgress: 0,
+          _dustOverlay: null
+        });
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
       }
     }
 
@@ -3663,7 +4020,7 @@ class GameEngine {
           }
         }
         obs._prevProgress = _iProgress;
-        // Collision — only when extended
+        // Collision ??? only when extended
         if (this.balls && _iProgress > 0.5) {
           const _iLen = obs.length || 45;
           const _iDir = obs.wallSide === 'top' ? 1 : -1;
@@ -3701,6 +4058,7 @@ class GameEngine {
             }
           }
         }
+<<<<<<< HEAD
       } else if (obs.type === 'carnivorous_vine') {
         // ===== CARNIVOROUS VINE UPDATE =====
         const time = Date.now() * 0.001;
@@ -3936,6 +4294,760 @@ class GameEngine {
           
 
       });
+=======
+      } else if (obs.type === 'lava_geyser') {
+        // Magma Crater exclusive: Lava Geyser - periodic eruption
+        // Only active on volcano map
+        if (this.currentThemeKey !== 'volcano') return;
+        
+        // Initialize if needed
+        if (obs._state === undefined) {
+          obs._state = 'hidden'; // 'hidden' | 'warning' | 'erupting'
+          obs._stateTimer = 0;
+          obs._cycleTimer = obs._cycleTimer || 0;
+          // Cycle: hidden (3-6s) -> warning (0.5s) -> erupting (1s) -> hidden
+          obs._hiddenDuration = obs._hiddenDuration || (180 + Math.floor(Math.random() * 180)); // 3-6s at 60fps
+          obs._warningDuration = obs._warningDuration || 30; // 0.5s
+          obs._eruptionDuration = obs._eruptionDuration || 60; // 1s
+        }
+        
+        // Update cycle timer
+        obs._cycleTimer += dt;
+        obs._stateTimer += dt;
+        
+        // State machine
+        if (obs._state === 'hidden') {
+          if (obs._cycleTimer >= obs._hiddenDuration) {
+            obs._state = 'warning';
+            obs._stateTimer = 0;
+            // Pre-eruption particles
+            for (let i = 0; i < 8; i++) {
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * (obs._crackWidth || 20),
+                y: obs.y - 5 - Math.random() * 10,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: -1 - Math.random() * 1.5,
+                alpha: 0.8,
+                size: 2 + Math.random() * 3,
+                life: 20 + Math.floor(Math.random() * 10),
+                color: '#ff8800'
+              });
+            }
+          }
+        } else if (obs._state === 'warning') {
+          // Warning phase: crack glows brighter, small particles
+          const warningProgress = obs._stateTimer / obs._warningDuration;
+          obs._warningGlow = warningProgress;
+          
+          // Warning particles
+          if (Math.random() < 0.3) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._crackWidth || 20),
+              y: obs.y - 5 - Math.random() * 5,
+              vx: (Math.random() - 0.5) * 0.3,
+              vy: -0.5 - Math.random() * 1,
+              alpha: 0.6 + warningProgress * 0.4,
+              size: 1 + Math.random() * 2,
+              life: 10 + Math.floor(Math.random() * 10),
+              color: '#ffaa00'
+            });
+          }
+          
+          if (obs._stateTimer >= obs._warningDuration) {
+            obs._state = 'erupting';
+            obs._stateTimer = 0;
+            // Explosion particles
+            for (let i = 0; i < 30; i++) {
+              const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.5;
+              const speed = 2 + Math.random() * 5;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30),
+                y: obs.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.9,
+                size: 3 + Math.random() * 5,
+                life: 30 + Math.floor(Math.random() * 20),
+                color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00'][Math.floor(Math.random() * 4)]
+              });
+            }
+          }
+        } else if (obs._state === 'erupting') {
+          // Erupting phase: vertical lava column
+          const eruptionProgress = obs._stateTimer / obs._eruptionDuration;
+          
+          // Lava column particles
+          if (Math.random() < 0.5) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30),
+              y: obs.y - eruptionProgress * (obs._eruptionHeight || 200),
+              vx: (Math.random() - 0.5) * 0.5,
+              vy: -1 - Math.random() * 2,
+              alpha: 0.8,
+              size: 2 + Math.random() * 4,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ffff00'][Math.floor(Math.random() * 5)]
+            });
+          }
+          
+          // Smoke particles
+          if (Math.random() < 0.2) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30) * 1.5,
+              y: obs.y - eruptionProgress * (obs._eruptionHeight || 200) * 0.5,
+              vx: (Math.random() - 0.5) * 0.3,
+              vy: -0.2 - Math.random() * 0.5,
+              alpha: 0.3,
+              size: 5 + Math.random() * 8,
+              life: 20 + Math.floor(Math.random() * 15),
+              color: '#333333'
+            });
+          }
+          
+          // Glowing embers
+          if (Math.random() < 0.3) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30),
+              y: obs.y - Math.random() * (obs._eruptionHeight || 200),
+              vx: (Math.random() - 0.5) * 0.8,
+              vy: -0.5 - Math.random() * 1.5,
+              alpha: 0.7,
+              size: 1.5 + Math.random() * 2.5,
+              life: 25 + Math.floor(Math.random() * 15),
+              color: '#ffdd44'
+            });
+          }
+          
+          if (obs._stateTimer >= obs._eruptionDuration) {
+            obs._state = 'hidden';
+            obs._stateTimer = 0;
+            obs._cycleTimer = 0;
+            // Randomize next cycle duration (3-6 seconds)
+            obs._hiddenDuration = 180 + Math.floor(Math.random() * 180);
+          }
+        }
+        
+        // Collision with balls - only during eruption
+        if (obs._state === 'erupting' && this.balls) {
+          const eruptionHeight = obs._eruptionHeight || 200;
+          const eruptionWidth = obs._eruptionWidth || 30;
+          const halfW = eruptionWidth / 2;
+          
+          for (const ball of this.balls) {
+            if (ball.finished || ball.eliminated || ball.z > 0) continue;
+            
+            // Check if ball is in the lava column
+            const dx = Math.abs(ball.x - obs.x);
+            const dy = obs.y - ball.y; // ball.y should be above obs.y (y increases downward)
+            
+            if (dx < halfW + ball.radius && dy >= 0 && dy <= eruptionHeight + ball.radius) {
+              // Ball hit by lava geyser!
+              // Apply upward launch
+              ball.vz = Math.max(ball.vz, 3.5);
+              ball.z = Math.max(ball.z, 0.5);
+              
+              // Small random horizontal knockback
+              ball.vx += (Math.random() - 0.5) * 2.5;
+              ball.vy += (Math.random() - 0.5) * 1.5;
+              
+              // Apply burn effect (if not already burning)
+              if (!ball._lavaBurnActive && !ball._geyserBurnActive && !ball._showerBurnActive) {
+                ball._geyserBurnActive = true;
+                ball._geyserBurnTimer = 120; // 2 seconds at 60fps
+                ball._geyserBurnExitSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+                
+                // Hit particles
+                for (let i = 0; i < 15; i++) {
+                  const angle = Math.random() * Math.PI * 2;
+                  const speed = 1 + Math.random() * 3;
+                  this.particles.push({
+                    type: 'sparkle',
+                    x: ball.x + (Math.random() - 0.5) * 10,
+                    y: ball.y + (Math.random() - 0.5) * 10,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    alpha: 0.9,
+                    size: 2 + Math.random() * 4,
+                    life: 20 + Math.floor(Math.random() * 15),
+                    color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ffff00'][Math.floor(Math.random() * 5)]
+                  });
+                }
+              }
+              
+              // Mark for commentary
+              ball._hitGeyserThisFrame = true;
+            }
+          }
+        }
+      }
+    });
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
+
+    // Lava Geyser state machine update (Magma Crater exclusive)
+    if (this.currentThemeKey === 'volcano') {
+      this.track.obstacles.forEach(obs => {
+        if (obs.type !== 'lava_geyser') return;
+        
+        // Initialize if needed
+        if (obs._state === undefined) {
+          obs._state = 'hidden';
+          obs._stateTimer = 0;
+          obs._cycleTimer = 0;
+          obs._cycleDuration = obs._hiddenDuration || (180 + Math.floor(Math.random() * 180)); // 3-6 seconds
+          obs._warningDuration = obs._warningDuration || 30; // 0.5 seconds
+          obs._eruptionDuration = obs._eruptionDuration || 60; // 1 second
+          obs._eruptionHeight = obs._eruptionHeight || (180 + Math.random() * 60);
+          obs._eruptionWidth = obs._eruptionWidth || (24 + Math.random() * 12);
+          obs._crackWidth = obs._crackWidth || (8 + Math.random() * 6);
+        }
+        
+        // Advance cycle timer
+        obs._cycleTimer += dt;
+        
+        // State machine
+        if (obs._state === 'hidden') {
+          // Wait for cycle to complete
+          if (obs._cycleTimer >= obs._cycleDuration) {
+            obs._state = 'warning';
+            obs._stateTimer = 0;
+            obs._cycleTimer = 0;
+            // Warning particles
+            for (let i = 0; i < 3; i++) {
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * 8,
+                y: obs.y + (Math.random() - 0.5) * 4,
+                vx: (Math.random() - 0.5) * 1,
+                vy: -1 - Math.random() * 2,
+                alpha: 0.8,
+                size: 2 + Math.random() * 2,
+                life: 15 + Math.floor(Math.random() * 10),
+                color: '#ff8800'
+              });
+            }
+          }
+        } else if (obs._state === 'warning') {
+          obs._stateTimer += dt;
+          // Intensify glow
+          obs._warningGlow = Math.min(1, obs._stateTimer / obs._warningDuration);
+          
+          // Warning particles
+          if (Math.random() < 0.3 * dt) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._crackWidth || 12),
+              y: obs.y - 2 - Math.random() * 10,
+              vx: (Math.random() - 0.5) * 0.5,
+              vy: -1 - Math.random() * 2,
+              alpha: 0.6,
+              size: 1 + Math.random() * 2,
+              life: 10 + Math.floor(Math.random() * 8),
+              color: '#ffaa00'
+            });
+          }
+          
+          if (obs._stateTimer >= obs._warningDuration) {
+            obs._state = 'erupting';
+            obs._stateTimer = 0;
+            // Eruption burst particles
+            for (let i = 0; i < 20; i++) {
+              const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6;
+              const speed = 2 + Math.random() * 4;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x,
+                y: obs.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 1,
+                size: 3 + Math.random() * 5,
+                life: 20 + Math.floor(Math.random() * 15),
+                color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00'][Math.floor(Math.random() * 4)]
+              });
+            }
+          }
+        } else if (obs._state === 'erupting') {
+          obs._stateTimer += dt;
+          
+          // Continuous eruption particles
+          if (Math.random() < 0.5 * dt) {
+            const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.5;
+            const speed = 1.5 + Math.random() * 3;
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30) * 0.5,
+              y: obs.y - Math.random() * (obs._eruptionHeight || 200) * 0.3,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed - 1,
+              alpha: 0.8 + Math.random() * 0.2,
+              size: 2 + Math.random() * 4,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ffaa00'][Math.floor(Math.random() * 5)]
+            });
+          }
+          
+          // Smoke particles
+          if (Math.random() < 0.2 * dt) {
+            this.particles.push({
+              type: 'dust',
+              x: obs.x + (Math.random() - 0.5) * (obs._eruptionWidth || 30) * 0.8,
+              y: obs.y - (obs._eruptionHeight || 200) * (0.5 + Math.random() * 0.5),
+              vx: (Math.random() - 0.5) * 0.5,
+              vy: -0.5 - Math.random() * 0.5,
+              alpha: 0.15 + Math.random() * 0.15,
+              size: 8 + Math.random() * 12,
+              color: ['#332211', '#221100', '#442211'][Math.floor(Math.random() * 3)],
+              life: 30 + Math.floor(Math.random() * 30)
+            });
+          }
+          
+          if (obs._stateTimer >= obs._eruptionDuration) {
+            obs._state = 'hidden';
+            obs._stateTimer = 0;
+            obs._cycleTimer = 0;
+            // New random cycle duration (3-6 seconds)
+            obs._cycleDuration = 180 + Math.floor(Math.random() * 180);
+          }
+        }
+      });
+    }
+
+    // Carnivorous Vine state machine (Amazon Canopy exclusive)
+    try {
+      if (this.currentThemeKey === 'jungle' && this.track && this.track.obstacles) {
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'carnivorous_vine') return;
+
+          // Initialize vine animation properties
+          if (obs._animState === undefined) {
+            obs._animState = 'idle';        // idle, wrapping, holding, releasing, cooldown
+            obs._animFrame = 0;             // current frame in animation
+            obs._animTimer = 0;             // frame timer
+            obs._phase = Math.random() * Math.PI * 2;
+            obs._wigglePhase = Math.random() * Math.PI * 2;
+            obs._capturedBall = null;
+            obs._holdTimer = 0;
+          }
+
+          const dt60 = dt * 60; // normalize to 60fps frames
+
+          // Animation frame durations (at 60fps)
+          const WRAP_FRAMES = 18;       // 0.3s wrap animation
+          const HOLD_FRAMES = 120;      // 2s hold
+          const RELEASE_FRAMES = 24;    // 0.4s release animation
+          const COOLDOWN_FRAMES = 120;  // 2s cooldown
+
+          if (obs._animState === 'idle') {
+            // Idle: gentle sway, check for ball in trigger radius (45px)
+            obs._animTimer += dt60;
+            for (const ball of this.balls) {
+              if (ball.finished || ball.z > 0 || ball._capturedByVine) continue;
+              const dx = ball.x - obs.x;
+              const dy = ball.y - obs.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist < 45) {
+                // Trigger wrap animation
+                obs._animState = 'wrapping';
+                obs._animFrame = 0;
+                obs._animTimer = 0;
+                obs._capturedBall = ball;
+                ball._capturedByVine = obs;
+                ball.vx = 0;
+                ball.vy = 0;
+                // Subtle grab particles
+                for (let p = 0; p < 4; p++) {
+                  const a = Math.random() * Math.PI * 2;
+                  this.particles.push({
+                    type: 'sparkle', x: ball.x, y: ball.y,
+                    vx: Math.cos(a) * 0.5, vy: Math.sin(a) * 0.5,
+                    alpha: 0.5, size: 2 + Math.random() * 1.5, life: 12 + Math.floor(Math.random() * 8),
+                    color: '#3a7a3a'
+                  });
+                }
+                break;
+              }
+            }
+          } else if (obs._animState === 'wrapping') {
+            // Wrap animation: vine rapidly coils around ball (18 frames)
+            obs._animTimer += dt60;
+            obs._animFrame = Math.min(Math.floor(obs._animTimer / (WRAP_FRAMES / 6)), 5); // 6 key frames over 18 frames
+
+            if (obs._capturedBall) {
+              // Ball follows vine center during wrap
+              const progress = obs._animTimer / WRAP_FRAMES;
+              const wiggle = Math.sin(obs._wigglePhase + obs._animTimer * 0.3) * (1 - progress) * 2;
+              obs._capturedBall.x = obs.x + wiggle;
+              obs._capturedBall.y = obs.y + wiggle;
+              obs._capturedBall.vx = 0;
+              obs._capturedBall.vy = 0;
+            }
+
+            // Wrap particles
+            if (Math.floor(obs._animTimer) % 3 === 0 && obs._capturedBall) {
+              for (let p = 0; p < 2; p++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle', x: obs._capturedBall.x, y: obs._capturedBall.y,
+                  vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3,
+                  alpha: 0.4, size: 1.5 + Math.random(), life: 10 + Math.floor(Math.random() * 6),
+                  color: '#4a8a3a'
+                });
+              }
+            }
+
+            if (obs._animTimer >= WRAP_FRAMES) {
+              obs._animState = 'holding';
+              obs._animFrame = 0;
+              obs._animTimer = 0;
+              obs._holdTimer = 0;
+            }
+          } else if (obs._animState === 'holding') {
+            // Hold: ball trapped for 2 seconds, vine breathes
+            obs._animTimer += dt60;
+            obs._holdTimer += dt60;
+            obs._animFrame = Math.floor((obs._animTimer % 30) / 5); // 6-frame breathing loop
+
+            if (obs._capturedBall) {
+              // Gentle squeeze motion
+              const squeeze = Math.sin(obs._animTimer * 0.15) * 1.5;
+              const breathe = Math.cos(obs._animTimer * 0.1) * 1;
+              obs._capturedBall.x = obs.x + squeeze;
+              obs._capturedBall.y = obs.y + breathe;
+              obs._capturedBall.vx = 0;
+              obs._capturedBall.vy = 0;
+            }
+
+            // Ambient hold particles (dust, leaf fragments)
+            if (Math.floor(obs._animTimer) % 15 === 0 && obs._capturedBall) {
+              for (let p = 0; p < 2; p++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle', x: obs._capturedBall.x, y: obs._capturedBall.y,
+                  vx: Math.cos(a) * 0.2, vy: Math.sin(a) * 0.2 + 0.15,
+                  alpha: 0.3, size: 1 + Math.random(), life: 18 + Math.floor(Math.random() * 12),
+                  color: '#2a5a2a'
+                });
+              }
+            }
+
+            if (obs._holdTimer >= HOLD_FRAMES) {
+              obs._animState = 'releasing';
+              obs._animFrame = 0;
+              obs._animTimer = 0;
+            }
+          } else if (obs._animState === 'releasing') {
+            // Release: coils unwind naturally (24 frames)
+            obs._animTimer += dt60;
+            obs._animFrame = Math.min(Math.floor(obs._animTimer / (RELEASE_FRAMES / 6)), 5);
+
+            if (obs._capturedBall) {
+              const progress = obs._animTimer / RELEASE_FRAMES;
+              // Ball stays until halfway through release, then eases out
+              if (progress < 0.5) {
+                const squeeze = Math.sin(obs._animTimer * 0.2) * (1 - progress * 2) * 1.5;
+                const breathe = Math.cos(obs._animTimer * 0.15) * (1 - progress * 2) * 1;
+                obs._capturedBall.x = obs.x + squeeze;
+                obs._capturedBall.y = obs.y + breathe;
+                obs._capturedBall.vx = 0;
+                obs._capturedBall.vy = 0;
+              } else {
+                // Smooth release with gentle velocity
+                if (progress === 0.5 || obs._animFrame === 3) {
+                  obs._capturedBall._capturedByVine = null;
+                  const angle = Math.random() * Math.PI * 2;
+                  const force = 2.5 + Math.random() * 1.5; // Gentle release
+                  obs._capturedBall.vx = Math.cos(angle) * force;
+                  obs._capturedBall.vy = Math.sin(angle) * force;
+                  obs._launchVx = obs._capturedBall.vx;
+                  obs._launchVy = obs._capturedBall.vy;
+                  // Release leaf burst
+                  for (let p = 0; p < 12; p++) {
+                    const a = Math.random() * Math.PI * 2;
+                    this.particles.push({
+                      type: 'sparkle', x: obs.x, y: obs.y,
+                      vx: Math.cos(a) * (1.5 + Math.random() * 2), vy: Math.sin(a) * (1.5 + Math.random() * 2),
+                      alpha: 0.5, size: 1.5 + Math.random() * 2, life: 20 + Math.floor(Math.random() * 15),
+                      color: '#3a7a3a'
+                    });
+                  }
+                }
+              }
+            }
+
+            if (obs._animTimer >= RELEASE_FRAMES) {
+              obs._animState = 'cooldown';
+              obs._animFrame = 0;
+              obs._animTimer = 0;
+              obs._capturedBall = null;
+            }
+          } else if (obs._animState === 'cooldown') {
+            // Cooldown: vine settles back to idle (2s)
+            obs._animTimer += dt60;
+            obs._animFrame = Math.floor((obs._animTimer % 60) / 10); // Slow settle
+
+            if (obs._animTimer >= COOLDOWN_FRAMES) {
+              obs._animState = 'idle';
+              obs._animFrame = 0;
+              obs._animTimer = 0;
+              obs._grabProgress = 0;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Carnivorous vine state machine error:', e.message);
+    }
+
+    // Collapsing Rock Pillar state machine (Magma Crater exclusive)
+    if (this.currentThemeKey === 'volcano' && this.track && this.track.obstacles) {
+      this.track.obstacles.forEach(obs => {
+        if (obs.type !== 'collapsing_pillar') return;
+
+        // Initialize if needed
+        if (obs._state === undefined) {
+          obs._state = 'standing';
+          obs._stateTimer = 0;
+          obs._standingDuration = obs._standingDuration || (480 + Math.floor(Math.random() * 420));
+          obs._warningDuration = obs._warningDuration || 60;
+          obs._fallenDuration = obs._fallenDuration || (240 + Math.floor(Math.random() * 60));
+          obs._disappearDuration = obs._disappearDuration || 30;
+          obs._pillarHeight = obs._pillarHeight || (65 + Math.random() * 25);
+          obs._pillarWidth = obs._pillarWidth || (18 + Math.random() * 7);
+          obs._fallenWidth = obs._fallenWidth || (55 + Math.random() * 20);
+          obs._fallenHeight = obs._fallenHeight || (28 + Math.random() * 8);
+          obs._seed = obs._seed || (Math.random() * 1000);
+          obs._shakePhase = obs._shakePhase || (Math.random() * Math.PI * 2);
+          obs._fallProgress = obs._fallProgress || 0;
+          obs._crumbleProgress = obs._crumbleProgress || 0;
+        }
+
+        obs._stateTimer += dt;
+
+        if (obs._state === 'standing') {
+          if (obs._stateTimer >= obs._standingDuration) {
+            obs._state = 'warning';
+            obs._stateTimer = 0;
+            // Dust puffs at base when warning starts
+            for (let i = 0; i < 4; i++) {
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * 20,
+                y: obs.y + (obs._wallSide === 'top' ? 5 : -5) + (Math.random() - 0.5) * 6,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (obs._wallSide === 'top' ? 0.3 : -0.3) + (Math.random() - 0.5) * 0.3,
+                alpha: 0.5,
+                size: 4 + Math.random() * 6,
+                life: 20 + Math.floor(Math.random() * 15),
+                color: '#665544'
+              });
+            }
+          }
+        } else if (obs._state === 'warning') {
+          // Shake intensity increases
+          const warnProgress = obs._stateTimer / obs._warningDuration;
+          obs._shakeOffset = Math.sin(obs._stateTimer * 0.5 + obs._shakePhase) * (2 + warnProgress * 6);
+
+          // Falling tiny rocks
+          if (Math.random() < 0.3 * dt) {
+            this.particles.push({
+              type: 'dust',
+              x: obs.x + (Math.random() - 0.5) * (obs._pillarWidth || 20) * 0.8,
+              y: obs.y - (obs._wallSide === 'top' ? 1 : -1) * (obs._pillarHeight || 80) * 0.3 * (Math.random()),
+              vx: (Math.random() - 0.5) * 0.3,
+              vy: (obs._wallSide === 'top' ? 0.5 : -0.5) + Math.random() * 0.5,
+              alpha: 0.6,
+              size: 1.5 + Math.random() * 2,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: '#554433'
+            });
+          }
+
+          // Dust at base
+          if (Math.random() < 0.2 * dt) {
+            this.particles.push({
+              type: 'dust',
+              x: obs.x + (Math.random() - 0.5) * 15,
+              y: obs.y + (obs._wallSide === 'top' ? 3 : -3) + (Math.random() - 0.5) * 4,
+              vx: (Math.random() - 0.5) * 0.4,
+              vy: (obs._wallSide === 'top' ? 0.2 : -0.2),
+              alpha: 0.3 + warnProgress * 0.3,
+              size: 3 + Math.random() * 4,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: '#776655'
+            });
+          }
+
+          // Rising embers
+          if (Math.random() < 0.25 * dt) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * 12,
+              y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * 5 + (Math.random() - 0.5) * 5,
+              vx: (Math.random() - 0.5) * 0.3,
+              vy: (obs._wallSide === 'top' ? -1 : 1) * (0.3 + Math.random() * 0.5),
+              alpha: 0.5 + Math.random() * 0.3,
+              size: 1.5 + Math.random() * 2,
+              life: 20 + Math.floor(Math.random() * 15),
+              color: '#ff6600'
+            });
+          }
+
+          if (obs._stateTimer >= obs._warningDuration) {
+            obs._state = 'fallen';
+            obs._stateTimer = 0;
+            obs._fallProgress = 0;
+
+            // Collapse burst particles
+            for (let i = 0; i < 20; i++) {
+              const angle = (obs._wallSide === 'top' ? 1 : -1) * (Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6);
+              const speed = 1.5 + Math.random() * 4;
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * 15,
+                y: obs.y + (Math.random() - 0.5) * 10,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.6 + Math.random() * 0.3,
+                size: 3 + Math.random() * 6,
+                life: 25 + Math.floor(Math.random() * 20),
+                color: ['#554433', '#665544', '#776655', '#887766', '#998877'][Math.floor(Math.random() * 5)]
+              });
+            }
+
+            // Dust cloud particles
+            for (let i = 0; i < 12; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 0.5 + Math.random() * 2;
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * 20,
+                y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * 10 + (Math.random() - 0.5) * 8,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed * 0.5,
+                alpha: 0.25 + Math.random() * 0.2,
+                size: 8 + Math.random() * 10,
+                life: 30 + Math.floor(Math.random() * 20),
+                color: '#554433'
+              });
+            }
+
+            // Glowing ember burst
+            for (let i = 0; i < 8; i++) {
+              const angle = (obs._wallSide === 'top' ? 1 : -1) * (Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.4);
+              const speed = 1 + Math.random() * 3;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x + (Math.random() - 0.5) * 10,
+                y: obs.y + (Math.random() - 0.5) * 8,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.8,
+                size: 2 + Math.random() * 3,
+                life: 20 + Math.floor(Math.random() * 15),
+                color: ['#ff4400', '#ff6600', '#ff8800', '#ffaa00'][Math.floor(Math.random() * 4)]
+              });
+            }
+
+            // Brief screen dust overlay (visual only, no camera shake)
+            if (this._dustOverlay === undefined) this._dustOverlay = 0;
+            this._dustOverlay = 15;
+          }
+        } else if (obs._state === 'fallen') {
+          // Fall animation: pillar rotates into lane
+          if (obs._fallProgress < 1) {
+            obs._fallProgress += dt / 15; // Complete fall in ~0.25s at 60fps
+            if (obs._fallProgress > 1) obs._fallProgress = 1;
+          }
+
+          // Smoke from fallen pillar
+          if (Math.random() < 0.15 * dt) {
+            this.particles.push({
+              type: 'dust',
+              x: obs.x + (Math.random() - 0.5) * (obs._fallenWidth || 60) * 0.5,
+              y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * (obs._fallenHeight || 30) * 0.3 + (Math.random() - 0.5) * 5,
+              vx: (Math.random() - 0.5) * 0.2,
+              vy: (obs._wallSide === 'top' ? -0.3 : 0.3),
+              alpha: 0.15 + Math.random() * 0.1,
+              size: 6 + Math.random() * 8,
+              life: 25 + Math.floor(Math.random() * 15),
+              color: '#333333'
+            });
+          }
+
+          // Occasional embers from broken rocks
+          if (Math.random() < 0.1 * dt) {
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * (obs._fallenWidth || 60) * 0.4,
+              y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * (obs._fallenHeight || 30) * 0.5,
+              vx: (Math.random() - 0.5) * 0.4,
+              vy: (obs._wallSide === 'top' ? -0.5 : 0.5) - Math.random() * 0.3,
+              alpha: 0.4 + Math.random() * 0.3,
+              size: 1.5 + Math.random() * 2,
+              life: 15 + Math.floor(Math.random() * 10),
+              color: '#ff8800'
+            });
+          }
+
+          if (obs._stateTimer >= obs._fallenDuration) {
+            obs._state = 'disappearing';
+            obs._stateTimer = 0;
+            obs._crumbleProgress = 0;
+
+            // Crumble particles
+            for (let i = 0; i < 15; i++) {
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * (obs._fallenWidth || 60),
+                y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * (obs._fallenHeight || 30) * (0.2 + Math.random() * 0.6),
+                vx: (Math.random() - 0.5) * 1.5,
+                vy: (obs._wallSide === 'top' ? -0.5 : 0.5) + (Math.random() - 0.5) * 0.8,
+                alpha: 0.5 + Math.random() * 0.3,
+                size: 3 + Math.random() * 5,
+                life: 25 + Math.floor(Math.random() * 20),
+                color: '#554433'
+              });
+            }
+
+            // Dust cloud
+            for (let i = 0; i < 8; i++) {
+              this.particles.push({
+                type: 'dust',
+                x: obs.x + (Math.random() - 0.5) * 25,
+                y: obs.y + (obs._wallSide === 'top' ? 1 : -1) * 10 + (Math.random() - 0.5) * 8,
+                vx: (Math.random() - 0.5) * 0.8,
+                vy: (obs._wallSide === 'top' ? -0.3 : 0.3) + (Math.random() - 0.5) * 0.5,
+                alpha: 0.3 + Math.random() * 0.2,
+                size: 7 + Math.random() * 8,
+                life: 30 + Math.floor(Math.random() * 20),
+                color: '#665544'
+              });
+            }
+          }
+        } else if (obs._state === 'disappearing') {
+          obs._crumbleProgress += dt / obs._disappearDuration;
+          // Fade out
+          if (obs._crumbleProgress >= 1) {
+            obs._state = 'standing';
+            obs._stateTimer = 0;
+            obs._crumbleProgress = 0;
+            obs._standingDuration = 480 + Math.floor(Math.random() * 420);
+          }
+        }
+      });
+    }
+
+    // Dust overlay timer
+    if (this._dustOverlay && this._dustOverlay > 0) {
+      this._dustOverlay -= dt;
+      if (this._dustOverlay < 0) this._dustOverlay = 0;
+    }
 
     // Remove old off-camera falling rocks/meteors and broken walls
     if (this.track.obstacles.length > 0) {
@@ -4061,20 +5173,33 @@ class GameEngine {
     const eventFreqs = (this._loadout && this._loadout.eventFreqs) || {};
     const freqToWeight = (f) => f <= 1 ? 1 : f === 2 ? 3 : f === 3 ? 5 : f === 4 ? 10 : 20;
 
+    const isVolcano = this.currentThemeKey === 'volcano';
+
     const events = [
+<<<<<<< HEAD
       { name: '\u{26BD} FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.' },
+=======
+      { name: '\u26BD FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.' },
+      { name: '\uD83C\uDF2B LAVA SHOWER', key: 'lava_shower', duration: 360, description: 'Molten rocks rain from the volcano above!' },
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
       { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.' },
       { name: '\u{26A1} SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.' },
       { name: '\u{26A1} BLACKOUT', key: 'blackout', duration: 0, description: 'Stadium lights have gone out. Anything can happen...' },
       { name: '\u{26A1} TELEPORTATION', key: 'teleportation', duration: 360, description: 'Ten countries suddenly swapped positions!' },
       { name: '\u{2744} BLIZZARD', key: 'blizzard', duration: 300, description: 'A freezing storm slows every racer.' },
       { name: 'AURORA BOREALIS', key: 'aurora_borealis', duration: 480, description: 'The northern lights dance across the frozen sky.' },
+      { name: '\uD83C\uDF0B VOLCANIC ERUPTION', key: 'volcanic_eruption', duration: 480, description: 'The volcano has awakened. The entire crater becomes unstable!' },
+      { name: '\uD83D\uDD25 FIRESTORM', key: 'firestorm', duration: 360, description: 'Scorching volcanic winds sweep across the crater!' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
-      .filter(e => e.key !== 'gravity_flip' || this.currentThemeKey !== 'snow')
-      .filter(e => e.key !== 'blackout' || this.currentThemeKey !== 'snow')
+      .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano))
+      .filter(e => e.key !== 'volcanic_eruption' || isVolcano)
+      .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano))
+      .filter(e => e.key !== 'firestorm' || isVolcano)
       .filter(e => e.key !== 'aurora_borealis' || this.currentThemeKey === 'snow')
+      .filter(e => e.key !== 'football_shower' || !isVolcano)
+      .filter(e => e.key !== 'lava_shower' || isVolcano)
       .map(e => ({ ...e, weight: freqToWeight(eventFreqs[e.key] || 3) }));
 
     // Weighted random selection using frequencies
@@ -4091,6 +5216,12 @@ class GameEngine {
 
     if (evt.key === 'football_shower') {
       this._footballShowerActive = true;
+    } else if (evt.key === 'lava_shower') {
+      this._lavaShowerActive = true;
+      // Initialize lava chunk pool
+      this._lavaChunks = [];
+      // Darken sky slightly
+      this._lavaShowerSkyDim = 0;
     } else if (evt.key === 'speed_surge') {
       this._speedSurgeActive = true;
       this._speedSurgeMultipliers.clear();
@@ -4248,6 +5379,60 @@ class GameEngine {
       this._auroraSnowGusts = [];
       // Start ambient audio
       this.sounds.startAuroraAmbient();
+    } else if (evt.key === 'volcanic_eruption') {
+      this._volcanicEruptionActive = true;
+      this._volcanicEruptionPhase = 'warning';
+      this._volcanicEruptionTimer = 60; // 1 second warning phase
+      this._volcanicEruptionFadeProgress = 0;
+      this._volcanicEruptionBombs = [];
+      this._volcanicEruptionSkyDarkness = 0;
+      this._volcanicEruptionGlowIntensity = 0;
+      this._volcanicEruptionAshParticles = [];
+      this._volcanicEruptionSmokeParticles = [];
+      this._volcanicEruptionEmberParticles = [];
+      this._volcanicEruptionFountainParticles = [];
+      this._volcanicEruptionBombSpawnCounter = 6 + Math.floor(Math.random() * 5);
+      this._volcanicEruptionScreenFlash = 0;
+      // Total duration is 480 frames
+      this.eventTimer = 480;
+    } else if (evt.key === 'firestorm') {
+      this._firestormActive = true;
+      this._firestormPhase = 'build_up';
+      this._firestormTimer = 60; // 1 second build-up
+      this._firestormFadeProgress = 0;
+      this._firestormSkyDarkness = 0;
+      this._firestormGlowIntensity = 0;
+      this._firestormEmbers = [];
+      this._firestormAsh = [];
+      this._firestormWindStreaks = [];
+      this._firestormSparks = [];
+      this._firestormLargeClouds = [];
+      this._firestormWhirls = [];
+      this._firestormWhirlTimer = 60;
+
+      // Apply 0.3x speed to all active balls
+      this.balls.forEach(ball => {
+        if (!ball.finished && !ball.eliminated) {
+          const speed = Math.hypot(ball.vx, ball.vy);
+
+          // Always store original speed for cap calculation
+          ball._firestormOriginalSpeed = speed;
+          ball._firestormActiveSlow = true;
+
+          // Apply slow instantly
+          ball.vx *= 0.3;
+          ball.vy *= 0.3;
+
+          // Apply firestorm burn visual only if no other burn is active
+          if (!ball._lavaBurnActive && !ball._geyserBurnActive && !ball._showerBurnActive) {
+            ball._firestormBurnActive = true;
+            ball._firestormBurnTimer = 300; // 5 seconds (covers build-up + active)
+          }
+        }
+      });
+
+      // Total duration 360 frames = 6 seconds
+      this.eventTimer = 360;
     }
 
     this.eventCount++;
@@ -4266,7 +5451,12 @@ class GameEngine {
       if (this.activeEvent.key === 'football_shower') {
         this._footballShowerActive = false;
       }
-if (this.activeEvent.key === 'speed_surge') {
+      if (this.activeEvent.key === 'lava_shower') {
+        this._lavaShowerActive = false;
+        this._lavaShowerSkyDim = 0;
+        this._lavaChunks = [];
+      }
+      if (this.activeEvent.key === 'speed_surge') {
       this._speedSurgeActive = false;
       this._speedSurgeMultipliers.clear();
     }
@@ -4279,6 +5469,43 @@ if (this.activeEvent.key === 'speed_surge') {
         this._teleportState = null;
         this._teleportPairs = [];
         this._teleportPostPairs = [];
+      }
+      if (this.activeEvent.key === 'volcanic_eruption') {
+        this._volcanicEruptionActive = false;
+        this._volcanicEruptionPhase = null;
+        this._volcanicEruptionTimer = 0;
+        this._volcanicEruptionFadeProgress = 0;
+        this._volcanicEruptionBombs = [];
+        this._volcanicEruptionSkyDarkness = 0;
+        this._volcanicEruptionGlowIntensity = 0;
+        this._volcanicEruptionAshParticles = [];
+        this._volcanicEruptionSmokeParticles = [];
+        this._volcanicEruptionEmberParticles = [];
+        this._volcanicEruptionFountainParticles = [];
+        this._volcanicEruptionBombSpawnCounter = 0;
+        this._volcanicEruptionScreenFlash = 0;
+      }
+      if (this.activeEvent.key === 'firestorm') {
+        this._firestormActive = false;
+        this._firestormPhase = null;
+        this._firestormTimer = 0;
+        this._firestormFadeProgress = 0;
+        this._firestormSkyDarkness = 0;
+        this._firestormGlowIntensity = 0;
+        this._firestormEmbers = [];
+        this._firestormAsh = [];
+        this._firestormWindStreaks = [];
+        this._firestormSparks = [];
+        this._firestormLargeClouds = [];
+        this._firestormWhirls = [];
+        this._firestormWhirlTimer = 0;
+        this._firestormSkyTint = 0;
+        this.balls.forEach(ball => {
+          delete ball._firestormOriginalSpeed;
+          ball._firestormActiveSlow = false;
+          ball._firestormBurnActive = false;
+          ball._firestormBurnTimer = 0;
+        });
       }
       if (this.activeEvent.key === 'blizzard') {
         this._blizzardActive = false;
@@ -4456,6 +5683,627 @@ if (this.activeEvent.key === 'speed_surge') {
         this.sounds.playBlizzardCrack();
         this._blizzardCrackTimer = 120 + Math.random() * 60;
       }
+    } else if (this.activeEvent.key === 'firestorm') {
+      if (!this._firestormActive) return;
+
+      const totalFrames = 360;
+      const buildUpEnd = totalFrames - 60;
+      const activeEnd = 60;
+      const timeLeft = this.eventTimer;
+      const now = Date.now();
+
+      // Consistent wind direction that slowly shifts
+      const windAngle = Math.sin(now * 0.0003) * Math.PI * 0.3;
+      const windDirX = Math.cos(windAngle);
+      const windStr = 0.5 + Math.abs(Math.sin(now * 0.0004)) * 0.5;
+
+      // ---- Phase Management ----
+      if (timeLeft > buildUpEnd) {
+        // Phase 1: Build-up (1 second)
+        this._firestormPhase = 'build_up';
+        const progress = 1 - (timeLeft - buildUpEnd) / 60;
+        this._firestormFadeProgress = progress;
+        this._firestormSkyDarkness = progress * 0.28;
+        this._firestormGlowIntensity = progress * 0.6;
+        this._firestormSkyTint = progress * 0.25;
+
+        // Wind streaks building
+        if (Math.random() < 0.1 * dt && this._firestormWindStreaks.length < 8) {
+          const startEdge = windDirX > 0 ? -0.15 : 1.15;
+          this._firestormWindStreaks.push({
+            x: startEdge,
+            y: 0.05 + Math.random() * 0.65,
+            vx: windDirX * 0.004 * (0.6 + Math.random() * 0.8),
+            vy: (Math.random() - 0.5) * 0.0004,
+            width: 4 + Math.random() * 6,
+            length: 0.08 + Math.random() * 0.15,
+            alpha: 0.04 + Math.random() * 0.04,
+            life: 1.0,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // Ash drifting with wind
+        if (Math.random() < 0.1 * dt && this._firestormAsh.length < 20) {
+          const startEdge = windDirX > 0 ? -0.08 : 1.08;
+          this._firestormAsh.push({
+            x: startEdge,
+            y: 0.05 + Math.random() * 0.6,
+            vx: windDirX * 0.0015 * (0.5 + Math.random() * 0.8),
+            vy: (Math.random() - 0.5) * 0.0005 + 0.0002,
+            size: 6 + Math.random() * 10,
+            alpha: 0.06 + Math.random() * 0.06,
+            color: ['#3a3028', '#4a3a30', '#2a2218', '#5a4a3a'][Math.floor(Math.random() * 4)],
+            life: 1.0,
+            swirlPhase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // Small embers carried by wind
+        if (Math.random() < 0.15 * dt && this._firestormEmbers.length < 40) {
+          const startEdge = windDirX > 0 ? -0.08 : 1.08;
+          this._firestormEmbers.push({
+            x: startEdge,
+            y: 0.05 + Math.random() * 0.65,
+            vx: windDirX * 0.003 * (0.8 + Math.random()),
+            vy: (Math.random() - 0.5) * 0.002 - 0.001,
+            size: 1.5 + Math.random() * 2.5,
+            alpha: 0.2 + Math.random() * 0.3,
+            color: ['#ff4400', '#ff6600', '#ff8800', '#ffaa00'][Math.floor(Math.random() * 4)],
+            life: 1.0
+          });
+        }
+
+      } else if (timeLeft > activeEnd) {
+        // Phase 2: Active Firestorm (4 seconds)
+        this._firestormPhase = 'active';
+        this._firestormFadeProgress = 1.0;
+        this._firestormSkyDarkness = 0.28 + 0.04 * Math.sin(now * 0.003);
+        this._firestormGlowIntensity = 0.6 + 0.1 * Math.sin(now * 0.002);
+        this._firestormSkyTint = 0.25 + 0.05 * Math.sin(now * 0.0025);
+
+        // ---- 1. Heat Gusts (continuous hot wind ribbons) ----
+        if (Math.random() < 0.15 * dt && this._firestormWindStreaks.length < 20) {
+          const startEdge = windDirX > 0 ? -0.2 : 1.2;
+          this._firestormWindStreaks.push({
+            x: startEdge,
+            y: 0.02 + Math.random() * 0.7,
+            vx: windDirX * 0.005 * (0.6 + Math.random() * windStr),
+            vy: (Math.random() - 0.5) * 0.0005,
+            width: 2 + Math.random() * 7,
+            length: 0.06 + Math.random() * 0.18,
+            alpha: 0.03 + Math.random() * 0.05,
+            life: 1.0,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // ---- 2. Ember Storm (directional streaks carried by wind) ----
+        if (Math.random() < 0.35 * dt && this._firestormEmbers.length < 120) {
+          const startEdge = windDirX > 0 ? -0.1 : 1.1;
+          this._firestormEmbers.push({
+            x: startEdge,
+            y: 0.02 + Math.random() * 0.7,
+            vx: windDirX * 0.004 * (0.8 + Math.random() * 1.5 * windStr),
+            vy: (Math.random() - 0.5) * 0.002 - 0.001,
+            size: 1.5 + Math.random() * 3.5,
+            alpha: 0.3 + Math.random() * 0.5,
+            color: Math.random() < 0.08
+              ? '#ffcc00'
+              : (Math.random() < 0.3 ? '#ff4400' : (Math.random() < 0.5 ? '#ff6600' : '#ff8800')),
+            life: 1.0,
+            trail: true
+          });
+        }
+
+        // ---- 3. Burning Ash (swirling, more density) ----
+        if (Math.random() < 0.2 * dt && this._firestormAsh.length < 50) {
+          const startEdge = windDirX > 0 ? -0.1 : 1.1;
+          this._firestormAsh.push({
+            x: startEdge,
+            y: 0.02 + Math.random() * 0.65,
+            vx: windDirX * 0.002 * (0.5 + Math.random() * 0.8),
+            vy: (Math.random() - 0.5) * 0.0008 + 0.0003,
+            size: 8 + Math.random() * 16,
+            alpha: 0.06 + Math.random() * 0.08,
+            color: ['#3a3028', '#4a3a30', '#2a2218', '#5a4a3a', '#6a5a4a'][Math.floor(Math.random() * 5)],
+            life: 1.0,
+            swirlPhase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // ---- 4. Orange sparks (rapid, small, bright) ----
+        if (Math.random() < 0.3 * dt && this._firestormSparks.length < 35) {
+          const startEdge = windDirX > 0 ? -0.08 : 1.08;
+          this._firestormSparks.push({
+            x: startEdge,
+            y: 0.03 + Math.random() * 0.6,
+            vx: windDirX * 0.008 * (0.5 + Math.random()),
+            vy: (Math.random() - 0.5) * 0.004,
+            size: 0.8 + Math.random() * 1.5,
+            alpha: 0.5 + Math.random() * 0.5,
+            color: ['#ffcc00', '#ffaa00', '#ff8800'][Math.floor(Math.random() * 3)],
+            life: 1.0
+          });
+        }
+
+        // ---- 5. Large Ash Clouds (slow drifting translucent masses) ----
+        if (Math.random() < 0.04 * dt && this._firestormLargeClouds.length < 6) {
+          const startEdge = windDirX > 0 ? -0.3 : 1.3;
+          this._firestormLargeClouds.push({
+            x: startEdge,
+            y: 0.02 + Math.random() * 0.5,
+            vx: windDirX * 0.0003 * (0.5 + Math.random()),
+            vy: (Math.random() - 0.5) * 0.0001,
+            width: 0.25 + Math.random() * 0.4,
+            height: 0.1 + Math.random() * 0.15,
+            alpha: 0.12 + Math.random() * 0.08,
+            color: Math.random() < 0.3
+              ? ['#4a3a30', '#5a4a3a'][Math.floor(Math.random() * 2)]
+              : ['#2a2218', '#3a3028', '#1e1814'][Math.floor(Math.random() * 3)],
+            life: 1.0,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // ---- 6. Fire Whirls (every 2-3 seconds) ----
+        this._firestormWhirlTimer -= dt;
+        if (this._firestormWhirlTimer <= 0 && this._firestormWhirls.length < 3) {
+          this._firestormWhirlTimer = 120 + Math.floor(Math.random() * 60); // 2-3 seconds
+          this._firestormWhirls.push({
+            x: 0.1 + Math.random() * 0.8,
+            y: 0.15 + Math.random() * 0.5,
+            life: 1.0,
+            maxLife: 1.0,
+            phase: Math.random() * Math.PI * 2,
+            height: 0.08 + Math.random() * 0.08,
+            width: 0.015 + Math.random() * 0.015
+          });
+        }
+
+        // ---- 7. Boost volcano ambient emissions ----
+        if (this.currentThemeKey === 'volcano') {
+          if (Math.random() < 0.04 * dt) {
+            this._volcanoAshParticles.push({
+              x: 0.3 + Math.random() * 0.4,
+              y: 0.85 + Math.random() * 0.10,
+              vx: (Math.random() - 0.5) * 0.0015,
+              vy: -0.002 - Math.random() * 0.004,
+              size: 4 + Math.random() * 5,
+              alpha: 0.2 + Math.random() * 0.2,
+              color: ['#3a3028', '#2a2218', '#4a3a30'][Math.floor(Math.random() * 3)],
+              life: 1.0
+            });
+          }
+          if (Math.random() < 0.06 * dt) {
+            this._volcanoEmberParticles.push({
+              x: 0.3 + Math.random() * 0.4,
+              y: 0.78 + Math.random() * 0.17,
+              vx: (Math.random() - 0.5) * 0.002,
+              vy: -0.003 - Math.random() * 0.006,
+              size: 2 + Math.random() * 3,
+              alpha: 0.3 + Math.random() * 0.25,
+              color: ['#ff6600', '#ff8800', '#ffaa00', '#ff4400'][Math.floor(Math.random() * 4)],
+              life: 1.0
+            });
+          }
+        }
+
+      } else {
+        // Phase 3: Fade-out (1 second)
+        this._firestormPhase = 'fade_out';
+        const endingProgress = timeLeft / 60;
+        this._firestormFadeProgress = endingProgress;
+        this._firestormSkyDarkness = 0.28 * endingProgress;
+        this._firestormGlowIntensity = 0.6 * endingProgress;
+        this._firestormSkyTint = 0.25 * endingProgress;
+
+        // Smoothly fade all particle types
+        for (const p of this._firestormEmbers) { p.alpha *= 0.95; p.vx *= 0.97; }
+        for (const p of this._firestormAsh) { p.alpha *= 0.94; p.vx *= 0.97; }
+        for (const p of this._firestormWindStreaks) { p.alpha *= 0.93; p.vx *= 0.96; }
+        for (const p of this._firestormSparks) { p.alpha *= 0.94; p.vx *= 0.96; }
+        for (const p of this._firestormLargeClouds) { p.alpha *= 0.96; p.vx *= 0.98; }
+        for (const p of this._firestormWhirls) { p.life -= dt * 0.03; p.alpha = Math.max(0, p.life * 0.8); }
+      }
+
+      // ---- Common Particle Updates ----
+      for (const p of this._firestormEmbers) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.003;
+        p.alpha = Math.max(0, p.life * 0.7);
+      }
+      this._firestormEmbers = this._firestormEmbers.filter(p => p.life > 0 && p.alpha > 0.01 && p.y > -0.15 && p.y < 1.15);
+
+      for (const p of this._firestormAsh) {
+        const swirl = Math.sin(p.swirlPhase + now * 0.001) * 0.0006;
+        p.x += (p.vx + swirl) * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.002;
+        p.alpha = Math.max(0, p.life * 0.14);
+        p.size += 0.02 * dt;
+      }
+      this._firestormAsh = this._firestormAsh.filter(p => p.life > 0 && p.alpha > 0.005);
+
+      for (const p of this._firestormWindStreaks) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt + Math.sin(p.phase + now * 0.002) * 0.0003 * dt;
+        p.life -= dt * 0.003;
+        p.alpha = Math.max(0, p.life * 0.08);
+        p.width *= 0.997;
+        p.length *= 0.998;
+      }
+      this._firestormWindStreaks = this._firestormWindStreaks.filter(p => p.life > 0 && p.alpha > 0.005);
+
+      for (const p of this._firestormSparks) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.004;
+        p.alpha = Math.max(0, p.life * 0.9);
+      }
+      this._firestormSparks = this._firestormSparks.filter(p => p.life > 0 && p.alpha > 0.01);
+
+      for (const p of this._firestormLargeClouds) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.001;
+        p.alpha = Math.max(0, p.life * 0.18);
+        p.width += 0.0002 * dt;
+        p.height += 0.00005 * dt;
+      }
+      this._firestormLargeClouds = this._firestormLargeClouds.filter(p => p.life > 0 && p.alpha > 0.01);
+
+      for (const p of this._firestormWhirls) {
+        p.life -= dt * 0.008;
+        p.alpha = Math.max(0, p.life * 0.8);
+        p.width *= 1.002;
+        p.height *= 1.003;
+      }
+      this._firestormWhirls = this._firestormWhirls.filter(p => p.life > 0 && p.alpha > 0.02);
+
+      // ---- Update firestorm speed cap and burn timer ----
+      if (this.balls) {
+        for (const ball of this.balls) {
+          if (ball.finished || ball.eliminated) continue;
+
+          // Decrement burn timer for balls with firestorm burn
+          if (ball._firestormBurnActive) {
+            ball._firestormBurnTimer -= dt;
+            if (ball._firestormBurnTimer <= 0) {
+              ball._firestormBurnActive = false;
+              ball._firestormBurnTimer = 0;
+            }
+          }
+
+          if (!ball._firestormActiveSlow) continue;
+
+          // Determine speed cap based on event phase
+          let speedCapRatio;
+          if (this._firestormPhase === 'active') {
+            // Full effect: 0.3x
+            speedCapRatio = 0.3;
+          } else if (this._firestormPhase === 'fade_out') {
+            // Gradual recovery: 0.3x -> 1.0x over 1 second
+            const ft = this._firestormFadeProgress;
+            speedCapRatio = 0.3 + (1 - ft) * 0.7;
+          } else {
+            // Build-up: already at 0.3x
+            speedCapRatio = 0.3;
+          }
+
+          // Enforce speed cap (based on original speed at activation)
+          const currentSpeed = Math.hypot(ball.vx, ball.vy);
+          const cappedSpeed = (ball._firestormOriginalSpeed || currentSpeed) * speedCapRatio;
+          if (currentSpeed > 0 && currentSpeed > cappedSpeed) {
+            const ratio = cappedSpeed / currentSpeed;
+            ball.vx *= ratio;
+            ball.vy *= ratio;
+          }
+
+          // End firestorm slow at end of fade-out
+          if (this._firestormPhase === 'fade_out' && this._firestormFadeProgress < 0.01) {
+            ball._firestormActiveSlow = false;
+            delete ball._firestormOriginalSpeed;
+          }
+        }
+      }
+
+    } else if (this.activeEvent.key === 'volcanic_eruption') {
+      if (!this._volcanicEruptionActive) return;
+
+      const totalEventFrames = 480;
+      const warningEnd = totalEventFrames - 60;
+      const eruptionEnd = 60;
+      const timeLeft = this.eventTimer;
+
+      // ---- Phase Management ----
+      if (timeLeft > warningEnd) {
+        // Phase 1: Warning (1 second)
+        this._volcanicEruptionPhase = 'warning';
+        const warningProgress = 1 - (timeLeft - warningEnd) / 60;
+        this._volcanicEruptionFadeProgress = warningProgress;
+        this._volcanicEruptionSkyDarkness = warningProgress * 0.18;
+        this._volcanicEruptionGlowIntensity = warningProgress * 0.3;
+
+        // More embers during warning
+        if (Math.random() < 0.1 * dt && this._volcanicEruptionEmberParticles.length < 40) {
+          this._volcanicEruptionEmberParticles.push({
+            x: Math.random() * 0.9 + 0.05,
+            y: 0.85 + Math.random() * 0.15,
+            vx: (Math.random() - 0.5) * 0.001,
+            vy: -0.002 - Math.random() * 0.004,
+            size: 2 + Math.random() * 3,
+            alpha: 0.3 + Math.random() * 0.3,
+            color: ['#ff6600', '#ff8800', '#ffaa00', '#ff4400'][Math.floor(Math.random() * 4)],
+            life: 1.0
+          });
+        }
+
+        // Tremor glow on volcano background (just intensifies existing glow)
+
+      } else if (timeLeft > eruptionEnd) {
+        // Phase 2: Main Eruption (6 seconds)
+        this._volcanicEruptionPhase = 'eruption';
+        const eruptionProgress = 1 - (timeLeft - eruptionEnd) / (warningEnd - eruptionEnd);
+        this._volcanicEruptionFadeProgress = 1.0;
+        this._volcanicEruptionSkyDarkness = 0.18 + 0.02 * Math.sin(Date.now() * 0.003);
+        this._volcanicEruptionGlowIntensity = 0.3 + 0.1 * Math.sin(Date.now() * 0.002);
+
+        // Lava fountain particles (behind gameplay layer)
+        if (Math.random() < 0.3 * dt && this._volcanicEruptionFountainParticles.length < 50) {
+          const fx = 0.3 + Math.random() * 0.4;
+          const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * Math.PI * 0.4;
+          const speed = 2 + Math.random() * 3;
+          this._volcanicEruptionFountainParticles.push({
+            x: fx,
+            y: 0.15 + Math.random() * 0.05,
+            vx: Math.cos(angle) * speed * 0.004,
+            vy: Math.sin(angle) * speed * 0.003 - 0.005,
+            size: 5 + Math.random() * 10,
+            alpha: 0.6 + Math.random() * 0.4,
+            color: ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ff5500'][Math.floor(Math.random() * 5)],
+            life: 1.0,
+            gravity: 0.00008
+          });
+        }
+
+        // Thick black smoke
+        if (Math.random() < 0.15 * dt && this._volcanicEruptionSmokeParticles.length < 25) {
+          this._volcanicEruptionSmokeParticles.push({
+            x: 0.3 + Math.random() * 0.4,
+            y: 0.12 + Math.random() * 0.06,
+            vx: (Math.random() - 0.5) * 0.002,
+            vy: -0.001 - Math.random() * 0.002,
+            size: 20 + Math.random() * 30,
+            alpha: 0.15 + Math.random() * 0.15,
+            color: ['#1a1410', '#2a2018', '#0e0c0a'][Math.floor(Math.random() * 3)],
+            life: 1.0
+          });
+        }
+
+        // Ash particles drifting across arena
+        if (Math.random() < 0.12 * dt && this._volcanicEruptionAshParticles.length < 30) {
+          this._volcanicEruptionAshParticles.push({
+            x: (Math.random() < 0.5) ? -0.05 : 1.05,
+            y: 0.1 + Math.random() * 0.5,
+            vx: (Math.random() < 0.5 ? 0.001 : -0.001) * (1 + Math.random()),
+            vy: -0.0003 - Math.random() * 0.0005,
+            size: 8 + Math.random() * 12,
+            alpha: 0.06 + Math.random() * 0.08,
+            color: ['#3a3028', '#2a2218', '#4a3a30', '#1e1814'][Math.floor(Math.random() * 4)],
+            life: 1.0
+          });
+        }
+
+        // More embers during eruption
+        if (Math.random() < 0.2 * dt && this._volcanicEruptionEmberParticles.length < 60) {
+          this._volcanicEruptionEmberParticles.push({
+            x: Math.random() * 0.9 + 0.05,
+            y: 0.75 + Math.random() * 0.25,
+            vx: (Math.random() - 0.5) * 0.0015,
+            vy: -0.003 - Math.random() * 0.005,
+            size: 2 + Math.random() * 4,
+            alpha: 0.3 + Math.random() * 0.4,
+            color: ['#ff6600', '#ff8800', '#ffaa00', '#ff4400', '#ff7700'][Math.floor(Math.random() * 5)],
+            life: 1.0
+          });
+        }
+
+        // Occasional bright flash near volcano
+        if (Math.random() < 0.01 * dt) {
+          this._volcanicEruptionScreenFlash = 0.3 + Math.random() * 0.2;
+        }
+
+        // ---- Spawn Volcanic Bombs ----
+        if (this._volcanicEruptionBombSpawnCounter > 0 && Math.random() < 0.015 * dt) {
+          const bomb = {
+            x: Math.random() * 0.7 + 0.15,
+            y: 0.05 + Math.random() * 0.08,
+            vx: (Math.random() - 0.5) * 0.004,
+            vy: 0.004 + Math.random() * 0.006,
+            size: 12 + Math.random() * 8,
+            alpha: 1,
+            glow: 5 + Math.random() * 5,
+            crackPhase: Math.random() * Math.PI * 2,
+            hasLanded: false,
+            landTimer: 0,
+            trailParticles: [],
+            dustParticles: []
+          };
+          this._volcanicEruptionBombs.push(bomb);
+          this._volcanicEruptionBombSpawnCounter--;
+        }
+
+        // ---- Update Volcanic Bombs ----
+        const screenH = this.canvas ? this.canvas.height : 800;
+        for (let bi = this._volcanicEruptionBombs.length - 1; bi >= 0; bi--) {
+          const bomb = this._volcanicEruptionBombs[bi];
+          if (!bomb.hasLanded) {
+            bomb.x += bomb.vx * dt;
+            bomb.y += bomb.vy * dt;
+            bomb.vy += 0.00005 * dt; // gravity
+            bomb.alpha = Math.min(1, bomb.alpha + 0.02 * dt);
+            bomb.glow = Math.min(12, bomb.glow + 0.1 * dt);
+
+            // Check if bomb hit track level (y > 0.65)
+            if (bomb.y > 0.60 + Math.random() * 0.05) {
+              bomb.hasLanded = true;
+              bomb.landTimer = 30;
+
+              // Create dust cloud effect
+              for (let di = 0; di < 12; di++) {
+                const a = Math.random() * Math.PI * 2;
+                const spd = 1 + Math.random() * 2;
+                this.particles.push({
+                  type: 'dust',
+                  x: bomb.x * screenW + (Math.random() - 0.5) * 20,
+                  y: bomb.y * screenH + (Math.random() - 0.5) * 10,
+                  vx: Math.cos(a) * spd,
+                  vy: Math.sin(a) * spd - 1,
+                  alpha: 0.5 + Math.random() * 0.3,
+                  size: 5 + Math.random() * 8,
+                  color: '#665544',
+                  life: 20 + Math.floor(Math.random() * 15)
+                });
+              }
+
+              // Create small lava splash
+              for (let si = 0; si < 6; si++) {
+                const a = -Math.PI * 0.5 + (Math.random() - 0.5) * Math.PI;
+                const spd = 1 + Math.random() * 3;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: bomb.x * screenW + (Math.random() - 0.5) * 10,
+                  y: bomb.y * screenH,
+                  vx: Math.cos(a) * spd,
+                  vy: Math.sin(a) * spd,
+                  alpha: 0.8,
+                  size: 2 + Math.random() * 3,
+                  life: 12 + Math.floor(Math.random() * 8),
+                  color: ['#ff3300', '#ff6600', '#ff9900'][Math.floor(Math.random() * 3)]
+                });
+              }
+
+              // Bounce nearby balls using existing physics
+              this.balls.forEach(ball => {
+                if (ball.finished || ball.eliminated) return;
+                const bombX = bomb.x * screenW;
+                const bombY = bomb.y * screenH;
+                const dx = ball.x - bombX;
+                const dy = ball.y - bombY;
+                const dist = Math.hypot(dx, dy);
+                if (dist < 120) {
+                  const force = 3 * (1 - dist / 120);
+                  const nx = dx / (dist || 1);
+                  const ny = dy / (dist || 1);
+                  ball.vx += nx * force;
+                  ball.vy += ny * force;
+                  ball._hitMeteorThisFrame = true;
+                }
+              });
+            }
+          } else {
+            bomb.landTimer -= dt;
+            bomb.alpha *= 0.97;
+            bomb.glow *= 0.95;
+            if (bomb.landTimer <= 0 || bomb.alpha < 0.01) {
+              this._volcanicEruptionBombs.splice(bi, 1);
+            }
+          }
+        }
+
+        // ---- Boost Lava Geyser frequency ----
+        if (this.currentThemeKey === 'volcano' && this.track) {
+          this.track.obstacles.forEach(obs => {
+            if (obs.type !== 'lava_geyser') return;
+            if (obs._state === 'hidden') {
+              // Reduce cycle duration by 30%
+              obs._cycleDuration = Math.max(60, (obs._hiddenDuration || 180) * 0.7);
+            }
+          });
+        }
+
+        // Screen flash decay
+        if (this._volcanicEruptionScreenFlash > 0) {
+          this._volcanicEruptionScreenFlash *= 0.92;
+          if (this._volcanicEruptionScreenFlash < 0.01) this._volcanicEruptionScreenFlash = 0;
+        }
+
+      } else {
+        // Phase 3: Ending (1 second smooth fade-out)
+        this._volcanicEruptionPhase = 'ending';
+        const endingProgress = timeLeft / 60; // 1 -> 0
+        this._volcanicEruptionFadeProgress = endingProgress;
+        this._volcanicEruptionSkyDarkness = 0.18 * endingProgress;
+        this._volcanicEruptionGlowIntensity = 0.3 * endingProgress;
+
+        // Fade out particles
+        for (const p of this._volcanicEruptionFountainParticles) {
+          p.alpha *= 0.98;
+          p.vy *= 0.98;
+        }
+        for (const p of this._volcanicEruptionSmokeParticles) {
+          p.alpha *= 0.97;
+        }
+        for (const p of this._volcanicEruptionEmberParticles) {
+          p.alpha *= 0.97;
+          p.vy *= 0.97;
+        }
+        for (const p of this._volcanicEruptionAshParticles) {
+          p.alpha *= 0.96;
+        }
+
+        // Screen flash decay
+        if (this._volcanicEruptionScreenFlash > 0) {
+          this._volcanicEruptionScreenFlash *= 0.95;
+          if (this._volcanicEruptionScreenFlash < 0.01) this._volcanicEruptionScreenFlash = 0;
+        }
+
+        // Stop spawning new particles
+      }
+
+      // ---- Common Updates ----
+      // Update ember particles
+      for (const p of this._volcanicEruptionEmberParticles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.002;
+        p.alpha = Math.max(0, p.alpha - dt * 0.001);
+      }
+      this._volcanicEruptionEmberParticles = this._volcanicEruptionEmberParticles.filter(p => p.life > 0 && p.alpha > 0.01 && p.y > 0);
+
+      // Update fountain particles
+      for (const p of this._volcanicEruptionFountainParticles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += p.gravity * dt;
+        p.life -= dt * 0.003;
+        p.alpha = Math.max(0, p.life * 0.8);
+        p.size *= 0.998;
+      }
+      this._volcanicEruptionFountainParticles = this._volcanicEruptionFountainParticles.filter(p => p.life > 0 && p.size > 0.5);
+
+      // Update smoke particles
+      for (const p of this._volcanicEruptionSmokeParticles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.002;
+        p.alpha = Math.max(0, p.life * 0.25);
+        p.size += 0.05 * dt;
+      }
+      this._volcanicEruptionSmokeParticles = this._volcanicEruptionSmokeParticles.filter(p => p.life > 0 && p.alpha > 0.01);
+
+      // Update ash particles
+      for (const p of this._volcanicEruptionAshParticles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 0.001;
+        p.alpha = Math.max(0, p.life * 0.12);
+        p.size += 0.02 * dt;
+      }
+      this._volcanicEruptionAshParticles = this._volcanicEruptionAshParticles.filter(p => p.life > 0 && p.alpha > 0.005);
+
     } else if (this.activeEvent.key === 'aurora_borealis') {
       // ---- Aurora fade phase management ----
       const fadeFrames = 120;
@@ -4558,7 +6406,103 @@ if (this.activeEvent.key === 'speed_surge') {
           this._auroraSnowGusts.splice(gi, 1);
         }
       }
+    } else if (this.activeEvent.key === 'lava_shower') {
+      // Sky dimming at 10%
+      this._lavaShowerSkyDim = Math.min(0.10, this._lavaShowerSkyDim + 0.005 * dt);
+
+      // Spawn lava chunks
+      if (this.state === 'racing' && Math.random() < 0.12 * dt) {
+        this._spawnLavaChunk();
+      }
+
+      // Update existing lava chunks
+      if (this._lavaChunks) {
+        for (let ci = this._lavaChunks.length - 1; ci >= 0; ci--) {
+          const chunk = this._lavaChunks[ci];
+          chunk.vy += 0.12 * dt;
+          chunk.x += chunk.vx * dt;
+          chunk.y += chunk.vy * dt;
+          chunk.life -= dt;
+
+          // Ember trail particles
+          if (Math.random() < 0.35 * dt) {
+            this.particles.push({
+              type: 'sparkle',
+              x: chunk.x + (Math.random() - 0.5) * chunk.radius * 0.6,
+              y: chunk.y + (Math.random() - 0.5) * chunk.radius * 0.6,
+              vx: (Math.random() - 0.5) * 0.5,
+              vy: -0.5 - Math.random() * 1,
+              alpha: 0.6,
+              size: 1.5 + Math.random() * 2,
+              life: 8 + Math.floor(Math.random() * 8),
+              color: ['#ff4400', '#ff6600', '#ff8800', '#ffaa00'][Math.floor(Math.random() * 4)]
+            });
+          }
+
+          // Chunks pass through everything ??? only removed when off-screen or expired
+          if (chunk.life <= 0 || chunk.y > this.canvas.height / this.cameraZoom + 200) {
+            // Recycle chunk
+            this._lavaChunks.splice(ci, 1);
+          }
+        }
+      }
+
+      // Increase ambient ember particles
+      if (Math.random() < 0.08 * dt && this.particles.length < 300) {
+        this.particles.push({
+          type: 'sparkle',
+          x: Math.random() * this.canvas.width / this.cameraZoom + (this.cameraX || 0),
+          y: (Math.random() - 0.5) * 200,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: -0.3 - Math.random() * 0.5,
+          alpha: 0.15 + Math.random() * 0.15,
+          size: 1 + Math.random() * 2,
+          life: 30 + Math.floor(Math.random() * 20),
+          color: '#ff6600'
+        });
+      }
+
+      // Ash streaks
+      if (Math.random() < 0.04 * dt) {
+        this.particles.push({
+          type: 'dust',
+          x: (Math.random() * 1.2 - 0.1) * this.canvas.width / this.cameraZoom + (this.cameraX || 0),
+          y: -10,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: 1 + Math.random() * 2,
+          alpha: 0.08 + Math.random() * 0.08,
+          size: 2 + Math.random() * 3,
+          life: 40 + Math.floor(Math.random() * 20),
+          color: '#333333'
+        });
+      }
     }
+  }
+
+  // Spawn a molten lava chunk for Lava Shower event
+  _spawnLavaChunk() {
+    const leadBall = [...this.balls].filter(b => !b.finished).sort((a, b) => b.x - a.x)[0];
+    if (!leadBall) return;
+
+    const screenW = this.canvas.width;
+    const camX = this.cameraX || 0;
+    const spawnX = camX + Math.random() * (screenW / this.cameraZoom);
+    const spawnY = -30 - Math.random() * 60;
+    const radius = 22 + Math.random() * 10;
+
+    if (!this._lavaChunks) this._lavaChunks = [];
+    this._lavaChunks.push({
+      x: spawnX,
+      y: spawnY,
+      vx: (Math.random() - 0.5) * 1.5,
+      vy: 3 + Math.random() * 4,
+      radius: radius,
+      type: 'lava_chunk',
+      life: 120 + Math.floor(Math.random() * 60),
+      _landed: false,
+      _seed: Math.random() * 1000,
+      _collidedBalls: new Set()
+    });
   }
 
   // Setup race balls from selected countries
@@ -4585,6 +6529,7 @@ if (this.activeEvent.key === 'speed_surge') {
         radius: 15,
         mass: 0.8 + Math.random() * 0.4,
         restitution: 0.3,
+        _capturedByVine: null,
         finished: false,
         eliminated: false,
         finishTime: 0,
@@ -4624,11 +6569,11 @@ if (this.activeEvent.key === 'speed_surge') {
       if (this.state === 'racing') {
         this.raceTimer += (16.666 * dt) / 1000;
 
-        // Event scheduling — uses config computed once in startRace()
+        // Event scheduling ??? uses config computed once in startRace()
         const evtCfg = this._eventIntensityCfg || { base: 20, variation: 3, maxEvents: 18 };
         if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime) {
           this.triggerRandomEvent();
-          // Next event: base interval ± random variation
+          // Next event: base interval ?? random variation
           const offset = (Math.random() - 0.5) * 2 * evtCfg.variation;
           this._nextEventRaceTime += evtCfg.base + offset;
         }
@@ -4654,7 +6599,7 @@ if (this.activeEvent.key === 'speed_surge') {
         }
       }
 
-      // Winner flash → champion overlay transition
+      // Winner flash ??? champion overlay transition
       if (this._winnerFlashActive && this._winnerFlashBall) {
         if (performance.now() - this._winnerFlashStart >= 2000) {
           this._championOverlayShown = true;
@@ -4778,7 +6723,7 @@ if (this.activeEvent.key === 'speed_surge') {
         }
       }
 
-      // Ice Ramp freeze management (Glacier Summit slow zones → speed cap on exit)
+      // Ice Ramp freeze management (Glacier Summit slow zones ??? speed cap on exit)
       if (this.balls) {
         for (const ball of this.balls) {
           if (ball.finished) continue;
@@ -4839,7 +6784,7 @@ if (this.activeEvent.key === 'speed_surge') {
             const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
             ball._iceRampExitSpeed = speed;
             ball._iceRampFrozen = true;
-            ball._iceRampFreezeTimer = 210; // 210 dt ≈ 3.5s at 60fps
+            ball._iceRampFreezeTimer = 210; // 210 dt ??? 3.5s at 60fps
           }
 
           // Speed cap while frozen
@@ -4851,7 +6796,7 @@ if (this.activeEvent.key === 'speed_surge') {
               // Phase 1: full freeze at 50% for first ~2s
               speedCapRatio = 0.5;
             } else if (ball._iceRampFreezeTimer > 0) {
-              // Phase 2: gradual recovery from 0.5→1.0 over ~1.5s
+              // Phase 2: gradual recovery from 0.5???1.0 over ~1.5s
               const recoveryProgress = 1 - (ball._iceRampFreezeTimer / 90);
               speedCapRatio = 0.5 + recoveryProgress * 0.5;
             } else {
@@ -4889,6 +6834,123 @@ if (this.activeEvent.key === 'speed_surge') {
         }
       }
 
+      // Lava Pool burn effect (Magma Crater exclusive ??? applies on exit from lava pool)
+      if (this.currentThemeKey === 'volcano' && this.balls) {
+        for (const ball of this.balls) {
+          if (ball.finished || ball.eliminated) continue;
+
+          // Apply burn effect on exit from lava pool
+          if (ball._exitedSlowThisFrame && ball._wasInLavaPool) {
+            // Prevent stacking: ignore if already burned (by lava pool or geyser)
+            if (!ball._lavaBurnActive && !ball._geyserBurnActive && !ball._showerBurnActive) {
+              ball._lavaBurnActive = true;
+              ball._lavaBurnTimer = 120; // 2 seconds at 60fps
+              ball._lavaBurnExitSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+            }
+            ball._wasInLavaPool = false; // reset flag
+          }
+
+          // Burn effect: speed cap at 0.5x with smooth gradual recovery
+          if (ball._lavaBurnActive) {
+            ball._lavaBurnTimer -= dt;
+
+            let speedCapRatio;
+            if (ball._lavaBurnTimer > 90) {
+              // Phase 1: full burn at 50% for first ~0.5s
+              speedCapRatio = 0.5;
+            } else if (ball._lavaBurnTimer > 0) {
+              // Phase 2: smooth recovery from 0.5???1.0 over ~1.5s (ease-out)
+              const progress = 1 - (ball._lavaBurnTimer / 90);
+              const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
+              speedCapRatio = 0.5 + eased * 0.5;
+            } else {
+              speedCapRatio = 1.0;
+              ball._lavaBurnActive = false;
+              // Recovery particles
+              for (let p = 0; p < 12; p++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * 12,
+                  y: ball.y + (Math.random() - 0.5) * 12,
+                  vx: Math.cos(a) * (1.5 + Math.random() * 3),
+                  vy: Math.sin(a) * (1.5 + Math.random() * 3),
+                  alpha: 0.9,
+                  size: 2 + Math.random() * 3,
+                  life: 20 + Math.floor(Math.random() * 15),
+                  color: '#ffaa00'
+                });
+              }
+            }
+
+            if (ball._lavaBurnActive) {
+              const currentSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+              if (currentSpeed > 0) {
+                const cappedSpeed = ball._lavaBurnExitSpeed * speedCapRatio;
+                if (currentSpeed > cappedSpeed) {
+                  const ratio = cappedSpeed / currentSpeed;
+                  ball.vx *= ratio;
+                  ball.vy *= ratio;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Lava Geyser burn effect (Magma Crater exclusive)
+      if (this.currentThemeKey === 'volcano' && this.balls) {
+        for (const ball of this.balls) {
+          if (ball.finished || ball.eliminated) continue;
+
+          // Burn effect applied by physics collision
+          if (ball._geyserBurnActive) {
+            ball._geyserBurnTimer -= dt;
+
+            let speedCapRatio;
+            if (ball._geyserBurnTimer > 90) {
+              // Phase 1: full burn at 50% for first ~0.5s
+              speedCapRatio = 0.5;
+            } else if (ball._geyserBurnTimer > 0) {
+              // Phase 2: smooth recovery from 0.5???1.0 over ~1.5s (ease-out)
+              const progress = 1 - (ball._geyserBurnTimer / 90);
+              const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
+              speedCapRatio = 0.5 + eased * 0.5;
+            } else {
+              speedCapRatio = 1.0;
+              ball._geyserBurnActive = false;
+              // Recovery particles
+              for (let p = 0; p < 12; p++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * 12,
+                  y: ball.y + (Math.random() - 0.5) * 12,
+                  vx: Math.cos(a) * (1.5 + Math.random() * 3),
+                  vy: Math.sin(a) * (1.5 + Math.random() * 3),
+                  alpha: 0.9,
+                  size: 2 + Math.random() * 3,
+                  life: 20 + Math.floor(Math.random() * 15),
+                  color: '#ffaa00'
+                });
+              }
+            }
+
+            if (ball._geyserBurnActive) {
+              const currentSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+              if (currentSpeed > 0) {
+                const cappedSpeed = ball._geyserBurnExitSpeed * speedCapRatio;
+                if (currentSpeed > cappedSpeed) {
+                  const ratio = cappedSpeed / currentSpeed;
+                  ball.vx *= ratio;
+                  ball.vy *= ratio;
+                }
+              }
+            }
+          }
+        }
+      }
+
       // Blizzard speed cap: enforce 20% of original speed every frame
       if (this._blizzardActive && this.balls) {
         for (const ball of this.balls) {
@@ -4902,47 +6964,171 @@ if (this.activeEvent.key === 'speed_surge') {
         }
       }
 
+      // Lava Shower burn effect (Magma Crater exclusive event)
+      if (this._lavaShowerActive && this.balls) {
+        for (const ball of this.balls) {
+          if (ball.finished || ball.eliminated) continue;
+
+          if (ball._showerBurnActive) {
+            ball._showerBurnTimer -= dt;
+
+            let speedCapRatio;
+            if (ball._showerBurnTimer > 120) {
+              // Phase 1: full burn at 40% for first ~2s
+              speedCapRatio = 0.4;
+            } else if (ball._showerBurnTimer > 0) {
+              // Phase 2: smooth recovery from 0.4???1.0 over ~1s (ease-out)
+              const progress = 1 - (ball._showerBurnTimer / 120);
+              const eased = 1 - Math.pow(1 - progress, 3);
+              speedCapRatio = 0.4 + eased * 0.6;
+            } else {
+              speedCapRatio = 1.0;
+              ball._showerBurnActive = false;
+              // Recovery particles
+              for (let p = 0; p < 10; p++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * 12,
+                  y: ball.y + (Math.random() - 0.5) * 12,
+                  vx: Math.cos(a) * (1 + Math.random() * 2),
+                  vy: Math.sin(a) * (1 + Math.random() * 2),
+                  alpha: 0.8,
+                  size: 2 + Math.random() * 3,
+                  life: 15 + Math.floor(Math.random() * 10),
+                  color: '#ff8800'
+                });
+              }
+            }
+
+            if (ball._showerBurnActive) {
+              const currentSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+              if (currentSpeed > 0) {
+                const cappedSpeed = ball._showerBurnExitSpeed * speedCapRatio;
+                if (currentSpeed > cappedSpeed) {
+                  const ratio = cappedSpeed / currentSpeed;
+                  ball.vx *= ratio;
+                  ball.vy *= ratio;
+                }
+              }
+
+              // Small flame particles while burning
+              if (Math.random() < 0.1 * dt) {
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * ball.radius * 1.2,
+                  y: ball.y + (Math.random() - 0.5) * ball.radius * 1.2,
+                  vx: (Math.random() - 0.5) * 0.5,
+                  vy: -1 - Math.random() * 1.5,
+                  alpha: 0.5 + Math.random() * 0.3,
+                  size: 1.5 + Math.random() * 2,
+                  life: 10 + Math.floor(Math.random() * 8),
+                  color: '#ff6600'
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Lava Shower chunk-ball collision
+      if (this._lavaShowerActive && this._lavaChunks && this.balls) {
+        for (const chunk of this._lavaChunks) {
+          for (const ball of this.balls) {
+            if (ball.finished || ball.eliminated || ball.z > 0) continue;
+            const dx = ball.x - chunk.x;
+            const dy = ball.y - chunk.y;
+            const dist = Math.hypot(dx, dy);
+            const minDist = ball.radius + chunk.radius;
+            if (dist < minDist) {
+              // Hit! Apply burn effect (prevent stacking with other burns)
+              if (!ball._showerBurnActive && !ball._lavaBurnActive && !ball._geyserBurnActive) {
+                ball._showerBurnActive = true;
+                ball._showerBurnTimer = 180; // 3 seconds at 60fps
+                ball._showerBurnExitSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+              }
+
+              // Impact particles
+              for (let i = 0; i < 10; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const spd = 1.5 + Math.random() * 3;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * 8,
+                  y: ball.y + (Math.random() - 0.5) * 8,
+                  vx: Math.cos(a) * spd,
+                  vy: Math.sin(a) * spd,
+                  alpha: 0.8,
+                  size: 2 + Math.random() * 3,
+                  life: 15 + Math.floor(Math.random() * 10),
+                  color: ['#ff4400', '#ff6600', '#ff8800'][Math.floor(Math.random() * 3)]
+                });
+              }
+
+              // Small smoke puff on hit
+              for (let i = 0; i < 3; i++) {
+                this.particles.push({
+                  type: 'dust',
+                  x: ball.x + (Math.random() - 0.5) * 10,
+                  y: ball.y + (Math.random() - 0.5) * 10,
+                  vx: (Math.random() - 0.5) * 0.5,
+                  vy: -0.3 - Math.random() * 0.5,
+                  alpha: 0.25,
+                  size: 4 + Math.random() * 4,
+                  life: 15 + Math.floor(Math.random() * 10),
+                  color: '#554433'
+                });
+              }
+
+              // Destroy the chunk on impact (it splatters)
+              chunk.life = 0;
+              break;
+            }
+          }
+        }
+      }
+
       // Volcano eruption system (Magma Crater)
       if (this.currentThemeKey === 'volcano' && this.state === 'racing') {
         // Update eruption timer and trigger random eruptions
         this._volcanoNextEruptionTime -= dt;
         if (!this._volcanoEruptionActive && this._volcanoNextEruptionTime <= 0) {
           this._volcanoEruptionActive = true;
-          this._volcanoEruptionTimer = 180; // 3 seconds at 60fps
+          this._volcanoEruptionTimer = 240; // 4 seconds at 60fps
           this._volcanoEruptionX = Math.random() * 0.8 + 0.1; // 10-90% across screen
           // Spawn eruption particles (lava burst, ash cloud, glowing rocks)
           this._volcanoEruptionParticles = [];
-          const eruptionColors = ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ff5500'];
-          for (let i = 0; i < 25; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 1 + Math.random() * 3;
+          const eruptionColors = ['#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ff5500', '#ff2200'];
+          for (let i = 0; i < 60; i++) {
+            const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * Math.PI * 0.8;
+            const speed = 1.5 + Math.random() * 4;
             this._volcanoEruptionParticles.push({
-              x: this._volcanoEruptionX,
-              y: 0.25,
+              x: this._volcanoEruptionX + (Math.random() - 0.5) * 0.04,
+              y: 0.22 + Math.random() * 0.06,
               vx: Math.cos(angle) * speed * 0.005,
-              vy: -Math.sin(angle) * speed * 0.003 - 0.002,
-              size: 3 + Math.random() * 5,
-              alpha: 0.8 + Math.random() * 0.2,
+              vy: -Math.sin(angle) * speed * 0.004 - 0.003,
+              size: 4 + Math.random() * 8,
+              alpha: 0.7 + Math.random() * 0.3,
               color: eruptionColors[Math.floor(Math.random() * eruptionColors.length)],
               life: 1.0,
-              gravity: 0.0001
+              gravity: 0.00015
             });
           }
-          // Ash cloud particles
-          for (let i = 0; i < 15; i++) {
+          // Ash cloud particles (larger, more spread)
+          for (let i = 0; i < 30; i++) {
             this._volcanoEruptionParticles.push({
-              x: this._volcanoEruptionX + (Math.random() - 0.5) * 0.15,
-              y: 0.2 + Math.random() * 0.1,
-              vx: (Math.random() - 0.5) * 0.004,
-              vy: -0.0005 - Math.random() * 0.001,
-              size: 8 + Math.random() * 12,
-              alpha: 0.15 + Math.random() * 0.1,
-              color: '#2a2018',
+              x: this._volcanoEruptionX + (Math.random() - 0.5) * 0.2,
+              y: 0.18 + Math.random() * 0.12,
+              vx: (Math.random() - 0.5) * 0.005,
+              vy: -0.0008 - Math.random() * 0.002,
+              size: 12 + Math.random() * 18,
+              alpha: 0.20 + Math.random() * 0.15,
+              color: ['#2a2018', '#3a3028', '#1e1814'][Math.floor(Math.random() * 3)],
               life: 1.0,
               gravity: 0
             });
           }
-          this._volcanoNextEruptionTime = 1200 + Math.random() * 1200; // 20-40 seconds
+          this._volcanoNextEruptionTime = 800 + Math.random() * 1200; // 13-33 seconds
         }
 
         // Update active eruption
@@ -4963,45 +7149,53 @@ if (this.activeEvent.key === 'speed_surge') {
           }
         }
 
-        // Update ambient ash particles
-        if (Math.random() < 0.02 * dt) {
-          this._volcanoAshParticles.push({
-            x: Math.random(),
-            y: 0.15 + Math.random() * 0.35,
-            vx: -0.0005 - Math.random() * 0.001,
-            vy: -0.0002 - Math.random() * 0.0005,
-            size: 1 + Math.random() * 2,
-            alpha: 0.05 + Math.random() * 0.1,
-            life: 1.0
-          });
+        // Update ambient ash particles ??? 5 emitters across full viewport, rising from bottom
+        const ashEmitters = [0.05, 0.25, 0.5, 0.75, 0.95];
+        const ashColors = ['#3a3028', '#2a2218', '#4a3a30', '#1e1814', '#332a22'];
+        for (const ax of ashEmitters) {
+          if (Math.random() < 0.008 * dt) {
+            this._volcanoAshParticles.push({
+              x: ax + (Math.random() - 0.5) * 0.2,
+              y: 0.90 + Math.random() * 0.10,
+              vx: (Math.random() - 0.5) * 0.0006,
+              vy: -0.0008 - Math.random() * 0.0012,
+              size: 2 + Math.random() * 3,
+              alpha: 0.10 + Math.random() * 0.10,
+              color: ashColors[Math.floor(Math.random() * ashColors.length)],
+              life: 1.0
+            });
+          }
         }
         for (const p of this._volcanoAshParticles) {
           p.x += p.vx * dt;
           p.y += p.vy * dt;
-          p.life -= dt * 0.0008;
-          p.alpha = p.life * 0.15;
+          p.life -= dt * 0.0006;
+          p.alpha = p.life * 0.20;
         }
-        this._volcanoAshParticles = this._volcanoAshParticles.filter(p => p.life > 0 && p.x > -0.1);
+        this._volcanoAshParticles = this._volcanoAshParticles.filter(p => p.life > 0 && p.y > 0);
 
-        // Update ambient ember particles
-        if (Math.random() < 0.015 * dt) {
-          const emberColors = ['#ff3300', '#ff6600', '#ff9900', '#ffcc00'];
-          this._volcanoEmberParticles.push({
-            x: Math.random(),
-            y: 0.7 + Math.random() * 0.25,
-            vx: (Math.random() - 0.5) * 0.0008,
-            vy: -0.001 - Math.random() * 0.002,
-            size: 1.5 + Math.random() * 2,
-            alpha: 0.4 + Math.random() * 0.4,
-            color: emberColors[Math.floor(Math.random() * emberColors.length)],
-            life: 1.0
-          });
+        // Update ambient ember particles ??? 5 emitters across full viewport, rising from bottom
+        const emberEmitters = [0.05, 0.25, 0.5, 0.75, 0.95];
+        const emberColors = ['#ff6600', '#ff8800', '#ffaa00', '#ff4400', '#ff7700'];
+        for (const ex of emberEmitters) {
+          if (Math.random() < 0.005 * dt) {
+            this._volcanoEmberParticles.push({
+              x: ex + (Math.random() - 0.5) * 0.2,
+              y: 0.85 + Math.random() * 0.15,
+              vx: (Math.random() - 0.5) * 0.0008,
+              vy: -0.0015 - Math.random() * 0.004,
+              size: 1.5 + Math.random() * 2,
+              alpha: 0.20 + Math.random() * 0.15,
+              color: emberColors[Math.floor(Math.random() * emberColors.length)],
+              life: 1.0
+            });
+          }
         }
         for (const p of this._volcanoEmberParticles) {
           p.x += p.vx * dt;
           p.y += p.vy * dt;
-          p.life -= dt * 0.0015;
-          p.alpha = p.life * 0.8;
+          p.life -= dt * 0.0010;
+          p.alpha = p.life * 0.30;
         }
         this._volcanoEmberParticles = this._volcanoEmberParticles.filter(p => p.life > 0 && p.y > 0);
 
@@ -5186,6 +7380,9 @@ if (this.activeEvent.key === 'speed_surge') {
         if (b._hitPunchFistThisFrame && Math.random() < 0.2) {
           this.commentary.add(b.name + ' punched!', 'crash');
         }
+        if (b._hitGeyserThisFrame && Math.random() < 0.2) {
+          this.commentary.add(b.name + ' erupted by lava geyser!', 'crash');
+        }
 
         if (b._usedPortalThisFrame) {
           this.commentary.add(b.name + ' used a portal!', 'portal');
@@ -5220,11 +7417,11 @@ if (this.activeEvent.key === 'speed_surge') {
       }
     }
 
-    // Broadcast Director — observe and decide camera state
+    // Broadcast Director ??? observe and decide camera state
     this.broadcastDirector.observe(this.balls, this.leaderboard, this.raceTimer, this.track, this.gameMode, this.activeEvent);
     this.broadcastDirector.update(dt);
 
-    // Story Engine — observe race data, produce narratives for the event feed
+    // Story Engine ??? observe race data, produce narratives for the event feed
     this.storyEngine.observe(this.balls, this.leaderboard, this.raceTimer, this.track, this.gameMode);
 
     // Camera executes the Broadcast Director's shot with smooth movement
@@ -5438,7 +7635,7 @@ if (this.activeEvent.key === 'speed_surge') {
     }
   }
 
-  // Smooth camera follow — leader-centered, lerp-based
+  // Smooth camera follow ??? leader-centered, lerp-based
   updateCameraController(dt) {
     if (this.balls.length === 0) return;
 
@@ -5479,7 +7676,7 @@ if (this.activeEvent.key === 'speed_surge') {
     const maxCamX = this.track ? Math.max(0, this.track.length - this.canvas.width / this.cameraZoom) : 0;
     targetX = Math.max(0, Math.min(targetX, maxCamX));
 
-    // Smooth camera follow — frame-rate independent lerp for buttery motion
+    // Smooth camera follow ??? frame-rate independent lerp for buttery motion
     const lerpFactor = 1 - Math.pow(1 - 0.06, dt);
     this.cameraX += (targetX - this.cameraX) * lerpFactor;
 
@@ -5544,7 +7741,7 @@ if (this.activeEvent.key === 'speed_surge') {
       const spawnY = -20;
 
       if (pType === 'snow') {
-        // Main snowfall — subtle, blue-tinted, smaller flakes
+        // Main snowfall ??? subtle, blue-tinted, smaller flakes
         if (Math.random() < 0.6) {
           const flakeSize = Math.random() * 3 + 0.5;
           this.particles.push({
@@ -5595,8 +7792,9 @@ if (this.activeEvent.key === 'speed_surge') {
           alpha: 0.8,
           size: Math.random() * 6 + 3
         });
-      } else if (pType === 'ember') {
+      } else if (pType === 'ember' && this.currentThemeKey !== 'volcano') {
         // Volcano: embers rise from bottom lava grids
+        // Skipped for Magma Crater ??? volcano-specific atmo overlay handles embers in the correct layer (behind track, obstacles, balls)
         this.particles.push({
           type: 'ember',
           x: Math.random() * 500,
@@ -5619,7 +7817,7 @@ if (this.activeEvent.key === 'speed_surge') {
           size: Math.random() * 3 + 1
         });
       } else if (pType === 'cosmic' || pType === 'star') {
-        // Cosmic space dust — tiny, slow, ethereal
+        // Cosmic space dust ??? tiny, slow, ethereal
         this.particles.push({
           type: 'dust',
           x: spawnX,
@@ -5870,6 +8068,10 @@ if (this.activeEvent.key === 'speed_surge') {
 
   // Primary rendering cycle (scales and draws track, particles, UI overlays)
   render() {
+    try {
+    // 0. Reset canvas transform to prevent corrupt state from carrying over
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+
     // 1. Clear screen
     const screenW = this.canvas.width;
     const screenH = this.canvas.height;
@@ -5882,7 +8084,16 @@ if (this.activeEvent.key === 'speed_surge') {
     this.ctx.fillRect(0, 0, screenW, screenH);
 
     // Draw dynamic background elements (map-specific atmospheric effects)
-    this.renderDynamicBackground(screenW, screenH);
+    // All volcano decorative effects (lava, smoke, embers, ash, eruption, heat shimmer)
+    // are rendered inside renderDynamicBackground ??? nothing decorative above the track.
+    // Wrapped in save/restore with try/finally to absorb any unbalanced ctx saves from
+    // internal rendering errors — guarantees clean canvas state when background finishes.
+    this.ctx.save();
+    try {
+      this.renderDynamicBackground(screenW, screenH);
+    } finally {
+      this.ctx.restore();
+    }
 
     // Apply camera shake offset
     // Calculate scaling coordinates based on aspect ratio
@@ -5907,6 +8118,8 @@ if (this.activeEvent.key === 'speed_surge') {
 
     // 2. Render track contents (Walls, Pegs, Boosts, Balls) inside scaled wrapper
     this.ctx.save();
+    // Use try/finally to guarantee ctx.restore() even if rendering throws
+    try {
     this.ctx.translate(trackOffset, 0);
     this.ctx.scale(zoom, zoom);
 
@@ -5914,6 +8127,7 @@ if (this.activeEvent.key === 'speed_surge') {
 
     if (this.track) {
       // Draw Zones (boost pads, ice zones, finish checkered area)
+      const renderTrackZones = () => {
       this.track.zones.forEach(zone => {
         // Draw offset relative to camera (scroll on X axis)
         const zX = zone.x - camX;
@@ -5921,7 +8135,7 @@ if (this.activeEvent.key === 'speed_surge') {
         if (zX + zone.width < -zoneCullBuffer || zX > screenW / zoom + zoneCullBuffer) return; // offscreen cull
 
         if (zone.type === 'boost') {
-          // Boost zone — green fill, forward arrows
+          // Boost zone ??? green fill, forward arrows
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(46,204,113,0.25)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
@@ -5951,6 +8165,7 @@ if (this.activeEvent.key === 'speed_surge') {
           if (this.currentThemeKey === 'jungle') this.ctx.strokeText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.fillText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.restore();
+<<<<<<< HEAD
         } else if (zone.type === 'mud_puddle') {
           // ===== MUD PUDDLE (Amazon Canopy only) =====
           if (this.currentThemeKey !== 'jungle') return;
@@ -6092,6 +8307,311 @@ if (this.activeEvent.key === 'speed_surge') {
           }
           
           this.ctx.restore();
+=======
+        } else if (zone.type === 'lava_pool') {
+          // ============================================================
+          // LAVA POOL - Magma Crater Exclusive
+          // Animated boiling lava with currents, cracks, bubbles, eruptions
+          // ============================================================
+          this.ctx.save();
+          const time = Date.now() * 0.001;
+          const seed = ((zone.x * 73856093) ^ (zone.y * 19349663)) >>> 0;
+          const seededRandom = (offset) => {
+            const x = Math.sin(seed + offset * 12345.6789) * 43758.5453;
+            return x - Math.floor(x);
+          };
+
+          // Eruption event intensity multiplier for lava pools
+          const eruptionMult = this._volcanicEruptionActive ? (1 + this._volcanicEruptionFadeProgress * 0.6) : 1;
+
+          // --- 1. Base pool shape with irregular cracked edges ---
+          const edgeJitter = 6;
+          this.ctx.beginPath();
+          const segments = 12;
+          for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const angle = t * Math.PI * 2 - Math.PI / 2;
+            const baseR = Math.min(zone.width, zone.height) * 0.5;
+            const jitter = (seededRandom(i * 0.1) - 0.5) * edgeJitter * 2;
+            const r = baseR + jitter;
+            const cx = zX + zone.width * 0.5;
+            const cy = zone.y + zone.height * 0.5;
+            const px = cx + Math.cos(angle) * r;
+            const py = cy + Math.sin(angle) * r;
+            if (i === 0) this.ctx.moveTo(px, py);
+            else this.ctx.lineTo(px, py);
+          }
+          this.ctx.closePath();
+          this.ctx.clip();
+
+          // --- 2. Multi-layer animated lava base (GPU-friendly: time-based only) ---
+          // Layer 1: Deep dark red base
+          const deepGrad = this.ctx.createRadialGradient(
+            zX + zone.width * 0.5, zone.y + zone.height * 0.55, 0,
+            zX + zone.width * 0.5, zone.y + zone.height * 0.55, Math.max(zone.width, zone.height) * 0.7
+          );
+          deepGrad.addColorStop(0, '#4a0a00');
+          deepGrad.addColorStop(0.5, '#2a0500');
+          deepGrad.addColorStop(1, '#150200');
+          this.ctx.fillStyle = deepGrad;
+          this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
+
+          // Layer 2: Flowing lava currents (animated with sin waves)
+          const flowSpeed1 = time * (30 * eruptionMult);
+          const flowSpeed2 = time * (22 * eruptionMult);
+          const flowSpeed3 = time * (15 * eruptionMult);
+          
+          this.ctx.save();
+          this.ctx.globalCompositeOperation = 'screen';
+          
+          // Current 1: Main flow (horizontal wave)
+          for (let y = 0; y < 5; y++) {
+            const fy = zone.y + zone.height * (0.15 + y * 0.18);
+            const grad = this.ctx.createLinearGradient(zX, fy, zX + zone.width, fy);
+            const phase = flowSpeed1 + y * 2.1;
+            grad.addColorStop(0, `rgba(255, 100, 0, ${0.15 + 0.1 * Math.sin(phase)})`);
+            grad.addColorStop(0.3, `rgba(255, 160, 0, ${0.25 + 0.1 * Math.sin(phase + 1)})`);
+            grad.addColorStop(0.5, `rgba(255, 220, 50, ${0.2 + 0.08 * Math.sin(phase + 2)})`);
+            grad.addColorStop(0.7, `rgba(255, 160, 0, ${0.25 + 0.1 * Math.sin(phase + 3)})`);
+            grad.addColorStop(1, `rgba(255, 100, 0, ${0.15 + 0.1 * Math.sin(phase + 4)})`);
+            this.ctx.fillStyle = grad;
+            this.ctx.fillRect(zX, fy - 6, zone.width, 12);
+          }
+          
+          // Current 2: Counter-flow (slower, different angle)
+          for (let x = 0; x < 4; x++) {
+            const fx = zX + zone.width * (0.15 + x * 0.23);
+            const grad = this.ctx.createLinearGradient(fx, zone.y, fx, zone.y + zone.height);
+            const phase = flowSpeed2 + x * 1.7;
+            grad.addColorStop(0, `rgba(255, 140, 0, ${0.12 + 0.08 * Math.sin(phase)})`);
+            grad.addColorStop(0.5, `rgba(255, 200, 80, ${0.18 + 0.06 * Math.sin(phase + 1.5)})`);
+            grad.addColorStop(1, `rgba(255, 120, 0, ${0.12 + 0.08 * Math.sin(phase + 3)})`);
+            this.ctx.fillStyle = grad;
+            this.ctx.fillRect(fx - 8, zone.y, 16, zone.height);
+          }
+          
+          // Current 3: Diagonal hot streaks
+          for (let d = 0; d < 3; d++) {
+            const grad = this.ctx.createLinearGradient(zX, zone.y + zone.height, zX + zone.width, zone.y);
+            const phase = flowSpeed3 + d * 3.1;
+            grad.addColorStop(0, `rgba(255, 240, 100, ${0.08 + 0.06 * Math.sin(phase)})`);
+            grad.addColorStop(0.5, `rgba(255, 180, 20, ${0.12 + 0.06 * Math.sin(phase + 2)})`);
+            grad.addColorStop(1, `rgba(255, 100, 0, ${0.08 + 0.06 * Math.sin(phase + 4)})`);
+            this.ctx.fillStyle = grad;
+            this.ctx.fillRect(zX + d * 15 - 5, zone.y - 10, zone.width * 0.6, zone.height * 0.6);
+          }
+          
+          this.ctx.restore();
+
+          // --- 3. Bright center hotspot (hottest area) ---
+          const centerX = zX + zone.width * 0.5;
+          const centerY = zone.y + zone.height * 0.55;
+          const hotspotGrad = this.ctx.createRadialGradient(
+            centerX, centerY, 0,
+            centerX, centerY, Math.min(zone.width, zone.height) * 0.35
+          );
+          const pulse = 0.85 + 0.15 * Math.sin(time * (2.5 * eruptionMult));
+          hotspotGrad.addColorStop(0, `rgba(255, 255, 180, ${0.4 * pulse * eruptionMult})`);
+          hotspotGrad.addColorStop(0.2, `rgba(255, 220, 80, ${0.35 * pulse * eruptionMult})`);
+          hotspotGrad.addColorStop(0.4, `rgba(255, 160, 20, ${0.3 * pulse * eruptionMult})`);
+          hotspotGrad.addColorStop(0.6, `rgba(255, 100, 0, ${0.2 * pulse * eruptionMult})`);
+          hotspotGrad.addColorStop(1, 'rgba(255, 60, 0, 0)');
+          this.ctx.fillStyle = hotspotGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(centerX, centerY, Math.min(zone.width, zone.height) * 0.35, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // --- 4. Glowing magma cracks (animated, branching) ---
+          this.ctx.strokeStyle = '#ffaa00';
+          this.ctx.lineWidth = 1.2 * eruptionMult;
+          this.ctx.shadowColor = '#ff6600';
+          this.ctx.shadowBlur = 6 * eruptionMult;
+          
+          const crackCount = 5 + Math.floor(seededRandom(0.1) * 3);
+          for (let ci = 0; ci < crackCount; ci++) {
+            const cx = zX + zone.width * (0.15 + seededRandom(ci * 0.2 + 0.5) * 0.7);
+            const cy = zone.y + zone.height * (0.15 + seededRandom(ci * 0.3 + 1.5) * 0.7);
+            this.ctx.beginPath();
+            this.ctx.moveTo(cx, cy);
+            
+            let lx = cx, ly = cy;
+            const segments = 4 + Math.floor(seededRandom(ci * 0.4 + 2) * 3);
+            for (let s = 0; s < segments; s++) {
+              const angle = seededRandom(ci * 0.5 + s * 0.7 + time * 0.3) * Math.PI * 2;
+              const len = 8 + seededRandom(ci * 0.6 + s * 0.9) * 18;
+              const jitter = (seededRandom(ci * 0.8 + s * 1.1) - 0.5) * 6;
+              lx += Math.cos(angle) * len + jitter;
+              ly += Math.sin(angle) * len + jitter;
+              // Clamp to pool bounds
+              lx = Math.max(zX + 3, Math.min(zX + zone.width - 3, lx));
+              ly = Math.max(zone.y + 3, Math.min(zone.y + zone.height - 3, ly));
+              this.ctx.lineTo(lx, ly);
+              
+              // Branch occasionally
+              if (seededRandom(ci * 1.1 + s * 1.3) > 0.85) {
+                const bx = lx + (seededRandom(ci * 1.2 + s * 1.5) - 0.5) * 15;
+                const by = ly + (seededRandom(ci * 1.3 + s * 1.7) - 0.5) * 15;
+                this.ctx.moveTo(lx, ly);
+                this.ctx.lineTo(bx, by);
+                this.ctx.moveTo(lx, ly);
+              }
+            }
+            this.ctx.stroke();
+          }
+          this.ctx.shadowBlur = 0;
+
+          // --- 5. Bubbling lava (multiple sizes, rising) ---
+          const bubbleTime = time * (2 * eruptionMult);
+          const bubbleCount = Math.floor(8 * eruptionMult);
+          for (let bi = 0; bi < bubbleCount; bi++) {
+            const bx = zX + zone.width * (0.1 + seededRandom(bi * 0.15) * 0.8);
+            const baseY = zone.y + zone.height * 0.9;
+            const rise = (bubbleTime * (30 + seededRandom(bi * 0.2) * 20) + bi * 50) % (zone.height * 1.2);
+            const by = baseY - rise;
+            if (by < zone.y - 10) continue;
+            
+            const size = 2 + seededRandom(bi * 0.25) * 6;
+            const pulseSize = size * (0.8 + 0.4 * Math.sin(time * 4 + bi));
+            const alpha = 0.3 + 0.4 * Math.sin(time * 3 + bi * 1.5);
+            
+            // Bubble glow
+            this.ctx.fillStyle = `rgba(255, 200, 50, ${alpha * 0.6})`;
+            this.ctx.shadowColor = '#ffaa00';
+            this.ctx.shadowBlur = pulseSize * 1.5;
+            this.ctx.beginPath();
+            this.ctx.arc(bx, by, pulseSize, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+            
+            // Bubble highlight
+            this.ctx.fillStyle = `rgba(255, 240, 150, ${alpha * 0.8})`;
+            this.ctx.beginPath();
+            this.ctx.arc(bx - pulseSize * 0.3, by - pulseSize * 0.3, pulseSize * 0.4, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // --- 6. Small eruptions / lava bursts ---
+          const burstCount = Math.floor(3 * eruptionMult);
+          for (let ei = 0; ei < burstCount; ei++) {
+            const burstPhase = (time * (0.8 * eruptionMult) + ei * 2.1) % 3;
+            if (burstPhase < 0.15) { // Brief eruption flash
+              const ex = zX + zone.width * (0.2 + seededRandom(ei * 0.3 + 2) * 0.6);
+              const ey = zone.y + zone.height * (0.3 + seededRandom(ei * 0.4 + 3) * 0.5);
+              const intensity = 1 - burstPhase / 0.15;
+              
+              this.ctx.fillStyle = `rgba(255, 255, 200, ${0.6 * intensity})`;
+              this.ctx.shadowColor = '#ffaa00';
+              this.ctx.shadowBlur = 20 * intensity;
+              this.ctx.beginPath();
+              this.ctx.arc(ex, ey, 8 + 12 * intensity, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+            }
+          }
+
+          // --- 7. Floating cooled crust pieces (dark, semi-transparent) ---
+          for (let ci = 0; ci < 4; ci++) {
+            const crustTime = time * 0.5 + ci * 1.7;
+            const cx = zX + zone.width * (0.15 + (seededRandom(ci * 0.2) + Math.sin(crustTime) * 0.15) * 0.7);
+            const cy = zone.y + zone.height * (0.25 + (seededRandom(ci * 0.25) + Math.cos(crustTime * 0.7) * 0.1) * 0.5);
+            const cSize = 5 + seededRandom(ci * 0.3) * 10;
+            const cAlpha = 0.25 + 0.15 * Math.sin(crustTime * 1.3);
+            
+            this.ctx.fillStyle = `rgba(30, 15, 5, ${cAlpha})`;
+            this.ctx.beginPath();
+            // Irregular crust shape
+            const crustPoints = 5 + Math.floor(seededRandom(ci * 0.4) * 3);
+            for (let cp = 0; cp < crustPoints; cp++) {
+              const ca = (cp / crustPoints) * Math.PI * 2;
+              const cr = cSize * (0.7 + 0.5 * Math.sin(crustTime * 0.8 + cp * 1.2));
+              const px = cx + Math.cos(ca) * cr;
+              const py = cy + Math.sin(ca) * cr;
+              if (cp === 0) this.ctx.moveTo(px, py);
+              else this.ctx.lineTo(px, py);
+            }
+            this.ctx.closePath();
+            this.ctx.fill();
+            
+            // Crust edge glow
+            this.ctx.strokeStyle = `rgba(100, 40, 0, ${cAlpha * 0.5})`;
+            this.ctx.lineWidth = 1;
+            this.ctx.stroke();
+          }
+
+          // --- 8. Tiny ember sparks rising ---
+          const sparkCount = Math.floor(6 * eruptionMult);
+          for (let si = 0; si < sparkCount; si++) {
+            const sparkTime = time * (3 * eruptionMult) + si * 1.3;
+            const sx = zX + zone.width * (0.1 + seededRandom(si * 0.18) * 0.8);
+            const sy = zone.y + zone.height * (0.95 - (sparkTime * 40 + si * 80) % (zone.height * 1.1) / zone.height);
+            if (sy > zone.y + zone.height + 5) continue;
+            
+            const sparkSize = 1 + Math.random() * 2;
+            this.ctx.fillStyle = '#ffdd44';
+            this.ctx.shadowColor = '#ff6600';
+            this.ctx.shadowBlur = 4;
+            this.ctx.globalAlpha = 0.6 + 0.4 * Math.sin(sparkTime * 2);
+            this.ctx.beginPath();
+            this.ctx.arc(sx, sy, sparkSize, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+            this.ctx.globalAlpha = 1;
+          }
+
+          // --- 9. Random bright flashes beneath surface ---
+          if (seededRandom(time * 0.7) < 0.008 * eruptionMult) { // ~0.8% chance per frame
+            const fx = zX + zone.width * (0.2 + seededRandom(time * 0.9) * 0.6);
+            const fy = zone.y + zone.height * (0.2 + seededRandom(time * 1.1) * 0.6);
+            this.ctx.fillStyle = 'rgba(255, 255, 220, 0.5)';
+            this.ctx.shadowColor = '#ffff88';
+            this.ctx.shadowBlur = 30;
+            this.ctx.beginPath();
+            this.ctx.arc(fx, fy, 15 + Math.random() * 15, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+          }
+
+          // --- 10. Irregular border glow (cracked rock edge) ---
+          this.ctx.strokeStyle = 'rgba(200, 80, 0, 0.6)';
+          this.ctx.lineWidth = 2.5;
+          this.ctx.shadowColor = '#cc4400';
+          this.ctx.shadowBlur = 8;
+          this.ctx.beginPath();
+          for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const angle = t * Math.PI * 2 - Math.PI / 2;
+            const baseR = Math.min(zone.width, zone.height) * 0.5;
+            const jitter = (seededRandom(i * 0.1 + 100) - 0.5) * edgeJitter * 2;
+            const r = baseR + jitter;
+            const cx = zX + zone.width * 0.5;
+            const cy = zone.y + zone.height * 0.5;
+            const px = cx + Math.cos(angle) * r;
+            const py = cy + Math.sin(angle) * r;
+            if (i === 0) this.ctx.moveTo(px, py);
+            else this.ctx.lineTo(px, py);
+          }
+          this.ctx.closePath();
+          this.ctx.stroke();
+          this.ctx.shadowBlur = 0;
+
+          // --- 11. Heat shimmer above pool (3 layers, animated) ---
+          this.ctx.globalAlpha = 0.06;
+          for (let h = 0; h < 3; h++) {
+            const shimmerY = zone.y - 10 - h * 8;
+            this.ctx.strokeStyle = 'rgba(255, 220, 140, 0.4)';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            for (let x = zX; x <= zX + zone.width; x += 4) {
+              const yy = shimmerY + Math.sin(x * 0.015 + time * 0.8 + h * 1.8) * (2 + h);
+              if (x === zX) this.ctx.moveTo(x, yy);
+              else this.ctx.lineTo(x, yy);
+            }
+            this.ctx.stroke();
+          }
+          this.ctx.globalAlpha = 1;
+
+          this.ctx.restore();
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
         } else if (zone.type === 'slow' || zone.type === 'sand') {
           if (zone.type === 'slow' && this.currentThemeKey === 'snow') {
             // Ice Ramp visual (Glacier Summit)
@@ -6245,23 +8765,35 @@ if (this.activeEvent.key === 'speed_surge') {
           
           this.ctx.restore();
         } else if (zone.type === 'ice') {
+<<<<<<< HEAD
           // Ice zone — label only
           const isJungle = this.currentThemeKey === 'jungle';
           this.ctx.fillStyle = isJungle ? '#102A16' : 'rgba(100,200,255,0.2)';
           this.ctx.strokeStyle = isJungle ? '#E5EBD9' : 'transparent';
           this.ctx.lineWidth = isJungle ? 2 : 0;
           this.ctx.font = isJungle ? 'bold 14px Montserrat, sans-serif' : 'bold 11px Montserrat, sans-serif';
+=======
+          // Ice zone ??? label only
+          this.ctx.fillStyle = 'rgba(100,200,255,0.2)';
+          this.ctx.font = 'bold 11px Montserrat, sans-serif';
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           if (isJungle) this.ctx.strokeText('ICE', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.fillText('ICE', zX + zone.width / 2, zone.y + zone.height / 2);
         } else if (zone.type === 'oil') {
+<<<<<<< HEAD
           // Oil zone — label only
           const isJungle = this.currentThemeKey === 'jungle';
           this.ctx.fillStyle = isJungle ? '#102A16' : 'rgba(100,80,60,0.2)';
           this.ctx.strokeStyle = isJungle ? '#E5EBD9' : 'transparent';
           this.ctx.lineWidth = isJungle ? 2 : 0;
           this.ctx.font = isJungle ? 'bold 14px Montserrat, sans-serif' : 'bold 11px Montserrat, sans-serif';
+=======
+          // Oil zone ??? label only
+          this.ctx.fillStyle = 'rgba(100,80,60,0.2)';
+          this.ctx.font = 'bold 11px Montserrat, sans-serif';
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           if (isJungle) this.ctx.strokeText('OIL', zX + zone.width / 2, zone.y + zone.height / 2);
@@ -6277,7 +8809,7 @@ if (this.activeEvent.key === 'speed_surge') {
           const isSnow = this.currentThemeKey === 'snow';
           const approachW = 150;
 
-          // Approach zone — subtle gradient 150px before the finish line
+          // Approach zone ??? subtle gradient 150px before the finish line
           this.ctx.save();
           const approachGrad = this.ctx.createLinearGradient(finishX - approachW, 0, finishX, 0);
           if (isSnow) {
@@ -6471,7 +9003,7 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
 
         } else if (zone.type === 'portal') {
-          // Portal — purple vortex, direction-agnostic
+          // Portal ??? purple vortex, direction-agnostic
           this.ctx.save();
           const cx = zX + zone.width / 2;
           const cy = zone.y + zone.height / 2;
@@ -6519,14 +9051,20 @@ if (this.activeEvent.key === 'speed_surge') {
             }
             this.ctx.stroke();
           }
-          // Direction arrow — shows whether paired portal is ahead (→) or behind (←)
+          // Direction arrow ??? shows whether paired portal is ahead (???) or behind (???)
           const pairPortal = this.track.zones.find(z => z !== zone && z.type === 'portal' && z.pairId === zone.pairId);
           if (pairPortal) {
+<<<<<<< HEAD
             const arrow = pairPortal.x > zone.x ? '→' : '←';
             this.ctx.fillStyle = this.currentThemeKey === 'jungle' ? '#1C3D24' : 'rgba(200,160,255,0.75)';
             this.ctx.strokeStyle = this.currentThemeKey === 'jungle' ? '#E5EBD9' : 'transparent';
             this.ctx.lineWidth = this.currentThemeKey === 'jungle' ? 3 : 0;
             this.ctx.font = this.currentThemeKey === 'jungle' ? 'bold 22px Montserrat, sans-serif' : 'bold 20px Montserrat, sans-serif';
+=======
+            const arrow = pairPortal.x > zone.x ? '???' : '???';
+            this.ctx.fillStyle = 'rgba(200,160,255,0.75)';
+            this.ctx.font = 'bold 20px Montserrat, sans-serif';
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             if (this.currentThemeKey === 'jungle') this.ctx.strokeText(arrow, cx, cy + pr + 16);
@@ -6534,11 +9072,11 @@ if (this.activeEvent.key === 'speed_surge') {
           }
           this.ctx.restore();
         } else if (zone.type === 'shortcutEntry') {
-          // Removed shortcut label — replaced with wind zone logic
+          // Removed shortcut label ??? replaced with wind zone logic
         } else if (zone.type === 'shortcutExit') {
-          // Removed shortcut label — replaced with wind zone logic
+          // Removed shortcut label ??? replaced with wind zone logic
         } else if (zone.type === 'bottleneck') {
-          // Narrow corridor zone — subtle wall indicators
+          // Narrow corridor zone ??? subtle wall indicators
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(231,76,60,0.08)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
@@ -6558,7 +9096,7 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.fillText('MERGE', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.restore();
         } else if (zone.type === 'jump') {
-          // Jump zone — upward arrow and light fill
+          // Jump zone ??? upward arrow and light fill
           this.ctx.save();
           this.ctx.fillStyle = 'rgba(155,89,182,0.15)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
@@ -6574,7 +9112,7 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.fillText('\u2191', zX + zone.width / 2, zone.y + zone.height / 2 + bounce);
           this.ctx.restore();
         } else if (zone.type === 'launch') {
-          // Bounce pad — upward launch zone
+          // Bounce pad ??? upward launch zone
           this.ctx.save();
           const bounceY = Math.sin(Date.now() * 0.01) * 2;
           this.ctx.fillStyle = 'rgba(46,204,113,0.25)';
@@ -6591,8 +9129,10 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
       });
+      };
+      if (this.currentThemeKey !== 'volcano') renderTrackZones();
 
-      // Draw Static Pegs (Bumpers) — white, shiny, glossy
+      // Draw Static Pegs (Bumpers) ??? white, shiny, glossy
       this.track.pegs.forEach(peg => {
         const pegX = peg.x - camX;
         const pegCullBuffer = Math.max(200, 300 / this.userZoomMultiplier);
@@ -6685,7 +9225,331 @@ if (this.activeEvent.key === 'speed_surge') {
         }
       });
 
-      // Draw Obstacles (moving barriers, spinner anchors, meteors/rocks)
+      // Draw Track Surface as filled shape with thin boundaries
+      const wallAlpha = 0.35;
+      const wallRgba = this.currentTheme.wallColor;
+      this.ctx.save();
+      // Fill track surface (connects top and bottom boundaries)
+      if (this.track.topPoints.length > 1) {
+        const cullBuf = 600;
+        const virtRight = screenW / zoom;
+        // Use only visible wall points to build a filled polygon
+        const visibleTop = [];
+        const visibleBot = [];
+        for (let i = 0; i < this.track.topPoints.length; i++) {
+          const wx = this.track.topPoints[i].x - camX;
+          if (wx > -cullBuf && wx < virtRight + cullBuf) {
+            visibleTop.push({ x: wx, y: this.track.topPoints[i].y });
+            visibleBot.push({ x: wx, y: this.track.bottomPoints[i].y });
+          }
+        }
+        if (visibleTop.length > 1) {
+          // Surface fill (semi-transparent version of wall color)
+          const hexToRgba = (hex, a) => { const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; };
+          let surfAlpha = this.currentThemeKey === 'snow' ? 0.18 : 0.06;
+          let surfaceColor = wallRgba;
+          // Volcano: use dark metallic graphite instead of red wall color for track surface
+          if (this.currentThemeKey === 'volcano') {
+            surfaceColor = '#1a1612';
+            surfAlpha = 0.85;
+          }
+          // Jungle: use opaque stone-gray pathway that stands out from the dark forest
+          if (this.currentThemeKey === 'jungle') {
+            surfaceColor = '#6a5a48';
+            surfAlpha = 1.0;
+          }
+          this.ctx.fillStyle = hexToRgba(surfaceColor, surfAlpha);
+          this.ctx.beginPath();
+          this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
+          for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+          for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+          this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
+          this.ctx.fill();
+
+          // Darker surface overlay for snow theme to separate track from background
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.fillStyle = 'rgba(25, 40, 60, 0.10)';
+            this.ctx.beginPath();
+            this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
+            for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
+            this.ctx.fill();
+          }
+          // Jungle: ancient stone pathway overlay for track separation
+          if (this.currentThemeKey === 'jungle') {
+            this.ctx.fillStyle = 'rgba(60, 50, 40, 0.10)';
+            this.ctx.beginPath();
+            this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
+            for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
+            this.ctx.fill();
+          }
+          // Edge lighting ??? subtle gradient near track boundaries
+          const topEdgeY = visibleTop[0].y;
+          const botEdgeY = visibleBot[0].y;
+
+          // Volcano: subtle molten glow along track edges
+          if (this.currentThemeKey === 'volcano') {
+            const edgeGlowTop = this.ctx.createLinearGradient(0, topEdgeY, 0, topEdgeY + 30);
+            edgeGlowTop.addColorStop(0, 'rgba(255, 80, 0, 0.04)');
+            edgeGlowTop.addColorStop(1, 'rgba(255, 80, 0, 0)');
+            this.ctx.fillStyle = edgeGlowTop;
+            this.ctx.fillRect(visibleTop[0].x - 10, topEdgeY, visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20, 30);
+            const edgeGlowBot = this.ctx.createLinearGradient(0, botEdgeY - 30, 0, botEdgeY);
+            edgeGlowBot.addColorStop(0, 'rgba(0,0,0,0)');
+            edgeGlowBot.addColorStop(1, 'rgba(255, 80, 0, 0.05)');
+            this.ctx.fillStyle = edgeGlowBot;
+            this.ctx.fillRect(visibleBot[0].x - 10, botEdgeY - 30, visibleBot[visibleBot.length - 1].x - visibleBot[0].x + 20, 30);
+          }
+          const edgeLight = this.ctx.createLinearGradient(0, topEdgeY, 0, topEdgeY + 20);
+          edgeLight.addColorStop(0, 'rgba(255,255,255,0.04)');
+          edgeLight.addColorStop(1, 'rgba(255,255,255,0)');
+          this.ctx.fillStyle = edgeLight;
+          this.ctx.fillRect(visibleTop[0].x - 10, topEdgeY, visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20, 20);
+          const botEdgeLight = this.ctx.createLinearGradient(0, botEdgeY - 20, 0, botEdgeY);
+          botEdgeLight.addColorStop(0, 'rgba(0,0,0,0)');
+          botEdgeLight.addColorStop(1, 'rgba(0,0,0,0.06)');
+          this.ctx.fillStyle = botEdgeLight;
+          this.ctx.fillRect(visibleBot[0].x - 10, botEdgeY - 20, visibleBot[visibleBot.length - 1].x - visibleBot[0].x + 20, 20);
+
+          // Grass texture variation or ice cracks (theme-specific)
+          if (this.currentThemeKey === 'snow') {
+            // Ice crack patterns on the surface (more visible)
+            this.ctx.strokeStyle = 'rgba(100, 180, 220, 0.10)';
+            this.ctx.lineWidth = 1.2;
+            const iceSeed = Math.floor(camX / 25);
+            for (let c = 0; c < 8; c++) {
+              const cx = visibleTop[0].x + ((iceSeed * 67 + c * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const cy = topEdgeY + 10 + ((iceSeed * 43 + c * 89) % (botEdgeY - topEdgeY - 20));
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx, cy);
+              this.ctx.lineTo(cx + 10 + (c * 13) % 20, cy + 5 + (c * 7) % 10);
+              this.ctx.lineTo(cx + 20 + (c * 17) % 15, cy - 3 + (c * 11) % 8);
+              this.ctx.stroke();
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx + 5, cy + 2);
+              this.ctx.lineTo(cx + 15 + (c * 19) % 12, cy - 8 + (c * 5) % 6);
+              this.ctx.stroke();
+            }
+          } else if (this.currentThemeKey === 'volcano') {
+            // Magma crack patterns on the volcanic surface
+            this.ctx.strokeStyle = 'rgba(255, 100, 0, 0.05)';
+            this.ctx.lineWidth = 1.2;
+            const magmaSeed = Math.floor(camX / 25);
+            for (let c = 0; c < 10; c++) {
+              const cx = visibleTop[0].x + ((magmaSeed * 67 + c * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const cy = topEdgeY + 10 + ((magmaSeed * 43 + c * 89) % (botEdgeY - topEdgeY - 20));
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx, cy);
+              this.ctx.lineTo(cx + 12 + (c * 13) % 20, cy + 6 + (c * 7) % 10);
+              this.ctx.lineTo(cx + 22 + (c * 17) % 15, cy - 4 + (c * 11) % 8);
+              this.ctx.stroke();
+              this.ctx.beginPath();
+              this.ctx.moveTo(cx + 5, cy + 2);
+              this.ctx.lineTo(cx + 18 + (c * 19) % 12, cy - 10 + (c * 5) % 6);
+              this.ctx.stroke();
+            }
+          } else if (this.currentThemeKey === 'jungle') {
+            // Jungle: mossy stone paver cracks instead of grass
+            this.ctx.strokeStyle = 'rgba(50, 60, 40, 0.05)';
+            this.ctx.lineWidth = 1;
+            const paverSeed = Math.floor(camX / 20);
+            for (let p = 0; p < 8; p++) {
+              const px = visibleTop[0].x + ((paverSeed * 53 + p * 67) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const py = topEdgeY + 6 + ((paverSeed * 31 + p * 89) % (botEdgeY - topEdgeY - 12));
+              const pw = 6 + ((paverSeed * 41 + p * 53) % 12);
+              this.ctx.beginPath();
+              this.ctx.moveTo(px, py);
+              this.ctx.lineTo(px + pw, py - 2 + ((p * 7) % 5));
+              this.ctx.moveTo(px + pw * 0.3, py + 3);
+              this.ctx.lineTo(px + pw * 0.7, py + 1);
+              this.ctx.stroke();
+            }
+          } else {
+            this.ctx.strokeStyle = 'rgba(46,204,113,0.03)';
+            this.ctx.lineWidth = 1.5;
+            const grassSeed = Math.floor(camX / 30);
+            for (let g = 0; g < 12; g++) {
+              const gx = visibleTop[0].x + ((grassSeed * 137 + g * 97) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const gy = topEdgeY + 8 + ((grassSeed * 53 + g * 131) % (botEdgeY - topEdgeY - 16));
+              const glen = 3 + ((grassSeed * 71 + g * 43) % 6);
+              this.ctx.beginPath();
+              this.ctx.moveTo(gx, gy);
+              this.ctx.lineTo(gx + ((g * 29) % 7 - 3), gy - glen);
+              this.ctx.stroke();
+            }
+          }
+
+          // White painted boundary lines (at ~15% and ~85% of track width)
+          const lineY1 = topEdgeY + (botEdgeY - topEdgeY) * 0.15;
+          const lineY2 = topEdgeY + (botEdgeY - topEdgeY) * 0.85;
+          this.ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+          this.ctx.lineWidth = 1.5;
+          this.ctx.setLineDash([8, 12]);
+          this.ctx.beginPath();
+          this.ctx.moveTo(visibleTop[0].x, lineY1);
+          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY1);
+          this.ctx.stroke();
+          this.ctx.beginPath();
+          this.ctx.moveTo(visibleTop[0].x, lineY2);
+          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY2);
+          this.ctx.stroke();
+          this.ctx.setLineDash([]);
+
+          // Wear marks ??? subtle dark streaks
+          this.ctx.strokeStyle = 'rgba(0,0,0,0.04)';
+          this.ctx.lineWidth = 1;
+          const wearSeed = Math.floor(camX / 20);
+          for (let w = 0; w < 4; w++) {
+            const wx = visibleTop[0].x + ((wearSeed * 61 + w * 113) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+            const wy = topEdgeY + 15 + ((wearSeed * 43 + w * 79) % (botEdgeY - topEdgeY - 30));
+            this.ctx.beginPath();
+            this.ctx.moveTo(wx, wy);
+            this.ctx.quadraticCurveTo(wx + 10 + (w * 17) % 15, wy + 2, wx + 25 + (w * 11) % 10, wy - 1);
+            this.ctx.stroke();
+          }
+
+          // Small scattered pebbles or ice crystals (theme-specific)
+          const pebSeed = Math.floor(camX / 15);
+          if (this.currentThemeKey === 'snow') {
+            // Ice crystal sparkles on the surface (more visible)
+            this.ctx.fillStyle = 'rgba(120, 200, 240, 0.18)';
+            for (let p = 0; p < 10; p++) {
+              const px = visibleTop[0].x + ((pebSeed * 47 + p * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const py = topEdgeY + 5 + ((pebSeed * 73 + p * 89) % (botEdgeY - topEdgeY - 10));
+              const ps = 0.8 + ((pebSeed * 59 + p * 37) % 3) * 0.6;
+              this.ctx.beginPath();
+              this.ctx.arc(px, py, ps, 0, Math.PI * 2);
+              this.ctx.fill();
+              // Tiny cross sparkle
+              this.ctx.globalAlpha = 0.6;
+              this.ctx.strokeStyle = 'rgba(220, 240, 255, 0.10)';
+              this.ctx.lineWidth = 0.5;
+              this.ctx.beginPath();
+              this.ctx.moveTo(px - 3, py);
+              this.ctx.lineTo(px + 3, py);
+              this.ctx.moveTo(px, py - 3);
+              this.ctx.lineTo(px, py + 3);
+              this.ctx.stroke();
+              this.ctx.globalAlpha = 0.6;
+            }
+          } else {
+            this.ctx.fillStyle = 'rgba(180,170,160,0.06)';
+            for (let p = 0; p < 8; p++) {
+              const px = visibleTop[0].x + ((pebSeed * 47 + p * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
+              const py = topEdgeY + 5 + ((pebSeed * 73 + p * 89) % (botEdgeY - topEdgeY - 10));
+              const ps = 1 + ((pebSeed * 59 + p * 37) % 3);
+              this.ctx.beginPath();
+              this.ctx.arc(px, py, ps, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+          }
+
+          // Thin top boundary line
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.strokeStyle = '#1a2a3a';
+            this.ctx.globalAlpha = 0.55;
+          } else {
+            this.ctx.strokeStyle = wallRgba;
+            this.ctx.globalAlpha = wallAlpha;
+          }
+          this.ctx.lineWidth = 3;
+          this.ctx.lineCap = 'round';
+          this.ctx.lineJoin = 'round';
+          this.ctx.beginPath();
+          for (let i = 0; i < visibleTop.length; i++) {
+            if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
+            else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+          }
+          this.ctx.stroke();
+          // Thin bottom boundary line
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.strokeStyle = '#1a2a3a';
+            this.ctx.globalAlpha = 0.55;
+          } else {
+            this.ctx.strokeStyle = wallRgba;
+            this.ctx.globalAlpha = wallAlpha;
+          }
+          this.ctx.beginPath();
+          for (let i = 0; i < visibleBot.length; i++) {
+            if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
+            else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+          }
+          this.ctx.stroke();
+          // Decorative celestial objects + track glow + edge particles (space theme)
+          if (this.currentThemeKey === 'space') {
+            this._renderSpaceObjects(camX);
+            // Subtle cyan energy pulse along wall boundaries
+            this.ctx.save();
+            const pulse = 0.12 + Math.sin(Date.now() * 0.003) * 0.06;
+            this.ctx.strokeStyle = `rgba(102,252,241,${pulse})`;
+            this.ctx.shadowColor = '#66fcf1';
+            this.ctx.shadowBlur = 8;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleTop.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
+              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleBot.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
+              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+            this.ctx.restore();
+            // Tiny energy particles leaking from track edges
+            const epTime = Date.now() * 0.002;
+            const epCount = Math.floor(visibleTop.length * 0.15);
+            for (let e = 0; e < epCount; e++) {
+              const idx = Math.floor((e * 23 + Math.floor(epTime)) % visibleTop.length);
+              if (Math.random() > 0.03) continue;
+              const px = visibleTop[idx].x;
+              const py = visibleTop[idx].y;
+              this.ctx.save();
+              this.ctx.fillStyle = e % 2 === 0 ? '#66fcf1' : '#a78bfa';
+              this.ctx.globalAlpha = 0.15 + Math.random() * 0.15;
+              this.ctx.beginPath();
+              this.ctx.arc(px + (Math.random() - 0.5) * 6, py + Math.random() * 4, 0.8 + Math.random() * 0.8, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.restore();
+            }
+          }
+          // Icy glow on track boundaries for Glacier Summit
+          if (this.currentThemeKey === 'snow') {
+            this.ctx.save();
+            const icePulse = 0.06 + Math.sin(Date.now() * 0.0025) * 0.03;
+            this.ctx.strokeStyle = `rgba(100, 190, 240, ${icePulse})`;
+            this.ctx.shadowColor = '#60b8e0';
+            this.ctx.shadowBlur = 5;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleTop.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
+              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.beginPath();
+            for (let i = 0; i < visibleBot.length; i++) {
+              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
+              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+            this.ctx.restore();
+          }
+          this.ctx.globalAlpha = 1;
+        }
+      }
+      this.ctx.restore();      // Draw Obstacles (moving barriers, spinner anchors, meteors/rocks)
+
+      // Volcano: draw zones on top of track (track is opaque for volcano, zones would be hidden underneath)
+      if (this.currentThemeKey === 'volcano') renderTrackZones();
+
       this.track.obstacles.forEach(obs => {
         const obsX = obs.x - camX;
         const obsCullBuffer = Math.max(300, 400 / this.userZoomMultiplier);
@@ -6858,7 +9722,7 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.fill();
           this.ctx.restore();
         } else if (obs.type === 'c_bumper') {
-          // Rotating C-bumper — small semicircular arc like a pinball bumper
+          // Rotating C-bumper ??? small semicircular arc like a pinball bumper
           const R = obs.radius || 70;
           const rot = obs.rotation || 0;
           const lw = obs.thickness || 8;
@@ -6924,7 +9788,7 @@ if (this.activeEvent.key === 'speed_surge') {
           bgGrad.addColorStop(1, 'rgba(243,156,18,0.12)');
           this.ctx.fillStyle = bgGrad;
           this.ctx.fillRect(obsX, topY, obs.length, obs.width);
-          // Top wall — yellow hazard stripe
+          // Top wall ??? yellow hazard stripe
           this.ctx.strokeStyle = '#f39c12';
           this.ctx.lineWidth = 6;
           this.ctx.shadowColor = 'rgba(243,156,18,0.4)';
@@ -7185,7 +10049,7 @@ if (this.activeEvent.key === 'speed_surge') {
           // Wall switcher: panel slides between blocking top and bottom
           const bounds = this.physics.getWallBoundaries(obs.x, this.track);
           const trackH = bounds.bottomY - bounds.topY;
-          const gapH = 80; // 2.67× ball diameter open gap
+          const gapH = 80; // 2.67?? ball diameter open gap
           // Calculate panel height based on open/closed state
           const targetPanelH = obs.isOpen ? gapH : trackH;
           const panelH = gapH + (targetPanelH - gapH) * obs._slide;
@@ -7375,6 +10239,7 @@ if (this.activeEvent.key === 'speed_surge') {
             }
           }
 
+<<<<<<< HEAD
 } else if (obs.type === 'carnivorous_vine') {
           // ===== CARNIVOROUS VINE BASE PLANT RENDERING =====
           if (this.currentThemeKey !== 'jungle') return;
@@ -7582,31 +10447,66 @@ if (this.activeEvent.key === 'speed_surge') {
           for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
           this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
           this.ctx.fill();
+=======
+        } else if (obs.type === 'collapsing_pillar') {
+          // Collapsing Rock Pillar ??? Magma Crater exclusive volcanic obstacle
+          const pState = obs._state || 'standing';
+          const pCamX = obs.x - camX;
+          const pSide = obs._wallSide || 'top';
+          const pSeed = obs._seed || 0;
+          const pDir = pSide === 'top' ? 1 : -1;
 
-          // Darker surface overlay for snow theme to separate track from background
-          if (this.currentThemeKey === 'snow') {
-            this.ctx.fillStyle = 'rgba(25, 40, 60, 0.10)';
+          this.ctx.save();
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
+
+          if (pState === 'standing' || pState === 'warning') {
+            const ph = obs._pillarHeight || 75;
+            const pw = obs._pillarWidth || 20;
+            const shakeX = pState === 'warning' ? (obs._shakeOffset || 0) : 0;
+            const shakeY = pState === 'warning' ? Math.sin((obs._stateTimer || 0) * 0.7 + pSeed) * 1.5 : 0;
+            const glowIntensity = pState === 'warning' ? Math.min(1, (obs._stateTimer || 0) / (obs._warningDuration || 60)) : 0;
+
+            const baseY = obs.y;
+            const tipY = obs.y + pDir * ph;
+
+            this.ctx.translate(pCamX + shakeX, baseY + shakeY);
+
+            const rockGrad = this.ctx.createLinearGradient(0, 0, 0, pDir * ph);
+            rockGrad.addColorStop(0, '#1a1a1a');
+            rockGrad.addColorStop(0.2, '#2a2520');
+            rockGrad.addColorStop(0.5, '#3a3530');
+            rockGrad.addColorStop(0.8, '#2a2520');
+            rockGrad.addColorStop(1, '#1a1a1a');
+            this.ctx.fillStyle = rockGrad;
+            this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            this.ctx.shadowBlur = 6;
+            this.ctx.shadowOffsetY = pDir * 2;
+
+            const segments = 6;
             this.ctx.beginPath();
-            this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
-            for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
-            for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
-            this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
+            for (let i = 0; i <= segments; i++) {
+              const t = i / segments;
+              const jitterW = (Math.sin(pSeed * 13 + i * 2.7 + pSeed * 0.5) - 0.5) * pw * 0.4;
+              const jitterH = (Math.sin(pSeed * 7 + i * 1.3) - 0.5) * ph * 0.03;
+              const xOff = jitterW;
+              const yOff = t * ph * pDir + jitterH;
+              if (i === 0) this.ctx.moveTo(xOff, yOff);
+              else this.ctx.lineTo(xOff, yOff);
+            }
+            for (let i = segments; i >= 0; i--) {
+              const t = i / segments;
+              const jitterW = (Math.sin(pSeed * 13 + i * 2.7 + 100) - 0.5) * pw * 0.4;
+              const jitterH = (Math.sin(pSeed * 7 + i * 1.3 + 50) - 0.5) * ph * 0.03;
+              const xOff = jitterW;
+              const yOff = t * ph * pDir + jitterH;
+              this.ctx.lineTo(xOff, yOff);
+            }
+            this.ctx.closePath();
             this.ctx.fill();
-          }
-          // Volcano: subtle molten glow along track edges
-          if (this.currentThemeKey === 'volcano') {
-            const edgeGlowTop = this.ctx.createLinearGradient(0, topEdgeY, 0, topEdgeY + 30);
-            edgeGlowTop.addColorStop(0, 'rgba(255, 80, 0, 0.04)');
-            edgeGlowTop.addColorStop(1, 'rgba(255, 80, 0, 0)');
-            this.ctx.fillStyle = edgeGlowTop;
-            this.ctx.fillRect(visibleTop[0].x - 10, topEdgeY, visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20, 30);
-            const edgeGlowBot = this.ctx.createLinearGradient(0, botEdgeY - 30, 0, botEdgeY);
-            edgeGlowBot.addColorStop(0, 'rgba(0,0,0,0)');
-            edgeGlowBot.addColorStop(1, 'rgba(255, 80, 0, 0.05)');
-            this.ctx.fillStyle = edgeGlowBot;
-            this.ctx.fillRect(visibleBot[0].x - 10, botEdgeY - 30, visibleBot[visibleBot.length - 1].x - visibleBot[0].x + 20, 30);
-          }
+            this.ctx.shadowBlur = 0;
+            this.ctx.shadowOffsetY = 0;
 
+<<<<<<< HEAD
           // Edge lighting — subtle gradient near track boundaries
           const topEdgeY = visibleTop[0].y;
           const botEdgeY = visibleBot[0].y;
@@ -7684,84 +10584,40 @@ if (this.activeEvent.key === 'speed_surge') {
             }
           } else {
             this.ctx.strokeStyle = 'rgba(46,204,113,0.03)';
+=======
+            this.ctx.strokeStyle = 'rgba(60, 50, 40, 0.6)';
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
             this.ctx.lineWidth = 1.5;
-            const grassSeed = Math.floor(camX / 30);
-            for (let g = 0; g < 12; g++) {
-              const gx = visibleTop[0].x + ((grassSeed * 137 + g * 97) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-              const gy = topEdgeY + 8 + ((grassSeed * 53 + g * 131) % (botEdgeY - topEdgeY - 16));
-              const glen = 3 + ((grassSeed * 71 + g * 43) % 6);
-              this.ctx.beginPath();
-              this.ctx.moveTo(gx, gy);
-              this.ctx.lineTo(gx + ((g * 29) % 7 - 3), gy - glen);
-              this.ctx.stroke();
-            }
-          }
-
-          // White painted boundary lines (at ~15% and ~85% of track width)
-          const lineY1 = topEdgeY + (botEdgeY - topEdgeY) * 0.15;
-          const lineY2 = topEdgeY + (botEdgeY - topEdgeY) * 0.85;
-          this.ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-          this.ctx.lineWidth = 1.5;
-          this.ctx.setLineDash([8, 12]);
-          this.ctx.beginPath();
-          this.ctx.moveTo(visibleTop[0].x, lineY1);
-          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY1);
-          this.ctx.stroke();
-          this.ctx.beginPath();
-          this.ctx.moveTo(visibleTop[0].x, lineY2);
-          this.ctx.lineTo(visibleTop[visibleTop.length - 1].x, lineY2);
-          this.ctx.stroke();
-          this.ctx.setLineDash([]);
-
-          // Wear marks — subtle dark streaks
-          this.ctx.strokeStyle = 'rgba(0,0,0,0.04)';
-          this.ctx.lineWidth = 1;
-          const wearSeed = Math.floor(camX / 20);
-          for (let w = 0; w < 4; w++) {
-            const wx = visibleTop[0].x + ((wearSeed * 61 + w * 113) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-            const wy = topEdgeY + 15 + ((wearSeed * 43 + w * 79) % (botEdgeY - topEdgeY - 30));
-            this.ctx.beginPath();
-            this.ctx.moveTo(wx, wy);
-            this.ctx.quadraticCurveTo(wx + 10 + (w * 17) % 15, wy + 2, wx + 25 + (w * 11) % 10, wy - 1);
             this.ctx.stroke();
-          }
 
-          // Small scattered pebbles or ice crystals (theme-specific)
-          const pebSeed = Math.floor(camX / 15);
-          if (this.currentThemeKey === 'snow') {
-            // Ice crystal sparkles on the surface (more visible)
-            this.ctx.fillStyle = 'rgba(120, 200, 240, 0.18)';
-            for (let p = 0; p < 10; p++) {
-              const px = visibleTop[0].x + ((pebSeed * 47 + p * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-              const py = topEdgeY + 5 + ((pebSeed * 73 + p * 89) % (botEdgeY - topEdgeY - 10));
-              const ps = 0.8 + ((pebSeed * 59 + p * 37) % 3) * 0.6;
+            const crackAlpha = pState === 'warning' ? 0.4 + glowIntensity * 0.5 : 0.3;
+            this.ctx.shadowColor = '#ff4400';
+            this.ctx.shadowBlur = pState === 'warning' ? 6 + glowIntensity * 10 : 4;
+            for (let c = 0; c < 4; c++) {
+              const cx = (Math.sin(pSeed * 5 + c * 3.1) - 0.5) * pw * 0.7;
+              const cy = (Math.sin(pSeed * 11 + c * 2.3) + 0.5) * ph * 0.6 * pDir * 0.5 + ph * pDir * 0.3;
+              const clen = 4 + Math.sin(pSeed * 3 + c * 1.7) * 3;
+              this.ctx.strokeStyle = `rgba(255, ${100 + glowIntensity * 80}, 0, ${crackAlpha})`;
+              this.ctx.lineWidth = 1.5 + Math.sin(pSeed + c) * 0.5;
               this.ctx.beginPath();
-              this.ctx.arc(px, py, ps, 0, Math.PI * 2);
-              this.ctx.fill();
-              // Tiny cross sparkle
-              this.ctx.globalAlpha = 0.6;
-              this.ctx.strokeStyle = 'rgba(220, 240, 255, 0.10)';
-              this.ctx.lineWidth = 0.5;
-              this.ctx.beginPath();
-              this.ctx.moveTo(px - 3, py);
-              this.ctx.lineTo(px + 3, py);
-              this.ctx.moveTo(px, py - 3);
-              this.ctx.lineTo(px, py + 3);
+              this.ctx.moveTo(cx, cy);
+              this.ctx.lineTo(cx + (Math.sin(pSeed * 2 + c * 1.1) - 0.5) * clen, cy + Math.sin(c) * clen * 0.5);
               this.ctx.stroke();
-              this.ctx.globalAlpha = 0.6;
             }
-          } else {
-            this.ctx.fillStyle = 'rgba(180,170,160,0.06)';
-            for (let p = 0; p < 8; p++) {
-              const px = visibleTop[0].x + ((pebSeed * 47 + p * 131) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 40));
-              const py = topEdgeY + 5 + ((pebSeed * 73 + p * 89) % (botEdgeY - topEdgeY - 10));
-              const ps = 1 + ((pebSeed * 59 + p * 37) % 3);
+            this.ctx.shadowBlur = 0;
+
+            const smokeAlpha = pState === 'warning' ? 0.08 + glowIntensity * 0.08 : 0.06;
+            this.ctx.fillStyle = `rgba(150, 140, 130, ${smokeAlpha})`;
+            for (let s = 0; s < 3; s++) {
+              const sx = (Math.sin(pSeed * 3 + s * 2.1 + performance.now() * 0.0005) - 0.5) * pw * 1.5;
+              const sy = (Math.sin(pSeed * 7 + s * 1.3 + performance.now() * 0.0003) + 0.5) * ph * 0.4 * pDir + ph * pDir * 0.4;
+              const sr = 4 + Math.sin(pSeed * 5 + s * 1.7 + performance.now() * 0.001) * 2;
               this.ctx.beginPath();
-              this.ctx.arc(px, py, ps, 0, Math.PI * 2);
+              this.ctx.arc(sx, sy, sr, 0, Math.PI * 2);
               this.ctx.fill();
             }
-          }
 
+<<<<<<< HEAD
           // Thin top boundary line
           if (this.currentThemeKey === 'snow') {
             this.ctx.strokeStyle = '#1a2a3a';
@@ -7861,68 +10717,657 @@ if (this.activeEvent.key === 'speed_surge') {
             const pulse = 0.12 + Math.sin(Date.now() * 0.003) * 0.06;
             this.ctx.strokeStyle = `rgba(102,252,241,${pulse})`;
             this.ctx.shadowColor = '#66fcf1';
-            this.ctx.shadowBlur = 8;
-            this.ctx.lineWidth = 2;
-            this.ctx.beginPath();
-            for (let i = 0; i < visibleTop.length; i++) {
-              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
-              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
-            }
-            this.ctx.stroke();
-            this.ctx.beginPath();
-            for (let i = 0; i < visibleBot.length; i++) {
-              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
-              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
-            }
-            this.ctx.stroke();
-            this.ctx.shadowBlur = 0;
-            this.ctx.restore();
-            // Tiny energy particles leaking from track edges
-            const epTime = Date.now() * 0.002;
-            const epCount = Math.floor(visibleTop.length * 0.15);
-            for (let e = 0; e < epCount; e++) {
-              const idx = Math.floor((e * 23 + Math.floor(epTime)) % visibleTop.length);
-              if (Math.random() > 0.03) continue;
-              const px = visibleTop[idx].x;
-              const py = visibleTop[idx].y;
-              this.ctx.save();
-              this.ctx.fillStyle = e % 2 === 0 ? '#66fcf1' : '#a78bfa';
-              this.ctx.globalAlpha = 0.15 + Math.random() * 0.15;
+=======
+            if (pState === 'warning') {
+              const pulseAlpha = 0.15 + 0.2 * Math.sin(performance.now() * 0.008 + pSeed);
+              this.ctx.fillStyle = `rgba(255, 100, 0, ${pulseAlpha})`;
+              this.ctx.shadowColor = '#ff4400';
+              this.ctx.shadowBlur = 15;
               this.ctx.beginPath();
-              this.ctx.arc(px + (Math.random() - 0.5) * 6, py + Math.random() * 4, 0.8 + Math.random() * 0.8, 0, Math.PI * 2);
+              this.ctx.arc(0, 0, pw * 0.8 + pulseAlpha * 10, 0, Math.PI * 2);
               this.ctx.fill();
-              this.ctx.restore();
+              this.ctx.shadowBlur = 0;
             }
-          }
-          // Icy glow on track boundaries for Glacier Summit
-          if (this.currentThemeKey === 'snow') {
-            this.ctx.save();
-            const icePulse = 0.06 + Math.sin(Date.now() * 0.0025) * 0.03;
-            this.ctx.strokeStyle = `rgba(100, 190, 240, ${icePulse})`;
-            this.ctx.shadowColor = '#60b8e0';
-            this.ctx.shadowBlur = 5;
-            this.ctx.lineWidth = 2;
+
+          } else if (pState === 'fallen' || pState === 'disappearing') {
+            const fw = obs._fallenWidth || 70;
+            const fh = obs._fallenHeight || 30;
+            const fallProgress = obs._fallProgress || 1;
+            const crumble = pState === 'disappearing' ? obs._crumbleProgress || 0 : 0;
+
+            const baseY = obs.y;
+            const visualWidth = fw * (1 - crumble * 0.3);
+            const visualHeight = fh * (1 - crumble * 0.4);
+            const visualAlpha = 1 - crumble * 0.7;
+
+            this.ctx.globalAlpha = visualAlpha;
+
+            const px = pCamX;
+            const py = pSide === 'top' ? baseY : baseY - visualHeight;
+
+            const rockGrad2 = this.ctx.createLinearGradient(px, py, px, py + visualHeight);
+            rockGrad2.addColorStop(0, '#2a2520');
+            rockGrad2.addColorStop(0.3, '#3a3530');
+            rockGrad2.addColorStop(0.6, '#2a2018');
+            rockGrad2.addColorStop(1, '#1a1510');
+            this.ctx.fillStyle = rockGrad2;
+            this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            this.ctx.shadowBlur = 6;
+
             this.ctx.beginPath();
-            for (let i = 0; i < visibleTop.length; i++) {
-              if (i === 0) this.ctx.moveTo(visibleTop[i].x, visibleTop[i].y);
-              else this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
+            const rSegs = 8;
+            for (let i = 0; i <= rSegs; i++) {
+              const t = i / rSegs;
+              const jx = (Math.sin(pSeed * 7 + i * 2.3) - 0.5) * visualWidth * 0.15;
+              const x = px - visualWidth / 2 + t * visualWidth + jx;
+              const y = i % 2 === 0 ? py : py + visualHeight + (Math.sin(pSeed * 5 + i * 1.7) - 0.5) * visualHeight * 0.2;
+              if (i === 0) this.ctx.moveTo(x, py);
+              else this.ctx.lineTo(x, y);
             }
-            this.ctx.stroke();
-            this.ctx.beginPath();
-            for (let i = 0; i < visibleBot.length; i++) {
-              if (i === 0) this.ctx.moveTo(visibleBot[i].x, visibleBot[i].y);
-              else this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y);
+            for (let i = rSegs; i >= 0; i--) {
+              const t = i / rSegs;
+              const jx = (Math.sin(pSeed * 7 + i * 2.3 + 50) - 0.5) * visualWidth * 0.15;
+              const x = px - visualWidth / 2 + t * visualWidth + jx;
+              const y = i % 2 === 0 ? py + visualHeight : py + (Math.sin(pSeed * 5 + i * 1.7 + 30) - 0.5) * visualHeight * 0.2;
+              if (i === rSegs) this.ctx.lineTo(x, py + visualHeight);
+              else this.ctx.lineTo(x, y);
             }
-            this.ctx.stroke();
+            this.ctx.closePath();
+            this.ctx.fill();
             this.ctx.shadowBlur = 0;
-            this.ctx.restore();
+
+            this.ctx.shadowColor = '#ff4400';
+>>>>>>> parent of a15a772 (Amazon Canopy: Replace flat green background with detailed rainforest jungle scenery)
+            this.ctx.shadowBlur = 8;
+            for (let g = 0; g < 3; g++) {
+              const gx = px - visualWidth * 0.3 + g * visualWidth * 0.3;
+              const gy = py + visualHeight * 0.2 + (Math.sin(pSeed * 3 + g * 2.1) + 0.3) * visualHeight * 0.3;
+              const gr = 3 + Math.sin(pSeed * 5 + g * 1.3) * 1.5;
+              this.ctx.fillStyle = `rgba(255, ${100 + g * 40}, 0, ${0.5 - crumble * 0.3})`;
+              this.ctx.beginPath();
+              this.ctx.arc(gx, gy, gr, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+            this.ctx.shadowBlur = 0;
+
+            for (let r = 0; r < 4; r++) {
+              const rx = px - visualWidth * 0.4 + (Math.sin(pSeed * 11 + r * 3.7) + 0.5) * visualWidth * 0.6;
+              const ry = py + visualHeight + (Math.sin(pSeed * 13 + r * 1.1) + 0.5) * visualHeight * 0.3;
+              const rr = 2 + Math.sin(pSeed * 3 + r * 2.3) * 1;
+              this.ctx.fillStyle = `rgba(50, 45, 40, ${0.5 - crumble * 0.3})`;
+              this.ctx.beginPath();
+              this.ctx.arc(rx, ry, rr, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            if (pState === 'fallen') {
+              this.ctx.fillStyle = `rgba(100, 90, 80, 0.06)`;
+              for (let s = 0; s < 3; s++) {
+                const sx = px - visualWidth * 0.3 + s * visualWidth * 0.3 + Math.sin(performance.now() * 0.002 + pSeed + s) * 5;
+                const sy = py + (pSide === 'top' ? -5 - s * 4 : visualHeight + 5 + s * 4) + Math.sin(performance.now() * 0.003 + pSeed + s) * 2;
+                const sr = 6 + Math.sin(performance.now() * 0.001 + pSeed + s) * 2;
+                this.ctx.beginPath();
+                this.ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+                this.ctx.fill();
+              }
+            }
+
+            this.ctx.globalAlpha = 1;
           }
+
+          this.ctx.restore();
+        } else if (obs.type === 'carnivorous_vine') {
+        // Carnivorous Vine — Amazon Canopy exclusive (frame-based animation)
+        try {
+          const vineCamX = obs.x - camX;
+          const vineCullBuf = 300;
+          if (vineCamX + 200 < -vineCullBuf || vineCamX - 200 > screenW / zoom + vineCullBuf) return;
+          this.ctx.save();
+
+          const isTop = obs.wallSide === 'top';
+          const headR = obs.headRadius || 12;
+          const stemH = obs.stemHeight || 22;
+          const phase = obs._phase || 0;
+          const animState = obs._animState || 'idle';
+          const animFrame = obs._animFrame || 0;
+          const time = performance.now();
+          const swayAmt = Math.sin(time * 0.002 + phase) * 3;
+          const breatheAmt = 1 + Math.sin(time * 0.003 + phase) * 0.03;
+
+          // Head position
+          const headX = vineCamX + swayAmt;
+          const headY = isTop ? obs.y + stemH * 0.5 : obs.y - stemH * 0.5;
+
+          // ========== IDLE ANIMATION ==========
+          if (animState === 'idle' || animState === 'cooldown') {
+            // Vine stem with gentle sway
+            this.ctx.globalAlpha = 0.7;
+            this.ctx.strokeStyle = '#2a3a28';
+            this.ctx.lineWidth = 3 + Math.sin(phase) * 0.5;
+            this.ctx.beginPath();
+            if (isTop) {
+              this.ctx.moveTo(vineCamX, obs.y);
+              this.ctx.quadraticCurveTo(headX - swayAmt * 0.5, obs.y + stemH * 0.3, headX, headY);
+            } else {
+              this.ctx.moveTo(vineCamX, obs.y);
+              this.ctx.quadraticCurveTo(headX - swayAmt * 0.5, obs.y - stemH * 0.3, headX, headY);
+            }
+            this.ctx.stroke();
+
+            // Base leaves with subtle movement
+            this.ctx.globalAlpha = 0.4;
+            this.ctx.fillStyle = '#1a4a28';
+            const baseLeafCount = 4;
+            for (let li = 0; li < baseLeafCount; li++) {
+              const la = (li / baseLeafCount) * Math.PI * 2 + phase + Math.sin(time * 0.001 + li) * 0.05;
+              const lx = vineCamX + Math.cos(la) * (8 + Math.sin(phase + li) * 2);
+              const ly = obs.y + Math.sin(la) * (4 + Math.cos(phase + li) * 1.5);
+              this.ctx.beginPath();
+              this.ctx.ellipse(lx, ly, 6, 3, la * 0.3, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            // Flytrap head - breathing idle
+            const idleBreathe = 1 + Math.sin(time * 0.0025 + phase) * 0.04;
+            const mouthOpen = animState === 'cooldown' ? 0.15 + 0.25 * (obs._animTimer / 120) : 0.35 + Math.sin(time * 0.004 + phase) * 0.05;
+
+            // Outer jaw
+            this.ctx.globalAlpha = 0.6;
+            this.ctx.fillStyle = '#2a5a28';
+            this.ctx.beginPath();
+            this.ctx.ellipse(headX, headY + headR * 0.2 * (1 - mouthOpen), headR * 1.1 * idleBreathe, headR * 0.5 * (1 - mouthOpen), 0, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Inner jaw
+            this.ctx.beginPath();
+            this.ctx.ellipse(headX, headY - headR * 0.2 * (1 - mouthOpen), headR * 1.1 * idleBreathe, headR * 0.5 * (1 - mouthOpen), 0, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Inner mouth
+            if (mouthOpen > 0.1) {
+              this.ctx.globalAlpha = 0.3;
+              this.ctx.fillStyle = '#8a2a1a';
+              this.ctx.beginPath();
+              this.ctx.ellipse(headX, headY, headR * 0.6 * idleBreathe, headR * 0.3 * mouthOpen, 0, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            // Teeth
+            this.ctx.globalAlpha = 0.2;
+            this.ctx.fillStyle = '#4a6a3a';
+            const teethCount = 5;
+            for (let ti = 0; ti < teethCount; ti++) {
+              const ta = (ti / teethCount) * Math.PI * 2 + phase * 0.1;
+              const tx = headX + Math.cos(ta) * headR * 0.9 * idleBreathe;
+              const ty = headY + Math.sin(ta) * headR * 0.4 * (1 - mouthOpen);
+              this.ctx.beginPath();
+              this.ctx.moveTo(tx - 2, ty);
+              this.ctx.lineTo(tx, ty + 4 * (Math.sin(ta) > 0 ? 1 : -1));
+              this.ctx.lineTo(tx + 2, ty);
+              this.ctx.closePath();
+              this.ctx.fill();
+            }
+          }
+
+          // ========== WRAPPING ANIMATION (6 key frames) ==========
+          else if (animState === 'wrapping') {
+            const wrapProgress = animFrame / 5; // 0 to 1 over 6 frames
+
+            // Vine stem extends and coils
+            this.ctx.globalAlpha = 0.8;
+            this.ctx.strokeStyle = '#3a4a28';
+            this.ctx.lineWidth = 4 + wrapProgress * 2;
+            this.ctx.beginPath();
+            if (isTop) {
+              this.ctx.moveTo(vineCamX, obs.y);
+              // Coil wraps around ball position
+              const coilX = headX + Math.sin(wrapProgress * Math.PI * 3) * 15 * wrapProgress;
+              const coilY = headY + wrapProgress * 20;
+              this.ctx.quadraticCurveTo(
+                headX - swayAmt * 0.5 + Math.sin(wrapProgress * Math.PI * 2) * 10,
+                obs.y + stemH * 0.3 + wrapProgress * 15,
+                coilX, coilY
+              );
+            } else {
+              this.ctx.moveTo(vineCamX, obs.y);
+              const coilX = headX + Math.sin(wrapProgress * Math.PI * 3) * 15 * wrapProgress;
+              const coilY = headY - wrapProgress * 20;
+              this.ctx.quadraticCurveTo(
+                headX - swayAmt * 0.5 + Math.sin(wrapProgress * Math.PI * 2) * 10,
+                obs.y - stemH * 0.3 - wrapProgress * 15,
+                coilX, coilY
+              );
+            }
+            this.ctx.stroke();
+
+            // Multiple coil layers for 3-4 coils visual
+            this.ctx.globalAlpha = 0.5;
+            this.ctx.strokeStyle = '#2a5a28';
+            this.ctx.lineWidth = 2.5;
+            for (let c = 0; c < 3; c++) {
+              const coilPhase = c * 2.1;
+              this.ctx.beginPath();
+              if (isTop) {
+                this.ctx.moveTo(vineCamX, obs.y);
+                const coilX = headX + Math.sin(wrapProgress * Math.PI * 3 + coilPhase) * 12 * wrapProgress;
+                const coilY = headY + wrapProgress * 18;
+                this.ctx.quadraticCurveTo(
+                  headX - swayAmt * 0.3 + Math.sin(wrapProgress * Math.PI * 2 + coilPhase) * 8,
+                  obs.y + stemH * 0.2 + wrapProgress * 12,
+                  coilX, coilY
+                );
+              } else {
+                this.ctx.moveTo(vineCamX, obs.y);
+                const coilX = headX + Math.sin(wrapProgress * Math.PI * 3 + coilPhase) * 12 * wrapProgress;
+                const coilY = headY - wrapProgress * 18;
+                this.ctx.quadraticCurveTo(
+                  headX - swayAmt * 0.3 + Math.sin(wrapProgress * Math.PI * 2 + coilPhase) * 8,
+                  obs.y - stemH * 0.2 - wrapProgress * 12,
+                  coilX, coilY
+                );
+              }
+              this.ctx.stroke();
+            }
+
+            // Base leaves
+            this.ctx.globalAlpha = 0.4;
+            this.ctx.fillStyle = '#1a4a28';
+            for (let li = 0; li < 4; li++) {
+              const la = (li / 4) * Math.PI * 2 + phase + wrapProgress * 0.5;
+              const lx = vineCamX + Math.cos(la) * (8 + Math.sin(phase + li) * 2);
+              const ly = obs.y + Math.sin(la) * (4 + Math.cos(phase + li) * 1.5);
+              this.ctx.beginPath();
+              this.ctx.ellipse(lx, ly, 6, 3, la * 0.3, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            // Head - mouth closing during wrap
+            const wrapMouthOpen = 0.35 * (1 - wrapProgress);
+            const wrapBreathe = 1 + Math.sin(time * 0.005) * 0.02;
+
+            this.ctx.globalAlpha = 0.6;
+            this.ctx.fillStyle = '#2a5a28';
+            this.ctx.beginPath();
+            this.ctx.ellipse(headX, headY + headR * 0.2 * (1 - wrapMouthOpen), headR * 1.1 * wrapBreathe, headR * 0.5 * (1 - wrapMouthOpen), 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.beginPath();
+            this.ctx.ellipse(headX, headY - headR * 0.2 * (1 - wrapMouthOpen), headR * 1.1 * wrapBreathe, headR * 0.5 * (1 - wrapMouthOpen), 0, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            if (wrapMouthOpen > 0.05) {
+              this.ctx.globalAlpha = 0.3;
+              this.ctx.fillStyle = '#8a2a1a';
+              this.ctx.beginPath();
+              this.ctx.ellipse(headX, headY, headR * 0.6 * wrapBreathe, headR * 0.3 * wrapMouthOpen, 0, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            // Teeth
+            this.ctx.globalAlpha = 0.25;
+            this.ctx.fillStyle = '#4a6a3a';
+            for (let ti = 0; ti < 5; ti++) {
+              const ta = (ti / 5) * Math.PI * 2 + phase * 0.1;
+              const tx = headX + Math.cos(ta) * headR * 0.9 * wrapBreathe;
+              const ty = headY + Math.sin(ta) * headR * 0.4 * (1 - wrapMouthOpen);
+              this.ctx.beginPath();
+              this.ctx.moveTo(tx - 2, ty);
+              this.ctx.lineTo(tx, ty + 4 * (Math.sin(ta) > 0 ? 1 : -1));
+              this.ctx.lineTo(tx + 2, ty);
+              this.ctx.closePath();
+              this.ctx.fill();
+            }
+
+            // Wrap particles around head
+            this.ctx.globalAlpha = 0.4;
+            this.ctx.fillStyle = '#4a8a3a';
+            for (let wp = 0; wp < 4; wp++) {
+              const wa = time * 0.003 + wp * 1.5 + wrapProgress * 2;
+              const wx = headX + Math.cos(wa) * headR * 1.2 * wrapProgress;
+              const wy = headY + Math.sin(wa) * headR * 0.8 * wrapProgress;
+              this.ctx.beginPath();
+              this.ctx.arc(wx, wy, 1.5, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+          }
+
+          // ========== HOLDING ANIMATION (6-frame breathing loop) ==========
+          else if (animState === 'holding') {
+            const breathePhase = (animFrame / 5) * Math.PI * 2;
+            const breatheScale = 1 + Math.sin(breathePhase) * 0.05;
+            const squeezeX = Math.sin(breathePhase) * 2;
+            const squeezeY = Math.cos(breathePhase * 0.7) * 1.5;
+
+            // Vine stem - thick, holding tension
+            this.ctx.globalAlpha = 0.9;
+            this.ctx.strokeStyle = '#3a4a28';
+            this.ctx.lineWidth = 5;
+            this.ctx.beginPath();
+            if (isTop) {
+              this.ctx.moveTo(vineCamX, obs.y);
+              this.ctx.quadraticCurveTo(headX - swayAmt * 0.5 + squeezeX, obs.y + stemH * 0.3 + squeezeY * 0.5, headX + squeezeX, headY + squeezeY);
+            } else {
+              this.ctx.moveTo(vineCamX, obs.y);
+              this.ctx.quadraticCurveTo(headX - swayAmt * 0.5 + squeezeX, obs.y - stemH * 0.3 + squeezeY * 0.5, headX + squeezeX, headY + squeezeY);
+            }
+            this.ctx.stroke();
+
+            // Coils around ball (3-4 visible coils)
+            const ball = obs._capturedBall;
+            if (ball) {
+              const ballX = ball.x - camX;
+              const ballY = ball.y;
+              const ballR = ball.radius || 15;
+
+              this.ctx.globalAlpha = 0.7;
+              this.ctx.strokeStyle = '#2a4a18';
+              this.ctx.lineWidth = 4;
+              for (let c = 0; c < 4; c++) {
+                const coilPhase = c * 1.6 + breathePhase * 0.3;
+                const coilR = ballR + 5 + c * 3;
+                this.ctx.beginPath();
+                for (let cp = 0; cp <= 8; cp++) {
+                  const ca = (cp / 8) * Math.PI * 2 + coilPhase;
+                  const cx = ballX + Math.cos(ca) * coilR;
+                  const cy = ballY + Math.sin(ca) * coilR * 0.7;
+                  if (cp === 0) this.ctx.moveTo(cx, cy);
+                  else this.ctx.lineTo(cx, cy);
+                }
+                this.ctx.stroke();
+              }
+
+              // Highlight on coils
+              this.ctx.globalAlpha = 0.25;
+              this.ctx.strokeStyle = '#4a6a3a';
+              this.ctx.lineWidth = 1.5;
+              for (let c = 0; c < 4; c++) {
+                const coilPhase = c * 1.6 + breathePhase * 0.3;
+                const coilR = ballR + 5 + c * 3;
+                this.ctx.beginPath();
+                for (let cp = 0; cp <= 8; cp++) {
+                  const ca = (cp / 8) * Math.PI * 2 + coilPhase;
+                  const cx = ballX + Math.cos(ca) * coilR;
+                  const cy = ballY + Math.sin(ca) * coilR * 0.7;
+                  if (cp === 0) this.ctx.moveTo(cx, cy);
+                  else this.ctx.lineTo(cx, cy);
+                }
+                this.ctx.stroke();
+              }
+
+              // Thorns pressing into ball
+              this.ctx.globalAlpha = 0.6;
+              this.ctx.fillStyle = '#2a1005';
+              for (let pt = 0; pt < 8; pt++) {
+                const pta = (pt / 8) * Math.PI * 2 + breathePhase * 0.5;
+                const ptx = ballX + Math.cos(pta) * (ballR + 1);
+                const pty = ballY + Math.sin(pta) * (ballR + 1);
+                const ptLen = 3 + Math.sin(pta * 4 + breathePhase) * 1.5;
+                this.ctx.beginPath();
+                this.ctx.moveTo(ptx, pty);
+                this.ctx.lineTo(ptx + Math.cos(pta) * ptLen, pty + Math.sin(pta) * ptLen);
+                this.ctx.lineTo(ptx + Math.cos(pta + 0.5) * ptLen * 0.3, pty + Math.sin(pta + 0.5) * ptLen * 0.3);
+                this.ctx.closePath();
+                this.ctx.fill();
+              }
+            }
+
+            // Base leaves
+            this.ctx.globalAlpha = 0.4;
+            this.ctx.fillStyle = '#1a4a28';
+            for (let li = 0; li < 4; li++) {
+              const la = (li / 4) * Math.PI * 2 + phase + Math.sin(breathePhase + li) * 0.1;
+              const lx = vineCamX + Math.cos(la) * (8 + Math.sin(phase + li) * 2);
+              const ly = obs.y + Math.sin(la) * (4 + Math.cos(phase + li) * 1.5);
+              this.ctx.beginPath();
+              this.ctx.ellipse(lx, ly, 6, 3, la * 0.3, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            // Head - tightly closed, breathing
+            const holdBreathe = 1 + Math.sin(breathePhase) * 0.03;
+            const holdHeadX = headX + squeezeX;
+            const holdHeadY = headY + squeezeY;
+
+            this.ctx.globalAlpha = 0.65;
+            this.ctx.fillStyle = '#2a5a28';
+            this.ctx.beginPath();
+            this.ctx.ellipse(holdHeadX, holdHeadY + headR * 0.15 * holdBreathe, headR * 1.1 * holdBreathe, headR * 0.45 * holdBreathe, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.beginPath();
+            this.ctx.ellipse(holdHeadX, holdHeadY - headR * 0.15 * holdBreathe, headR * 1.1 * holdBreathe, headR * 0.45 * holdBreathe, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Tiny mouth slit
+            this.ctx.globalAlpha = 0.2;
+            this.ctx.fillStyle = '#8a2a1a';
+            this.ctx.beginPath();
+            this.ctx.ellipse(holdHeadX, holdHeadY, headR * 0.3 * holdBreathe, headR * 0.08 * holdBreathe, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Teeth visible at edges
+            this.ctx.globalAlpha = 0.3;
+            this.ctx.fillStyle = '#3a5a2a';
+            for (let ti = 0; ti < 6; ti++) {
+              const ta = (ti / 6) * Math.PI * 2 + phase * 0.1;
+              const tx = holdHeadX + Math.cos(ta) * headR * 0.95 * holdBreathe;
+              const ty = holdHeadY + Math.sin(ta) * headR * 0.35 * holdBreathe;
+              this.ctx.beginPath();
+              this.ctx.moveTo(tx - 1.5, ty);
+              this.ctx.lineTo(tx, ty + 3 * (Math.sin(ta) > 0 ? 1 : -1));
+              this.ctx.lineTo(tx + 1.5, ty);
+              this.ctx.closePath();
+              this.ctx.fill();
+            }
+          }
+
+          // ========== RELEASING ANIMATION (6 key frames) ==========
+          else if (animState === 'releasing') {
+            const releaseProgress = animFrame / 5; // 0 to 1
+            const uncoilProgress = 1 - releaseProgress;
+
+            // Vine stem retracts
+            this.ctx.globalAlpha = 0.7;
+            this.ctx.strokeStyle = '#2a3a28';
+            this.ctx.lineWidth = 3 + uncoilProgress * 2;
+            this.ctx.beginPath();
+            if (isTop) {
+              this.ctx.moveTo(vineCamX, obs.y);
+              const retX = headX + Math.sin(releaseProgress * Math.PI * 2) * 10 * uncoilProgress;
+              const retY = headY + 15 * uncoilProgress;
+              this.ctx.quadraticCurveTo(headX - swayAmt * 0.5, obs.y + stemH * 0.3, retX, retY);
+            } else {
+              this.ctx.moveTo(vineCamX, obs.y);
+              const retX = headX + Math.sin(releaseProgress * Math.PI * 2) * 10 * uncoilProgress;
+              const retY = headY - 15 * uncoilProgress;
+              this.ctx.quadraticCurveTo(headX - swayAmt * 0.5, obs.y - stemH * 0.3, retX, retY);
+            }
+            this.ctx.stroke();
+
+            // Coils unwinding
+            const ball = obs._capturedBall;
+            if (ball && releaseProgress < 0.5) {
+              const ballX = ball.x - camX;
+              const ballY = ball.y;
+              const ballR = ball.radius || 15;
+
+              this.ctx.globalAlpha = 0.5 * uncoilProgress;
+              this.ctx.strokeStyle = '#2a4a18';
+              this.ctx.lineWidth = 3;
+              for (let c = 0; c < 3; c++) {
+                const coilPhase = c * 1.6 + releaseProgress * 3;
+                const coilR = ballR + 5 + c * 3;
+                this.ctx.beginPath();
+                for (let cp = 0; cp <= 8; cp++) {
+                  const ca = (cp / 8) * Math.PI * 2 + coilPhase;
+                  const cx = ballX + Math.cos(ca) * coilR * uncoilProgress;
+                  const cy = ballY + Math.sin(ca) * coilR * 0.7 * uncoilProgress;
+                  if (cp === 0) this.ctx.moveTo(cx, cy);
+                  else this.ctx.lineTo(cx, cy);
+                }
+                this.ctx.stroke();
+              }
+            }
+
+            // Base leaves settling
+            this.ctx.globalAlpha = 0.4;
+            this.ctx.fillStyle = '#1a4a28';
+            for (let li = 0; li < 4; li++) {
+              const la = (li / 4) * Math.PI * 2 + phase + releaseProgress * 0.3;
+              const lx = vineCamX + Math.cos(la) * (8 + Math.sin(phase + li) * 2);
+              const ly = obs.y + Math.sin(la) * (4 + Math.cos(phase + li) * 1.5);
+              this.ctx.beginPath();
+              this.ctx.ellipse(lx, ly, 6, 3, la * 0.3, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            // Head - mouth opening
+            const releaseMouthOpen = 0.1 + releaseProgress * 0.3;
+            const releaseBreathe = 1 + Math.sin(time * 0.003) * 0.02;
+
+            this.ctx.globalAlpha = 0.6;
+            this.ctx.fillStyle = '#2a5a28';
+            this.ctx.beginPath();
+            this.ctx.ellipse(headX, headY + headR * 0.2 * (1 - releaseMouthOpen), headR * 1.1 * releaseBreathe, headR * 0.5 * (1 - releaseMouthOpen), 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.beginPath();
+            this.ctx.ellipse(headX, headY - headR * 0.2 * (1 - releaseMouthOpen), headR * 1.1 * releaseBreathe, headR * 0.5 * (1 - releaseMouthOpen), 0, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            if (releaseMouthOpen > 0.05) {
+              this.ctx.globalAlpha = 0.3;
+              this.ctx.fillStyle = '#8a2a1a';
+              this.ctx.beginPath();
+              this.ctx.ellipse(headX, headY, headR * 0.6 * releaseBreathe, headR * 0.3 * releaseMouthOpen, 0, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            // Teeth
+            this.ctx.globalAlpha = 0.2;
+            this.ctx.fillStyle = '#4a6a3a';
+            for (let ti = 0; ti < 5; ti++) {
+              const ta = (ti / 5) * Math.PI * 2 + phase * 0.1;
+              const tx = headX + Math.cos(ta) * headR * 0.9 * releaseBreathe;
+              const ty = headY + Math.sin(ta) * headR * 0.4 * (1 - releaseMouthOpen);
+              this.ctx.beginPath();
+              this.ctx.moveTo(tx - 2, ty);
+              this.ctx.lineTo(tx, ty + 4 * (Math.sin(ta) > 0 ? 1 : -1));
+              this.ctx.lineTo(tx + 2, ty);
+              this.ctx.closePath();
+              this.ctx.fill();
+            }
+
+            // Release leaf burst (frames 3-4)
+            if (releaseProgress > 0.4 && releaseProgress < 0.7) {
+              this.ctx.globalAlpha = 0.5 * (1 - Math.abs(releaseProgress - 0.55) * 3);
+              for (let rp = 0; rp < 6; rp++) {
+                const ra = Math.random() * Math.PI * 2;
+                const rd = 8 + Math.random() * 18;
+                this.ctx.fillStyle = '#3a7a3a';
+                this.ctx.beginPath();
+                this.ctx.ellipse(headX + Math.cos(ra) * rd, headY + Math.sin(ra) * rd, 3, 1.5, ra, 0, Math.PI * 2);
+                this.ctx.fill();
+              }
+            }
+          }
+
           this.ctx.globalAlpha = 1;
+          this.ctx.restore();
+        } catch (e) {
+          console.warn('Carnivorous vine render error:', e.message);
         }
       }
-      this.ctx.restore();
+      });
 
-      // Draw Retractable Wall Icicles — natural ice formations on track boundaries
+      // Lava Shower ??? render molten lava chunks
+      if (this._lavaChunks && this._lavaChunks.length > 0) {
+        for (const chunk of this._lavaChunks) {
+          const cX = chunk.x - camX;
+          const r = chunk.radius;
+          this.ctx.save();
+
+          // Ember trail glow while falling
+          const trailLen = Math.abs(chunk.vy) * 3;
+          const trailGrad = this.ctx.createLinearGradient(cX, chunk.y - trailLen, cX, chunk.y);
+          trailGrad.addColorStop(0, 'rgba(255, 100, 0, 0)');
+          trailGrad.addColorStop(0.5, 'rgba(255, 80, 0, 0.15)');
+          trailGrad.addColorStop(1, 'rgba(255, 60, 0, 0.35)');
+          this.ctx.fillStyle = trailGrad;
+          this.ctx.beginPath();
+          this.ctx.moveTo(cX - r * 0.4, chunk.y);
+          this.ctx.lineTo(cX + r * 0.4, chunk.y);
+          this.ctx.lineTo(cX + r * 0.1, chunk.y - trailLen);
+          this.ctx.lineTo(cX - r * 0.1, chunk.y - trailLen);
+          this.ctx.closePath();
+          this.ctx.fill();
+
+          // Outer glow
+          this.ctx.shadowColor = '#ff4400';
+          this.ctx.shadowBlur = 20;
+
+          // Main lava chunk body
+          const chunkGrad = this.ctx.createRadialGradient(cX - r * 0.2, chunk.y - r * 0.2, 1, cX, chunk.y, r);
+          chunkGrad.addColorStop(0, '#ffcc44');
+          chunkGrad.addColorStop(0.3, '#ff8800');
+          chunkGrad.addColorStop(0.6, '#cc4400');
+          chunkGrad.addColorStop(0.85, '#662200');
+          chunkGrad.addColorStop(1, '#331100');
+          this.ctx.fillStyle = chunkGrad;
+
+          // Jagged irregular shape
+          this.ctx.beginPath();
+          const segs = 8;
+          for (let i = 0; i <= segs; i++) {
+            const a = (i / segs) * Math.PI * 2;
+            const jitter = (Math.sin(chunk._seed * 10 + i * 3.7) - 0.5) * r * 0.25;
+            const rr = r + jitter;
+            const px = cX + Math.cos(a) * rr;
+            const py = chunk.y + Math.sin(a) * rr;
+            if (i === 0) this.ctx.moveTo(px, py);
+            else this.ctx.lineTo(px, py);
+          }
+          this.ctx.closePath();
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+
+          // Darker crust edge
+          this.ctx.strokeStyle = 'rgba(30, 15, 5, 0.5)';
+          this.ctx.lineWidth = 2;
+          this.ctx.stroke();
+
+          // Bright core highlight
+          const coreGrad = this.ctx.createRadialGradient(cX - r * 0.15, chunk.y - r * 0.15, 0, cX, chunk.y, r * 0.4);
+          coreGrad.addColorStop(0, 'rgba(255, 220, 100, 0.6)');
+          coreGrad.addColorStop(0.5, 'rgba(255, 150, 0, 0.3)');
+          coreGrad.addColorStop(1, 'rgba(200, 50, 0, 0)');
+          this.ctx.fillStyle = coreGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(cX, chunk.y, r * 0.4, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Molten glow cracks on surface
+          this.ctx.shadowColor = '#ff6600';
+          this.ctx.shadowBlur = 4;
+          for (let c = 0; c < 3; c++) {
+            const ca = (Math.sin(chunk._seed * 3 + c * 2.1) + 1) * Math.PI;
+            const cd = r * 0.3 + Math.sin(chunk._seed * 7 + c * 1.3) * r * 0.2;
+            const cx = cX + Math.cos(ca) * cd;
+            const cy = chunk.y + Math.sin(ca) * cd;
+            const cl = 2 + Math.sin(chunk._seed * 5 + c * 0.7) * 1.5;
+            const ca2 = ca + 0.5 + Math.sin(chunk._seed + c) * 0.5;
+            this.ctx.strokeStyle = 'rgba(255, 200, 50, 0.4)';
+            this.ctx.lineWidth = 1.5;
+            this.ctx.beginPath();
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + Math.cos(ca2) * cl, cy + Math.sin(ca2) * cl);
+            this.ctx.stroke();
+          }
+          this.ctx.shadowBlur = 0;
+
+          this.ctx.restore();
+        }
+      }
+
+
+      // Draw Retractable Wall Icicles ??? natural ice formations on track boundaries
       if (this.track && this.track.obstacles) {
         this.track.obstacles.forEach(obs => {
           if (obs.type !== 'icicle') return;
@@ -7984,11 +11429,172 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.quadraticCurveTo(_iTipX + _halfW * 0.2 + _irreg * 0.5, _midY, _iTipX + _halfW * 0.3 + _irreg * 0.5, _iBaseY - 2);
           this.ctx.closePath();
           this.ctx.fill();
+this.ctx.restore();
+        });
+      }
+    }
+
+      // Draw Lava Geysers ??? Magma Crater exclusive volcanic hazard
+      if (this.currentThemeKey === 'volcano' && this.track && this.track.obstacles) {
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'lava_geyser') return;
+          const gCamX = obs.x - camX;
+          const gCullBuf = 300;
+          if (gCamX + 200 < -gCullBuf || gCamX - 200 > screenW / zoom + gCullBuf) return;
+          
+          const state = obs._state || 'hidden';
+          const crackWidth = obs._crackWidth || 12;
+          const crackHeight = obs.crackHeight || 60;
+          const eruptionHeight = obs._eruptionHeight || 200;
+          const eruptionWidth = obs._eruptionWidth || 30;
+          const warningGlow = obs._warningGlow || 0;
+          
+          this.ctx.save();
+          
+          // ===== CRACK IN GROUND (always visible) =====
+          const crackGrad = this.ctx.createLinearGradient(
+            gCamX - crackWidth / 2, obs.y,
+            gCamX + crackWidth / 2, obs.y
+          );
+          crackGrad.addColorStop(0, '#1a1008');
+          crackGrad.addColorStop(0.3, '#2a1505');
+          crackGrad.addColorStop(0.5, warningGlow > 0 ? `rgba(255, 100, 0, ${0.3 + warningGlow * 0.4})` : '#3a1a05');
+          crackGrad.addColorStop(0.7, '#2a1505');
+          crackGrad.addColorStop(1, '#1a1008');
+          
+          this.ctx.fillStyle = crackGrad;
+          this.ctx.beginPath();
+          // Irregular crack shape
+          const crackSegments = 8;
+          for (let i = 0; i <= crackSegments; i++) {
+            const t = i / crackSegments;
+            const angle = t * Math.PI * 2 - Math.PI / 2;
+            const baseR = crackWidth / 2;
+            const jitter = (Math.sin((obs._seed || 0) * 10 + i * 1.5) - 0.5) * 4;
+            const r = baseR + jitter;
+            const px = gCamX + Math.cos(angle) * r;
+            const py = obs.y + Math.sin(angle) * crackHeight * 0.5;
+            if (i === 0) this.ctx.moveTo(px, py);
+            else this.ctx.lineTo(px, py);
+          }
+          // Bottom of crack
+          for (let i = crackSegments; i >= 0; i--) {
+            const t = i / crackSegments;
+            const angle = t * Math.PI * 2 + Math.PI / 2;
+            const baseR = crackWidth / 2;
+            const jitter = (Math.sin((obs._seed || 0) * 10 + i * 1.5 + 100) - 0.5) * 4;
+            const r = baseR + jitter;
+            const px = gCamX + Math.cos(angle) * r;
+            const py = obs.y + Math.sin(angle) * crackHeight * 0.5;
+            this.ctx.lineTo(px, py);
+          }
+          this.ctx.closePath();
+          this.ctx.fill();
+          
+          // Crack glow when warning/erupting
+          if (state === 'warning' || state === 'erupting') {
+            this.ctx.strokeStyle = `rgba(255, 140, 0, ${0.5 + warningGlow * 0.5})`;
+            this.ctx.lineWidth = 2;
+            this.ctx.shadowColor = '#ff8800';
+            this.ctx.shadowBlur = 8;
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+          }
+          
+          // ===== ERUPTION COLUMN =====
+          if (state === 'erupting') {
+            const eruptionProgress = (obs._stateTimer || 0) / (obs._eruptionDuration || 60);
+            const currentHeight = eruptionHeight * eruptionProgress;
+            const currentWidth = eruptionWidth * (0.8 + 0.4 * Math.sin(performance.now() * 0.01));
+            
+            // Outer glow
+            this.ctx.save();
+            const eruptionGrad = this.ctx.createLinearGradient(
+              gCamX, obs.y,
+              gCamX, obs.y - currentHeight
+            );
+            eruptionGrad.addColorStop(0, 'rgba(255, 80, 0, 0.9)');
+            eruptionGrad.addColorStop(0.3, 'rgba(255, 140, 0, 0.7)');
+            eruptionGrad.addColorStop(0.6, 'rgba(255, 200, 50, 0.5)');
+            eruptionGrad.addColorStop(1, 'rgba(255, 255, 100, 0.2)');
+            
+            this.ctx.fillStyle = eruptionGrad;
+            this.ctx.shadowColor = '#ff8800';
+            this.ctx.shadowBlur = 30;
+            
+            // Main column
+            this.ctx.beginPath();
+            this.ctx.moveTo(gCamX - currentWidth / 2, obs.y);
+            this.ctx.lineTo(gCamX - currentWidth / 2 * 0.9, obs.y - currentHeight * 0.3);
+            this.ctx.lineTo(gCamX - currentWidth / 2 * 0.7, obs.y - currentHeight * 0.7);
+            this.ctx.lineTo(gCamX, obs.y - currentHeight);
+            this.ctx.lineTo(gCamX + currentWidth / 2 * 0.7, obs.y - currentHeight * 0.7);
+            this.ctx.lineTo(gCamX + currentWidth / 2 * 0.9, obs.y - currentHeight * 0.3);
+            this.ctx.lineTo(gCamX + currentWidth / 2, obs.y);
+            this.ctx.closePath();
+            this.ctx.fill();
+            
+            // Bright core
+            const coreGrad = this.ctx.createLinearGradient(
+              gCamX, obs.y,
+              gCamX, obs.y - currentHeight
+            );
+            coreGrad.addColorStop(0, 'rgba(255, 255, 200, 0.9)');
+            coreGrad.addColorStop(0.5, 'rgba(255, 255, 150, 0.7)');
+            coreGrad.addColorStop(1, 'rgba(255, 255, 100, 0.3)');
+            
+            this.ctx.fillStyle = coreGrad;
+            this.ctx.beginPath();
+            const coreWidth = currentWidth * 0.35;
+            this.ctx.moveTo(gCamX - coreWidth / 2, obs.y);
+            this.ctx.lineTo(gCamX - coreWidth / 2, obs.y - currentHeight * 0.8);
+            this.ctx.lineTo(gCamX + coreWidth / 2, obs.y - currentHeight * 0.8);
+            this.ctx.lineTo(gCamX + coreWidth / 2, obs.y);
+            this.ctx.closePath();
+            this.ctx.fill();
+            
+            this.ctx.shadowBlur = 0;
+            this.ctx.restore();
+            
+            // Heat shimmer above eruption
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.15;
+            this.ctx.strokeStyle = 'rgba(255, 200, 100, 0.6)';
+            this.ctx.lineWidth = 1;
+            for (let h = 0; h < 3; h++) {
+              const shimmerY = obs.y - currentHeight - 10 - h * 8;
+              this.ctx.beginPath();
+              for (let x = gCamX - currentWidth; x <= gCamX + currentWidth; x += 4) {
+                const yy = shimmerY + Math.sin(x * 0.02 + performance.now() * 0.008 + h * 1.5) * (2 + h);
+                if (x === gCamX - currentWidth) this.ctx.moveTo(x, yy);
+                else this.ctx.lineTo(x, yy);
+              }
+              this.ctx.stroke();
+            }
+            this.ctx.globalAlpha = 1;
+            this.ctx.restore();
+          }
+          
+          // ===== WARNING PHASE GLOW =====
+          if (state === 'warning') {
+            const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.02);
+            this.ctx.save();
+            this.ctx.globalAlpha = pulse * 0.6;
+            this.ctx.fillStyle = 'rgba(255, 140, 0, 0.4)';
+            this.ctx.shadowColor = '#ff8800';
+            this.ctx.shadowBlur = 20;
+            this.ctx.beginPath();
+            this.ctx.arc(gCamX, obs.y, crackWidth + 10, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+            this.ctx.restore();
+          }
+          
           this.ctx.restore();
         });
       }
 
-      // Draw Flag Balls (racing + collector for finished)
+    // Draw Flag Balls (racing + collector for finished)
       const finishLineX = this.track ? (this.track.finishLineX || this.track.length - 400) : 0;
       let collectorIdx = 0;
 
@@ -8059,7 +11665,7 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
 
-        // 3) Flag ball body — redesigned with professional lighting
+        // 3) Flag ball body ??? redesigned with professional lighting
         this.ctx.save();
 
         // --- Antialiasing via sub-pixel offset ---
@@ -8104,7 +11710,7 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.fillText(ball.code.toUpperCase().substring(0, 3), bX, ball.y);
         }
 
-        // Subtle ambient occlusion — darker near edges opposite light
+        // Subtle ambient occlusion ??? darker near edges opposite light
         const aoGrad = this.ctx.createRadialGradient(
           bX + renderRadius * 0.25, ball.y + renderRadius * 0.25, 0,
           bX, ball.y, renderRadius * 1.1
@@ -8118,7 +11724,7 @@ if (this.activeEvent.key === 'speed_surge') {
         this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Rim light — thin bright edge on light-facing side
+        // Rim light ??? thin bright edge on light-facing side
         const rimGrad = this.ctx.createRadialGradient(
           bX + renderRadius * lx * 0.5, ball.y + renderRadius * ly * 0.5, renderRadius * 0.55,
           bX, ball.y, renderRadius
@@ -8276,6 +11882,300 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
 
+        // Lava Pool burn effect / Firestorm burn (Magma Crater exclusive)
+        if (ball._lavaBurnActive || ball._firestormBurnActive) {
+          this.ctx.save();
+          const time = Date.now() * 0.001;
+          const burnIntensity = 0.5 + 0.3 * Math.sin(time * 8);
+          
+          // Heavy scorch - darken flag texture by ~25% (more visible)
+          this.ctx.globalCompositeOperation = 'multiply';
+          this.ctx.fillStyle = 'rgba(15, 10, 5, 0.25)';
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.globalCompositeOperation = 'source-over';
+          
+          // Intense orange/red glow aura (multi-layer)
+          const burnGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius * 1.6);
+          burnGrad.addColorStop(0, 'rgba(255, 160, 0, 0)');
+          burnGrad.addColorStop(0.3, `rgba(255, 120, 0, ${0.35 * burnIntensity})`);
+          burnGrad.addColorStop(0.6, `rgba(255, 60, 0, ${0.45 * burnIntensity})`);
+          burnGrad.addColorStop(0.85, `rgba(255, 30, 0, ${0.35 * burnIntensity})`);
+          burnGrad.addColorStop(1, `rgba(200, 20, 0, ${0.15 * burnIntensity})`);
+          this.ctx.fillStyle = burnGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius * 1.6, 0, Math.PI * 2);
+          this.ctx.fill();
+          
+          // Inner core glow
+          const coreGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius * 0.8);
+          coreGrad.addColorStop(0, `rgba(255, 200, 50, ${0.4 * burnIntensity})`);
+          coreGrad.addColorStop(0.5, `rgba(255, 100, 0, ${0.25 * burnIntensity})`);
+          coreGrad.addColorStop(1, 'rgba(255, 50, 0, 0)');
+          this.ctx.fillStyle = coreGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius * 0.8, 0, Math.PI * 2);
+          this.ctx.fill();
+          
+          // Heat shimmer distortion rings
+          this.ctx.strokeStyle = `rgba(255, 180, 60, ${0.3 * burnIntensity})`;
+          this.ctx.lineWidth = 2;
+          for (let si = 0; si < 4; si++) {
+            const shimmerPhase = time * 12 + si * 1.5;
+            this.ctx.beginPath();
+            for (let a = 0; a <= Math.PI * 2; a += Math.PI / 8) {
+              const r = renderRadius * (1.15 + 0.12 * Math.sin(shimmerPhase + a * 2.5));
+              const sx = bX + Math.cos(a) * r;
+              const sy = ball.y + Math.sin(a) * r;
+              if (a === 0) this.ctx.moveTo(sx, sy);
+              else this.ctx.lineTo(sx, sy);
+            }
+            this.ctx.closePath();
+            this.ctx.stroke();
+          }
+          
+          // Rising ember trail (more particles, better physics)
+          const trailCount = 6;
+          for (let ti = 0; ti < trailCount; ti++) {
+            const tAge = ti / trailCount;
+            const px = bX - ball.vx * (3 + tAge * 10);
+            const py = ball.y - ball.vy * (3 + tAge * 10) + Math.sin(time * 10 + ti * 2) * 4;
+            const pAlpha = (1 - tAge * 0.7) * 0.8 * burnIntensity;
+            const pSize = (2 + tAge * 2.5) * burnIntensity;
+            this.ctx.globalAlpha = pAlpha;
+            const emberColors = ['#ff3300', '#ff5500', '#ff7700', '#ff9900', '#ffaa00', '#ffcc00'];
+            this.ctx.fillStyle = emberColors[Math.floor(Math.random() * emberColors.length)];
+            this.ctx.shadowColor = '#ff3300';
+            this.ctx.shadowBlur = 8;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, pSize, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+          }
+          
+          // Frequent tiny sparks flying off
+          if (Math.random() < 0.15) {
+            const sparkCount = 1 + Math.floor(Math.random() * 2);
+            for (let sc = 0; sc < sparkCount; sc++) {
+              const sx = bX + (Math.random() - 0.5) * renderRadius * 1.8;
+              const sy = ball.y + (Math.random() - 0.5) * renderRadius * 1.8;
+              this.ctx.globalAlpha = 1;
+              this.ctx.fillStyle = '#fff8cc';
+              this.ctx.shadowColor = '#ff6600';
+              this.ctx.shadowBlur = 6;
+              this.ctx.beginPath();
+              this.ctx.arc(sx, sy, 1.5 + Math.random() * 1.5, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+            }
+          }
+          
+          // Occasional larger flame burst
+          if (Math.random() < 0.03) {
+            for (let i = 0; i < 3; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const dist = renderRadius * (0.8 + Math.random() * 0.6);
+              const fx = bX + Math.cos(angle) * dist;
+              const fy = ball.y + Math.sin(angle) * dist;
+              this.ctx.globalAlpha = 0.7;
+              this.ctx.fillStyle = '#ffaa00';
+              this.ctx.shadowColor = '#ff4400';
+              this.ctx.shadowBlur = 10;
+              this.ctx.beginPath();
+              this.ctx.arc(fx, fy, 3 + Math.random() * 2, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+            }
+          }
+          
+          this.ctx.globalAlpha = 1;
+          this.ctx.restore();
+        }
+
+        // Lava Geyser burn effect / Firestorm burn (Magma Crater exclusive)
+        if (ball._geyserBurnActive || ball._firestormBurnActive) {
+          this.ctx.save();
+          const time = Date.now() * 0.001;
+          const burnIntensity = 0.5 + 0.3 * Math.sin(time * 8);
+          
+          // Heavy scorch - darken flag texture by ~25% (more visible)
+          this.ctx.globalCompositeOperation = 'multiply';
+          this.ctx.fillStyle = 'rgba(15, 10, 5, 0.25)';
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.globalCompositeOperation = 'source-over';
+          
+          // Intense orange/red glow aura (multi-layer)
+          const burnGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius * 1.6);
+          burnGrad.addColorStop(0, 'rgba(255, 160, 0, 0)');
+          burnGrad.addColorStop(0.3, `rgba(255, 120, 0, ${0.35 * burnIntensity})`);
+          burnGrad.addColorStop(0.6, `rgba(255, 60, 0, ${0.45 * burnIntensity})`);
+          burnGrad.addColorStop(0.85, `rgba(255, 30, 0, ${0.35 * burnIntensity})`);
+          burnGrad.addColorStop(1, `rgba(200, 20, 0, ${0.15 * burnIntensity})`);
+          this.ctx.fillStyle = burnGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius * 1.6, 0, Math.PI * 2);
+          this.ctx.fill();
+          
+          // Inner core glow
+          const coreGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius * 0.8);
+          coreGrad.addColorStop(0, `rgba(255, 200, 50, ${0.4 * burnIntensity})`);
+          coreGrad.addColorStop(0.5, `rgba(255, 100, 0, ${0.25 * burnIntensity})`);
+          coreGrad.addColorStop(1, 'rgba(255, 50, 0, 0)');
+          this.ctx.fillStyle = coreGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius * 0.8, 0, Math.PI * 2);
+          this.ctx.fill();
+          
+          // Heat shimmer distortion rings
+          this.ctx.strokeStyle = `rgba(255, 180, 60, ${0.3 * burnIntensity})`;
+          this.ctx.lineWidth = 2;
+          for (let si = 0; si < 4; si++) {
+            const shimmerPhase = time * 12 + si * 1.5;
+            this.ctx.beginPath();
+            for (let a = 0; a <= Math.PI * 2; a += Math.PI / 8) {
+              const r = renderRadius * (1.15 + 0.12 * Math.sin(shimmerPhase + a * 2.5));
+              const sx = bX + Math.cos(a) * r;
+              const sy = ball.y + Math.sin(a) * r;
+              if (a === 0) this.ctx.moveTo(sx, sy);
+              else this.ctx.lineTo(sx, sy);
+            }
+            this.ctx.closePath();
+            this.ctx.stroke();
+          }
+          
+          // Rising ember trail (more particles, better physics)
+          const trailCount = 6;
+          for (let ti = 0; ti < trailCount; ti++) {
+            const tAge = ti / trailCount;
+            const px = bX - ball.vx * (3 + tAge * 10);
+            const py = ball.y - ball.vy * (3 + tAge * 10) + Math.sin(time * 10 + ti * 2) * 4;
+            const pAlpha = (1 - tAge * 0.7) * 0.8 * burnIntensity;
+            const pSize = (2 + tAge * 2.5) * burnIntensity;
+            this.ctx.globalAlpha = pAlpha;
+            const emberColors = ['#ff3300', '#ff5500', '#ff7700', '#ff9900', '#ffaa00', '#ffcc00'];
+            this.ctx.fillStyle = emberColors[Math.floor(Math.random() * emberColors.length)];
+            this.ctx.shadowColor = '#ff3300';
+            this.ctx.shadowBlur = 8;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, pSize, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+          }
+          
+          // Frequent tiny sparks flying off
+          if (Math.random() < 0.15) {
+            const sparkCount = 1 + Math.floor(Math.random() * 2);
+            for (let sc = 0; sc < sparkCount; sc++) {
+              const sx = bX + (Math.random() - 0.5) * renderRadius * 1.8;
+              const sy = ball.y + (Math.random() - 0.5) * renderRadius * 1.8;
+              this.ctx.globalAlpha = 1;
+              this.ctx.fillStyle = '#fff8cc';
+              this.ctx.shadowColor = '#ff6600';
+              this.ctx.shadowBlur = 6;
+              this.ctx.beginPath();
+              this.ctx.arc(sx, sy, 1.5 + Math.random() * 1.5, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+            }
+          }
+          
+          // Occasional larger flame burst
+          if (Math.random() < 0.03) {
+            for (let i = 0; i < 3; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const dist = renderRadius * (0.8 + Math.random() * 0.6);
+              const fx = bX + Math.cos(angle) * dist;
+              const fy = ball.y + Math.sin(angle) * dist;
+              this.ctx.globalAlpha = 0.7;
+              this.ctx.fillStyle = '#ffaa00';
+              this.ctx.shadowColor = '#ff4400';
+              this.ctx.shadowBlur = 10;
+              this.ctx.beginPath();
+              this.ctx.arc(fx, fy, 3 + Math.random() * 2, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+            }
+          }
+          
+          this.ctx.globalAlpha = 1;
+          this.ctx.restore();
+        }
+
+        // Lava Shower burn effect / Firestorm burn
+        if (ball._showerBurnActive || ball._firestormBurnActive) {
+          this.ctx.save();
+          const time = Date.now() * 0.001;
+          const burnIntensity = 0.5 + 0.3 * Math.sin(time * 8);
+
+          // Scorched appearance - darken flag texture
+          this.ctx.globalCompositeOperation = 'multiply';
+          this.ctx.fillStyle = 'rgba(20, 10, 5, 0.30)';
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.globalCompositeOperation = 'source-over';
+
+          // Orange/red glow aura
+          const burnGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius * 1.6);
+          burnGrad.addColorStop(0, 'rgba(255, 140, 0, 0)');
+          burnGrad.addColorStop(0.3, `rgba(255, 120, 0, ${0.30 * burnIntensity})`);
+          burnGrad.addColorStop(0.6, `rgba(255, 50, 0, ${0.40 * burnIntensity})`);
+          burnGrad.addColorStop(0.85, `rgba(200, 20, 0, ${0.30 * burnIntensity})`);
+          burnGrad.addColorStop(1, `rgba(150, 10, 0, ${0.12 * burnIntensity})`);
+          this.ctx.fillStyle = burnGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius * 1.6, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Inner glow
+          const coreGrad = this.ctx.createRadialGradient(bX, ball.y, 0, bX, ball.y, renderRadius * 0.8);
+          coreGrad.addColorStop(0, `rgba(255, 180, 30, ${0.35 * burnIntensity})`);
+          coreGrad.addColorStop(0.5, `rgba(255, 80, 0, ${0.20 * burnIntensity})`);
+          coreGrad.addColorStop(1, 'rgba(200, 30, 0, 0)');
+          this.ctx.fillStyle = coreGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bX, ball.y, renderRadius * 0.8, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Rising embers
+          const trailCount = 4;
+          for (let ti = 0; ti < trailCount; ti++) {
+            const tAge = ti / trailCount;
+            const px = bX - ball.vx * (2 + tAge * 8);
+            const py = ball.y - ball.vy * (2 + tAge * 8) + Math.sin(time * 10 + ti * 2) * 3;
+            const pAlpha = (1 - tAge * 0.7) * 0.7 * burnIntensity;
+            const pSize = (1.5 + tAge * 2) * burnIntensity;
+            this.ctx.globalAlpha = pAlpha;
+            this.ctx.fillStyle = ['#ff4400', '#ff6600', '#ff8800'][ti % 3];
+            this.ctx.shadowColor = '#ff4400';
+            this.ctx.shadowBlur = 6;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, pSize, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+          }
+
+          // Tiny sparks
+          if (Math.random() < 0.12) {
+            const sx = bX + (Math.random() - 0.5) * renderRadius * 1.5;
+            const sy = ball.y + (Math.random() - 0.5) * renderRadius * 1.5;
+            this.ctx.globalAlpha = 1;
+            this.ctx.fillStyle = '#ffcc44';
+            this.ctx.shadowColor = '#ff6600';
+            this.ctx.shadowBlur = 5;
+            this.ctx.beginPath();
+            this.ctx.arc(sx, sy, 1 + Math.random() * 1.5, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+          }
+
+          this.ctx.globalAlpha = 1;
+          this.ctx.restore();
+        }
+
         // Aurora Borealis faint reflection on balls
         if (this._auroraActive && !ball.finished && !ball.eliminated) {
           const fade = this._auroraFadeProgress;
@@ -8307,14 +12207,16 @@ if (this.activeEvent.key === 'speed_surge') {
         // 4) Country label (with auto text contrast)
         this.ctx.save();
         const tColors = getThemeColors(this.currentThemeKey);
-        this.ctx.fillStyle = tColors.primary;
-        this.ctx.shadowColor = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'rgba(255,255,255,0.5)';
-        this.ctx.shadowBlur = 4;
         this.ctx.font = 'bold 9px Montserrat, sans-serif';
         this.ctx.textAlign = 'center';
 
         if (ball.eliminated) {
           this.ctx.fillStyle = '#e74c3c';
+          this.ctx.shadowColor = '#000000';
+          this.ctx.shadowBlur = 4;
+          this.ctx.lineWidth = 2.5;
+          this.ctx.strokeStyle = '#000000';
+          this.ctx.strokeText('ELIMINATED', bX, ball.y + renderRadius + 11);
           this.ctx.fillText('ELIMINATED', bX, ball.y + renderRadius + 11);
         } else {
           let labelName = ball.name;
@@ -8324,10 +12226,16 @@ if (this.activeEvent.key === 'speed_surge') {
             this.ctx.fillStyle = '#FFD700';
             this.ctx.shadowColor = '#FFD700';
             this.ctx.shadowBlur = 6;
+            this.ctx.lineWidth = 2.5;
+            this.ctx.strokeStyle = '#000000';
+            this.ctx.strokeText(displayLabel, bX, ball.y + renderRadius + 11);
           } else {
             this.ctx.fillStyle = tColors.primary;
             this.ctx.shadowColor = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'rgba(255,255,255,0.5)';
             this.ctx.shadowBlur = 4;
+            this.ctx.lineWidth = 2.5;
+            this.ctx.strokeStyle = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'transparent';
+            this.ctx.strokeText(displayLabel, bX, ball.y + renderRadius + 11);
           }
           this.ctx.fillText(displayLabel, bX, ball.y + renderRadius + 11);
         }
@@ -8347,7 +12255,7 @@ if (this.activeEvent.key === 'speed_surge') {
           this.ctx.restore();
         }
 
-        // 6) Leader crown — gold star above 1st place
+        // 6) Leader crown ??? gold star above 1st place
         if (ball.rank === 1 && !ball.finished) {
           this.ctx.save();
           const crownY = ball.y - renderRadius - 18;
@@ -8614,19 +12522,26 @@ if (this.activeEvent.key === 'speed_surge') {
         });
       }
 
-      this.ctx.restore(); // restore translate and scale zoom
+      } finally { this.ctx.restore(); }
 
       // Full screen UI overlays (canvas overlay space)
-      this.renderScreenOverlays(screenW, screenH);
+      // Wrapped in save/restore with try/finally to absorb any unbalanced ctx saves
+      this.ctx.save();
+      try {
+        this.renderScreenOverlays(screenW, screenH);
+      } finally {
+        this.ctx.restore();
+      }
 
       // Director Mode overlay (tiny, bottom-left, semi-transparent)
       if (this.directorMode) {
         this._renderDirectorOverlay(screenW, screenH);
       }
-    }
-  }
+    } catch (e) {
+      console.warn('Render error:', e.message);
+    }}
 
-    // Draw map-specific animated background elements — parallax stadium scene
+    // Draw map-specific animated background elements ??? parallax stadium scene
     renderDynamicBackground(screenW, screenH) {
       const ctx = this.ctx;
       const theme = this.currentThemeKey;
@@ -8634,15 +12549,18 @@ if (this.activeEvent.key === 'speed_surge') {
       const time = Date.now() / 1000;
 
       // ---- LAYER 1: Deep background gradient (ambient light) ----
-      ctx.save();
-      const ambGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.3, 0, screenW * 0.5, screenH * 0.3, screenH * 1.2);
-      ambGrad.addColorStop(0, 'rgba(255,255,255,0.03)');
-      ambGrad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = ambGrad;
-      ctx.fillRect(0, 0, screenW, screenH);
-      ctx.restore();
+      // Skipped for jungle — no fullscreen overlays; background uses individual elements only
+      if (theme !== 'jungle') {
+        ctx.save();
+        const ambGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.3, 0, screenW * 0.5, screenH * 0.3, screenH * 1.2);
+        ambGrad.addColorStop(0, 'rgba(255,255,255,0.03)');
+        ambGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = ambGrad;
+        ctx.fillRect(0, 0, screenW, screenH);
+        ctx.restore();
+      }
 
-      // ---- LAYER 2: Crowd silhouettes (low contrast — support the race, never compete) ----
+      // ---- LAYER 2: Crowd silhouettes (low contrast, support the race, never compete) ----
       ctx.save();
       ctx.globalAlpha = 0.07;
       const crowdWave = Math.sin(time * 0.8) * 2;
@@ -8667,15 +12585,18 @@ if (this.activeEvent.key === 'speed_surge') {
       ctx.restore();
 
       // ---- LAYER 3: Focus gradient — saturate near track, darken edges ----
-      ctx.save();
-      const focusGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.5, screenH * 0.15, screenW * 0.5, screenH * 0.5, screenH * 0.7);
-      focusGrad.addColorStop(0, 'rgba(0,0,0,0)');
-      focusGrad.addColorStop(0.5, 'rgba(0,0,0,0)');
-      focusGrad.addColorStop(0.85, 'rgba(0,0,0,0.04)');
-      focusGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
-      ctx.fillStyle = focusGrad;
-      ctx.fillRect(0, 0, screenW, screenH);
-      ctx.restore();
+      // Skipped for jungle — no fullscreen overlays
+      if (theme !== 'jungle') {
+        ctx.save();
+        const focusGrad = ctx.createRadialGradient(screenW * 0.5, screenH * 0.5, screenH * 0.15, screenW * 0.5, screenH * 0.5, screenH * 0.7);
+        focusGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        focusGrad.addColorStop(0.5, 'rgba(0,0,0,0)');
+        focusGrad.addColorStop(0.85, 'rgba(0,0,0,0.04)');
+        focusGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
+        ctx.fillStyle = focusGrad;
+        ctx.fillRect(0, 0, screenW, screenH);
+        ctx.restore();
+      }
 
       // ---- LAYER 4: Map-specific atmospheric effects (reduced opacity) ----
       if (theme === 'desert') {
@@ -8849,7 +12770,7 @@ if (this.activeEvent.key === 'speed_surge') {
         ctx.fill();
         ctx.restore();
 
-        // ========== MID LAYER: Aurora borealis (skip during aurora event — enhanced version renders above) ==========
+        // ========== MID LAYER: Aurora borealis (skip during aurora event ??? enhanced version renders above) ==========
         if (!this._auroraActive) {
           ctx.save();
           const aurAlpha = 0.07 + Math.sin(time * 0.07) * 0.05;
@@ -9167,55 +13088,98 @@ if (this.activeEvent.key === 'speed_surge') {
         ctx.restore();
       } else if (theme === 'volcano') {
         ctx.save();
-        const t = time * 0.5;
+        const t = time * 0.4;
 
-        // ========== LAYER 1: Distant volcano silhouettes (barely moving) ==========
-        ctx.save();
-        ctx.globalAlpha = 0.08;
-        ctx.fillStyle = '#0a0806';
-        ctx.beginPath();
-        ctx.moveTo(0, screenH);
-        for (let x = 0; x <= screenW; x += 4) {
-          const v1 = Math.sin(x * 0.0008 + t * 0.005) * 40;
-          const v2 = Math.sin(x * 0.0018 + t * 0.003 + 1) * 25;
-          const v3 = Math.sin(x * 0.0035 + t * 0.002 + 2) * 15;
-          const y = screenH * 0.28 + v1 * 0.5 + v2 * 0.3 + v3 * 0.2;
-          ctx.lineTo(x, y);
+        // ========== LAYER 1: Distant volcano silhouettes (5 individual cones) ==========
+        const volcanoes = [
+          { pos: 0.10, height: 0.18, width: 0.13, alpha: 0.18, phase: 0, skew: 0.05 },
+          { pos: 0.27, height: 0.26, width: 0.11, alpha: 0.16, phase: 1.4, skew: -0.03 },
+          { pos: 0.50, height: 0.32, width: 0.15, alpha: 0.22, phase: 2.8, skew: 0.02 },
+          { pos: 0.70, height: 0.22, width: 0.12, alpha: 0.17, phase: 4.2, skew: -0.04 },
+          { pos: 0.90, height: 0.14, width: 0.09, alpha: 0.13, phase: 5.6, skew: 0.03 },
+        ];
+        for (const v of volcanoes) {
+          const vx = screenW * v.pos;
+          const baseY = screenH * (0.68 + Math.sin(t * 0.002 + v.phase) * 0.015);
+          const vh = screenH * v.height;
+          const vw = screenW * v.width;
+          // Deep orange glow behind each volcano (localized, not global)
+          ctx.save();
+          ctx.globalAlpha = 0.07;
+          const volcGlow = ctx.createRadialGradient(
+            vx, baseY - vh * 0.5, 5,
+            vx, baseY - vh * 0.3, vw * 0.8
+          );
+          volcGlow.addColorStop(0, 'rgba(220, 80, 0, 0.35)');
+          volcGlow.addColorStop(0.4, 'rgba(160, 50, 0, 0.12)');
+          volcGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = volcGlow;
+          ctx.beginPath();
+          ctx.arc(vx, baseY - vh * 0.3, vw * 0.7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          // Dark silhouette with slight asymmetry
+          ctx.save();
+          ctx.globalAlpha = v.alpha;
+          ctx.fillStyle = '#0a0806';
+          ctx.beginPath();
+          ctx.moveTo(vx - vw * 1.1, baseY);
+          const peakX = vx + v.skew * vw * 0.5;
+          const peakY = baseY - vh;
+          const leftBulge = vw * (0.25 + Math.sin(v.phase) * 0.08);
+          const rightBulge = vw * (0.25 - Math.sin(v.phase + 1) * 0.08);
+          ctx.quadraticCurveTo(vx - vw * 0.4, baseY - vh * 0.55, peakX - leftBulge, baseY - vh * 0.7);
+          ctx.quadraticCurveTo(peakX - vw * 0.06, baseY - vh * 0.95, peakX, peakY);
+          ctx.quadraticCurveTo(peakX + vw * 0.06, baseY - vh * 0.95, peakX + rightBulge, baseY - vh * 0.7);
+          ctx.quadraticCurveTo(vx + vw * 0.4, baseY - vh * 0.55, vx + vw * 1.1, baseY);
+          // Crater
+          ctx.lineTo(peakX + vw * 0.04, peakY + vh * 0.06);
+          ctx.lineTo(peakX - vw * 0.04, peakY + vh * 0.04);
+          ctx.lineTo(vx - vw * 1.1, baseY);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          // Crater glow
+          ctx.save();
+          ctx.shadowColor = '#ff6600';
+          ctx.shadowBlur = 8;
+          ctx.globalAlpha = 0.08 + 0.05 * Math.sin(t * 0.15 + v.phase);
+          ctx.fillStyle = '#ff6600';
+          ctx.beginPath();
+          ctx.arc(peakX, peakY + vh * 0.04, vw * 0.04, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.restore();
         }
-        ctx.lineTo(screenW, screenH);
-        ctx.closePath();
-        ctx.fill();
+
+        // ========== LAYER 2: Dark volcanic rock ground (fills the lower 70%) ==========
+        ctx.save();
+        ctx.fillStyle = '#0e0c0a';
+        ctx.fillRect(0, screenH * 0.35, screenW, screenH * 0.65);
+        // Textured rock variation
+        ctx.globalAlpha = 0.04;
+        for (let i = 0; i < 20; i++) {
+          const rx = Math.sin(i * 37.7 + t * 0.002) * screenW * 0.5 + screenW * 0.5;
+          const ry = screenH * (0.40 + Math.sin(i * 23.3) * 0.15);
+          const rr = 30 + Math.sin(i * 17.1) * 15;
+          ctx.fillStyle = '#1a1410';
+          ctx.beginPath();
+          ctx.arc(rx, ry, rr, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
 
-        // ========== LAYER 2: Dark volcanic mountains (slow parallax) ==========
+        // ========== LAYER 3: Dark basalt mountain ridges (mid ground) ==========
         ctx.save();
-        ctx.globalAlpha = 0.12;
-        ctx.fillStyle = '#1a1410';
-        ctx.beginPath();
-        ctx.moveTo(0, screenH);
-        for (let x = 0; x <= screenW; x += 3) {
-          const m1 = Math.sin(x * 0.0015 + t * 0.008 + 0.5) * 60;
-          const m2 = Math.sin(x * 0.004 + t * 0.005 + 1.2) * 35;
-          const m3 = Math.sin(x * 0.008 + t * 0.003 + 2.1) * 18;
-          const y = screenH * 0.35 + m1 * 0.4 + m2 * 0.3 + m3 * 0.3;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(screenW, screenH);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-
-        // ========== LAYER 3: Broken cliffs and rock formations (mid parallax) ==========
-        ctx.save();
-        ctx.globalAlpha = 0.10;
+        ctx.globalAlpha = 0.28;
         ctx.fillStyle = '#14100c';
         ctx.beginPath();
         ctx.moveTo(0, screenH);
         for (let x = 0; x <= screenW; x += 2) {
-          const c1 = Math.sin(x * 0.0025 + t * 0.012 + 0.8) * 50;
-          const c2 = Math.sin(x * 0.006 + t * 0.008 + 1.8) * 28;
-          const c3 = Math.sin(x * 0.012 + t * 0.005 + 3.2) * 12;
-          const y = screenH * 0.48 + c1 * 0.35 + c2 * 0.25 + c3 * 0.4;
+          const r1 = Math.sin(x * 0.002 + t * 0.005 + 0.3) * 45;
+          const r2 = Math.sin(x * 0.005 + t * 0.003 + 1.4) * 28;
+          const r3 = Math.sin(x * 0.010 + t * 0.002 + 2.7) * 14;
+          const y = screenH * 0.42 + r1 * 0.35 + r2 * 0.25 + r3 * 0.2;
           ctx.lineTo(x, y);
         }
         ctx.lineTo(screenW, screenH);
@@ -9223,198 +13187,639 @@ if (this.activeEvent.key === 'speed_surge') {
         ctx.fill();
         ctx.restore();
 
-        // ========== LAYER 4: Lava rivers flowing through the valley ==========
-        // River 1 - upper
-        ctx.save();
-        ctx.globalAlpha = 0.18;
-        const river1Y = screenH * 0.58;
-        const river1Grad = ctx.createLinearGradient(0, 0, screenW, 0);
-        river1Grad.addColorStop(0, '#ff6b00');
-        river1Grad.addColorStop(0.3, '#ff8c00');
-        river1Grad.addColorStop(0.6, '#ffaa00');
-        river1Grad.addColorStop(1, '#ff6b00');
-        ctx.fillStyle = river1Grad;
-        ctx.beginPath();
-        ctx.moveTo(0, screenH);
-        for (let x = 0; x <= screenW; x += 3) {
-          const w1 = Math.sin(x * 0.006 + t * 0.02) * 8;
-          const w2 = Math.sin(x * 0.015 + t * 0.01 + 1.5) * 4;
-          const y = river1Y + w1 + w2;
-          ctx.lineTo(x, y);
+        // ========== LAYER 4: Winding lava rivers through cracked rock ==========
+        // Each river uses multiple segments to create a winding channel look
+        const riverSegments = [
+          { y: 0.55, alpha: 0.20, amp: 12, freq1: 0.004, freq2: 0.010, speed1: 0.015, speed2: 0.008, color1: '#ff6b00', color2: '#ff8c00', color3: '#ffaa00' },
+          { y: 0.68, alpha: 0.22, amp: 14, freq1: 0.005, freq2: 0.012, speed1: 0.018, speed2: 0.010, color1: '#ff5a00', color2: '#ff8800', color3: '#ffaa00' },
+          { y: 0.82, alpha: 0.18, amp: 10, freq1: 0.006, freq2: 0.014, speed1: 0.020, speed2: 0.012, color1: '#cc4400', color2: '#ff6600', color3: '#ff8800' },
+          { y: 0.52, alpha: 0.12, amp: 8, freq1: 0.007, freq2: 0.015, speed1: 0.022, speed2: 0.014, color1: '#ff4400', color2: '#ff7700', color3: '#ffaa00' },
+          { y: 0.75, alpha: 0.14, amp: 9, freq1: 0.005, freq2: 0.011, speed1: 0.016, speed2: 0.009, color1: '#ff5500', color2: '#ff9900', color3: '#ffcc00' },
+        ];
+        const riverYs = [];
+        for (const seg of riverSegments) {
+          const baseY = screenH * seg.y;
+          riverYs.push(baseY);
+          // Lava fill
+          ctx.save();
+          ctx.globalAlpha = seg.alpha;
+          const grad = ctx.createLinearGradient(0, 0, screenW, 0);
+          grad.addColorStop(0, seg.color1);
+          grad.addColorStop(0.3, seg.color2);
+          grad.addColorStop(0.6, seg.color3);
+          grad.addColorStop(1, seg.color1);
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.moveTo(0, screenH);
+          for (let x = 0; x <= screenW; x += 3) {
+            const w1 = Math.sin(x * seg.freq1 + t * seg.speed1) * seg.amp;
+            const w2 = Math.sin(x * seg.freq2 + t * seg.speed2 + 1.5) * seg.amp * 0.5;
+            const y = baseY + w1 + w2;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(screenW, screenH);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          // Dark crust edges (darker basalt borders)
+          ctx.save();
+          ctx.globalAlpha = seg.alpha * 0.35;
+          ctx.strokeStyle = '#0a0806';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          for (let x = 0; x <= screenW; x += 3) {
+            const w1 = Math.sin(x * seg.freq1 + t * seg.speed1) * seg.amp;
+            const w2 = Math.sin(x * seg.freq2 + t * seg.speed2 + 1.5) * seg.amp * 0.5;
+            const y = baseY + w1 + w2 - 2;
+            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          ctx.beginPath();
+          for (let x = 0; x <= screenW; x += 3) {
+            const w1 = Math.sin(x * seg.freq1 + t * seg.speed1) * seg.amp;
+            const w2 = Math.sin(x * seg.freq2 + t * seg.speed2 + 1.5) * seg.amp * 0.5;
+            const y = baseY + w1 + w2 + 2;
+            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          ctx.restore();
         }
-        ctx.lineTo(screenW, screenH);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
 
-        // River 2 - lower
-        ctx.save();
-        ctx.globalAlpha = 0.22;
-        const river2Y = screenH * 0.72;
-        const river2Grad = ctx.createLinearGradient(0, 0, screenW, 0);
-        river2Grad.addColorStop(0, '#ff8c00');
-        river2Grad.addColorStop(0.4, '#ffaa00');
-        river2Grad.addColorStop(0.8, '#ff6b00');
-        river2Grad.addColorStop(1, '#ff8c00');
-        ctx.fillStyle = river2Grad;
-        ctx.beginPath();
-        ctx.moveTo(0, screenH);
-        for (let x = 0; x <= screenW; x += 3) {
-          const w1 = Math.sin(x * 0.005 + t * 0.018 + 0.5) * 10;
-          const w2 = Math.sin(x * 0.012 + t * 0.012 + 2) * 6;
-          const y = river2Y + w1 + w2;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(screenW, screenH);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-
-        // River 3 - near bottom
-        ctx.save();
-        ctx.globalAlpha = 0.15;
-        const river3Y = screenH * 0.86;
-        const river3Grad = ctx.createLinearGradient(0, 0, screenW, 0);
-        river3Grad.addColorStop(0, '#ff6b00');
-        river3Grad.addColorStop(0.5, '#cc4400');
-        river3Grad.addColorStop(1, '#ff6b00');
-        ctx.fillStyle = river3Grad;
-        ctx.beginPath();
-        ctx.moveTo(0, screenH);
-        for (let x = 0; x <= screenW; x += 3) {
-          const w1 = Math.sin(x * 0.007 + t * 0.022 + 1) * 6;
-          const w2 = Math.sin(x * 0.014 + t * 0.015 + 2.5) * 3;
-          const y = river3Y + w1 + w2;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(screenW, screenH);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-
-        // ========== LAYER 5: Magma cracks pulsing gently (10% variation) ==========
-        for (let crackSet = 0; crackSet < 3; crackSet++) {
-          const baseAlpha = 0.08 + crackSet * 0.03;
-          const pulse = 0.9 + 0.1 * Math.sin(t * 0.3 + crackSet * 1.5);
+        // ========== LAYER 5: Thin glowing magma fissures (cracks across rock) ==========
+        for (let crackSet = 0; crackSet < 4; crackSet++) {
+          const baseAlpha = 0.06 + crackSet * 0.025;
+          const pulse = 0.85 + 0.15 * Math.sin(t * 0.25 + crackSet * 1.2);
           ctx.save();
           ctx.globalAlpha = baseAlpha * pulse;
-          ctx.strokeStyle = crackSet === 0 ? '#ffaa00' : (crackSet === 1 ? '#ff6b00' : '#cc4400');
-          ctx.lineWidth = 1.5;
-          const numCracks = 5 + crackSet * 2;
+          ctx.shadowColor = '#ff6600';
+          ctx.shadowBlur = 3;
+          ctx.strokeStyle = crackSet === 0 ? '#ff8800' : (crackSet === 1 ? '#ff5500' : (crackSet === 2 ? '#ffaa00' : '#ff3300'));
+          ctx.lineWidth = 1 + (crackSet % 2) * 0.5;
+          const numCracks = 6 + crackSet * 2;
           for (let i = 0; i < numCracks; i++) {
-            const cx = (i / numCracks) * screenW + Math.sin(t * 0.05 + i * 1.2) * 15;
-            const startY = screenH * (0.55 + crackSet * 0.1);
+            const cx = ((i + Math.sin(crackSet * 2.3)) / numCracks) * screenW + Math.sin(t * 0.04 + i * 1.1 + crackSet) * 20;
+            const startY = screenH * (0.45 + crackSet * 0.08 + Math.sin(i * 0.7) * 0.03);
             ctx.beginPath();
             ctx.moveTo(cx, startY);
-            for (let seg = 0; seg < 4; seg++) {
-              const segY = startY + seg * 40 + Math.sin(t * 0.1 + i * 0.8 + seg) * 12;
-              const segX = cx + Math.sin(t * 0.08 + i * 1.1 + seg * 0.5) * 8;
+            let segX = cx, segY = startY;
+            const numSeg = 3 + crackSet;
+            for (let s = 0; s < numSeg; s++) {
+              segY = startY + (s + 1) * (25 + crackSet * 5) + Math.sin(t * 0.06 + i * 0.7 + s * 1.3) * 10;
+              segX = cx + Math.sin(t * 0.05 + i * 0.9 + s * 0.8 + crackSet) * (8 + crackSet * 3);
+              // Branch occasionally
               ctx.lineTo(segX, segY);
+              if (s > 0 && Math.sin(i * 3.7 + s * 5.1 + crackSet) > 0.7) {
+                const bx = segX + Math.sin(t * 0.07 + i * 1.3 + s * 2.1) * 10;
+                const by = segY + Math.sin(t * 0.08 + i * 1.1 + s * 1.7) * 8;
+                ctx.moveTo(segX, segY);
+                ctx.lineTo(bx, by);
+                ctx.moveTo(segX, segY);
+              }
             }
             ctx.stroke();
           }
+          ctx.shadowBlur = 0;
           ctx.restore();
         }
 
         // ========== LAYER 6: Lava bubble effects on rivers ==========
-        // Bubbles on river 1
         ctx.save();
-        ctx.globalAlpha = 0.12;
+        ctx.globalAlpha = 0.08;
+        for (let i = 0; i < 25; i++) {
+          const ri = i % riverYs.length;
+          const bx = (i / 25) * screenW + Math.sin(t * 0.025 + i * 1.3 + ri) * 30;
+          const by = riverYs[ri] + Math.sin(t * 0.04 + i * 0.6 + ri) * 14;
+          const size = 1.5 + Math.sin(t * 0.08 + i * 0.9 + ri) * 1.2;
+          const pulseA = 0.4 + 0.6 * Math.sin(t * 0.15 + i * 0.7 + ri);
+          ctx.fillStyle = `rgba(255, 180, 50, ${0.35 * pulseA})`;
+          ctx.beginPath();
+          ctx.arc(bx, by, Math.max(0.5, size), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ========== LAYER 7: Soft background smoke columns from distant vents ==========
+        ctx.save();
+        ctx.globalAlpha = 0.04;
         for (let i = 0; i < 8; i++) {
-          const bx = (i / 8) * screenW + Math.sin(t * 0.03 + i * 1.5) * 20;
-          const by = river1Y + Math.sin(t * 0.05 + i * 0.7) * 12;
-          const size = 2 + Math.sin(t * 0.1 + i) * 1.5;
-          const pulseAlpha = 0.5 + 0.5 * Math.sin(t * 0.2 + i * 0.8);
-          ctx.fillStyle = `rgba(255, 170, 0, ${0.4 * pulseAlpha})`;
+          const sx = (i / 8) * screenW + 40 * Math.sin(t * 0.012 + i * 1.3);
+          const sy = screenH * (0.45 + i * 0.05);
+          const driftX = Math.sin(t * 0.015 + i * 0.6) * 20;
+          const riseY = Math.sin(t * 0.008 + i * 0.4) * 15;
+          const smokeGrad = ctx.createRadialGradient(
+            sx + driftX, sy - 90 + riseY, 5,
+            sx + driftX * 0.5, sy - 80 + riseY, 120
+          );
+          smokeGrad.addColorStop(0, 'rgba(55, 45, 38, 0.08)');
+          smokeGrad.addColorStop(0.5, 'rgba(45, 38, 32, 0.04)');
+          smokeGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = smokeGrad;
           ctx.beginPath();
-          ctx.arc(bx, by, size, 0, Math.PI * 2);
+          ctx.ellipse(
+            sx + driftX, sy - 50 + riseY,
+            50 + Math.sin(t * 0.01 + i * 0.5) * 15,
+            80 + Math.sin(t * 0.007 + i * 0.3) * 20,
+            0, 0, Math.PI * 2
+          );
           ctx.fill();
         }
         ctx.restore();
 
-        // Bubbles on river 2
+        // ========== LAYER 8a: Rising ash curtain (subtle gradient from bottom) ==========
         ctx.save();
-        ctx.globalAlpha = 0.15;
-        for (let i = 0; i < 10; i++) {
-          const bx = (i / 10) * screenW + Math.sin(t * 0.025 + i * 1.2) * 25;
-          const by = river2Y + Math.sin(t * 0.04 + i * 0.5) * 15;
-          const size = 3 + Math.sin(t * 0.12 + i) * 2;
-          const pulseAlpha = 0.5 + 0.5 * Math.sin(t * 0.18 + i * 0.6);
-          ctx.fillStyle = `rgba(255, 200, 50, ${0.5 * pulseAlpha})`;
-          ctx.beginPath();
-          ctx.arc(bx, by, size, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        const ashCurtainAlpha = 0.035 + 0.015 * Math.sin(t * 0.01);
+        const ashCurtain = ctx.createLinearGradient(0, screenH * 0.75, 0, screenH);
+        ashCurtain.addColorStop(0, 'rgba(30, 22, 16, 0)');
+        ashCurtain.addColorStop(0.4, `rgba(40, 30, 24, ${ashCurtainAlpha * 0.5})`);
+        ashCurtain.addColorStop(0.7, `rgba(30, 22, 16, ${ashCurtainAlpha * 0.8})`);
+        ashCurtain.addColorStop(0.9, `rgba(20, 14, 10, ${ashCurtainAlpha})`);
+        ashCurtain.addColorStop(1, `rgba(10, 8, 6, ${ashCurtainAlpha * 0.6})`);
+        ctx.fillStyle = ashCurtain;
+        ctx.fillRect(0, screenH * 0.75, screenW, screenH * 0.25);
         ctx.restore();
 
-        // ========== LAYER 7: Thin smoke columns from volcanic vents ==========
-        ctx.save();
-        ctx.globalAlpha = 0.06;
-        for (let i = 0; i < 5; i++) {
-          const sx = (i / 5) * screenW + 50 * Math.sin(t * 0.02 + i);
-          const sy = screenH * 0.5 + i * 40;
-          ctx.strokeStyle = '#3a3028';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          for (let s = 0; s < 5; s++) {
-            const px = sx + Math.sin(t * 0.05 + i * 0.8 + s) * 8;
-            const py = sy - s * 30 - Math.sin(t * 0.03 + i * 0.5 + s) * 10;
-            if (s === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
+        // ========== LAYER 8b: Ash particles (dark volcanic dust, rising from below) ==========
+        if (this.state === 'racing') {
+          ctx.save();
+          for (const p of this._volcanoAshParticles) {
+            const a = Math.min(p.alpha * 0.8, 0.25);
+            if (a <= 0) continue;
+            ctx.globalAlpha = a;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+            ctx.fill();
           }
-          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+
+        // ========== LAYER 9: Ember particles (orange, full width, rising from bottom) ==========
+        if (this.state === 'racing') {
+          ctx.save();
+          for (const p of this._volcanoEmberParticles) {
+            const a = p.alpha;
+            if (a <= 0) continue;
+            ctx.globalAlpha = a;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 4;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+
+        // ========== LAYER 10: Active eruption effects (small bursts only) ==========
+        if (this._volcanoEruptionActive && this._volcanoEruptionParticles.length > 0) {
+          ctx.save();
+          for (const p of this._volcanoEruptionParticles) {
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+            if (p.color.startsWith('#ff') || p.color.startsWith('#cc')) {
+              ctx.shadowColor = p.color;
+              ctx.shadowBlur = 4;
+            }
+            ctx.beginPath();
+            ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+          ctx.restore();
+        }
+
+        // ========== LAYER 11: Localized lava glow (only near rivers) ==========
+        for (let ri = 0; ri < riverYs.length; ri++) {
+          const baseY = riverYs[ri];
+          ctx.save();
+          const glowX = screenW * (0.2 + ri * 0.15);
+          const glowR = 120 + ri * 20;
+          const g = ctx.createRadialGradient(glowX, baseY, 5, glowX, baseY, glowR);
+          const gp = 0.85 + 0.15 * Math.sin(t * 0.35 + ri * 0.8);
+          g.addColorStop(0, `rgba(255, 120, 0, ${0.05 * gp})`);
+          g.addColorStop(0.5, `rgba(200, 80, 0, ${0.025 * gp})`);
+          g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(glowX - glowR, baseY - 80, glowR * 2, 160);
+          ctx.restore();
+        }
+
+        // ========== LAYER 12: Heat shimmer only above lava rivers ==========
+        ctx.save();
+        ctx.globalAlpha = 0.012;
+        for (let ri = 0; ri < riverYs.length; ri++) {
+          const baseY = riverYs[ri];
+          for (let i = 0; i < 4; i++) {
+            const shimmerY = baseY - 30 + i * 20;
+            ctx.strokeStyle = 'rgba(255, 200, 150, 0.04)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let x = 0; x <= screenW; x += 5) {
+              const yy = shimmerY + Math.sin(x * 0.01 + t * 0.12 + i * 0.8 + ri * 1.5) * 3;
+              if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+            }
+            ctx.stroke();
+          }
         }
         ctx.restore();
 
-        // ========== LAYER 8: Distant volcano eruptions (every 20-40s) ==========
-        // This will be animated via the persistent eruption state
-
-        // ========== LAYER 9: Atmospheric glow - lava illuminating nearby rocks ==========
-        // Glow near river 1
+        // ========== LAYER 13: Tiny drifting sparks near lava edges ==========
         ctx.save();
-        const glowGrad1 = ctx.createRadialGradient(
-          screenW * 0.3, river1Y, 10,
-          screenW * 0.3, river1Y, 180
-        );
-        const glowPulse1 = 0.85 + 0.15 * Math.sin(t * 0.4);
-        glowGrad1.addColorStop(0, `rgba(255, 140, 0, ${0.06 * glowPulse1})`);
-        glowGrad1.addColorStop(0.5, `rgba(255, 100, 0, ${0.03 * glowPulse1})`);
-        glowGrad1.addColorStop(1, 'rgba(255, 80, 0, 0)');
-        ctx.fillStyle = glowGrad1;
-        ctx.fillRect(0, river1Y - 100, screenW, 200);
+        ctx.globalAlpha = 0.04;
+        for (let i = 0; i < 15; i++) {
+          const sx = ((i + Math.sin(t * 0.02 + i * 0.5)) / 15) * screenW;
+          const sy = riverYs[i % riverYs.length] - 15 + Math.sin(t * 0.03 + i * 0.7) * 20;
+          const sparkSize = 0.8 + Math.sin(t * 0.1 + i * 1.1) * 0.5;
+          ctx.fillStyle = '#ffaa44';
+          ctx.beginPath();
+          ctx.arc(sx, sy, sparkSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
 
-        // Glow near river 2
-        ctx.save();
-        const glowGrad2 = ctx.createRadialGradient(
-          screenW * 0.7, river2Y, 10,
-          screenW * 0.7, river2Y, 200
-        );
-        const glowPulse2 = 0.85 + 0.15 * Math.sin(t * 0.35 + 1);
-        glowGrad2.addColorStop(0, `rgba(255, 170, 0, ${0.05 * glowPulse2})`);
-        glowGrad2.addColorStop(0.5, `rgba(255, 120, 0, ${0.025 * glowPulse2})`);
-        glowGrad2.addColorStop(1, 'rgba(255, 80, 0, 0)');
-        ctx.fillStyle = glowGrad2;
-        ctx.fillRect(0, river2Y - 100, screenW, 200);
-        ctx.restore();
+        // ========== VOLCANIC ERUPTION EVENT RENDERING ==========
+        if (this._volcanicEruptionActive) {
+          const ed = this._volcanicEruptionFadeProgress;
 
-        // Glow near river 3
-        ctx.save();
-        const glowGrad3 = ctx.createRadialGradient(
-          screenW * 0.5, river3Y, 10,
-          screenW * 0.5, river3Y, 150
-        );
-        const glowPulse3 = 0.85 + 0.15 * Math.sin(t * 0.5 + 2);
-        glowGrad3.addColorStop(0, `rgba(255, 100, 0, ${0.04 * glowPulse3})`);
-        glowGrad3.addColorStop(0.5, `rgba(255, 60, 0, ${0.02 * glowPulse3})`);
-        glowGrad3.addColorStop(1, 'rgba(255, 40, 0, 0)');
-        ctx.fillStyle = glowGrad3;
-        ctx.fillRect(0, river3Y - 80, screenW, 160);
-        ctx.restore();
+          // Sky darkening overlay
+          if (this._volcanicEruptionSkyDarkness > 0.005) {
+            ctx.save();
+            ctx.fillStyle = `rgba(5, 3, 2, ${this._volcanicEruptionSkyDarkness})`;
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
 
-        // ========== LAYER 10: Heat shimmer above lava rivers (subtle) ==========
-        // Just visual indication via slight alpha modulation on background elements
+          // Orange glow from below
+          if (this._volcanicEruptionGlowIntensity > 0.005) {
+            ctx.save();
+            const glowGrad = ctx.createRadialGradient(
+              screenW * 0.5, screenH, 0,
+              screenW * 0.5, screenH, screenH * 0.8
+            );
+            glowGrad.addColorStop(0, `rgba(255, 100, 0, ${0.12 * this._volcanicEruptionGlowIntensity})`);
+            glowGrad.addColorStop(0.5, `rgba(200, 60, 0, ${0.06 * this._volcanicEruptionGlowIntensity})`);
+            glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = glowGrad;
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
 
+          // Screen flash
+          if (this._volcanicEruptionScreenFlash > 0.005) {
+            ctx.save();
+            ctx.fillStyle = `rgba(255, 200, 100, ${this._volcanicEruptionScreenFlash * 0.3})`;
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
+
+          // Lava fountain particles
+          if (this._volcanicEruptionFountainParticles.length > 0) {
+            ctx.save();
+            for (const p of this._volcanicEruptionFountainParticles) {
+              if (p.alpha <= 0.01) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.shadowColor = p.color;
+              ctx.shadowBlur = 6;
+              ctx.beginPath();
+              ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // Smoke particles
+          if (this._volcanicEruptionSmokeParticles.length > 0) {
+            ctx.save();
+            for (const p of this._volcanicEruptionSmokeParticles) {
+              if (p.alpha <= 0.005) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.beginPath();
+              ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // Ash particles
+          if (this._volcanicEruptionAshParticles.length > 0) {
+            ctx.save();
+            for (const p of this._volcanicEruptionAshParticles) {
+              if (p.alpha <= 0.005) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.beginPath();
+              ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // Ember particles
+          if (this._volcanicEruptionEmberParticles.length > 0) {
+            ctx.save();
+            for (const p of this._volcanicEruptionEmberParticles) {
+              if (p.alpha <= 0.01) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.shadowColor = p.color;
+              ctx.shadowBlur = 3;
+              ctx.beginPath();
+              ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // Volcanic bombs
+          if (this._volcanicEruptionBombs.length > 0) {
+            ctx.save();
+            for (const bomb of this._volcanicEruptionBombs) {
+              if (bomb.alpha <= 0.01) continue;
+
+              // Smoke trail
+              if (!bomb.hasLanded) {
+                for (let ti = 0; ti < 3; ti++) {
+                  const tOff = ti * 0.15;
+                  const tx = bomb.x - bomb.vx * tOff * 20 + (Math.random() - 0.5) * 0.01;
+                  const ty = bomb.y - bomb.vy * tOff * 20 + (Math.random() - 0.5) * 0.01;
+                  const ta = Math.max(0, bomb.alpha * (1 - tOff) * 0.15);
+                  ctx.globalAlpha = ta;
+                  ctx.fillStyle = '#554433';
+                  ctx.beginPath();
+                  ctx.arc(tx * screenW, ty * screenH, bomb.size * (0.5 + tOff), 0, Math.PI * 2);
+                  ctx.fill();
+                }
+              }
+
+              // Bomb body
+              ctx.globalAlpha = bomb.alpha;
+
+              // Dark core
+              ctx.shadowColor = '#ff4400';
+              ctx.shadowBlur = bomb.glow;
+              ctx.fillStyle = '#2a2018';
+              ctx.beginPath();
+              ctx.arc(bomb.x * screenW, bomb.y * screenH, bomb.size, 0, Math.PI * 2);
+              ctx.fill();
+
+              // Molten cracks
+              const crackAngle = Date.now() * 0.005 + bomb.crackPhase;
+              ctx.shadowBlur = 0;
+              ctx.strokeStyle = '#ff6600';
+              ctx.lineWidth = 2;
+              for (let ci = 0; ci < 3; ci++) {
+                const ca = crackAngle + ci * Math.PI * 2 / 3;
+                const cr = bomb.size * 0.6;
+                ctx.beginPath();
+                ctx.moveTo(bomb.x * screenW, bomb.y * screenH);
+                ctx.lineTo(
+                  bomb.x * screenW + Math.cos(ca) * cr,
+                  bomb.y * screenH + Math.sin(ca) * cr
+                );
+                ctx.stroke();
+              }
+
+              // Orange glow highlight
+              ctx.shadowColor = '#ff6600';
+              ctx.shadowBlur = bomb.glow * 0.5;
+              ctx.fillStyle = 'rgba(255, 120, 0, 0.3)';
+              ctx.beginPath();
+              ctx.arc(bomb.x * screenW, bomb.y * screenH, bomb.size * 0.5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+        }
+
+        // ========== FIRESTORM EVENT RENDERING ==========
+        if (this._firestormActive) {
+          const fd = this._firestormFadeProgress;
+
+          // ---- 1. Sky darkening overlay (heavy volcanic clouds, ~28%) ----
+          if (this._firestormSkyDarkness > 0.005) {
+            ctx.save();
+            ctx.fillStyle = `rgba(8, 4, 2, ${this._firestormSkyDarkness})`;
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
+
+          // ---- 2. Animated Orange Sky Tint ----
+          if (this._firestormSkyTint > 0.005) {
+            ctx.save();
+            const tintPhase = Date.now() * 0.0005;
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, screenH * 0.6);
+            skyGrad.addColorStop(0, `rgba(180, 60, 10, ${0.20 * this._firestormSkyTint})`);
+            skyGrad.addColorStop(0.3, `rgba(140, 40, 5, ${0.14 * this._firestormSkyTint})`);
+            skyGrad.addColorStop(0.6, `rgba(100, 30, 0, ${0.08 * this._firestormSkyTint})`);
+            skyGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
+
+          // ---- 3. Volcanic Glow (stronger, from beneath) ----
+          if (this._firestormGlowIntensity > 0.005) {
+            ctx.save();
+            const glowGrad = ctx.createRadialGradient(
+              screenW * 0.5, screenH * 1.05, 0,
+              screenW * 0.5, screenH * 1.05, screenH * 0.85
+            );
+            glowGrad.addColorStop(0, `rgba(255, 50, 0, ${0.22 * this._firestormGlowIntensity})`);
+            glowGrad.addColorStop(0.2, `rgba(220, 40, 0, ${0.14 * this._firestormGlowIntensity})`);
+            glowGrad.addColorStop(0.5, `rgba(160, 30, 0, ${0.07 * this._firestormGlowIntensity})`);
+            glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = glowGrad;
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
+
+          // ---- 4. Background desaturation (mute non-warm colors) ----
+          if (this._firestormFadeProgress > 0.05) {
+            ctx.save();
+            ctx.globalAlpha = 0.20 * this._firestormFadeProgress;
+            ctx.fillStyle = '#1a120e';
+            ctx.fillRect(0, 0, screenW, screenH);
+            ctx.restore();
+          }
+
+          // ---- 5. Heat distortion (continuous shimmering waves) ----
+          if (this._firestormFadeProgress > 0.05) {
+            ctx.save();
+            const alpha = (this._firestormPhase === 'active' ? 0.03 : 0.015) * this._firestormFadeProgress;
+            ctx.globalAlpha = alpha;
+            for (let hi = 0; hi < 12; hi++) {
+              const hy = screenH * (0.10 + hi * 0.07);
+              const speed = 0.10 + hi * 0.025;
+              const freq = 0.005 + hi * 0.002;
+              const amp = 2.5 + hi * 0.6;
+              ctx.strokeStyle = hi % 3 === 0 ? 'rgba(255, 200, 120, 0.04)' : (hi % 2 === 0 ? 'rgba(255, 160, 80, 0.03)' : 'rgba(255, 100, 40, 0.02)');
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              for (let x = 0; x <= screenW; x += 6) {
+                const yy = hy + Math.sin(x * freq + time * speed + hi * 1.5) * amp
+                          + Math.sin(x * freq * 0.5 + time * speed * 0.7 + hi * 2.3) * amp * 0.4;
+                if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+              }
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
+
+          // ---- 6. Heat Gusts (translucent flowing wind ribbons) ----
+          if (this._firestormWindStreaks.length > 0) {
+            ctx.save();
+            for (const p of this._firestormWindStreaks) {
+              if (p.alpha <= 0.005) continue;
+              ctx.globalAlpha = p.alpha;
+              const cx = p.x * screenW;
+              const cy = p.y * screenH;
+              const halfLen = p.length * screenW * 0.5;
+              const sw = p.width;
+              const grad = ctx.createLinearGradient(cx - halfLen, cy, cx + halfLen, cy);
+              grad.addColorStop(0, 'rgba(255, 140, 40, 0)');
+              grad.addColorStop(0.25, 'rgba(255, 180, 80, 0.5)');
+              grad.addColorStop(0.5, 'rgba(255, 220, 120, 0.7)');
+              grad.addColorStop(0.75, 'rgba(255, 180, 80, 0.5)');
+              grad.addColorStop(1, 'rgba(255, 140, 40, 0)');
+              ctx.fillStyle = grad;
+              ctx.shadowColor = '#ff8800';
+              ctx.shadowBlur = 3;
+              ctx.beginPath();
+              ctx.ellipse(cx, cy, halfLen, sw, 0, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 7. Large Ash Clouds (slowly drifting dark masses) ----
+          if (this._firestormLargeClouds.length > 0) {
+            ctx.save();
+            for (const p of this._firestormLargeClouds) {
+              if (p.alpha <= 0.01) continue;
+              ctx.globalAlpha = p.alpha;
+              const cx = p.x * screenW;
+              const cy = p.y * screenH;
+              const cw = p.width * screenW;
+              const ch = p.height * screenH;
+              // Soft-edged cloud with radial gradient
+              const cloudGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(cw, ch) * 0.7);
+              cloudGrad.addColorStop(0, p.color);
+              cloudGrad.addColorStop(0.6, p.color);
+              cloudGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+              ctx.fillStyle = cloudGrad;
+              ctx.beginPath();
+              ctx.ellipse(cx, cy, cw * 0.5, ch * 0.5, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 8. Fire Whirls (brief swirling ember columns) ----
+          if (this._firestormWhirls.length > 0) {
+            ctx.save();
+            for (const p of this._firestormWhirls) {
+              if (p.alpha <= 0.02) continue;
+              ctx.globalAlpha = p.alpha * 0.5;
+              const cx = p.x * screenW;
+              const cy = p.y * screenH;
+              const wh = p.height * screenH;
+              const ww = p.width * screenW;
+              // Swirling column of embers
+              const steps = 8;
+              for (let i = 0; i < steps; i++) {
+                const t = i / steps;
+                const swirlX = Math.sin(t * Math.PI * 4 + p.phase + Date.now() * 0.005) * ww;
+                const swirlY = -t * wh + wh * 0.5;
+                const size = 1.0 + t * 1.5;
+                const alpha = (1 - t) * 0.6;
+                ctx.fillStyle = i % 2 === 0 ? '#ff8800' : '#ffaa00';
+                ctx.shadowColor = '#ff6600';
+                ctx.shadowBlur = 3;
+                ctx.beginPath();
+                ctx.arc(cx + swirlX, cy + swirlY, size, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 9. Ember Storm (directional glowing streaks) ----
+          if (this._firestormEmbers.length > 0) {
+            ctx.save();
+            const emberPhase = Date.now() * 0.003;
+            for (const p of this._firestormEmbers) {
+              if (p.alpha <= 0.01) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.shadowColor = p.color;
+              ctx.shadowBlur = p.size > 2.5 ? 6 : 3;
+              // Stretch into directional streaks
+              const px = p.x * screenW;
+              const py = p.y * screenH;
+              const streakLen = Math.min(p.size * 2.5, 10);
+              const angle = Math.atan2(p.vy, p.vx);
+              ctx.beginPath();
+              ctx.ellipse(px, py, streakLen, p.size, angle, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 10. Burning Ash (dark swirling volcanic particles) ----
+          if (this._firestormAsh.length > 0) {
+            ctx.save();
+            for (const p of this._firestormAsh) {
+              if (p.alpha <= 0.005) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.beginPath();
+              ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // ---- 11. Orange sparks (rapid, small, bright) ----
+          if (this._firestormSparks.length > 0) {
+            ctx.save();
+            for (const p of this._firestormSparks) {
+              if (p.alpha <= 0.01) continue;
+              ctx.globalAlpha = p.alpha;
+              ctx.fillStyle = p.color;
+              ctx.shadowColor = p.color;
+              ctx.shadowBlur = 2;
+              ctx.beginPath();
+              ctx.arc(p.x * screenW, p.y * screenH, p.size, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+        }
+
+        ctx.globalAlpha = 1;
         ctx.restore();
       } else if (theme === 'ocean') {
         ctx.save();
@@ -9641,7 +14046,7 @@ if (this.activeEvent.key === 'speed_surge') {
           a.trail.push({ x: a.x, y: a.y });
           if (a.trail.length > a.maxTrail) a.trail.shift();
           ctx.save();
-          // --- Draw trail (segments: blue-grey smoke → white → yellow → orange) ---
+          // --- Draw trail (segments: blue-grey smoke ??? white ??? yellow ??? orange) ---
           if (a.trail.length > 2) {
             for (let t = 1; t < a.trail.length; t++) {
               const tf = t / a.trail.length;
@@ -9748,405 +14153,956 @@ if (this.activeEvent.key === 'speed_surge') {
         ctx.fillRect(0, 0, screenW, screenH);
         ctx.restore();
       } else if (theme === 'jungle') {
+        try {
+        const camParallax = (this.cameraX || 0) * 0.02;
+
+        // ================================================================
+        // DEPTH LAYER 1 — VERY FAR BACKGROUND (sky, mountains, silhouettes, fog)
+        // Parallax: 0.02–0.08x. Deepest atmospheric backdrop.
+        // ================================================================
+
+        // 1a. Sky — pale morning sky through canopy gap
         ctx.save();
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, screenH * 0.5);
+        skyGrad.addColorStop(0, 'rgba(70, 100, 120, 0.12)');
+        skyGrad.addColorStop(0.3, 'rgba(60, 95, 100, 0.08)');
+        skyGrad.addColorStop(0.6, 'rgba(50, 85, 75, 0.04)');
+        skyGrad.addColorStop(1, 'rgba(30, 60, 45, 0)');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, screenW, screenH * 0.5);
+        ctx.restore();
 
-        // ===== TOP OF TRACK: Dense rainforest canopy wall =====
-        // Multiple layers of trees receding into distance
-        const canopyTime = time * 0.03;
+        // 1b. Distant rainforest mountains (3 overlapping layers)
+        ctx.save();
+        const mountOffset = camParallax * 0.02;
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#1a3a2a';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const m1 = Math.sin((x + mountOffset) * 0.001 + time * 0.001) * 50;
+          const m2 = Math.sin((x + mountOffset) * 0.003 + time * 0.0015 + 1.5) * 30;
+          const m3 = Math.sin((x + mountOffset) * 0.006 + time * 0.0008 + 3.0) * 18;
+          ctx.lineTo(x, screenH * 0.30 + m1 + m2 * 0.5 + m3 * 0.3);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.09;
+        ctx.fillStyle = '#2a4a38';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const m1 = Math.sin((x + mountOffset) * 0.0015 + time * 0.0008 + 0.5) * 42;
+          const m2 = Math.sin((x + mountOffset) * 0.004 + time * 0.0012 + 2.0) * 25;
+          ctx.lineTo(x, screenH * 0.27 + m1 + m2 * 0.5);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.06;
+        ctx.fillStyle = '#3a5a3a';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 3) {
+          const m1 = Math.sin((x + mountOffset * 1.3) * 0.002 + time * 0.001 + 1.2) * 35;
+          ctx.lineTo(x, screenH * 0.24 + m1);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
 
-        // Layer 1: Far background trees (tall emergent layer - kapok/giant jungle trees)
+        // 1c. Atmospheric haze / soft morning fog (very top)
+        ctx.save();
+        const hazeGrad = ctx.createLinearGradient(0, 0, 0, screenH * 0.35);
+        hazeGrad.addColorStop(0, 'rgba(180, 210, 200, 0.06)');
+        hazeGrad.addColorStop(0.4, 'rgba(160, 200, 190, 0.04)');
+        hazeGrad.addColorStop(1, 'rgba(140, 180, 170, 0)');
+        ctx.fillStyle = hazeGrad;
+        ctx.fillRect(0, 0, screenW, screenH * 0.35);
+        ctx.restore();
+
+        // 1d. Distant jungle silhouette (noise-based continuous strip)
+        ctx.save();
+        const silOffset = camParallax * 0.04;
         ctx.globalAlpha = 0.08;
-        for (let i = 0; i < 12; i++) {
-          const tx = (i / 12) * screenW + Math.sin(i * 2.1 + canopyTime * 0.5) * 40;
-          const trunkW = 25 + Math.sin(i * 1.7) * 8;
-          const trunkH = screenH * 0.55;
-          const canopyBaseY = screenH * 0.25;
-          const canopyR = 80 + Math.sin(i * 2.3) * 25;
+        ctx.fillStyle = '#0d2a18';
+        ctx.beginPath();
+        ctx.moveTo(0, screenH);
+        for (let x = 0; x <= screenW; x += 2) {
+          const n1 = Math.sin((x + silOffset) * 0.004 + time * 0.0005) * 18;
+          const n2 = Math.sin((x + silOffset) * 0.009 + time * 0.0008 + 1.7) * 12;
+          const n3 = Math.sin((x + silOffset) * 0.015 + time * 0.001 + 4.2) * 7;
+          ctx.lineTo(x, screenH * 0.35 + n1 + n2 + n3);
+        }
+        ctx.lineTo(screenW, screenH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
 
-          // Trunk
-          ctx.fillStyle = '#1a1008';
-          ctx.fillRect(tx - trunkW / 2, canopyBaseY, trunkW, trunkH);
+        // ================================================================
+        // DEPTH LAYER 2 — FAR BACKGROUND CONTINUOUS CANOPY
+        // Parallax: 0.08–0.20x. Blended thousands of crowns — aerial view.
+        // ================================================================
 
-          // Trunk texture lines
-          ctx.strokeStyle = '#2d1810';
-          ctx.lineWidth = 1;
-          for (let t = 0; t < 5; t++) {
-            const ty = canopyBaseY + (t / 5) * trunkH;
+        ctx.save();
+        const canopyBaseX = camParallax * 0.10;
+        const canopyLayers = [
+          { y: 0.34, amp: 35, freq1: 0.003, freq2: 0.007, alpha: 0.22, color: '#0d3b1c', offset: 0 },
+          { y: 0.30, amp: 30, freq1: 0.0035, freq2: 0.008, alpha: 0.18, color: '#1a5e2a', offset: 0.7 },
+          { y: 0.27, amp: 26, freq1: 0.004, freq2: 0.009, alpha: 0.14, color: '#2d6a30', offset: 1.5 },
+          { y: 0.24, amp: 22, freq1: 0.0045, freq2: 0.01, alpha: 0.11, color: '#4a7a3a', offset: 2.2 },
+          { y: 0.21, amp: 18, freq1: 0.005, freq2: 0.011, alpha: 0.08, color: '#6a8a3a', offset: 3.0 }
+        ];
+        for (const cl of canopyLayers) {
+          const cx = canopyBaseX * (1 + cl.offset * 0.1);
+          ctx.globalAlpha = cl.alpha;
+          ctx.fillStyle = cl.color;
+          ctx.beginPath();
+          ctx.moveTo(0, screenH);
+          for (let x = 0; x <= screenW; x += 2) {
+            const w1 = Math.sin((x + cx) * cl.freq1 + time * 0.0006 + cl.offset) * cl.amp;
+            const w2 = Math.sin((x + cx) * cl.freq2 + time * 0.001 + cl.offset * 1.3) * cl.amp * 0.5;
+            ctx.lineTo(x, screenH * cl.y + w1 + w2);
+          }
+          ctx.lineTo(screenW, screenH);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ================================================================
+        // DEPTH LAYER 3 — MIDDLE BACKGROUND (individual Amazon trees)
+        // Parallax: 0.25–0.50x. Kapok, rubber, palm — massive trunks & crowns.
+        // ================================================================
+
+        ctx.save();
+        const midTreeOff = camParallax * 0.50;
+        for (const t of this._jungleGiantTrees) {
+          const tx = t.x * screenW + midTreeOff * t.parallax;
+          const baseY = t.baseY * screenH;
+          const trunkW = t.trunkW;
+          const trunkH = t.trunkH * screenH;
+          const sway = Math.sin(time * 0.001 + t.phase) * 2;
+          const leanX = t.lean || 0;
+          const crownCY = baseY - trunkH + (t.crownY || -0.06) * screenH;
+          const cw = t.crownW || 25;
+          const ch = t.crownH || 16;
+
+          // Bark texture — vertical stripes on trunk
+          ctx.globalAlpha = 0.18;
+          ctx.fillStyle = t.barkColor;
+          ctx.beginPath();
+          ctx.moveTo(tx - trunkW * 0.5 + sway + leanX, baseY);
+          ctx.lineTo(tx - trunkW * 0.35 + sway + leanX, baseY - trunkH);
+          ctx.lineTo(tx + trunkW * 0.35 + sway, baseY - trunkH);
+          ctx.lineTo(tx + trunkW * 0.5 + sway, baseY);
+          ctx.closePath();
+          ctx.fill();
+          // Bark texture lines
+          ctx.globalAlpha = 0.06;
+          ctx.strokeStyle = '#0d1a10';
+          ctx.lineWidth = 0.5;
+          for (let bt = 0; bt < 5; bt++) {
+            const bx = tx + sway + leanX * (1 - bt * 0.15) + (bt - 2) * trunkW * 0.12;
             ctx.beginPath();
-            ctx.moveTo(tx - trunkW / 2 + 2, ty);
-            ctx.lineTo(tx + trunkW / 2 - 2, ty + Math.sin(i * 3 + t) * 3);
+            ctx.moveTo(bx, baseY);
+            ctx.lineTo(bx, baseY - trunkH * 0.9);
             ctx.stroke();
           }
 
-          // Massive canopy - layered for depth
-          const canopyY = canopyBaseY - canopyR * 0.3;
-          // Back canopy layer
-          ctx.fillStyle = '#0d2818';
+          // Crown — deep shadow layer (back)
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = t.crownColor || '#0d3b1c';
+          const cPhase1 = Math.sin(t.phase + time * 0.0005) * cw * 0.15;
+          const cPhase2 = Math.cos(t.phase * 0.7 + time * 0.0008) * ch * 0.12;
           ctx.beginPath();
-          ctx.ellipse(tx, canopyY, canopyR * 1.1, canopyR * 0.7, 0, 0, Math.PI * 2);
+          ctx.ellipse(tx + cPhase1 + leanX + sway, crownCY + cPhase2, cw, ch, 0.1, 0, Math.PI * 2);
           ctx.fill();
-          // Mid canopy layer
-          ctx.fillStyle = '#144526';
           ctx.beginPath();
-          ctx.ellipse(tx, canopyY - 10, canopyR * 0.9, canopyR * 0.6, 0, 0, Math.PI * 2);
+          ctx.ellipse(tx - cw * 0.35 + cPhase1 * 0.5 + leanX * 0.5 + sway, crownCY + ch * 0.15, cw * 0.7, ch * 0.65, -0.15, 0, Math.PI * 2);
           ctx.fill();
-          // Front canopy layer
-          ctx.fillStyle = '#1a5c30';
           ctx.beginPath();
-          ctx.ellipse(tx, canopyY - 18, canopyR * 0.75, canopyR * 0.5, 0, 0, Math.PI * 2);
+          ctx.ellipse(tx + cw * 0.3 - cPhase1 * 0.5 + sway, crownCY - ch * 0.1, cw * 0.6, ch * 0.7, 0.15, 0, Math.PI * 2);
           ctx.fill();
-        }
 
-        // Layer 2: Mid-ground trees (canopy layer - rubber trees, tall palms)
-        ctx.globalAlpha = 0.14;
-        for (let i = 0; i < 16; i++) {
-          const tx = ((i + 0.5) / 16) * screenW + Math.sin(i * 1.9 + canopyTime * 0.7) * 30;
-          const trunkW = 18 + Math.sin(i * 2.1) * 6;
-          const trunkH = screenH * 0.48;
-          const canopyBaseY = screenH * 0.3;
-          const canopyR = 65 + Math.sin(i * 1.7) * 20;
-          const branchCount = 3 + Math.floor(Math.sin(i * 2.5) * 2);
+          // Crown — main dome
+          ctx.globalAlpha = 0.20;
+          ctx.fillStyle = t.crownHighlight || '#1a5e2a';
+          ctx.beginPath();
+          ctx.ellipse(tx + sway + leanX * 0.3, crownCY, cw * 0.9, ch * 0.85, 0, 0, Math.PI * 2);
+          ctx.fill();
 
-          // Trunk
-          ctx.fillStyle = '#2d1810';
-          ctx.fillRect(tx - trunkW / 2, canopyBaseY, trunkW, trunkH);
+          // Crown — sunlit top highlight
+          ctx.globalAlpha = 0.08;
+          ctx.fillStyle = '#3a7a3a';
+          ctx.beginPath();
+          ctx.ellipse(tx - cw * 0.1 + sway + leanX * 0.2, crownCY - ch * 0.2, cw * 0.35, ch * 0.28, -0.15, 0, Math.PI * 2);
+          ctx.fill();
 
-          // Visible branches extending outward
-          ctx.strokeStyle = '#3d2818';
-          ctx.lineWidth = 3;
+          // Leaf cluster bumps around crown edge
+          ctx.globalAlpha = 0.12;
+          ctx.fillStyle = t.crownColor || '#0d3b1c';
+          const bumpCount = 5 + (t.species === 'kapok' ? 2 : 0);
+          for (let bi = 0; bi < bumpCount; bi++) {
+            const ba = bi * (Math.PI * 2 / bumpCount) + t.phase * 0.3;
+            const bx = tx + sway + leanX * 0.3 + Math.cos(ba) * cw * 0.7;
+            const by = crownCY + Math.sin(ba) * ch * 0.6;
+            const bw = cw * 0.25 + Math.sin(t.phase + bi * 1.3) * cw * 0.05;
+            const bh = ch * 0.30 + Math.cos(t.phase * 0.5 + bi * 0.7) * ch * 0.04;
+            ctx.beginPath();
+            ctx.ellipse(bx, by, bw, bh, Math.sin(bi + t.phase) * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Smaller leaf detail clusters (lighter green dots)
+          ctx.globalAlpha = 0.06;
+          ctx.fillStyle = '#4a8a3a';
+          for (let li = 0; li < 6; li++) {
+            const la = li * 1.05 + t.phase;
+            const lx = tx + sway + leanX * 0.3 + Math.cos(la) * cw * 0.5 + Math.sin(time * 0.0008 + li) * 3;
+            const ly = crownCY + Math.sin(la) * ch * 0.4 + Math.cos(time * 0.001 + li) * 2;
+            ctx.beginPath();
+            ctx.arc(lx, ly, 2 + Math.sin(t.phase + li) * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Branches extending outward
+          ctx.globalAlpha = 0.12;
+          ctx.strokeStyle = t.barkColor;
+          ctx.lineWidth = trunkW * 0.12;
+          const branchCount = 3 + ((t.species === 'rubber') ? 1 : 0);
           for (let b = 0; b < branchCount; b++) {
-            const branchY = canopyBaseY + (b / branchCount) * trunkH * 0.6;
-            const branchLen = 25 + Math.sin(i * 3 + b) * 10;
-            const isLeft = b % 2 === 0;
+            const ba = -0.7 + b * 0.45 + Math.sin(t.phase + b) * 0.2;
+            const bStartY = baseY - trunkH * (0.45 + b * 0.15);
+            const bLen = trunkH * (0.12 + Math.sin(t.phase + b * 1.3) * 0.04);
+            const bEndX = tx + sway + leanX * (1 - b * 0.15) + Math.cos(ba) * bLen;
+            const bEndY = bStartY + Math.sin(ba) * bLen * 0.3;
             ctx.beginPath();
-            ctx.moveTo(tx + (isLeft ? -trunkW / 2 : trunkW / 2), branchY);
-            ctx.quadraticCurveTo(
-              tx + (isLeft ? -trunkW / 2 : trunkW / 2) + (isLeft ? -branchLen : branchLen) * 0.5,
-              branchY - 15,
-              tx + (isLeft ? -trunkW / 2 : trunkW / 2) + (isLeft ? -branchLen : branchLen),
-              branchY + Math.sin(i * 4 + b) * 8
-            );
+            ctx.moveTo(tx + sway + leanX * (1 - b * 0.15), bStartY);
+            ctx.quadraticCurveTo(tx + sway + leanX * (1 - b * 0.15) + Math.cos(ba) * bLen * 0.5, bStartY - bLen * 0.1, bEndX, bEndY);
+            ctx.stroke();
+            // Small leaf cluster at branch tip
+            ctx.globalAlpha = 0.05;
+            ctx.fillStyle = '#2a6a2a';
+            ctx.beginPath();
+            ctx.ellipse(bEndX, bEndY, 4, 3, ba, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.12;
+          }
+
+          // Buttress roots (kapok-style)
+          if (t.species === 'kapok' || t.hasButtress) {
+            ctx.globalAlpha = 0.16;
+            ctx.fillStyle = t.barkColor;
+            ctx.beginPath();
+            ctx.moveTo(tx - trunkW * 1.0 + sway + leanX, baseY);
+            ctx.quadraticCurveTo(tx - trunkW * 0.3 + sway + leanX * 0.5, baseY + 8, tx + sway + leanX * 0.3, baseY + 4);
+            ctx.quadraticCurveTo(tx + trunkW * 0.3 + sway, baseY + 8, tx + trunkW * 1.0 + sway, baseY);
+            ctx.fill();
+            // Second buttress layer
+            ctx.globalAlpha = 0.10;
+            ctx.beginPath();
+            ctx.moveTo(tx - trunkW * 1.3 + sway + leanX, baseY);
+            ctx.quadraticCurveTo(tx - trunkW * 0.4 + sway + leanX * 0.3, baseY + 12, tx + sway + leanX * 0.3, baseY + 6);
+            ctx.quadraticCurveTo(tx + trunkW * 0.4 + sway, baseY + 12, tx + trunkW * 1.3 + sway, baseY);
+            ctx.fill();
+          }
+
+          // Moss patches on trunk
+          ctx.globalAlpha = 0.07;
+          for (let m = 0; m < 3; m++) {
+            const my = baseY - trunkH * (0.25 + m * 0.3);
+            const mw = trunkW * (0.3 + Math.sin(t.phase + m * 2.0) * 0.15);
+            ctx.fillStyle = '#2a5a28';
+            ctx.beginPath();
+            ctx.ellipse(tx + sway + leanX * (1 - m * 0.1) + Math.sin(t.phase + m * 1.5) * trunkW * 0.2, my, mw, mw * 0.3, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Vines wrapped around trunk
+          ctx.globalAlpha = 0.05;
+          ctx.strokeStyle = '#3a4a38';
+          ctx.lineWidth = 0.8;
+          const vineWrapCount = 2 + (t.species === 'rubber' ? 1 : 0);
+          for (let vw = 0; vw < vineWrapCount; vw++) {
+            const vwStart = baseY - trunkH * (0.3 + vw * 0.25);
+            ctx.beginPath();
+            for (let vwy = 0; vwy < trunkH * 0.25; vwy += 2) {
+              const vwx = tx + sway + leanX * (1 - vw * 0.1) + Math.sin(vwy * 0.08 + time * 0.0005 + t.phase + vw) * trunkW * 0.4;
+              const vwy2 = vwStart - vwy;
+              if (vwy === 0) ctx.moveTo(vwx, vwy2);
+              else ctx.lineTo(vwx, vwy2);
+            }
             ctx.stroke();
           }
+        }
+        ctx.restore();
 
-          // Canopy - irregular, layered
-          const canopyY = canopyBaseY - canopyR * 0.4;
-          ctx.fillStyle = '#0f301a';
+        // ================================================================
+        // DEPTH LAYER 3b — MIDDLE BACKGROUND (distant waterfalls)
+        // Parallax: 0.15–0.30x. Soft, semi-transparent, behind everything.
+        // ================================================================
+
+        ctx.save();
+        for (const wf of this._jungleWaterfalls) {
+          const wfx = wf.x * screenW + camParallax * wf.parallax;
+          const wfy = wf.y * screenH;
+          const wfw = wf.width;
+          const wfh = wf.height * screenH;
+          ctx.globalAlpha = 0.07 + 0.02 * Math.sin(time * 0.002 + wf.phase);
+          const waterGrad = ctx.createLinearGradient(wfx - wfw * 0.5, wfy, wfx + wfw * 0.5, wfy);
+          waterGrad.addColorStop(0, 'rgba(200, 230, 255, 0)');
+          waterGrad.addColorStop(0.2, 'rgba(200, 235, 255, 0.08)');
+          waterGrad.addColorStop(0.5, 'rgba(220, 240, 255, 0.12)');
+          waterGrad.addColorStop(0.8, 'rgba(200, 235, 255, 0.08)');
+          waterGrad.addColorStop(1, 'rgba(200, 230, 255, 0)');
+          ctx.fillStyle = waterGrad;
+          ctx.fillRect(wfx - wfw * 0.5, wfy, wfw, wfh);
+          // Waterfall strands
+          ctx.globalAlpha = 0.04;
+          ctx.fillStyle = 'rgba(220, 240, 255, 0.08)';
+          for (let s = 0; s < 4; s++) {
+            const sx = wfx - wfw * 0.3 + s * wfw * 0.2 + Math.sin(time * 0.003 + s + wf.phase) * 2;
+            ctx.fillRect(sx, wfy + Math.sin(s * 2.0 + time * 0.004 + wf.phase) * 5, 1.5, wfh * 0.7);
+          }
+          // Mist at base
+          ctx.globalAlpha = 0.05;
+          const mistGrad = ctx.createRadialGradient(wfx, wfy + wfh, 0, wfx, wfy + wfh, wfw * 2.5);
+          mistGrad.addColorStop(0, 'rgba(200, 230, 240, 0.07)');
+          mistGrad.addColorStop(1, 'rgba(200, 230, 240, 0)');
+          ctx.fillStyle = mistGrad;
           ctx.beginPath();
-          ctx.ellipse(tx, canopyY, canopyR, canopyR * 0.65, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#16502a';
-          ctx.beginPath();
-          ctx.ellipse(tx, canopyY - 8, canopyR * 0.85, canopyR * 0.55, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#1d6b35';
-          ctx.beginPath();
-          ctx.ellipse(tx + Math.sin(i * 2) * 8, canopyY - 15, canopyR * 0.7, canopyR * 0.45, 0, 0, Math.PI * 2);
+          ctx.arc(wfx, wfy + wfh, wfw * 2.5, 0, Math.PI * 2);
           ctx.fill();
         }
+        ctx.restore();
 
-        // Layer 3: Near canopy trees (lower canopy - diverse crown shapes)
-        ctx.globalAlpha = 0.22;
-        for (let i = 0; i < 20; i++) {
-          const tx = (i / 20) * screenW + Math.sin(i * 2.7 + canopyTime) * 20;
-          const trunkW = 14 + Math.sin(i * 1.5) * 5;
-          const trunkH = screenH * 0.4;
-          const canopyBaseY = screenH * 0.38;
-          const canopyR = 50 + Math.sin(i * 2.1) * 18;
+        // ================================================================
+        // DEPTH LAYER 3c — AMAZON RIVER (winding, behind trees)
+        // Parallax: 0.20–0.30x. Muddy water visible through canopy openings.
+        // ================================================================
 
-          // Trunk with slight lean
-          const lean = Math.sin(i * 1.3) * 12;
-          ctx.fillStyle = '#3a2010';
+        if (this._jungleRiver && this._jungleRiver.segments) {
+          ctx.save();
+          const segments = this._jungleRiver.segments;
+          const riverParallax = this._jungleRiver.parallax || 0.25;
+          const riverOffset = camParallax * riverParallax;
           ctx.beginPath();
-          ctx.moveTo(tx - trunkW / 2, canopyBaseY + trunkH);
-          ctx.lineTo(tx + trunkW / 2, canopyBaseY + trunkH);
-          ctx.lineTo(tx + trunkW / 2 + lean, canopyBaseY);
-          ctx.lineTo(tx - trunkW / 2 + lean, canopyBaseY);
-          ctx.closePath();
-          ctx.fill();
-
-          // Canopy - varied shapes (rounded, irregular, some extending toward track)
-          const canopyY = canopyBaseY - canopyR * 0.5;
-          const shapeVar = Math.sin(i * 1.8);
-          ctx.fillStyle = '#10381c';
-          ctx.beginPath();
-          if (shapeVar > 0) {
-            // Rounded crown
-            ctx.ellipse(tx + lean * 0.3, canopyY, canopyR, canopyR * 0.6, 0, 0, Math.PI * 2);
-          } else {
-            // Irregular crown
-            ctx.ellipse(tx + lean * 0.3, canopyY, canopyR * 1.1, canopyR * 0.5, 0, 0, Math.PI * 2);
+          const pts = segments.map((s, i) => ({
+            x: s.x * screenW + riverOffset,
+            y: s.y * screenH + Math.sin(time * 0.0006 + s.phase) * 4,
+            w: s.width + Math.sin(time * 0.0008 + s.phase * 0.7) * 1.5
+          }));
+          ctx.moveTo(pts[0].x, pts[0].y - pts[0].w);
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y - pts[i].w);
           }
-          ctx.fill();
-          ctx.fillStyle = '#185828';
-          ctx.beginPath();
-          ctx.ellipse(tx + lean * 0.3 + 5, canopyY - 10, canopyR * 0.8, canopyR * 0.5, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#1f7030';
-          ctx.beginPath();
-          ctx.ellipse(tx + lean * 0.3 - 3, canopyY - 18, canopyR * 0.65, canopyR * 0.4, 0, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // ===== BOTTOM OF TRACK: Dense foreground jungle layer =====
-        ctx.globalAlpha = 0.35;
-
-        // Large foreground trees with massive trunks and canopies
-        for (let i = 0; i < 10; i++) {
-          const tx = (i / 10) * screenW + ((i * 137.5) % 80) - 40;
-          const trunkW = 28 + Math.sin(i * 2.3) * 10;
-          const trunkH = screenH * 0.55;
-          const trunkBaseY = screenH * 0.5;
-          const canopyR = 70 + Math.sin(i * 1.9) * 25;
-          const canopyBaseY = trunkBaseY - trunkH * 0.1;
-
-          // Massive trunk
-          ctx.fillStyle = '#1a1006';
-          ctx.beginPath();
-          ctx.moveTo(tx - trunkW / 2 * 1.3, screenH);
-          ctx.lineTo(tx + trunkW / 2 * 1.3, screenH);
-          ctx.lineTo(tx + trunkW / 2, trunkBaseY);
-          ctx.lineTo(tx - trunkW / 2, trunkBaseY);
-          ctx.closePath();
-          ctx.fill();
-
-          // Bark texture
-          ctx.strokeStyle = '#2d1508';
-          ctx.lineWidth = 2;
-          for (let t = 0; t < 8; t++) {
-            const ty = trunkBaseY + (t / 8) * (screenH - trunkBaseY);
-            const w = trunkW * (1 - t / 8 * 0.3);
-            ctx.beginPath();
-            ctx.moveTo(tx - w / 2 + Math.sin(i * 4 + t) * 3, ty);
-            ctx.lineTo(tx + w / 2 + Math.sin(i * 4 + t + 1) * 3, ty);
-            ctx.stroke();
+          for (let i = pts.length - 1; i >= 0; i--) {
+            ctx.lineTo(pts[i].x, pts[i].y + pts[i].w);
           }
-
-          // Large roots at base
-          ctx.fillStyle = '#150a04';
+          ctx.closePath();
+          ctx.globalAlpha = 0.10;
+          ctx.fillStyle = '#4a5a3a';
+          ctx.fill();
+          ctx.globalAlpha = 0.03;
+          ctx.strokeStyle = '#6a7a5a';
+          ctx.lineWidth = 1;
           for (let r = 0; r < 4; r++) {
-            const rootAngle = (r / 4) * Math.PI * 2 + Math.sin(i * 2) * 0.5;
-            const rootLen = 30 + Math.sin(i * 3 + r) * 15;
-            const rx1 = tx + Math.cos(rootAngle) * (trunkW / 2);
-            const ry1 = screenH;
-            const rx2 = tx + Math.cos(rootAngle) * (trunkW / 2 + rootLen);
-            const ry2 = screenH - Math.sin(rootAngle) * rootLen * 0.3;
+            const rippleY = 0.38 + r * 0.05 + Math.sin(time * 0.001 + r * 1.3) * 0.015;
             ctx.beginPath();
-            ctx.moveTo(rx1, ry1);
-            ctx.lineTo(rx2, ry2);
-            ctx.lineTo(rx2 + 8, ry2 + 4);
-            ctx.lineTo(rx1 + 8, ry1);
-            ctx.closePath();
+            for (let i = 0; i < pts.length; i++) {
+              const rx = pts[i].x;
+              const ry = rippleY * screenH + Math.sin(time * 0.002 + r * 2.0 + i * 0.5) * 2;
+              if (i === 0) ctx.moveTo(rx, ry);
+              else ctx.lineTo(rx + Math.sin(time * 0.0015 + r + i) * 3, ry);
+            }
+            ctx.stroke();
+          }
+          // Tiny river reflections (light glints on water)
+          ctx.globalAlpha = 0.02;
+          ctx.fillStyle = 'rgba(200, 220, 180, 0.3)';
+          for (let ri = 0; ri < 5; ri++) {
+            const riX = pts[ri * 2 < pts.length ? ri * 2 : pts.length - 1].x + Math.sin(time * 0.002 + ri * 2) * 8;
+            const riY = pts[ri * 2 < pts.length ? ri * 2 : pts.length - 1].y + Math.sin(time * 0.003 + ri * 1.5) * 5;
+            ctx.beginPath();
+            ctx.ellipse(riX, riY, 3, 1.5, Math.sin(time * 0.001 + ri) * 0.5, 0, Math.PI * 2);
             ctx.fill();
           }
-
-          // Dense canopy extending slightly toward track
-          const canopyY = canopyBaseY - canopyR * 0.3;
-          ctx.fillStyle = '#082010';
-          ctx.beginPath();
-          ctx.ellipse(tx, canopyY, canopyR * 1.15, canopyR * 0.7, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#0e3818';
-          ctx.beginPath();
-          ctx.ellipse(tx + 5, canopyY - 12, canopyR * 0.95, canopyR * 0.6, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#145020';
-          ctx.beginPath();
-          ctx.ellipse(tx - 3, canopyY - 22, canopyR * 0.8, canopyR * 0.5, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#1a6528';
-          ctx.beginPath();
-          ctx.ellipse(tx + 8, canopyY - 30, canopyR * 0.6, canopyR * 0.4, 0, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.restore();
         }
 
-        // Bushes, ferns, banana leaves, ground vegetation
-        ctx.globalAlpha = 0.28;
-        for (let i = 0; i < 35; i++) {
-          const bx = (i / 35) * screenW + Math.sin(i * 3.1 + canopyTime * 1.2) * 50;
-          const by = screenH * (0.55 + Math.sin(i * 2.7) * 0.2);
-          const type = i % 5;
-          const size = 15 + Math.sin(i * 1.7) * 10;
+        // ================================================================
+        // DEPTH LAYER 4 — FOREGROUND BACKGROUND (roots, logs, bushes, ferns, bamboo)
+        // Parallax: 0.50–0.60x. Near track level but strictly behind gameplay.
+        // ================================================================
 
-          if (type === 0) {
-            // Bush - dark green rounded
-            ctx.fillStyle = '#0d3015';
+        // 4a. Tree roots and fallen logs
+        ctx.save();
+        const rootOff = camParallax * 0.55;
+        for (const r of this._jungleRoots) {
+          const rx = r.x * screenW + rootOff * r.parallax;
+          const ry = r.y * screenH;
+          const rLen = r.len;
+          const rWid = r.width;
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = '#2a1f18';
+          ctx.beginPath();
+          ctx.moveTo(rx, ry);
+          ctx.quadraticCurveTo(rx + r.dirX * rLen * 0.5, ry - rLen * 0.3, rx + r.dirX * rLen, ry - rLen * 0.6);
+          ctx.quadraticCurveTo(rx + r.dirX * rLen * 0.7, ry - rLen * 0.4, rx + r.dirX * rLen * 0.3, ry);
+          ctx.closePath();
+          ctx.fill();
+          if (r.wrapRock) {
+            ctx.globalAlpha = 0.10;
+            ctx.fillStyle = '#3a3a30';
             ctx.beginPath();
-            ctx.ellipse(bx, by, size * 1.2, size * 0.7, 0, 0, Math.PI * 2);
+            ctx.ellipse(rx + r.dirX * rLen * 0.4, ry - rLen * 0.35, rWid * 0.8, rWid * 0.5, r.dirX * 0.3, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = '#145020';
+          }
+        }
+        ctx.restore();
+
+        // 4b. Foreground bushes (broad leaf clusters near track edges)
+        ctx.save();
+        const bushOff = camParallax * 0.60;
+        for (let i = 0; i < 8; i++) {
+          const seed = i * 73.1;
+          const bx = ((i / 8) * screenW + Math.sin(seed + time * 0.0005) * 15 + bushOff * (0.5 + Math.sin(seed * 0.3) * 0.1)) % (screenW + 20) - 10;
+          const by = screenH * (0.72 + Math.sin(seed * 1.7) * 0.06);
+          const bushSize = 10 + Math.sin(seed * 0.9) * 4;
+          const sway2 = Math.sin(time * 0.0006 + seed) * 2;
+          ctx.globalAlpha = 0.10 + Math.sin(seed * 0.5) * 0.03;
+          // Main bush mass
+          ctx.fillStyle = '#1a4a28';
+          ctx.beginPath();
+          ctx.ellipse(bx + sway2, by, bushSize, bushSize * 0.6, 0.2, 0, Math.PI * 2);
+          ctx.fill();
+          // Lighter highlight
+          ctx.globalAlpha *= 0.6;
+          ctx.fillStyle = '#2a6a3a';
+          ctx.beginPath();
+          ctx.ellipse(bx + sway2 - bushSize * 0.2, by - bushSize * 0.15, bushSize * 0.5, bushSize * 0.35, -0.1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // 4c. Ferns near ground
+        ctx.save();
+        const fernOff = camParallax * 0.55;
+        for (let i = 0; i < 6; i++) {
+          const seed = i * 53.7;
+          const fx = ((i / 6) * screenW * 1.1 - screenW * 0.05 + fernOff * (0.4 + Math.sin(seed * 0.2) * 0.1)) % (screenW + 10);
+          const fy = screenH * (0.75 + Math.sin(seed * 2.1) * 0.05);
+          const fLen = 15 + Math.sin(seed) * 5;
+          const fSway = Math.sin(time * 0.0007 + seed) * 2;
+          ctx.globalAlpha = 0.08;
+          ctx.strokeStyle = '#2a5a2a';
+          ctx.lineWidth = 0.8;
+          // Fern fronds radiating from base
+          for (let fr = 0; fr < 4; fr++) {
+            const fAngle = -0.6 + fr * 0.4 + Math.sin(seed + fr) * 0.1;
             ctx.beginPath();
-            ctx.ellipse(bx + 3, by - 5, size * 0.9, size * 0.5, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#1a6528';
-            ctx.beginPath();
-            ctx.ellipse(bx - 2, by - 10, size * 0.7, size * 0.4, 0, 0, Math.PI * 2);
-            ctx.fill();
-          } else if (type === 1) {
-            // Fern - arching fronds
-            ctx.strokeStyle = '#104018';
-            ctx.lineWidth = 2;
-            for (let f = 0; f < 5; f++) {
-              const angle = -Math.PI / 2 + (f / 4) * Math.PI * 0.7 - 0.2;
-              const len = size * (0.6 + f * 0.1);
-              ctx.beginPath();
-              ctx.moveTo(bx, by);
-              ctx.quadraticCurveTo(
-                bx + Math.cos(angle) * len * 0.5,
-                by + Math.sin(angle) * len * 0.5,
-                bx + Math.cos(angle) * len,
-                by + Math.sin(angle) * len
-              );
-              ctx.stroke();
-              // Fern leaflets
-              ctx.strokeStyle = '#185828';
-              ctx.lineWidth = 1;
-              for (let l = 0; l < 4; l++) {
-                const la = angle + (l - 1.5) * 0.15;
-                const ll = len * 0.25;
-                const lx = bx + Math.cos(angle) * len * (l / 4) * 0.7;
-                const ly = by + Math.sin(angle) * len * (l / 4) * 0.7;
-                ctx.beginPath();
-                ctx.moveTo(lx, ly);
-                ctx.lineTo(lx + Math.cos(la) * ll, ly + Math.sin(la) * ll);
-                ctx.stroke();
-              }
-              ctx.strokeStyle = '#104018';
-              ctx.lineWidth = 2;
+            ctx.moveTo(fx + fSway, fy);
+            for (let fl = 0; fl < fLen; fl += 2) {
+              const fdx = Math.cos(fAngle) * fl + Math.sin(fl * 0.2 + time * 0.001 + seed + fr) * 1.5;
+              const fdy = -Math.sin(fAngle) * fl * 0.4;
+              ctx.lineTo(fx + fSway + fdx, fy + fdy);
             }
-          } else if (type === 2) {
-            // Banana leaf - large paddle shape
-            ctx.fillStyle = '#0e3816';
-            const leafAngle = Math.sin(i * 2.1) * 0.5;
-            ctx.save();
-            ctx.translate(bx, by);
-            ctx.rotate(leafAngle);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+
+        // 4d. Bamboo clusters
+        ctx.save();
+        const bambooOff = camParallax * 0.52;
+        for (let i = 0; i < 4; i++) {
+          const seed = i * 97.3;
+          const bx = ((i / 4) * screenW * 1.0 + bambooOff * 0.6) % (screenW + 20);
+          const by = screenH * 0.78;
+          const bSway = Math.sin(time * 0.0008 + seed) * 2;
+          ctx.globalAlpha = 0.09;
+          ctx.strokeStyle = '#3a5a2a';
+          ctx.lineWidth = 1.2;
+          for (let bc = 0; bc < 4; bc++) {
+            const bOffX = (bc - 1.5) * 3 + bSway;
+            const bH = 25 + Math.sin(seed + bc * 1.5) * 6;
             ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(size * 0.3, -size * 0.8, size, -size * 0.3);
-            ctx.quadraticCurveTo(size * 0.3, size * 0.2, 0, size * 0.1);
-            ctx.quadraticCurveTo(-size * 0.3, size * 0.5, -size * 0.5, 0);
-            ctx.quadraticCurveTo(-size * 0.3, -size * 0.3, 0, 0);
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle = '#165525';
-            ctx.beginPath();
-            ctx.moveTo(2, 0);
-            ctx.quadraticCurveTo(size * 0.25, -size * 0.5, size * 0.7, -size * 0.2);
-            ctx.quadraticCurveTo(size * 0.25, size * 0.1, 2, size * 0.05);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-          } else if (type === 3) {
-            // Large tropical plant - broad leaves
-            ctx.fillStyle = '#0c2812';
-            for (let l = 0; l < 3; l++) {
-              const la = -Math.PI / 2 + (l / 2) * Math.PI * 0.8;
-              const ll = size * (0.5 + l * 0.2);
-              ctx.save();
-              ctx.translate(bx, by);
-              ctx.rotate(la);
+            ctx.moveTo(bx + bOffX, by);
+            ctx.lineTo(bx + bOffX + Math.sin(time * 0.0005 + seed + bc) * 1.5, by - bH);
+            ctx.stroke();
+            // Bamboo nodes
+            ctx.fillStyle = '#4a6a3a';
+            for (let bn = 0; bn < 3; bn++) {
+              const ny = by - bH * (0.2 + bn * 0.25);
               ctx.beginPath();
-              ctx.ellipse(0, -ll * 0.3, ll * 0.3, ll * 0.7, 0, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.restore();
-            }
-          } else {
-            // Ground cover / moss
-            ctx.fillStyle = '#0f2510';
-            ctx.beginPath();
-            ctx.ellipse(bx, by, size * 0.8, size * 0.4, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#143518';
-            for (let m = 0; m < 3; m++) {
-              const mx = bx + Math.sin(i * 5 + m) * size * 0.5;
-              const my = by + Math.cos(i * 5 + m) * size * 0.3;
-              ctx.beginPath();
-              ctx.arc(mx, my, 2 + Math.sin(i * 7 + m) * 1.5, 0, Math.PI * 2);
+              ctx.ellipse(bx + bOffX + Math.sin(time * 0.0005 + seed + bc) * 1.5, ny, 1.5, 0.5, 0, 0, Math.PI * 2);
               ctx.fill();
             }
           }
         }
+        ctx.restore();
 
-        // ===== JUNGLE VINES: Connecting trees, hanging naturally =====
-        ctx.globalAlpha = 0.18;
-        ctx.strokeStyle = '#3a2510';
-        ctx.lineWidth = 2;
-        for (let v = 0; v < 15; v++) {
-          const vx = (v / 15) * screenW + Math.sin(v * 1.7 + canopyTime * 0.4) * 30;
-          const startY = screenH * (0.25 + Math.sin(v * 2.3) * 0.1);
-          const endY = screenH * (0.45 + Math.sin(v * 1.9) * 0.15);
-          const sway = Math.sin(canopyTime * 0.8 + v * 1.5) * 12;
+        // ================================================================
+        // DEPTH LAYER 5 — UPPER BORDER (branches, vines, leaves from above)
+        // Parallax: 0.45–0.55x. Surrounds the race from above — behind gameplay.
+        // ================================================================
 
+        // 5a. Hanging vines from upper canopy (increased density)
+        ctx.save();
+        const vineOff = camParallax * 0.50;
+        for (let i = 0; i < 28; i++) {
+          const vx = ((i / 28) * screenW + Math.sin(i * 2.3 + time * 0.002) * 30 + vineOff) % (screenW + 25) - 12;
+          const vineLen = 50 + Math.sin(i * 3.7 + time * 0.001) * 25 + (i % 5) * 15;
+          const topY = screenH * (0.25 + Math.sin(i * 1.3) * 0.08);
+          ctx.globalAlpha = 0.05 + (i % 4) * 0.015;
+          ctx.strokeStyle = i % 3 === 0 ? '#2a3a28' : (i % 3 === 1 ? '#3a4a38' : '#4a5a3a');
+          ctx.lineWidth = 0.6 + (i % 5) * 0.25;
           ctx.beginPath();
-          ctx.moveTo(vx, startY);
-          for (let seg = 0; seg < 4; seg++) {
-            const sy = startY + (seg / 4) * (endY - startY);
-            const sx = vx + sway * Math.sin(seg * 1.2);
-            ctx.lineTo(sx, sy);
+          ctx.moveTo(vx, topY);
+          for (let vy = 0; vy < vineLen; vy += 2) {
+            const sway = Math.sin(vy * 0.04 + time * 0.0006 + i * 2.0) * (2 + (i % 4));
+            ctx.lineTo(vx + sway, topY + vy);
           }
           ctx.stroke();
-
-          // Vine leaves
-          ctx.fillStyle = '#1a4520';
-          for (let seg = 0; seg < 4; seg++) {
-            if (Math.sin(canopyTime + v * 2 + seg) > 0.3) {
-              const sy = startY + (seg / 4) * (endY - startY) + Math.sin(canopyTime + v + seg) * 8;
-              const sx = vx + sway * Math.sin(seg * 1.2);
-              ctx.beginPath();
-              ctx.ellipse(sx + 5, sy, 6, 3, Math.PI / 4, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.beginPath();
-              ctx.ellipse(sx - 5, sy, 6, 3, -Math.PI / 4, 0, Math.PI * 2);
-              ctx.fill();
-            }
+          // Leaf or bud at vine tip for some vines
+          if (i % 4 === 0) {
+            ctx.fillStyle = '#3a5a38';
+            ctx.globalAlpha = 0.04;
+            const endX = vx + Math.sin(vineLen * 0.04 + time * 0.0006 + i * 2.0) * (2 + (i % 4));
+            const endY = topY + vineLen;
+            ctx.beginPath();
+            ctx.ellipse(endX, endY, 2.5, 1.5, 0.3, 0, Math.PI * 2);
+            ctx.fill();
           }
         }
-
-        // ===== DISTANT RIVER/WATERFALL (subtle, background only) =====
-        ctx.globalAlpha = 0.06;
-        const riverX = screenW * 0.15 + Math.sin(canopyTime * 0.1) * 20;
-        const riverY = screenH * 0.22;
-        const riverW = 40;
-        ctx.fillStyle = '#1a4a6a';
-        ctx.beginPath();
-        ctx.moveTo(riverX - riverW / 2, 0);
-        for (let ry = 0; ry < screenH * 0.35; ry += 20) {
-          const wobble = Math.sin(ry * 0.02 + canopyTime * 0.5) * 8;
-          ctx.lineTo(riverX + wobble - riverW / 2 + Math.sin(ry * 0.03) * 3, ry);
-        }
-        ctx.lineTo(riverX + riverW / 2 + Math.sin(screenH * 0.35 * 0.03) * 3, screenH * 0.35);
-        ctx.lineTo(riverX - riverW / 2, screenH * 0.35);
-        ctx.closePath();
-        ctx.fill();
-
-        // Waterfall hint
-        ctx.globalAlpha = 0.08;
-        ctx.fillStyle = '#3a8ac8';
-        const fallX = riverX + Math.sin(canopyTime * 0.3) * 5;
-        ctx.beginPath();
-        ctx.moveTo(fallX - 3, screenH * 0.18);
-        ctx.lineTo(fallX + 3, screenH * 0.18);
-        ctx.lineTo(fallX + 5, screenH * 0.35);
-        ctx.lineTo(fallX - 5, screenH * 0.35);
-        ctx.closePath();
-        ctx.fill();
-
-        // ===== GROUND FOG / ATMOSPHERIC DEPTH =====
-        ctx.globalAlpha = 0.12;
-        const fogGrad = ctx.createLinearGradient(0, screenH * 0.5, 0, screenH);
-        fogGrad.addColorStop(0, 'rgba(10, 30, 15, 0)');
-        fogGrad.addColorStop(0.4, 'rgba(10, 30, 15, 0.02)');
-        fogGrad.addColorStop(0.7, 'rgba(10, 30, 15, 0.05)');
-        fogGrad.addColorStop(1, 'rgba(10, 30, 15, 0.12)');
-        ctx.fillStyle = fogGrad;
-        ctx.fillRect(0, screenH * 0.5, screenW, screenH * 0.5);
-
         ctx.restore();
+
+        // 5b. Cross-vines connecting upper tree branches
+        if (this._jungleCrossVines) {
+          ctx.save();
+          const crossVineOff = camParallax * 0.48;
+          for (const cv of this._jungleCrossVines) {
+            const x1 = cv.x1 * screenW + crossVineOff;
+            const y1 = cv.y1 * screenH;
+            const x2 = cv.x2 * screenW + crossVineOff;
+            const y2 = cv.y2 * screenH;
+            const sag = cv.sag + Math.sin(time * 0.0006 + cv.phase) * 3;
+            ctx.globalAlpha = 0.05;
+            ctx.strokeStyle = '#2a3a28';
+            ctx.lineWidth = cv.width;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2 + sag;
+            ctx.quadraticCurveTo(mx + Math.sin(time * 0.0005 + cv.phase) * 5, my, x2, y2);
+            ctx.stroke();
+            // Thin secondary strand
+            ctx.globalAlpha = 0.03;
+            ctx.strokeStyle = '#3a4a38';
+            ctx.lineWidth = cv.width * 0.3;
+            ctx.beginPath();
+            ctx.moveTo(x1 + 3, y1 + 2);
+            const mx2 = mx + Math.sin(time * 0.0007 + cv.phase + 1) * 4;
+            ctx.quadraticCurveTo(mx2, my + 2, x2 + 3, y2 + 2);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // 5c. Upper border branches (extending from top of screen downward)
+        ctx.save();
+        const brOff = camParallax * 0.50;
+        for (let i = 0; i < 5; i++) {
+          const seed = i * 83.2;
+          const bx = ((i / 5) * screenW + brOff * 0.7 + Math.sin(time * 0.0003 + seed) * 15) % (screenW + 10);
+          const branchLen = 40 + Math.sin(seed * 1.5) * 15;
+          const angle = 0.3 + Math.sin(seed * 0.7) * 0.15;
+          ctx.globalAlpha = 0.08;
+          ctx.strokeStyle = '#2a1f18';
+          ctx.lineWidth = 4 + Math.sin(seed) * 1.5;
+          ctx.beginPath();
+          ctx.moveTo(bx, 0);
+          ctx.quadraticCurveTo(bx + Math.cos(angle) * branchLen * 0.5, branchLen * 0.5, bx + Math.cos(angle) * branchLen, branchLen);
+          ctx.stroke();
+          // Thinner sub-branches
+          ctx.lineWidth = 1.5;
+          for (let sb = 0; sb < 2; sb++) {
+            const sbAngle = angle + (-0.2 + sb * 0.4) + Math.sin(seed + sb) * 0.1;
+            const sbStart = branchLen * (0.3 + sb * 0.2);
+            const sbLen = 15 + Math.sin(seed + sb * 2) * 5;
+            ctx.beginPath();
+            ctx.moveTo(bx + Math.cos(angle) * sbStart, sbStart);
+            ctx.quadraticCurveTo(bx + Math.cos(angle) * sbStart + Math.cos(sbAngle) * sbLen * 0.5, sbStart - sbLen * 0.3, bx + Math.cos(angle) * sbStart + Math.cos(sbAngle) * sbLen, sbStart - sbLen);
+            ctx.stroke();
+          }
+          // Leaf clusters at branch ends
+          ctx.globalAlpha = 0.05;
+          ctx.fillStyle = '#1a4a28';
+          const leafX = bx + Math.cos(angle) * branchLen;
+          const leafY = branchLen;
+          ctx.beginPath();
+          ctx.ellipse(leafX + Math.sin(time * 0.0005 + seed) * 2, leafY, 7, 4, angle - 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#2a6a3a';
+          ctx.beginPath();
+          ctx.ellipse(leafX + 4 + Math.sin(time * 0.0006 + seed + 1) * 2, leafY - 3, 5, 3, angle, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ================================================================
+        // DEPTH LAYER 6 — LOWER BORDER (river banks, rocks, vegetation near bottom)
+        // Parallax: 0.55–0.70x. Surrounds the race from below.
+        // ================================================================
+
+        // 6a. River banks and exposed roots near water
+        ctx.save();
+        const bankOff = camParallax * 0.60;
+        for (let i = 0; i < 6; i++) {
+          const seed = i * 67.4;
+          const bx = ((i / 6) * screenW * 1.1 - screenW * 0.05 + bankOff * 0.7 + Math.sin(seed + time * 0.0003) * 10) % (screenW + 15);
+          const by = screenH * (0.80 + Math.sin(seed * 1.3) * 0.04);
+          ctx.globalAlpha = 0.12;
+          // Mud bank
+          ctx.fillStyle = '#3a3a28';
+          ctx.beginPath();
+          ctx.ellipse(bx, by, 20 + Math.sin(seed) * 5, 6 + Math.sin(seed * 0.7) * 2, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          // Roots emerging from bank
+          ctx.globalAlpha = 0.10;
+          ctx.strokeStyle = '#2a1f18';
+          ctx.lineWidth = 1.5 + Math.sin(seed * 0.5) * 0.5;
+          for (let ri = 0; ri < 2; ri++) {
+            const rAngle = 0.5 + ri * 0.8 + Math.sin(seed + ri) * 0.15;
+            const rLen = 10 + Math.sin(seed + ri * 2) * 4;
+            ctx.beginPath();
+            ctx.moveTo(bx + (ri - 0.5) * 8, by);
+            ctx.quadraticCurveTo(bx + (ri - 0.5) * 8 + Math.cos(rAngle) * rLen * 0.5, by - rLen * 0.3, bx + (ri - 0.5) * 8 + Math.cos(rAngle) * rLen, by - rLen * 0.5);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+
+        // 6b. Rocks near river edge
+        ctx.save();
+        const rockOff = camParallax * 0.62;
+        for (let i = 0; i < 5; i++) {
+          const seed = i * 43.9;
+          const rx = ((i / 5) * screenW + rockOff * 0.6 + Math.sin(seed + time * 0.0002) * 8) % (screenW + 10);
+          const ry = screenH * (0.82 + Math.sin(seed * 2.1) * 0.04);
+          const rSize = 5 + Math.sin(seed) * 2;
+          ctx.globalAlpha = 0.12;
+          ctx.fillStyle = '#3a3a30';
+          ctx.beginPath();
+          ctx.ellipse(rx, ry, rSize, rSize * 0.6, Math.sin(seed * 0.3) * 0.2, 0, Math.PI * 2);
+          ctx.fill();
+          // Highlight
+          ctx.globalAlpha = 0.04;
+          ctx.fillStyle = '#5a5a50';
+          ctx.beginPath();
+          ctx.ellipse(rx - rSize * 0.2, ry - rSize * 0.2, rSize * 0.4, rSize * 0.25, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // 6c. Lower border ferns and broad leaves
+        ctx.save();
+        const lowerOff = camParallax * 0.58;
+        for (let i = 0; i < 7; i++) {
+          const seed = i * 61.5;
+          const lx = ((i / 7) * screenW * 1.15 - screenW * 0.07 + lowerOff * 0.65 + Math.sin(seed * 0.5 + time * 0.0004) * 12) % (screenW + 15);
+          const ly = screenH * (0.84 + Math.sin(seed * 1.9) * 0.03);
+          const lSway = Math.sin(time * 0.0005 + seed) * 2;
+          ctx.globalAlpha = 0.09;
+          // Broad tropical leaf
+          ctx.fillStyle = '#1a4a2a';
+          ctx.beginPath();
+          ctx.ellipse(lx + lSway, ly, 12 + Math.sin(seed) * 3, 5 + Math.sin(seed * 0.7) * 1.5, 0.4 + Math.sin(seed) * 0.1, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#2a6a3a';
+          ctx.beginPath();
+          ctx.ellipse(lx + lSway - 3, ly - 2, 6 + Math.sin(seed * 0.5) * 2, 3, 0.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ================================================================
+        // SUN RAYS (soft light filtering through canopy, between layers 3-5)
+        // Parallax: 0.10x. Gentle golden shafts.
+        // ================================================================
+
+        ctx.save();
+        const rayPhase = Math.sin(time * 0.015) * 0.2 + 0.8;
+        for (let i = 0; i < this._jungleSunRays.length; i++) {
+          const sr = this._jungleSunRays[i];
+          const rx = sr.x * screenW + camParallax * sr.parallax + Math.sin(time * 0.008 + i * 1.5) * 20;
+          const pulse = rayPhase * (0.7 + 0.3 * Math.sin(time * 0.01 + sr.phase));
+          ctx.globalAlpha = 0.025 * pulse;
+          const grad = ctx.createLinearGradient(rx, 0, rx + sr.width * 0.3, screenH * 0.5);
+          grad.addColorStop(0, 'rgba(240, 220, 170, 0.10)');
+          grad.addColorStop(0.5, 'rgba(230, 210, 160, 0.05)');
+          grad.addColorStop(1, 'rgba(220, 200, 150, 0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.moveTo(rx - sr.width * 0.3, 0);
+          ctx.lineTo(rx + sr.width * 0.3, 0);
+          ctx.lineTo(rx + sr.width * 0.3, screenH * 0.50);
+          ctx.lineTo(rx - sr.width * 0.3, screenH * 0.50);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ================================================================
+        // ATMOSPHERIC MIST (low fog, drifts across scene, behind gameplay)
+        // ================================================================
+
+        ctx.save();
+        for (const m of this._jungleMistParticles) {
+          const mx = (m.x * screenW + camParallax * 0.15 + Math.sin(time * 0.0008 + m.phase) * 25) % (screenW + 40) - 20;
+          const my = m.y * screenH + Math.sin(time * 0.001 + m.phase * 0.7) * 8;
+          ctx.globalAlpha = m.alpha * (0.7 + 0.3 * Math.sin(time * 0.002 + m.phase));
+          const mistGrad = ctx.createRadialGradient(mx, my, 0, mx, my, m.size);
+          mistGrad.addColorStop(0, 'rgba(190, 220, 200, 0.05)');
+          mistGrad.addColorStop(0.5, 'rgba(180, 210, 190, 0.03)');
+          mistGrad.addColorStop(1, 'rgba(170, 200, 180, 0)');
+          ctx.fillStyle = mistGrad;
+          ctx.beginPath();
+          ctx.arc(mx, my, m.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // ================================================================
+        // AMBIENT WILDLIFE & PARTICLES (tiny, sparse, very slow)
+        // Strictly behind gameplay, low opacity.
+        // ================================================================
+
+        // Distant birds (parrots, toucans flying across)
+        ctx.save();
+        for (const b of this._jungleBirds) {
+          const elapsed = (time * 60 - b.delay) % b.interval;
+          const progress = Math.min(elapsed / (b.interval * 0.6), 1);
+          if (progress <= 0 || progress >= 1) continue;
+          const bx = (b.startX * screenW + progress * screenW * 1.5 + camParallax * 0.08) % (screenW + 100) - 50;
+          const by = b.y * screenH + Math.sin(progress * Math.PI + b.phase) * 10;
+          ctx.globalAlpha = 0.10 * (1 - Math.abs(progress - 0.5) * 0.6);
+          ctx.fillStyle = b.color || '#1a1a2a';
+          ctx.beginPath();
+          ctx.ellipse(bx, by, 5, 2.5, -0.1, 0, Math.PI * 2);
+          ctx.fill();
+          const wingUp = Math.sin(progress * 20 + b.phase) * 0.3;
+          ctx.beginPath();
+          ctx.moveTo(bx - 3, by - 1);
+          ctx.lineTo(bx - 7, by - 3 - wingUp * 3);
+          ctx.lineTo(bx - 1, by - 1);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(bx + 3, by - 1);
+          ctx.lineTo(bx + 7, by - 3 - wingUp * 3);
+          ctx.lineTo(bx + 1, by - 1);
+          ctx.fill();
+          if (b.hasLongTail) {
+            ctx.fillStyle = b.tailColor || '#1a1a2a';
+            ctx.beginPath();
+            ctx.moveTo(bx + 4, by + 2);
+            ctx.lineTo(bx + 8, by + 8);
+            ctx.lineTo(bx + 5, by + 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+
+        // Butterflies (blue, orange, yellow, tiny)
+        ctx.save();
+        for (const b of this._jungleButterflies) {
+          const bx = (b.x * screenW + camParallax * 0.15 + Math.sin(time * b.speed + b.phase) * 30) % (screenW + 20) - 10;
+          const by = b.y * screenH + Math.sin(time * b.drift + b.phase * 0.7) * 15;
+          const flap = 0.3 + 0.7 * Math.abs(Math.sin(time * 0.005 + b.phase));
+          ctx.globalAlpha = 0.10 * flap;
+          ctx.fillStyle = b.color;
+          ctx.beginPath();
+          ctx.ellipse(bx - b.size * 0.4, by, b.size * 0.7, b.size * 0.5 * flap, -0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(bx + b.size * 0.4, by, b.size * 0.7, b.size * 0.5 * flap, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 0.05;
+          ctx.fillStyle = '#2a3a2a';
+          ctx.beginPath();
+          ctx.arc(bx, by, b.size * 0.15, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Monkeys (tiny silhouettes)
+        ctx.save();
+        for (const mk of this._jungleMonkeys) {
+          const elapsed = (time * 60 - mk.delay) % mk.interval;
+          const progress = Math.min(elapsed / (mk.interval * 0.5), 1);
+          if (progress <= 0 || progress >= 1) continue;
+          const mkx = mk.x * screenW + camParallax * 0.6 + Math.sin(time * 0.001 + mk.phase) * 3;
+          const mky = mk.y * screenH + (progress < 0.5 ? -progress * 20 : -(1 - progress) * 20);
+          ctx.globalAlpha = 0.07 * (1 - Math.abs(progress - 0.5) * 0.6);
+          ctx.fillStyle = '#1a1a1a';
+          ctx.beginPath();
+          ctx.ellipse(mkx, mky, 4, 3, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(mkx, mky - 3, 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#1a1a1a';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(mkx - 2, mky + 2);
+          ctx.quadraticCurveTo(mkx - 6, mky + 8, mkx - 3, mky + 12);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(mkx + 3, mky - 1);
+          ctx.lineTo(mkx + 7, mky - 5);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // Falling leaves (varied colors, sizes)
+        ctx.save();
+        for (const l of this._jungleLeaves) {
+          const lx = (l.x * screenW + camParallax * 0.3 + Math.sin(time * l.sway + l.phase) * 15) % (screenW + 20) - 10;
+          const ly = (l.y * screenH + l.fall * time * 0.005) % (screenH * 1.1);
+          const rot = l.rotation + time * 0.002 * l.rotSpeed;
+          ctx.globalAlpha = l.alpha * (0.7 + 0.3 * Math.sin(time * 0.003 + l.phase));
+          ctx.fillStyle = l.color;
+          ctx.save();
+          ctx.translate(lx, ly);
+          ctx.rotate(rot);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, l.size, l.size * 0.35, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.restore();
+
+        // Tropical flowers (orchids, heliconias near edges)
+        ctx.save();
+        for (const f of this._jungleFlowers) {
+          const sway = Math.sin(f.phase + time * f.swaySpeed) * 2;
+          const fx = f.x * screenW + sway;
+          const fy = f.y * screenH + Math.sin(f.phase + time * 0.002) * 2;
+          ctx.globalAlpha = 0.12 + 0.03 * Math.sin(f.phase + time * 0.002);
+          ctx.fillStyle = f.color;
+          for (let p = 0; p < (f.isHeliconia ? 3 : (f.isOrchid ? 5 : 4)); p++) {
+            const a = (p / (f.isHeliconia ? 3 : (f.isOrchid ? 5 : 4))) * Math.PI * 2 + Math.sin(time * 0.001 + f.phase) * 0.1;
+            const px = fx + Math.cos(a) * f.size * (f.isHeliconia ? 0.5 : 0.7);
+            const py = fy + Math.sin(a) * f.size * (f.isHeliconia ? 0.5 : 0.7);
+            ctx.beginPath();
+            if (f.isHeliconia) {
+              ctx.ellipse(px, py, f.size * 0.8, f.size * 0.2, a, 0, Math.PI * 2);
+            } else {
+              ctx.ellipse(px, py, f.size * 0.5, f.size * 0.3, a, 0, Math.PI * 2);
+            }
+            ctx.fill();
+          }
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = '#f1c40f';
+          ctx.beginPath();
+          ctx.arc(fx, fy, f.size * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Dragonflies (tiny, near water)
+        ctx.save();
+        for (const d of this._jungleDragonflies) {
+          const dx = (d.x * screenW + camParallax * 0.3 + Math.sin(time * d.speed + d.phase) * 30) % (screenW + 20) - 10;
+          const dy = d.y * screenH + Math.sin(time * 0.003 + d.phase * 0.5) * 5;
+          const wingPulse = 0.3 + 0.7 * Math.sin(time * 0.01 + d.phase);
+          ctx.globalAlpha = 0.12 * wingPulse;
+          ctx.fillStyle = '#4a7a8a';
+          ctx.beginPath();
+          ctx.arc(dx, dy, d.size * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(180, 220, 240, 0.08)';
+          ctx.beginPath();
+          ctx.ellipse(dx - d.size * 0.5, dy - d.size * 0.2, d.size * 0.8, d.size * 0.15 * wingPulse, -0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(dx + d.size * 0.5, dy - d.size * 0.2, d.size * 0.8, d.size * 0.15 * wingPulse, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Tiny wildlife (frogs, lizards near forest floor)
+        ctx.save();
+        for (const w of this._jungleWildlife) {
+          const wx = w.x * screenW + camParallax * 0.5;
+          const wy = w.y * screenH + Math.sin(time * 0.002 + w.phase) * 1;
+          ctx.globalAlpha = 0.07;
+          if (w.type === 'frog') {
+            ctx.fillStyle = '#4a8a4a';
+            ctx.beginPath();
+            ctx.ellipse(wx, wy, 3, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(wx - 1.5, wy - 1.5, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(wx + 1.5, wy - 1.5, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (w.type === 'lizard') {
+            ctx.fillStyle = '#5a7a4a';
+            ctx.beginPath();
+            ctx.ellipse(wx, wy, 4, 1.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(wx + 4, wy);
+            ctx.lineTo(wx + 8, wy - 1);
+            ctx.strokeStyle = '#5a7a4a';
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+
+        // Fireflies (subtle glowing dots)
+        ctx.save();
+        for (const f of this._jungleFireflies) {
+          const fx = (f.x * screenW + camParallax * 0.1 + Math.sin(time * 0.001 + f.phase) * 5) % screenW;
+          const fy = f.y * screenH + Math.sin(time * 0.0015 + f.phase * 0.7) * 3;
+          const blink = Math.max(0, Math.sin(time * f.speed + f.phase));
+          if (blink < 0.1) continue;
+          ctx.globalAlpha = f.alpha * blink;
+          ctx.fillStyle = 'rgba(210, 230, 140, 0.5)';
+          ctx.beginPath();
+          ctx.arc(fx, fy, f.size * (0.5 + 0.5 * blink), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = f.alpha * blink * 0.3;
+          ctx.beginPath();
+          ctx.arc(fx, fy, f.size * 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Ambient particles (pollen, dust, tiny seeds)
+        ctx.save();
+        for (const p of this._jungleAmbientParticles) {
+          const px = (p.x * screenW + camParallax * 0.1 + Math.sin(time * p.speed + p.phase) * 25) % (screenW + 20) - 10;
+          const py = p.y * screenH + Math.sin(time * p.drift + p.phaseY) * 12;
+          ctx.globalAlpha = p.alpha * (0.6 + 0.4 * Math.sin(time * 0.002 + p.phase));
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        } catch (e) { console.warn('Jungle render error:', e); }
       }
     }
 
-    // Generate decorative celestial objects for Nebula Cosmos — no collisions, pure atmosphere
+    // Generate decorative celestial objects for Nebula Cosmos ??? no collisions, pure atmosphere
     _generateAsteroidShape(numVerts) {
       const verts = [];
       for (let i = 0; i < numVerts; i++) {
@@ -10182,7 +15138,248 @@ if (this.activeEvent.key === 'speed_surge') {
       }
     }
 
-    // Render celestial objects with parallax — called inside scaled draw section (virtual coordinates)
+    // Safe decoration init — called after gameplay starts, never blocks the race
+    _initDecorationsForTheme() {
+      try {
+        if (this.currentThemeKey === 'jungle') {
+          this._initJungleObjects();
+        }
+      } catch (e) {
+        console.warn('Decoration init failed for', this.currentThemeKey, ':', e.message);
+      }
+    }
+
+    // Generate decorative jungle wildlife and atmosphere objects for Amazon Canopy
+    _initJungleObjects() {
+      this._jungleGiantTrees = [];
+      const species = [
+        { name: 'kapok', trunkScale: 1.3, crownScale: 1.2, buttress: true, branchCount: 4, leanRange: 0.04 },
+        { name: 'rubber', trunkScale: 1.1, crownScale: 1.0, buttress: false, branchCount: 4, leanRange: 0.02 },
+        { name: 'palm', trunkScale: 0.7, crownScale: 0.8, buttress: false, branchCount: 2, leanRange: 0.06 },
+        { name: 'kapok', trunkScale: 1.2, crownScale: 1.3, buttress: true, branchCount: 5, leanRange: 0.03 },
+        { name: 'rubber', trunkScale: 1.0, crownScale: 1.1, buttress: false, branchCount: 3, leanRange: 0.01 },
+        { name: 'palm', trunkScale: 0.8, crownScale: 0.9, buttress: false, branchCount: 2, leanRange: 0.05 },
+        { name: 'kapok', trunkScale: 1.4, crownScale: 1.1, buttress: true, branchCount: 4, leanRange: 0.02 },
+        { name: 'rubber', trunkScale: 1.2, crownScale: 0.9, buttress: false, branchCount: 3, leanRange: 0.03 },
+        { name: 'cedro', trunkScale: 1.0, crownScale: 0.9, buttress: false, branchCount: 3, leanRange: 0.04 },
+        { name: 'palm', trunkScale: 0.6, crownScale: 0.7, buttress: false, branchCount: 2, leanRange: 0.07 }
+      ];
+      const crownColors = ['#0d3b1c', '#1a5e2a', '#2d6a30', '#3a7a3a', '#1e4e28', '#0f4a20', '#2a6a30', '#1a5a2a', '#3a6a2a', '#4a7a3a'];
+      const crownHighlights = ['#1a5e2a', '#3a7a3a', '#4a8a48', '#5a9a50', '#2a6a30', '#1a5e2a', '#4a8a48', '#3a7a3a', '#5a8a4a', '#6a9a5a'];
+      for (let i = 0; i < species.length; i++) {
+        const sp = species[i];
+        const tScale = sp.trunkScale;
+        const cScale = sp.crownScale;
+        this._jungleGiantTrees.push({
+          x: 0.02 + (i / species.length) * 0.96 + Math.random() * 0.04,
+          baseY: 0.60 + Math.random() * 0.18,
+          trunkW: 5 * tScale + Math.random() * 3,
+          trunkH: (0.20 + Math.random() * 0.10) * tScale,
+          crownW: 25 * cScale + Math.random() * 15,
+          crownH: 16 * cScale + Math.random() * 10,
+          crownY: -0.10 + Math.random() * -0.04,
+          crownColor: crownColors[i % crownColors.length],
+          crownHighlight: crownHighlights[i % crownHighlights.length],
+          species: sp.name,
+          lean: (Math.random() - 0.5) * sp.leanRange * 2,
+          hasButtress: sp.buttress,
+          branchCount: sp.branchCount,
+          parallax: 0.25 + Math.random() * 0.20,
+          phase: Math.random() * Math.PI * 2,
+          barkColor: ['#1a2a20', '#2a3a28', '#1f2f22', '#2f3f2a', '#253525', '#2f4030', '#1d2d1d', '#2a3a2a', '#1e2e1e', '#2b3b2b'][i]
+        });
+      }
+      this._jungleRoots = [];
+      for (let i = 0; i < 5; i++) {
+        this._jungleRoots.push({
+          x: Math.random() * 0.9 + 0.05,
+          y: 0.72 + Math.random() * 0.12,
+          len: 30 + Math.random() * 25,
+          width: 4 + Math.random() * 3,
+          dirX: Math.random() > 0.5 ? 1 : -1,
+          parallax: 0.55 + Math.random() * 0.15,
+          wrapRock: Math.random() > 0.5
+        });
+      }
+      this._jungleWaterfalls = [];
+      for (let i = 0; i < 4; i++) {
+        this._jungleWaterfalls.push({
+          x: 0.1 + i * 0.25 + Math.random() * 0.05,
+          y: 0.15 + Math.random() * 0.10,
+          width: Math.random() * 8 + 4,
+          height: 0.25 + Math.random() * 0.15,
+          parallax: 0.3 + Math.random() * 0.15,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleSunRays = [];
+      for (let i = 0; i < 5; i++) {
+        this._jungleSunRays.push({
+          x: 0.1 + i * 0.18 + Math.random() * 0.04,
+          width: 12 + Math.random() * 15,
+          parallax: 0.1 + Math.random() * 0.1,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      // Amazon river — winding muddy path visible through tree openings
+      this._jungleRiver = { segments: [] };
+      for (let i = 0; i < 12; i++) {
+        this._jungleRiver.segments.push({
+          x: i / 11,
+          y: 0.45 + Math.sin(i * 1.1) * 0.12 + Math.sin(i * 0.4) * 0.06,
+          width: 8 + Math.sin(i * 0.7) * 3 + Math.random() * 2,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleRiver.parallax = 0.25;
+      // Cross-vines connecting between tree positions
+      this._jungleCrossVines = [];
+      for (let i = 0; i < 6; i++) {
+        this._jungleCrossVines.push({
+          x1: Math.random() * 0.7 + 0.05,
+          y1: 0.25 + Math.random() * 0.15,
+          x2: Math.random() * 0.7 + 0.2,
+          y2: 0.35 + Math.random() * 0.20,
+          sag: 15 + Math.random() * 20,
+          phase: Math.random() * Math.PI * 2,
+          width: 0.8 + Math.random() * 0.6
+        });
+      }
+      this._jungleBirds = [];
+      const birdSpecies = [
+        { color: '#c0392b', tailColor: '#8b0000', hasLongTail: true },
+        { color: '#2ecc71', tailColor: '#1a6b3a', hasLongTail: false },
+        { color: '#f39c12', tailColor: '#d4880f', hasLongTail: false },
+        { color: '#3498db', tailColor: '#1a5f8a', hasLongTail: true },
+        { color: '#9b59b6', tailColor: '#6a3f7a', hasLongTail: true },
+        { color: '#e67e22', tailColor: '#a05515', hasLongTail: false },
+        { color: '#1abc9c', tailColor: '#0f7a6a', hasLongTail: false }
+      ];
+      for (let i = 0; i < 7; i++) {
+        const sp = birdSpecies[i % birdSpecies.length];
+        this._jungleBirds.push({
+          startX: Math.random() * 0.3 + (i % 2 === 0 ? -0.15 : 0.85),
+          y: 0.06 + Math.random() * 0.18,
+          interval: 1200 + Math.random() * 800,
+          phase: Math.random() * Math.PI * 2,
+          delay: i * 200 + Math.random() * 300,
+          color: sp.color,
+          tailColor: sp.tailColor,
+          hasLongTail: sp.hasLongTail,
+          size: 4 + Math.random() * 3
+        });
+      }
+      this._jungleButterflies = [];
+      const butterflyColors = ['#3498db', '#e74c3c', '#f39c12', '#2ecc71', '#9b59b6', '#f1c40f', '#1abc9c', '#e67e22', '#ff6b9d', '#4a9eff', '#7bed9f', '#ffa502'];
+      for (let i = 0; i < 10; i++) {
+        this._jungleButterflies.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: 0.10 + Math.random() * 0.45,
+          speed: 0.0003 + Math.random() * 0.0005,
+          drift: 0.0004 + Math.random() * 0.0004,
+          size: 3 + Math.random() * 2.5,
+          phase: Math.random() * Math.PI * 2,
+          color: butterflyColors[i % butterflyColors.length]
+        });
+      }
+      this._jungleMonkeys = [];
+      for (let i = 0; i < 3; i++) {
+        this._jungleMonkeys.push({
+          x: 0.1 + i * 0.3 + Math.random() * 0.1,
+          y: 0.20 + Math.random() * 0.15,
+          interval: 2000 + Math.random() * 1500,
+          phase: Math.random() * Math.PI * 2,
+          delay: i * 500 + Math.random() * 400
+        });
+      }
+      this._jungleDragonflies = [];
+      for (let i = 0; i < 4; i++) {
+        this._jungleDragonflies.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: 0.60 + Math.random() * 0.20,
+          speed: 0.0004 + Math.random() * 0.0005,
+          size: 2 + Math.random() * 1.5,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleLeaves = [];
+      const leafColors = ['#6b8e23', '#556b2f', '#8fbc8f', '#228b22', '#3a6b2a', '#7a9e4a', '#5a7a3a', '#9acd32'];
+      for (let i = 0; i < 10; i++) {
+        this._jungleLeaves.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: Math.random() * 0.3 + 0.02,
+          fall: 0.2 + Math.random() * 0.4,
+          sway: 0.0003 + Math.random() * 0.0004,
+          size: 3 + Math.random() * 4,
+          alpha: 0.05 + Math.random() * 0.06,
+          phase: Math.random() * Math.PI * 2,
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: 0.5 + Math.random() * 0.5,
+          color: leafColors[i % leafColors.length]
+        });
+      }
+      this._jungleMistParticles = [];
+      for (let i = 0; i < 20; i++) {
+        this._jungleMistParticles.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: 0.55 + Math.random() * 0.30,
+          size: 12 + Math.random() * 25,
+          alpha: 0.02 + Math.random() * 0.03,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleFlowers = [];
+      const flowerColors = ['#e74c3c', '#f39c12', '#f1c40f', '#e67e22', '#9b59b6', '#ff6b6b', '#ff4757', '#ffa502', '#7bed9f', '#ff6b9d'];
+      for (let i = 0; i < 10; i++) {
+        this._jungleFlowers.push({
+          x: Math.random() * 0.9 + 0.05,
+          y: 0.55 + Math.random() * 0.30,
+          size: 3 + Math.random() * 4,
+          color: flowerColors[i % flowerColors.length],
+          phase: Math.random() * Math.PI * 2,
+          swaySpeed: 0.002 + Math.random() * 0.003,
+          isOrchid: Math.random() > 0.6,
+          isHeliconia: Math.random() > 0.7
+        });
+      }
+      this._jungleWildlife = [];
+      for (let i = 0; i < 4; i++) {
+        this._jungleWildlife.push({
+          x: Math.random() * 0.9 + 0.05,
+          y: 0.70 + Math.random() * 0.15,
+          type: i < 2 ? 'frog' : 'lizard',
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleFireflies = [];
+      for (let i = 0; i < 14; i++) {
+        this._jungleFireflies.push({
+          x: Math.random() * 1.0 + 0.0,
+          y: 0.40 + Math.random() * 0.30,
+          size: 1 + Math.random() * 1.5,
+          alpha: 0.08 + Math.random() * 0.10,
+          speed: 0.002 + Math.random() * 0.003,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      this._jungleAmbientParticles = [];
+      for (let i = 0; i < 20; i++) {
+        this._jungleAmbientParticles.push({
+          x: Math.random() * 1.2 - 0.1,
+          y: Math.random() * 0.7 + 0.05,
+          speed: 0.00015 + Math.random() * 0.00025,
+          drift: 0.00015 + Math.random() * 0.00025,
+          size: 0.8 + Math.random() * 1.2,
+          alpha: 0.04 + Math.random() * 0.06,
+          phase: Math.random() * Math.PI * 2,
+          phaseY: Math.random() * Math.PI * 2,
+          color: ['rgba(255,255,200,0.3)', 'rgba(200,255,200,0.3)', 'rgba(255,200,200,0.3)', 'rgba(200,200,255,0.3)',
+                   'rgba(255,240,180,0.3)', 'rgba(210,255,210,0.3)'][i % 6]
+        });
+      }
+    }
+
+    // Render celestial objects with parallax ??? called inside scaled draw section (virtual coordinates)
     _renderSpaceObjects(camX) {
       if (this.currentThemeKey !== 'space' || !this._spaceObjects) return;
       const ctx = this.ctx;
@@ -10574,8 +15771,8 @@ if (this.activeEvent.key === 'speed_surge') {
     }
 
     renderScreenOverlays(screenW, screenH) {
-      // A0. Vignette overlay around screen edges
-      if (this.state === 'racing' || this.state === 'finished' || this.state === 'champion_screen') {
+      // A0. Vignette overlay around screen edges (skipped for jungle — no fullscreen overlays)
+      if ((this.state === 'racing' || this.state === 'finished' || this.state === 'champion_screen') && this.currentThemeKey !== 'jungle') {
         this.ctx.save();
         const vigGrad = this.ctx.createRadialGradient(
           screenW / 2, screenH / 2, screenH * 0.3,
@@ -10586,6 +15783,23 @@ if (this.activeEvent.key === 'speed_surge') {
         vigGrad.addColorStop(0.85, 'rgba(0,0,0,0.15)');
         vigGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
         this.ctx.fillStyle = vigGrad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        this.ctx.restore();
+      }
+
+      // Dust overlay from collapsing pillars
+      if (this._dustOverlay && this._dustOverlay > 0) {
+        this.ctx.save();
+        const dustAlpha = Math.min(0.25, this._dustOverlay / 15 * 0.25);
+        const dustGrad = this.ctx.createRadialGradient(
+          screenW / 2, screenH / 2, 0,
+          screenW / 2, screenH / 2, screenH * 0.7
+        );
+        dustGrad.addColorStop(0, `rgba(180, 140, 100, ${dustAlpha * 0.3})`);
+        dustGrad.addColorStop(0.4, `rgba(160, 120, 80, ${dustAlpha * 0.5})`);
+        dustGrad.addColorStop(0.7, `rgba(120, 90, 60, ${dustAlpha * 0.3})`);
+        dustGrad.addColorStop(1, 'rgba(80, 60, 40, 0)');
+        this.ctx.fillStyle = dustGrad;
         this.ctx.fillRect(0, 0, screenW, screenH);
         this.ctx.restore();
       }
@@ -10655,7 +15869,24 @@ this.ctx.restore();
         this.ctx.restore();
       }
 
-      // A0aa. Aurora Borealis — comprehensive atmospheric overlay
+      // A0ac. Lava Shower sky dimming overlay (Magma Crater global event)
+      if (this._lavaShowerActive && this._lavaShowerSkyDim > 0 && this.state === 'racing') {
+        this.ctx.save();
+        // Warm dark overlay ??? darkens sky while adding faint amber tone
+        const dim = this._lavaShowerSkyDim;
+        const vig = this.ctx.createRadialGradient(
+          screenW / 2, screenH * 0.4, screenH * 0.05,
+          screenW / 2, screenH * 0.4, screenH * 0.8
+        );
+        vig.addColorStop(0, `rgba(60, 30, 10, ${dim * 0.6})`);
+        vig.addColorStop(0.5, `rgba(40, 20, 10, ${dim * 0.8})`);
+        vig.addColorStop(1, `rgba(20, 10, 5, ${dim})`);
+        this.ctx.fillStyle = vig;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        this.ctx.restore();
+      }
+
+      // A0aa. Aurora Borealis ??? comprehensive atmospheric overlay
       if (this._auroraActive && this.state === 'racing') {
         const fade = this._auroraFadeProgress;
         const pulse = this._auroraPulseValue;
@@ -10766,86 +15997,6 @@ this.ctx.restore();
             this.ctx.fill();
           }
         }
-        this.ctx.globalAlpha = 1;
-        this.ctx.restore();
-      }
-
-      // A0ac. Volcano (Magma Crater) atmospheric overlay
-      if (this.currentThemeKey === 'volcano' && this.state === 'racing') {
-        this.ctx.save();
-
-        // 1. Subtle heat haze overlay (very low opacity)
-        const heatHazeGrad = this.ctx.createLinearGradient(0, 0, 0, screenH);
-        heatHazeGrad.addColorStop(0, 'rgba(255, 100, 0, 0.008)');
-        heatHazeGrad.addColorStop(0.5, 'rgba(255, 80, 0, 0.005)');
-        heatHazeGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        this.ctx.fillStyle = heatHazeGrad;
-        this.ctx.fillRect(0, 0, screenW, screenH);
-
-        // 2. Floating ash particles (dark volcanic dust)
-        for (const ash of this._volcanoAshParticles) {
-          const a = ash.alpha * 0.4;
-          if (a <= 0) continue;
-          const ax = ash.x * screenW;
-          const ay = ash.y * screenH;
-          this.ctx.globalAlpha = a;
-          this.ctx.fillStyle = '#1a1510';
-          this.ctx.beginPath();
-          this.ctx.arc(ax, ay, ash.size, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-
-        // 3. Rising glowing embers
-        for (const ember of this._volcanoEmberParticles) {
-          const a = ember.alpha * 0.6;
-          if (a <= 0) continue;
-          const ex = ember.x * screenW;
-          const ey = ember.y * screenH;
-          this.ctx.globalAlpha = a;
-          this.ctx.fillStyle = ember.color;
-          this.ctx.shadowColor = ember.color;
-          this.ctx.shadowBlur = 4;
-          this.ctx.beginPath();
-          this.ctx.arc(ex, ey, ember.size, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.shadowBlur = 0;
-        }
-
-        // 4. Thin smoke columns from volcanic vents
-        for (const smoke of this._volcanoSmokeColumns) {
-          const a = smoke.alpha * 0.3;
-          if (a <= 0) continue;
-          const sx = smoke.x * screenW;
-          const sy = smoke.y * screenH;
-          const smokeSize = smoke.height * screenH;
-          this.ctx.globalAlpha = a;
-          const smokeGrad = this.ctx.createRadialGradient(sx, sy, 0, sx, sy, smokeSize);
-          smokeGrad.addColorStop(0, `rgba(58, 48, 40, ${smoke.alpha})`);
-          smokeGrad.addColorStop(1, 'rgba(58, 48, 40, 0)');
-          this.ctx.fillStyle = smokeGrad;
-          this.ctx.beginPath();
-          this.ctx.arc(sx, sy, smoke.size, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-
-        // 5. Active eruption effects (lava burst, ash cloud, glowing rocks)
-        if (this._volcanoEruptionActive && this._volcanoEruptionParticles.length > 0) {
-          for (const p of this._volcanoEruptionParticles) {
-            const px = p.x * screenW;
-            const py = p.y * screenH;
-            this.ctx.globalAlpha = p.alpha;
-            this.ctx.fillStyle = p.color;
-            if (p.color.startsWith('#ff') || p.color.startsWith('#cc')) {
-              this.ctx.shadowColor = p.color;
-              this.ctx.shadowBlur = 6;
-            }
-            this.ctx.beginPath();
-            this.ctx.arc(px, py, p.size, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.shadowBlur = 0;
-          }
-        }
-
         this.ctx.globalAlpha = 1;
         this.ctx.restore();
       }
@@ -11258,7 +16409,7 @@ this.ctx.restore();
         this.ctx.restore();
       });
 
-      // F. Winner Flash — shown for 2 seconds before champion overlay activates
+      // F. Winner Flash ??? shown for 2 seconds before champion overlay activates
       if (this._winnerFlashActive && this._winnerFlashBall) {
         this.ctx.save();
         const flashElapsed = performance.now() - this._winnerFlashStart;
@@ -11301,12 +16452,12 @@ this.ctx.restore();
         this.ctx.restore();
       }
 
-      // D. Global Event Banner (animated near lower-center) — hide after race ends or when champion overlay shown
+      // D. Global Event Banner (animated near lower-center) ??? hide after race ends or when champion overlay shown
       if (this.state === 'racing' && !this._championOverlayShown) {
         this.eventBanner.render(this.ctx, screenW, screenH);
       }
 
-      // E. Top-Middle Event Capsule — prominent active event display below timer
+      // E. Top-Middle Event Capsule ??? prominent active event display below timer
       if ((this.state === 'racing' || this.state === 'finished') && !this._championOverlayShown) {
         if (this.activeEvent) {
           this.ctx.save();
@@ -11364,7 +16515,7 @@ this.ctx.restore();
         return;
       }
 
-      // ── Guard against duplicate loops ──
+      // ?????? Guard against duplicate loops ??????
       if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
       if (this.hudUpdateTimer) { clearInterval(this.hudUpdateTimer); this.hudUpdateTimer = null; }
       if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
@@ -11395,6 +16546,9 @@ this.ctx.restore();
       this._winnerFlashBall = null;
       this._winnerFlashStart = 0;
       this._footballShowerActive = false;
+      this._lavaShowerActive = false;
+      this._lavaChunks = [];
+      this._lavaShowerSkyDim = 0;
       this._speedSurgeActive = false;
       this._speedSurgeMultipliers = new Map();
       this._blackoutActive = false;
@@ -11408,7 +16562,7 @@ this.ctx.restore();
       this._blizzardSnowParticles = [];
       this._blizzardFogParticles = [];
       this._blizzardCrackTimer = 0;
-this._auroraActive = false;
+      this._auroraActive = false;
       this._auroraStars = [];
       this._auroraFadePhase = null;
       this._auroraFadeProgress = 0;
@@ -11417,6 +16571,23 @@ this._auroraActive = false;
       this._auroraBackgroundFog = [];
       this._auroraSceneBrightness = 1.0;
 
+      // Jungle theme init
+      this._jungleGiantTrees = [];
+      this._jungleRoots = [];
+      this._jungleWaterfalls = [];
+      this._jungleSunRays = [];
+      this._jungleBirds = [];
+      this._jungleButterflies = [];
+      this._jungleMonkeys = [];
+      this._jungleDragonflies = [];
+      this._jungleLeaves = [];
+      this._jungleMistParticles = [];
+      this._jungleFlowers = [];
+      this._jungleWildlife = [];
+      this._jungleFireflies = [];
+      this._jungleAmbientParticles = [];
+      this._jungleRiver = [];
+      this._jungleCrossVines = [];
       // Volcano eruption state reset
       this._volcanoEruptionActive = false;
       this._volcanoEruptionTimer = 0;
@@ -11426,6 +16597,37 @@ this._auroraActive = false;
       this._volcanoAshParticles = [];
       this._volcanoEmberParticles = [];
       this._volcanoSmokeColumns = [];
+
+      // Volcanic Eruption event reset
+      this._volcanicEruptionActive = false;
+      this._volcanicEruptionPhase = null;
+      this._volcanicEruptionTimer = 0;
+      this._volcanicEruptionFadeProgress = 0;
+      this._volcanicEruptionBombs = [];
+      this._volcanicEruptionSkyDarkness = 0;
+      this._volcanicEruptionGlowIntensity = 0;
+      this._volcanicEruptionAshParticles = [];
+      this._volcanicEruptionSmokeParticles = [];
+      this._volcanicEruptionEmberParticles = [];
+      this._volcanicEruptionFountainParticles = [];
+      this._volcanicEruptionBombSpawnCounter = 0;
+      this._volcanicEruptionScreenFlash = 0;
+
+      // Firestorm event reset
+      this._firestormActive = false;
+      this._firestormPhase = null;
+      this._firestormTimer = 0;
+      this._firestormFadeProgress = 0;
+      this._firestormSkyDarkness = 0;
+      this._firestormGlowIntensity = 0;
+      this._firestormEmbers = [];
+      this._firestormAsh = [];
+      this._firestormWindStreaks = [];
+      this._firestormSparks = [];
+      this._firestormLargeClouds = [];
+      this._firestormWhirls = [];
+      this._firestormWhirlTimer = 0;
+      this._firestormSkyTint = 0;
 
       this.sounds.stopBlizzardWind();
       this.sounds.stopAuroraAmbient();
@@ -11442,7 +16644,7 @@ this._auroraActive = false;
 
       this._eventToggle = false;
 
-      // Event intensity config — computed once, consumed by tick()
+      // Event intensity config ??? computed once, consumed by tick()
       const evtIntensity = (this._loadout && this._loadout.eventIntensity) || 'medium';
       const evtCfg = {
         low: { base: 60, variation: 5, maxEvents: 6 },
@@ -11515,6 +16717,9 @@ this._auroraActive = false;
       // Start central animation tick
       this._rafId = requestAnimationFrame((t) => this.tick(t));
 
+      // Load background decorations after gameplay is running
+      this._initDecorationsForTheme();
+
       // Update live HUD overlays continuously
       this.hudUpdateTimer = setInterval(() => this.updateHUD(), 150);
     }
@@ -11543,18 +16748,18 @@ this._auroraActive = false;
       const camSelect = document.getElementById('hud-camera-select');
       if (camSelect) {
         const currentVal = camSelect.value;
-        camSelect.innerHTML = '<option value="leader">🎯 Auto-Follow Leader</option>';
+        camSelect.innerHTML = '<option value="leader">???? Auto-Follow Leader</option>';
         this.leaderboard.forEach(b => {
           const opt = document.createElement('option');
           opt.value = b.code;
           opt.textContent = `${b.code.toUpperCase()} - ${b.name}`;
-          if (b.finished) opt.textContent += ' ✓';
+          if (b.finished) opt.textContent += ' ???';
           if (b.code === currentVal) opt.selected = true;
           camSelect.appendChild(opt);
         });
       }
 
-      // Podium — show top 3 racers at bottom
+      // Podium ??? show top 3 racers at bottom
       const podiumContainer = document.getElementById('hud-podium-list');
       if (podiumContainer) {
         podiumContainer.innerHTML = '';
@@ -11596,13 +16801,13 @@ this._auroraActive = false;
           gapColor = '#ffd700';
         } else if (gapTime < 0.5) {
           gapText = `+${gapTime.toFixed(2)}s`;
-          gapColor = '#2ecc71'; // green — close
+          gapColor = '#2ecc71'; // green ??? close
         } else if (gapTime < 2) {
           gapText = `+${gapTime.toFixed(2)}s`;
-          gapColor = '#f5c842'; // yellow — mid
+          gapColor = '#f5c842'; // yellow ??? mid
         } else {
           gapText = `+${gapTime.toFixed(2)}s`;
-          gapColor = '#e74c3c'; // red — far
+          gapColor = '#e74c3c'; // red ??? far
         }
 
         row.innerHTML = `
@@ -11611,7 +16816,7 @@ this._auroraActive = false;
           <img class="hud-flag-icon" src="https://flagcdn.com/w40/${b.code}.png" alt="${b.name}" onerror="this.style.display='none'">
           <span class="hud-country-name">${b.name}</span>
         </div>
-        <span class="gap-badge" style="color:${gapColor}">${b.finished ? gapText + ' ✓' : gapText}</span>
+        <span class="gap-badge" style="color:${gapColor}">${b.finished ? gapText + ' ???' : gapText}</span>
       `;
         listContainer.appendChild(row);
       });
@@ -11690,7 +16895,7 @@ this._auroraActive = false;
     }
 
     resetRace() {
-      // ── Full cleanup before restart ──
+      // ?????? Full cleanup before restart ??????
       // Kill RAF loop immediately so no duplicate loops accumulate
       if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
       this.isRunning = false;
@@ -11717,6 +16922,9 @@ this._auroraActive = false;
       this._asteroidTimer = 1800 + Math.random() * 600;
       this._whiteFlashAlpha = 0;
       this._footballShowerActive = false;
+      this._lavaShowerActive = false;
+      this._lavaChunks = [];
+      this._lavaShowerSkyDim = 0;
       this._speedSurgeActive = false;
       this._blackoutActive = false;
       this._blackoutPhase = null;
@@ -11730,7 +16938,7 @@ this._auroraActive = false;
       this.broadcastDirector.reset();
       this.storyEngine.reset();
       this.raceDirector.stop();
-      // Now safe to restart — preserve current loadout so settings persist
+      // Now safe to restart ??? preserve current loadout so settings persist
       this.startRace(this._loadout);
     }
 
@@ -11748,7 +16956,7 @@ this._auroraActive = false;
     }
 
     stopRace() {
-      // ── Full cleanup ──
+      // ?????? Full cleanup ??????
       if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
       this.isRunning = false;
       this.state = 'menu';
@@ -11775,9 +16983,52 @@ this._auroraActive = false;
       this.activeEvent = null;
       this.eventCount = 0;
       this._footballShowerActive = false;
+      this._lavaShowerActive = false;
+      this._lavaChunks = [];
+      this._lavaShowerSkyDim = 0;
       this._speedSurgeActive = false;
       this._blackoutActive = false;
       this._blackoutPhase = null;
+      this._volcanicEruptionActive = false;
+      this._volcanicEruptionPhase = null;
+      this._volcanicEruptionBombs = [];
+      this._volcanicEruptionAshParticles = [];
+      this._volcanicEruptionSmokeParticles = [];
+      this._volcanicEruptionEmberParticles = [];
+      this._volcanicEruptionFountainParticles = [];
+      this._volcanicEruptionSkyDarkness = 0;
+      this._volcanicEruptionGlowIntensity = 0;
+      this._volcanicEruptionScreenFlash = 0;
+      this._firestormActive = false;
+      this._firestormPhase = null;
+      this._firestormTimer = 0;
+      this._firestormFadeProgress = 0;
+      this._firestormSkyDarkness = 0;
+      this._firestormGlowIntensity = 0;
+      this._firestormEmbers = [];
+      this._firestormAsh = [];
+      this._firestormWindStreaks = [];
+      this._firestormSparks = [];
+      this._firestormLargeClouds = [];
+      this._firestormWhirls = [];
+      this._firestormWhirlTimer = 0;
+      this._firestormSkyTint = 0;
+      this._jungleGiantTrees = [];
+      this._jungleRoots = [];
+      this._jungleWaterfalls = [];
+      this._jungleSunRays = [];
+      this._jungleBirds = [];
+      this._jungleButterflies = [];
+      this._jungleMonkeys = [];
+      this._jungleDragonflies = [];
+      this._jungleLeaves = [];
+      this._jungleMistParticles = [];
+      this._jungleFlowers = [];
+      this._jungleWildlife = [];
+      this._jungleFireflies = [];
+      this._jungleAmbientParticles = [];
+      this._jungleRiver = [];
+      this._jungleCrossVines = [];
       this.directorMode = null;
       this.obstacleZoneOccupancy = {};
       this.commentary.clear();
