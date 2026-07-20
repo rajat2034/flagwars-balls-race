@@ -3568,7 +3568,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           
           const _onTop = Math.random() < 0.5;
           const _wallY = _onTop ? _vb.topY : _vb.bottomY;
-          const _length = 80 + Math.random() * 120; // 80-200px length
+          const _length = 75; // ~2.5x ball diameter (fixed)
           const _baseWidth = 8 + Math.random() * 6; // 8-14px base width
           const _curvature = (Math.random() - 0.5) * 1.5; // slight curve
           const _leafCount = 6 + Math.floor(Math.random() * 8); // 6-13 leaves
@@ -10288,7 +10288,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           
           const baseY = obs.y;
           const wallDir = obs.wallSide === 'top' ? 1 : -1;
-          const wireLen = obs.length || 120; // match physics wire length
+          const wireLen = 75; // fixed length to match physics
           const wireWidth = 2; // thin wire
           const curvature = obs.curvature || 0;
           const leafCount = 8;
