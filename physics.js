@@ -585,38 +585,97 @@ class PhysicsEngine {
             }
           }
         } else if (obs.type === 'sweep_arm') {
+          // Jungle vine collision - match the curved visual vine
+          const isJungle = obs._isJungle === true; // only true on jungle map
           const armLen = obs.length || 120;
           const angle = obs.angle || 0;
           const cosA = Math.cos(angle);
           const sinA = Math.sin(angle);
-          const ex = obs.x + cosA * armLen;
-          const ey = obs.y + sinA * armLen;
-          const dx = ex - obs.x;
-          const dy = ey - obs.y;
-          const lenSq = dx * dx + dy * dy;
-          if (lenSq < 0.01) return;
-          const t = Math.max(0, Math.min(1, ((ball.x - obs.x) * dx + (ball.y - obs.y) * dy) / lenSq));
-          const closestX = obs.x + t * dx;
-          const closestY = obs.y + t * dy;
-          const dist = Math.hypot(ball.x - closestX, ball.y - closestY);
-          // Arm is 8px wide visually; collision half-width of 14px ensures solid contact
-          if (dist < ball.radius + 14) {
-            const nx = (ball.x - closestX) / dist;
-            const ny = (ball.y - closestY) / dist;
-            if (dist > 0.001) {
-              ball.x = closestX + nx * (ball.radius + 14);
-              ball.y = closestY + ny * (ball.radius + 14);
+          
+          if (isJungle) {
+            // Use same curved segments as visual rendering
+            const segments = 8;
+            const time = Date.now() * 0.001;
+            const swayPhase = (obs.x + obs.y) * 0.01;
+            const swayAmount = Math.sin(time * 0.5 + swayPhase) * 3;
+            
+            // Check collision against each curved segment
+            let prevX = obs.x;
+            let prevY = obs.y;
+            
+            for (let s = 1; s <= segments; s++) {
+              const t = s / segments;
+              // Same curve math as visual
+              const curveLocalX = Math.sin(t * Math.PI * 1.5 + time * 0.3 + swayPhase) * swayAmount * t;
+              const curveLocalY = t * armLen + Math.sin(t * Math.PI * 2 + time * 0.2) * 2;
+              
+              // Rotate curve to arm angle
+              const curveX = obs.x + cosA * curveLocalY - sinA * curveLocalX;
+              const curveY = obs.y + sinA * curveLocalY + cosA * curveLocalX;
+              
+              // Check ball vs this segment
+              const dx = curveX - prevX;
+              const dy = curveY - prevY;
+              const lenSq = dx * dx + dy * dy;
+              if (lenSq > 0.01) {
+                const segT = Math.max(0, Math.min(1, ((ball.x - prevX) * dx + (ball.y - prevY) * dy) / lenSq));
+                const closestX = prevX + segT * dx;
+                const closestY = prevY + segT * dy;
+                const dist = Math.hypot(ball.x - closestX, ball.y - closestY);
+                
+                // Vine width tapers from 8 to ~3, use avg ~6 + ball radius
+                const widthAtT = 8 * (1 - t * 0.4);
+                const collisionRadius = ball.radius + widthAtT * 0.5 + 2;
+                
+                if (dist < collisionRadius) {
+                  const nx = (ball.x - closestX) / (dist || 1);
+                  const ny = (ball.y - closestY) / (dist || 1);
+                  if (dist > 0.001) {
+                    ball.x = closestX + nx * collisionRadius;
+                    ball.y = closestY + ny * collisionRadius;
+                  }
+                  const physicsSpeed = obs.physicsSpeed || obs.speed || 0.07;
+                  const tipVx = -sinA * physicsSpeed * armLen * obs.direction;
+                  const tipVy = cosA * physicsSpeed * armLen * obs.direction;
+                  const armVelocityAtContact = t;
+                  const PUSH_STRENGTH = 0.8;
+                  ball.vx += tipVx * armVelocityAtContact * PUSH_STRENGTH;
+                  ball.vy += tipVy * armVelocityAtContact * PUSH_STRENGTH;
+                  ball._hitSweepArmThisFrame = true;
+                  return; // Exit after first hit
+                }
+              }
+              prevX = curveX;
+              prevY = curveY;
             }
-            const physicsSpeed = obs.physicsSpeed || obs.speed || 0.07;
-            const tipVx = -sinA * physicsSpeed * armLen * obs.direction;
-            const tipVy = cosA * physicsSpeed * armLen * obs.direction;
-            // Arm velocity at the contact point scales linearly from 0 (pivot) to tipVx (tip)
-            // Push ball with 80% of arm velocity at that point
-            const armVelocityAtContact = t;
-            const PUSH_STRENGTH = 0.8;
-            ball.vx += tipVx * armVelocityAtContact * PUSH_STRENGTH;
-            ball.vy += tipVy * armVelocityAtContact * PUSH_STRENGTH;
-            ball._hitSweepArmThisFrame = true;
+          } else {
+            // Original straight arm collision for other themes
+            const ex = obs.x + cosA * armLen;
+            const ey = obs.y + sinA * armLen;
+            const dx = ex - obs.x;
+            const dy = ey - obs.y;
+            const lenSq = dx * dx + dy * dy;
+            if (lenSq < 0.01) return;
+            const t = Math.max(0, Math.min(1, ((ball.x - obs.x) * dx + (ball.y - obs.y) * dy) / lenSq));
+            const closestX = obs.x + t * dx;
+            const closestY = obs.y + t * dy;
+            const dist = Math.hypot(ball.x - closestX, ball.y - closestY);
+            if (dist < ball.radius + 14) {
+              const nx = (ball.x - closestX) / dist;
+              const ny = (ball.y - closestY) / dist;
+              if (dist > 0.001) {
+                ball.x = closestX + nx * (ball.radius + 14);
+                ball.y = closestY + ny * (ball.radius + 14);
+              }
+              const physicsSpeed = obs.physicsSpeed || obs.speed || 0.07;
+              const tipVx = -sinA * physicsSpeed * armLen * obs.direction;
+              const tipVy = cosA * physicsSpeed * armLen * obs.direction;
+              const armVelocityAtContact = t;
+              const PUSH_STRENGTH = 0.8;
+              ball.vx += tipVx * armVelocityAtContact * PUSH_STRENGTH;
+              ball.vy += tipVy * armVelocityAtContact * PUSH_STRENGTH;
+              ball._hitSweepArmThisFrame = true;
+            }
           }
         } else if (obs.type === 'c_bumper') {
           // Rotating C-bumper — semicircular arc collision with tangential spin push

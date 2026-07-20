@@ -3305,7 +3305,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             type: 'sweep_arm', x: tryX, y: clampY(cY, b, 20),
             length: 80 + Math.random() * 30, angle: 0,
             speed: 0.030, physicsSpeed: 0.090 + Math.random() * 0.035,
-            direction: Math.random() < 0.5 ? 1 : -1
+            direction: Math.random() < 0.5 ? 1 : -1,
+            _isJungle: themeKey === 'jungle'
           });
         } else if (ut === 'punchfist') {
           const pAngle = Math.random() * Math.PI * 2;
