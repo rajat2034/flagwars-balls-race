@@ -8663,10 +8663,10 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             surfaceColor = '#1a1612';
             surfAlpha = 0.85;
           }
-          // Jungle: use opaque stone-gray pathway that stands out from the dark forest
+          // Jungle: use semi-transparent natural pathway that lets the rainforest show through
           if (this.currentThemeKey === 'jungle') {
-            surfaceColor = '#6a5a48';
-            surfAlpha = 1.0;
+            surfaceColor = '#3a4a30';
+            surfAlpha = 0.35;
           }
           this.ctx.fillStyle = hexToRgba(surfaceColor, surfAlpha);
           this.ctx.beginPath();
@@ -8686,9 +8686,9 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
             this.ctx.fill();
           }
-          // Jungle: ancient stone pathway overlay for track separation
+          // Jungle: subtle pathway overlay for track definition
           if (this.currentThemeKey === 'jungle') {
-            this.ctx.fillStyle = 'rgba(60, 50, 40, 0.10)';
+            this.ctx.fillStyle = 'rgba(60, 50, 40, 0.06)';
             this.ctx.beginPath();
             this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
             for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y);
