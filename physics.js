@@ -767,34 +767,56 @@ class PhysicsEngine {
 
             // No burning, no slowdown, no stun, no freezing — pure physical bounce
           }
-        } else if (obs.type === 'carnivorous_vine') {
-          // Carnivorous Vine — solid trunk on wall with 2 capture voids (above/below)
-          // Only collides at ground level (z === 0)
+} else if (obs.type === 'carnivorous_vine') {
+          // Carnivorous Vine — thin wire extending from wall with 2 capture voids
+          // Wire acts as solid barrier; balls hitting wire get caught in void or slide around
           
-          const vineH = obs.cannonHeight || 50; // vine trunk height
-          const vineW = 20; // vine trunk width (physical collision width)
-          const vineX = obs.x;
-          const vineY = obs.y;
+          const wireLen = obs.length || 120; // wire length from wall inward
+          const wireW = 6; // thin wire width (physical collision)
+          const wireX = obs.x;
+          const wireY = obs.y; // position at wall
           const wallDir = obs.wallSide === 'top' ? 1 : -1; // top=1 (extends down), bottom=-1 (extends up)
           
-          // Check if ball is at ground level and horizontally aligned with vine trunk
-          if (ball.z === 0 && ball.x > vineX - vineW/2 && ball.x < vineX + vineW/2) {
-            // Vine trunk vertical bounds
-            // Top vine: trunk extends DOWN from wall (y - H/2 to y + H/2)
-            // Bottom vine: trunk extends UP from wall (y - H/2 to y + H/2)
-            const trunkTop = vineY - vineH * 0.5;
-            const trunkBot = vineY + vineH * 0.5;
-            
-            // Check if ball vertically overlaps with trunk
+          // Wire vertical bounds (extends from wall inward)
+          const wireTop = wallDir === 1 ? wireY : wireY - wireLen;
+          const wireBot = wallDir === 1 ? wireY + wireLen : wireY;
+          
+          // Two capture voids: one at ~1/3 and one at ~2/3 along wire (within wire length)
+          // Each void is ~40px tall, positioned along the wire
+          const voidHeight = 40;
+          const void1Top = wireTop + wireLen * 0.2; // first void at 20% from wall
+          const void1Bot = void1Top + voidHeight;
+          const void2Top = wireTop + wireLen * 0.6; // second void at 60% from wall
+          const void2Bot = void2Top + voidHeight;
+          
+          // Check if ball is at ground level and horizontally overlapping wire
+          if (ball.z === 0 && ball.x > wireX - wireW/2 && ball.x < wireX + wireW/2) {
             const ballTop = ball.y - ball.radius;
             const ballBot = ball.y + ball.radius;
+            const ballCenterY = ball.y;
             
-            if (ballBot > trunkTop && ballTop < trunkBot) {
-              // Ball overlaps trunk vertically - collision!
-              const capturedBalls = obs.capturedBalls || [];
+            // Check if ball vertically overlaps with wire (solid barrier)
+            const overlapsWire = ballBot > wireTop && ballTop < wireBot;
+            
+            if (overlapsWire) {
+              // Ball hits the solid wire - check which void it's closer to
+              const distToVoid1 = Math.abs(ballCenterY - (void1Top + void1Bot) * 0.5);
+              const distToVoid2 = Math.abs(ballCenterY - (void2Top + void2Bot) * 0.5);
+              const targetVoid = distToVoid1 < distToVoid2 ? 1 : 2;
               
-              if (!capturedBalls.some(id => id === ball.id) && capturedBalls.length < 2) {
-                // CAPTURE: vine has capacity, trap the ball
+              const capturedBalls = obs.capturedBalls || [];
+              const void1Occupied = capturedBalls.some(id => {
+                const b = this.balls?.find(ball => ball.id === id);
+                return b && b._vineVoid === 1;
+              });
+              const void2Occupied = capturedBalls.some(id => {
+                const b = this.balls?.find(ball => ball.id === id);
+                return b && b._vineVoid === 2;
+              });
+              const targetOccupied = targetVoid === 1 ? void1Occupied : void2Occupied;
+              
+              if (!targetOccupied && capturedBalls.length < 2) {
+                // CAPTURE: trap ball in the void for 2 seconds
                 obs.captureState = 'capturing';
                 obs.captureBallId = ball.id;
                 obs.captureTimer = 0;
@@ -802,6 +824,7 @@ class PhysicsEngine {
                 if (!obs.capturedBallIds) obs.capturedBallIds = new Set();
                 obs.capturedBallIds.add(ball.id);
                 ball._capturedByVine = true;
+                ball._vineVoid = targetVoid;
                 ball._vineCaptureVx = ball.vx;
                 ball._vineCaptureVy = ball.vy;
                 ball._vineCaptureX = ball.x;
@@ -813,33 +836,21 @@ class PhysicsEngine {
                 if (!obs.capturedBalls) obs.capturedBalls = [];
                 obs.capturedBalls.push(ball.id);
               } else {
-                // VINE FULL or already captured - SLIDE along wall around vine
-                // Vine is on wall, so ball should slide UP or DOWN along wall to go around
-                // Push ball away from trunk center along wall direction
-                
-                const trunkCenterY = (trunkTop + trunkBot) / 2;
-                const dy = ball.y - trunkCenterY;
-                
-                // Determine which void to slide toward (above or below trunk)
-                const slideDir = dy >= 0 ? 1 : -1; // 1 = down/up along wall, -1 = up/down
-                
-                // Push ball out of trunk horizontally first
-                const overlapX = vineW/2 - Math.abs(ball.x - vineX) + 2;
+                // WIRE FULL or void occupied - SLIDE around wire
+                // Push ball horizontally out of wire first
+                const overlapX = wireW/2 - Math.abs(ball.x - wireX) + 2;
                 if (overlapX > 0) {
-                  const pushX = ball.x > vineX ? overlapX : -overlapX;
+                  const pushX = ball.x > wireX ? overlapX : -overlapX;
                   ball.x += pushX;
                 }
                 
-                // Then slide along wall (vertical movement) to go around vine
-                // Strong vertical push to slide past the vine
-                const slideForce = slideDir * 2;
+                // Slide along wall: top wire -> push DOWN, bottom wire -> push UP
+                const slideForce = wallDir * 3;
                 ball.vy += slideForce;
-                
-                // Reduce forward velocity slightly
-                ball.vx *= 0.7;
+                ball.vx *= 0.6;
               }
             }
-          }
+}
         }
       });
     });
