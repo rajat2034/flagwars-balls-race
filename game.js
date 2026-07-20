@@ -4062,7 +4062,6 @@ class GameEngine {
     const freqToWeight = (f) => f <= 1 ? 1 : f === 2 ? 3 : f === 3 ? 5 : f === 4 ? 10 : 20;
 
     const events = [
-      { name: '\u{1F327} TROPICAL RAINSTORM', key: 'tropical_rainstorm', duration: 300, description: 'Heavy tropical rain slows all racers to 60% speed for 5 seconds.' },
       { name: '\u{26BD} FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.' },
       { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.' },
       { name: '\u{26A1} SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.' },
@@ -4072,8 +4071,6 @@ class GameEngine {
       { name: 'AURORA BOREALIS', key: 'aurora_borealis', duration: 480, description: 'The northern lights dance across the frozen sky.' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
-      .filter(e => e.key !== 'tropical_rainstorm' || this.currentThemeKey === 'jungle')
-      .filter(e => e.key !== 'football_shower' || this.currentThemeKey !== 'jungle')
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'gravity_flip' || this.currentThemeKey !== 'snow')
       .filter(e => e.key !== 'blackout' || this.currentThemeKey !== 'snow')
@@ -4177,34 +4174,6 @@ class GameEngine {
       });
       // Start wind audio
       this.sounds.startBlizzardWind();
-    } else if (evt.key === 'tropical_rainstorm') {
-      this._tropicalRainstormActive = true;
-      this._rainstormOriginalSpeeds = new Map();
-      this.balls.forEach(ball => {
-        if (!ball.finished && !ball.eliminated) {
-          const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-          this._rainstormOriginalSpeeds.set(ball.id, { vx: ball.vx, vy: ball.vy });
-          ball.vx *= 0.6;
-          ball.vy *= 0.6;
-        }
-      });
-      // Initialize rain particles
-      this._rainstormParticles = [];
-      for (let i = 0; i < 200; i++) {
-        this._rainstormParticles.push({
-          x: Math.random(),
-          y: Math.random() * 0.3,
-          size: 1 + Math.random() * 2,
-          speedX: -0.1 - Math.random() * 0.2,
-          speedY: 0.5 + Math.random() * 0.5,
-          alpha: 0.2 + Math.random() * 0.3,
-          phase: Math.random() * Math.PI * 2
-        });
-      }
-      // Splash particles
-      this._rainstormSplashes = [];
-      // Lightning timer
-      this._rainstormLightningTimer = 0;
     } else if (evt.key === 'aurora_borealis') {
       this._auroraActive = true;
       this._auroraRibbonTime = 0;
@@ -4294,24 +4263,10 @@ class GameEngine {
       if (this.activeEvent.key === 'gravity_flip') {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
-if (this.activeEvent.key === 'football_shower') {
+      if (this.activeEvent.key === 'football_shower') {
         this._footballShowerActive = false;
       }
-      if (this.activeEvent.key === 'tropical_rainstorm') {
-        this._tropicalRainstormActive = false;
-        // Smoothly restore original speeds
-        if (this._rainstormOriginalSpeeds) {
-          this.balls.forEach(ball => {
-            const orig = this._rainstormOriginalSpeeds.get(ball.id);
-            if (orig && !ball.finished && !ball.eliminated) {
-              ball.vx = orig.vx;
-              ball.vy = orig.vy;
-            }
-          });
-          this._rainstormOriginalSpeeds = null;
-        }
-      }
-      if (this.activeEvent.key === 'speed_surge') {
+if (this.activeEvent.key === 'speed_surge') {
       this._speedSurgeActive = false;
       this._speedSurgeMultipliers.clear();
     }
@@ -4593,37 +4548,6 @@ if (this.activeEvent.key === 'football_shower') {
           });
           this._auroraGustTimer = 180 + Math.random() * 180;
         }
-    // Tropical Rainstorm update (Amazon Canopy only)
-    if (this.activeEvent && this.activeEvent.key === 'tropical_rainstorm' && this.currentThemeKey === 'jungle') {
-      this._rainstormTimer = (this._rainstormTimer || 0) + dt;
-      // Update rain particles
-      if (this._rainstormParticles) {
-        for (const p of this._rainstormParticles) {
-          p.x += p.speedX * dt * 0.01;
-          p.y += p.speedY * dt * 0.01;
-          if (p.y > 1.05) {
-            p.y = -0.05;
-            p.x = Math.random();
-            // Create splash
-            if (this._rainstormSplashes.length < 30) {
-              this._rainstormSplashes.push({ x: p.x, y: 0.95, life: 0.3, size: 2 + Math.random() * 3 });
-            }
-          }
-          if (p.x < -0.05) p.x = 1.05;
-          if (p.x > 1.05) p.x = -0.05;
-        }
-      }
-      // Update splashes
-      if (this._rainstormSplashes) {
-      for (let i = this._rainstormSplashes.length - 1; i >= 0; i--) {
-        const s = this._rainstormSplashes[i];
-        s.life -= dt * 0.001;
-        if (s.life <= 0) this._rainstormSplashes.splice(i, 1);
-      }
-      }
-      // Lightning timer
-      this._rainstormLightningTimer = (this._rainstormLightningTimer || 0) + dt;
-    }
       }
       // Update existing gusts
       for (let gi = this._auroraSnowGusts.length - 1; gi >= 0; gi--) {
@@ -4631,45 +4555,15 @@ if (this.activeEvent.key === 'football_shower') {
         gust.life -= dt;
         gust.x += gust.speed * dt * 0.01;
         if (gust.life <= 0 || gust.x < -0.2) {
-            this._auroraSnowGusts.splice(gi, 1);
-          }
+          this._auroraSnowGusts.splice(gi, 1);
         }
       }
-    // Tropical Rainstorm update (Amazon Canopy only)
-    if (this.activeEvent && this.activeEvent.key === 'tropical_rainstorm' && this.currentThemeKey === 'jungle') {
-      this._rainstormTimer = (this._rainstormTimer || 0) + dt;
-      // Update rain particles
-      if (this._rainstormParticles) {
-        for (const p of this._rainstormParticles) {
-          p.x += p.speedX * dt * 0.01;
-          p.y += p.speedY * dt * 0.01;
-          if (p.y > 1.05) {
-            p.y = -0.05;
-            p.x = Math.random();
-            // Create splash
-            if (this._rainstormSplashes.length < 30) {
-              this._rainstormSplashes.push({ x: p.x, y: 0.95, life: 0.3, size: 2 + Math.random() * 3 });
-            }
-          }
-          if (p.x < -0.05) p.x = 1.05;
-          if (p.x > 1.05) p.x = -0.05;
-        }
-      }
-      // Update splashes
-      if (this._rainstormSplashes) {
-        for (let i = this._rainstormSplashes.length - 1; i >= 0; i--) {
-          const s = this._rainstormSplashes[i];
-          s.life -= dt * 0.001;
-          if (s.life <= 0) this._rainstormSplashes.splice(i, 1);
-        }
-}
-    // Lightning timer
-    this._rainstormLightningTimer = (this._rainstormLightningTimer || 0) + dt;
     }
-}
+  }
 
   // Setup race balls from selected countries
   setupRaceBalls() {
+    this.balls = [];
     this.selectedCountries.forEach((country, idx) => {
       const ball = {
         id: idx,
@@ -10758,49 +10652,6 @@ this.ctx.restore();
           this.ctx.fill();
         }
         this.ctx.globalAlpha = 1;
-        this.ctx.restore();
-      }
-
-      // Tropical Rainstorm visual overlay (Amazon Canopy only)
-      if (this._tropicalRainstormActive && this.state === 'racing' && this.currentThemeKey === 'jungle') {
-        this.ctx.save();
-        // Dark rain clouds overlay
-        const rainAlpha = 0.1 + Math.sin(Date.now() * 0.001) * 0.03;
-        this.ctx.fillStyle = `rgba(20, 25, 35, ${rainAlpha})`;
-        this.ctx.fillRect(0, 0, screenW, screenH);
-        // Rain streaks
-        const time = Date.now() * 0.001;
-        this.ctx.strokeStyle = 'rgba(120, 150, 180, 0.35)';
-        this.ctx.lineWidth = 1;
-        this.ctx.lineCap = 'round';
-        for (let i = 0; i < 150; i++) {
-          const x = (i * 13.7 + time * 400) % (screenW + 300) - 150;
-          const y = (i * 19.3 + time * 600) % (screenH + 200) - 100;
-          const streakLen = 20 + Math.sin(i * 1.3) * 8;
-          this.ctx.beginPath();
-          this.ctx.moveTo(x, y);
-          this.ctx.lineTo(x - 4, y + streakLen);
-          this.ctx.stroke();
-        }
-        // Ground splashes
-        if (this._rainstormSplashes) {
-          this.ctx.fillStyle = 'rgba(100, 160, 200, 0.3)';
-          for (const splash of this._rainstormSplashes) {
-            this.ctx.globalAlpha = splash.alpha;
-            this.ctx.beginPath();
-            this.ctx.arc(splash.x * screenW, splash.y * screenH, splash.size, 0, Math.PI * 2);
-            this.ctx.fill();
-          }
-          this.ctx.globalAlpha = 1;
-        }
-        // Lightning flashes
-        if (this._rainstormLightningTimer > 0) {
-          this._rainstormLightningTimer -= 1;
-          this.ctx.fillStyle = 'rgba(200, 220, 255, 0.3)';
-          this.ctx.fillRect(0, 0, screenW, screenH);
-        } else if (Math.random() < 0.001) {
-          this._rainstormLightningTimer = 3; // flash for 3 frames
-        }
         this.ctx.restore();
       }
 
