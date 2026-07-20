@@ -7925,13 +7925,15 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           
           for (let i = 0; i < numPoints; i++) {
             const angle = (i / numPoints) * Math.PI * 2;
-            // Add organic variation to radius
-            const variation = 0.65 + noise() * 0.35;
-            // Add subtle asymmetry
-            const asymX = 1.0 + (noise() - 0.5) * 0.15;
-            const asymY = 1.0 + (noise() - 0.5) * 0.15;
-            const rx = baseRadiusX * variation * asymX;
-            const ry = baseRadiusY * variation * asymY;
+            // Add organic variation to radius - more dramatic for rough mud pit look
+            const variation = 0.45 + noise() * 0.55;
+            // Add pronounced asymmetry - real mud puddles are very irregular
+            const asymX = 1.0 + (noise() - 0.5) * 0.35;
+            const asymY = 1.0 + (noise() - 0.5) * 0.35;
+            // Add random sharp indentations (erosion/cracks)
+            const crack = noise() < 0.12 ? 0.3 + noise() * 0.25 : 1.0;
+            const rx = baseRadiusX * variation * asymX * crack;
+            const ry = baseRadiusY * variation * asymY * crack;
             blobPoints.push({
               x: centerX + Math.cos(angle) * rx,
               y: centerY + Math.sin(angle) * ry
@@ -9185,6 +9187,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
           ctx.restore();
         }
+        // Jungle: draw zones on top of track surface (like volcano)
+        if (this.currentThemeKey === 'jungle') renderTrackZones();
           const lineY1 = topEdgeY + (botEdgeY - topEdgeY) * 0.15;
           const lineY2 = topEdgeY + (botEdgeY - topEdgeY) * 0.85;
           this.ctx.strokeStyle = 'rgba(255,255,255,0.08)';
@@ -9253,6 +9257,9 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           if (this.currentThemeKey === 'snow') {
             this.ctx.strokeStyle = '#1a2a3a';
             this.ctx.globalAlpha = 0.55;
+          } else if (this.currentThemeKey === 'jungle') {
+            this.ctx.strokeStyle = '#4a5a3a'; // brownish-green for Amazon track boundaries
+            this.ctx.globalAlpha = 0.85;
           } else {
             this.ctx.strokeStyle = wallRgba;
             this.ctx.globalAlpha = wallAlpha;
@@ -9270,6 +9277,9 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           if (this.currentThemeKey === 'snow') {
             this.ctx.strokeStyle = '#1a2a3a';
             this.ctx.globalAlpha = 0.55;
+          } else if (this.currentThemeKey === 'jungle') {
+            this.ctx.strokeStyle = '#4a5a3a';
+            this.ctx.globalAlpha = 0.85;
           } else {
             this.ctx.strokeStyle = wallRgba;
             this.ctx.globalAlpha = wallAlpha;
@@ -9351,6 +9361,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
       // Volcano: draw zones on top of track (track is opaque for volcano, zones would be hidden underneath)
       if (this.currentThemeKey === 'volcano') renderTrackZones();
+      // Jungle: draw zones on top of track (mud puddles would be hidden underneath track surface)
+      if (this.currentThemeKey === 'jungle') renderTrackZones();
 
       this.track.obstacles.forEach(obs => {
         const obsX = obs.x - camX;
@@ -10227,7 +10239,6 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
           this.ctx.restore();
         } else if (obs.type === 'carnivorous_vine') {
-} else if (obs.type === 'carnivorous_vine') {
           // ===== CARNIVOROUS VINE BASE PLANT RENDERING =====
           if (this.currentThemeKey !== 'jungle') return;
           
