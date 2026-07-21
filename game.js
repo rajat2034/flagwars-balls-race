@@ -4,7 +4,7 @@
 const MAP_THEMES = {
   desert: {
     name: "Sahara Desert",
-    bgGrad: ["#e59866", "#d35400"],
+    bgGrad: ["rgba(229, 152, 102, 0.35)", "rgba(211, 84, 0, 0.25)"],
     wallColor: "#ba4a00",
     pegColor: "#e59866",
     pegBouncyColor: "#d35400",
@@ -52,7 +52,7 @@ jungle: {
   },
   ocean: {
     name: "Mariana Depths",
-    bgGrad: ["#1f618d", "#1b4f72"],
+    bgGrad: ["rgba(31, 97, 141, 0.35)", "rgba(27, 79, 114, 0.25)"],
     wallColor: "#17a2b8",
     pegColor: "#5dade2",
     pegBouncyColor: "#48c9b0",
@@ -2071,6 +2071,8 @@ class GameEngine {
     this.preloadAmazonBg();
     this.preloadGlacierBg();
     this.preloadVolcanoBg();
+    this.preloadOceanBg();
+    this.preloadDesertBg();
     this.startBackgroundLoop();
     this.setupClickToFocus();
   }
@@ -2098,6 +2100,18 @@ class GameEngine {
     this.volcanoBgImg = new Image();
     this.volcanoBgImg.src = 'magma crater bg.png';
     this.volcanoBgImg.onerror = () => { this.volcanoBgImg = null; };
+  }
+
+  preloadOceanBg() {
+    this.oceanBgImg = new Image();
+    this.oceanBgImg.src = 'mariana depths bg.png';
+    this.oceanBgImg.onerror = () => { this.oceanBgImg = null; };
+  }
+
+  preloadDesertBg() {
+    this.desertBgImg = new Image();
+    this.desertBgImg.src = 'sahara desert bg.png';
+    this.desertBgImg.onerror = () => { this.desertBgImg = null; };
   }
 
   // Pre-load flags asynchronously in the background
@@ -11668,23 +11682,12 @@ this.ctx.restore();
         focusGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
         ctx.fillStyle = focusGrad;
         ctx.fillRect(0, 0, screenW, screenH);
-        ctx.restore();
+ctx.restore();
       }
 
       // ---- LAYER 4: Map-specific atmospheric effects (reduced opacity) ----
-      if (theme === 'desert') {
-        ctx.save();
-        ctx.fillStyle = 'rgba(186, 74, 0, 0.04)';
-        for (let i = 0; i < 5; i++) {
-          const dx = (i * screenW / 5 + Math.sin(time * 0.015 + i) * 30) % screenW;
-          const dh = 50 + Math.sin(i * 2.1 + time * 0.08) * 20;
-          ctx.beginPath();
-          ctx.moveTo(dx - 140, screenH);
-          ctx.quadraticCurveTo(dx, screenH - dh, dx + 140, screenH);
-          ctx.fill();
-        }
-        ctx.restore();
-} else if (theme === 'snow') {
+      // Desert, Snow, Volcano, Ocean, Desert now use background images instead of procedural rendering
+      if (theme === 'space') {
         // Glacier Summit background photo
         if (this.glacierBgImg && this.glacierBgImg.complete && this.glacierBgImg.naturalWidth > 0) {
           ctx.save();
@@ -11696,24 +11699,26 @@ this.ctx.restore();
         // Magma Crater background photo replaces procedural background
         if (this.volcanoBgImg && this.volcanoBgImg.complete && this.volcanoBgImg.naturalWidth > 0) {
           ctx.save();
-           ctx.globalAlpha = 0.10;
-           ctx.drawImage(this.volcanoBgImg, 0, 0, screenW, screenH);
-           ctx.restore();
-         }
-        ctx.save();
-        ctx.strokeStyle = 'rgba(173, 216, 230, 0.04)';
-        ctx.lineWidth = 2;
-        for (let w = 0; w < 6; w++) {
-          ctx.beginPath();
-          const wy = screenH * (0.25 + w * 0.08);
-          for (let wx = 0; wx < screenW; wx += 10) {
-            const wyOff = Math.sin(wx * 0.008 + time * 0.4 + w * 1.7) * 10;
-            if (wx === 0) ctx.moveTo(wx, wy + wyOff);
-            else ctx.lineTo(wx, wy + wyOff);
-          }
-          ctx.stroke();
+          ctx.globalAlpha = 0.10;
+          ctx.drawImage(this.volcanoBgImg, 0, 0, screenW, screenH);
+          ctx.restore();
         }
-        ctx.restore();
+      } else if (theme === 'ocean') {
+        // Mariana Depths background photo
+        if (this.oceanBgImg && this.oceanBgImg.complete && this.oceanBgImg.naturalWidth > 0) {
+          ctx.save();
+          ctx.globalAlpha = 0.08;
+          ctx.drawImage(this.oceanBgImg, 0, 0, screenW, screenH);
+          ctx.restore();
+        }
+      } else if (theme === 'desert') {
+        // Sahara Desert background photo
+        if (this.desertBgImg && this.desertBgImg.complete && this.desertBgImg.naturalWidth > 0) {
+          ctx.save();
+          ctx.globalAlpha = 0.08;
+          ctx.drawImage(this.desertBgImg, 0, 0, screenW, screenH);
+          ctx.restore();
+        }
       } else if (theme === 'space') {
         // ---- LAYER 4a: Deep nebula clouds (slowly drifting) ----
         ctx.save();
