@@ -4015,14 +4015,14 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         }
         
         const voids = obs.voids;
-        const wireLen = obs.length || 120;
+        const wireLen = 75; // match physics wire length
         const wallDir = obs.wallSide === 'top' ? 1 : -1;
         const vineCenterX = obs.x + swayAmount * wireLen * 0.5;
         
-        // Void positions: at 20% and 60% along wire length (within wire bounds)
+        // Void positions: at 25% and 65% along wire length (within wire bounds)
         const wireTop = wallDir === 1 ? obs.y : obs.y - wireLen;
-        const void1Y = wireTop + wireLen * 0.2;
-        const void2Y = wireTop + wireLen * 0.6;
+        const void1Y = wireTop + wireLen * 0.25;
+        const void2Y = wireTop + wireLen * 0.65;
         
         // Process each void independently
         for (const voidNum of [1, 2]) {

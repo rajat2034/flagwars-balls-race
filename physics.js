@@ -402,6 +402,7 @@ class PhysicsEngine {
 
     // 4. Ball vs Moving Obstacles (culled by distance)
     balls.forEach(ball => {
+      ball._hitLargeObstacle = false;
       if (ball.finished || ball.z > 0 || ball._capturedByVine) return;
       track.obstacles.forEach(obs => {
         // Skip obstacles temporarily disabled by anti-stuck system (Layer 2: 0.5s)
@@ -831,7 +832,7 @@ class PhysicsEngine {
 
             // Push ball out
             const overlap = ball.radius - dist;
-            if (dist > 0.001) {
+if (dist > 0.001) {
               const nx = dx / dist;
               const ny = dy / dist;
               ball.x += nx * overlap;
@@ -846,14 +847,15 @@ class PhysicsEngine {
                 const speedLoss = 0.92;
                 ball.vx *= speedLoss;
                 ball.vy *= speedLoss;
-              }
-            } else {
-              // Ball is exactly at center, push downward
-              ball.y += ball.radius;
+              } else {
+                // Ball is exactly at center, push downward
+                ball.y += ball.radius;
 }
+}
+        }
 
             // No burning, no slowdown, no stun, no freezing — pure physical bounce
-        } else if (obs.type === 'carnivorous_vine') {
+          } else if (obs.type === 'carnivorous_vine') {
           // Carnivorous Vine — thin wire extending from wall with 2 capture voids
           // Wire acts as solid barrier; balls hitting wire get caught in void or slide around
           
@@ -902,64 +904,68 @@ class PhysicsEngine {
               });
               const targetOccupied = targetVoid === 1 ? void1Occupied : void2Occupied;
               
-              if (!targetOccupied && capturedBalls.length < 2 && targetDist < voidHeight * 0.6) {
-                // CAPTURE: trap ball in the void for 2 seconds
-                obs.captureState = 'capturing';
-                obs.captureBallId = ball.id;
-                obs.captureTimer = 0;
-                obs.captureProgress = 0;
-                if (!obs.capturedBallIds) obs.capturedBallIds = new Set();
-                obs.capturedBallIds.add(ball.id);
-                ball._capturedByVine = true;
-                ball._vineVoid = targetVoid;
-                ball._vineCaptureVx = ball.vx;
-                ball._vineCaptureVy = ball.vy;
-                ball._vineCaptureX = ball.x;
-                ball._vineCaptureY = ball.y;
-                ball.vx = 0;
-                ball.vy = 0;
-                ball._vineCaptured = true;
+              if (!targetOccupied && capturedBalls.length < 2) {
+                // Check if ball is actually within the void's vertical range
+                const voidTop = targetVoid === 1 ? void1Top : void2Top;
+                const voidBot = targetVoid === 1 ? void1Bot : void2Bot;
+                const inVoidRange = ballCenterY >= voidTop - 5 && ballCenterY <= voidBot + 5;
                 
-                if (!obs.capturedBalls) obs.capturedBalls = [];
-                obs.capturedBalls.push(ball.id);
-              } else {
-                // WIRE FULL or void occupied - SLIDE PAST the vine along wall
-                // Push ball horizontally out of wire first
-                const overlapX = wireW/2 - Math.abs(ball.x - wireX) + 1;
-                if (overlapX > 0) {
-                  const pushX = ball.x > wireX ? overlapX : -overlapX;
-                  ball.x += pushX;
-                }
-                
-                // Slide PAST the vine: determine which side to slide to
-                const void1Center = (void1Top + void1Bot) * 0.5;
-                const void2Center = (void2Top + void2Bot) * 0.5;
-                const distToV1 = Math.abs(ballCenterY - void1Center);
-                const distToV2 = Math.abs(ballCenterY - void2Center);
-                
-                // Slide past nearest void center
-                let slideTarget;
-                if (distToV1 < distToV2) {
-                  slideTarget = ballCenterY < void1Center ? void1Top - ball.radius - 10 : void1Bot + ball.radius + 10;
+if (inVoidRange) {
+                  // CAPTURE: trap ball in the void for 2 seconds
+                  obs.captureState = 'capturing';
+                  obs.captureBallId = ball.id;
+                  obs.captureTimer = 0;
+                  obs.captureProgress = 0;
+                  if (!obs.capturedBallIds) obs.capturedBallIds = new Set();
+                  obs.capturedBallIds.add(ball.id);
+                  ball._capturedByVine = true;
+                  ball._vineVoid = targetVoid;
+                  ball._vineCaptureVx = ball.vx;
+                  ball._vineCaptureVy = ball.vy;
+                  ball._vineCaptureX = ball.x;
+                  ball._vineCaptureY = ball.y;
+                  ball.vx = 0;
+                  ball.vy = 0;
+                  ball._vineCaptured = true;
+                  
+                  if (!obs.capturedBalls) obs.capturedBalls = [];
+                  obs.capturedBalls.push(ball.id);
                 } else {
-                  slideTarget = ballCenterY < void2Center ? void2Top - ball.radius - 10 : void2Bot + ball.radius + 10;
+                  // WIRE FULL or void occupied or not in void range - SLIDE PAST the vine along wall
+                  // Push ball horizontally out of wire first
+                  const overlapX = wireW/2 - Math.abs(ball.x - wireX) + 1;
+                  if (overlapX > 0) {
+                    const pushX = ball.x > wireX ? overlapX : -overlapX;
+                    ball.x += pushX;
+                  }
+                  
+                  // Slide PAST the vine: determine which side to slide to
+                  const void1Center = (void1Top + void1Bot) * 0.5;
+                  const void2Center = (void2Top + void2Bot) * 0.5;
+                  const distToV1 = Math.abs(ballCenterY - void1Center);
+                  const distToV2 = Math.abs(ballCenterY - void2Center);
+                  
+                  // Slide past nearest void center
+                  let slideTarget;
+                  if (distToV1 < distToV2) {
+                    slideTarget = ballCenterY < void1Center ? void1Top - ball.radius - 10 : void1Bot + ball.radius + 10;
+                  } else {
+                    slideTarget = ballCenterY < void2Center ? void2Top - ball.radius - 10 : void2Bot + ball.radius + 10;
+                  }
+                  
+                  // Apply slide force toward target
+                  const slideDir = slideTarget > ballCenterY ? 1 : -1;
+                  ball.vy += slideDir * 6; // stronger slide force
+                  ball.vx *= 0.3; // reduce forward velocity more
+                  // Also push horizontally away from wire
+                  if (ball.x > wireX) ball.vx += 2; else ball.vx -= 2;
                 }
-                
-                // Apply slide force toward target
-                const slideDir = slideTarget > ballCenterY ? 1 : -1;
-                ball.vy += slideDir * 4; // stronger slide force
-                ball.vx *= 0.4; // reduce forward velocity more
               }
-}
             }
           }
         }
-      });
     });
-
-    balls.forEach(b => {
-      b._hitLargeObstacle = false;
-    });
+  });
 
     // 5. Ball vs Ball collisions (spatially filtered - skip distant pairs)
     const activeBallCount = balls.filter(b => !b.finished && b.z <= 0 && !b._capturedByVine).length;
