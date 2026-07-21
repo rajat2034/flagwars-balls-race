@@ -13222,13 +13222,11 @@ this.ctx.restore();
         ctx.fillRect(0, 0, screenW, screenH);
         ctx.restore();
       } else if (theme === 'jungle') {
-        // Amazon canopy background photo behind everything, blurred to keep focus on gameplay
+        // Amazon canopy background photo replaces all procedural rendering
         if (this.amazonBgImg && this.amazonBgImg.complete && this.amazonBgImg.naturalWidth > 0) {
           ctx.save();
-          ctx.globalAlpha = 0.12;
-          ctx.filter = 'blur(6px)';
+          ctx.globalAlpha = 0.10;
           ctx.drawImage(this.amazonBgImg, 0, 0, screenW, screenH);
-          ctx.filter = 'none';
           ctx.restore();
         }
       }
