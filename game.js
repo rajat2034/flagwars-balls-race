@@ -138,6 +138,7 @@ const EVENT_REGISTRY = [
   { key: 'sandstorm', name: 'Sandstorm', implemented: false },
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
   { key: 'tropical_rainstorm', name: 'Tropical Rainstorm', implemented: true },
+  { key: 'flash_flood', name: 'Flash Flood', implemented: true },
 ];
 
 // Text contrast helper ??? returns appropriate colors based on map brightness
@@ -1897,6 +1898,10 @@ class GameEngine {
     this.particles = [];
     this.selectedBallId = null;
     this._footballShowerActive = false;
+    this._flashFloodActive = false;
+    this._flashFloodCurrent = 0;
+    this._flashFloodLerpTimer = 0;
+    this._flashFloodDebris = [];
     this._rainstormActive = false;
     this._rainstormSkyDarkness = 0;
     this._rainstormSkyFlash = 0;
@@ -4763,6 +4768,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
     const events = [
       { name: '\u{26C5} TROPICAL RAINSTORM!', key: 'tropical_rainstorm', duration: 300, description: 'A tropical storm drenches the Amazon canopy, slowing racers!' },
+      { name: '\u{1F30A} FLASH FLOOD!', key: 'flash_flood', duration: 300, description: 'A sudden flood sweeps across the Amazon track!' },
       { name: '\u{26BD} FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.' },
       { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.' },
       { name: '\u{26A1} SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.' },
@@ -4776,7 +4782,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
-      .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano))
+      .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'jungle'))
       .filter(e => e.key !== 'volcanic_eruption' || isVolcano)
       .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano))
       .filter(e => e.key !== 'firestorm' || isVolcano)
@@ -4784,6 +4790,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       .filter(e => e.key !== 'tropical_rainstorm' || this.currentThemeKey === 'jungle')
       .filter(e => e.key !== 'football_shower' || (this.currentThemeKey !== 'jungle' && !isVolcano))
       .filter(e => e.key !== 'lava_shower' || isVolcano)
+      .filter(e => e.key !== 'flash_flood' || this.currentThemeKey === 'jungle')
       .map(e => ({ ...e, weight: freqToWeight(eventFreqs[e.key] || 3) }));
 
     // Weighted random selection using frequencies
@@ -5022,6 +5029,33 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       this._rainstormSkyDarkness = 0;
       this._rainstormSkyFlash = 0;
       this._rainstormLerpTimer = 0;
+    } else if (evt.key === 'flash_flood') {
+      this._flashFloodActive = true;
+      this._flashFloodCurrent = 0.25;
+      this._flashFloodLerpTimer = 0;
+      this._flashFloodDebris = [];
+      // Initialize floating debris
+      for (let i = 0; i < 14; i++) {
+        this._flashFloodDebris.push({
+          x: Math.random(),
+          y: Math.random(),
+          size: 3 + Math.random() * 5,
+          speed: 0.2 + Math.random() * 0.3,
+          phase: Math.random() * Math.PI * 2,
+          rot: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.03,
+          type: Math.random() > 0.5 ? 'leaf' : 'twig',
+          color: Math.random() > 0.5 ? '#5a7a3a' : '#7a5a3a'
+        });
+      }
+      // Apply 1.2x speed boost
+      this.balls.forEach(ball => {
+        if (!ball.finished && !ball.eliminated) {
+          ball._floodOrigSpeed = Math.hypot(ball.vx, ball.vy);
+          ball.vx *= 1.2;
+          ball.vy *= 1.2;
+        }
+      });
     }
 
     this.eventCount++;
@@ -5073,6 +5107,10 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         this._volcanicEruptionFountainParticles = [];
         this._volcanicEruptionBombSpawnCounter = 0;
         this._volcanicEruptionScreenFlash = 0;
+      }
+      if (this.activeEvent.key === 'flash_flood') {
+        this._flashFloodActive = false;
+        this._flashFloodLerpTimer = 30;
       }
       if (this.activeEvent.key === 'tropical_rainstorm') {
         this._rainstormActive = false;
@@ -6272,6 +6310,73 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         this._rainstormLerpTimer -= dt;
         this._rainstormSkyDarkness = Math.max(0, this._rainstormSkyDarkness - 0.02 * dt);
         if (this._rainstormLerpTimer <= 0) this._rainstormLerpTimer = 0;
+      }
+
+      // Flash Flood — continuous current push + speed cap
+      if (this._flashFloodActive) {
+        this.balls.forEach(ball => {
+          if (ball.finished || ball.eliminated) return;
+          ball.vx += this._flashFloodCurrent * dt;
+          const origSpeed = ball._floodOrigSpeed || 0.01;
+          const cap = origSpeed * 1.2;
+          const currentSpeed = Math.hypot(ball.vx, ball.vy);
+          if (currentSpeed > cap) {
+            const ratio = cap / currentSpeed;
+            ball.vx *= ratio;
+            ball.vy *= ratio;
+          }
+        });
+        // Update debris positions
+        for (const d of this._flashFloodDebris) {
+          d.x += d.speed * 0.008 * dt;
+          d.rot += d.rotSpeed * dt;
+          if (d.x > 1.1) d.x = -0.1;
+        }
+        // Small splashes around moving balls
+        if (this.particles) {
+          this.balls.forEach(ball => {
+            if (ball.finished || ball.eliminated) return;
+            if (Math.random() < 0.04 * dt) {
+              this.particles.push({
+                type: 'sparkle',
+                x: ball.x + (Math.random() - 0.5) * ball.radius * 2,
+                y: ball.y + ball.radius * 0.5,
+                vx: (Math.random() - 0.5) * 0.6,
+                vy: -0.5 - Math.random() * 0.8,
+                alpha: 0.5,
+                size: 1 + Math.random() * 2,
+                life: 12 + Math.floor(Math.random() * 8),
+                color: 'rgba(180, 170, 150, 0.5)'
+              });
+            }
+          });
+        }
+      }
+      // Flash Flood — smooth lerp back
+      if (this._flashFloodLerpTimer > 0) {
+        this._flashFloodLerpTimer -= dt;
+        const t = Math.max(0, this._flashFloodLerpTimer / 30);
+        this._flashFloodCurrent = 0.25 * t;
+        this.balls.forEach(ball => {
+          if (ball.finished || ball.eliminated) return;
+          ball.vx += this._flashFloodCurrent * dt;
+          const origSpeed = ball._floodOrigSpeed || 0.01;
+          const cap = origSpeed * (1.0 + 0.2 * t);
+          const currentSpeed = Math.hypot(ball.vx, ball.vy);
+          if (currentSpeed > cap) {
+            const ratio = cap / currentSpeed;
+            ball.vx *= ratio;
+            ball.vy *= ratio;
+          }
+        });
+        // Decay debris during lerp
+        for (const d of this._flashFloodDebris) {
+          d.speed *= 0.97;
+        }
+        if (this._flashFloodLerpTimer <= 0) {
+          this._flashFloodCurrent = 0;
+          this._flashFloodLerpTimer = 0;
+        }
       }
 
       // Meteor/football collision particles
@@ -9347,6 +9452,93 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.shadowBlur = 0;
             this.ctx.restore();
           }
+
+          // Flash Flood — water overlay + debris rendering
+          if ((this._flashFloodActive || this._flashFloodLerpTimer > 0) && this.currentThemeKey === 'jungle') {
+            this.ctx.save();
+            const floodAlpha = this._flashFloodActive ? 1 : Math.max(0, this._flashFloodLerpTimer / 30);
+            this.ctx.globalAlpha = floodAlpha * 0.25;
+            const waterTime = Date.now() * 0.003;
+            const waterGrad = this.ctx.createLinearGradient(0, topEdgeY, 0, botEdgeY);
+            waterGrad.addColorStop(0, 'rgba(90, 65, 40, 0.5)');
+            waterGrad.addColorStop(0.3, 'rgba(110, 75, 45, 0.6)');
+            waterGrad.addColorStop(0.6, 'rgba(80, 55, 35, 0.5)');
+            waterGrad.addColorStop(1, 'rgba(60, 40, 25, 0.3)');
+            this.ctx.fillStyle = waterGrad;
+            this.ctx.beginPath();
+            this.ctx.moveTo(visibleTop[0].x, visibleTop[0].y);
+            for (let i = 1; i < visibleTop.length; i++) this.ctx.lineTo(visibleTop[i].x, visibleTop[i].y + Math.sin(waterTime + i * 0.5) * 2);
+            for (let i = visibleBot.length - 1; i >= 0; i--) this.ctx.lineTo(visibleBot[i].x, visibleBot[i].y + Math.sin(waterTime + i * 0.5 + 1) * 2);
+            this.ctx.lineTo(visibleTop[0].x, visibleTop[0].y);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(200, 185, 160, 0.15)';
+            this.ctx.lineWidth = 1.5;
+            for (let w = 0; w < 5; w++) {
+              const wy = topEdgeY + (botEdgeY - topEdgeY) * (0.15 + w * 0.18);
+              this.ctx.beginPath();
+              for (let i = 0; i < visibleTop.length; i += 2) {
+                const wx = visibleTop[i].x;
+                const offset = Math.sin(waterTime * 1.5 + wx * 0.02 + w * 2) * 3;
+                if (i === 0) this.ctx.moveTo(wx, wy + offset);
+                else this.ctx.lineTo(wx, wy + offset);
+              }
+              this.ctx.stroke();
+            }
+            const foamSeed = Math.floor(waterTime * 10);
+            this.ctx.fillStyle = 'rgba(230, 220, 200, 0.4)';
+            for (let f = 0; f < 20; f++) {
+              const fx = visibleTop[0].x + ((foamSeed * 31 + f * 73) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20));
+              const fy = topEdgeY + 10 + ((foamSeed * 47 + f * 59) % (botEdgeY - topEdgeY - 20));
+              const fSize = 1 + ((foamSeed * 53 + f * 37) % 3);
+              this.ctx.beginPath();
+              this.ctx.arc(fx, fy + Math.sin(waterTime + f * 1.5) * 2, fSize, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+            for (const d of this._flashFloodDebris) {
+              if (d.speed < 0.01) continue;
+              const dx = visibleTop[0].x + d.x * (visibleTop[visibleTop.length - 1].x - visibleTop[0].x);
+              const dy = topEdgeY + d.y * (botEdgeY - topEdgeY);
+              this.ctx.save();
+              this.ctx.translate(dx, dy);
+              this.ctx.rotate(d.rot);
+              this.ctx.globalAlpha = floodAlpha * 0.6;
+              if (d.type === 'leaf') {
+                this.ctx.fillStyle = d.color;
+                this.ctx.beginPath();
+                this.ctx.ellipse(0, 0, d.size, d.size * 0.5, 0, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.strokeStyle = 'rgba(40, 30, 20, 0.3)';
+                this.ctx.lineWidth = 0.5;
+                this.ctx.stroke();
+              } else {
+                this.ctx.strokeStyle = d.color;
+                this.ctx.lineWidth = 1.5;
+                this.ctx.beginPath();
+                this.ctx.moveTo(-d.size, 0);
+                this.ctx.lineTo(d.size, 0);
+                this.ctx.stroke();
+                this.ctx.beginPath();
+                this.ctx.moveTo(-d.size * 0.3, -d.size * 0.3);
+                this.ctx.lineTo(-d.size * 0.3, d.size * 0.3);
+                this.ctx.stroke();
+              }
+              this.ctx.restore();
+            }
+            this.ctx.strokeStyle = 'rgba(200, 195, 180, 0.1)';
+            this.ctx.lineWidth = 1;
+            for (let r = 0; r < 6; r++) {
+              const rx = visibleTop[0].x + ((foamSeed * 41 + r * 67) % (visibleTop[visibleTop.length - 1].x - visibleTop[0].x + 20));
+              const ry = topEdgeY + 15 + ((foamSeed * 29 + r * 83) % (botEdgeY - topEdgeY - 30));
+              const rPhase = (waterTime * 2 + r * 1.2) % (Math.PI * 2);
+              const rSize = 8 + Math.sin(rPhase) * 4;
+              this.ctx.beginPath();
+              this.ctx.ellipse(rx, ry, rSize, rSize * 0.3, 0, 0, Math.PI * 2);
+              this.ctx.stroke();
+            }
+            this.ctx.globalAlpha = 1;
+            this.ctx.restore();
+          }
+
           this.ctx.globalAlpha = 1;
         }
       }
@@ -16115,6 +16307,10 @@ this.ctx.restore();
       this._winnerFlashBall = null;
       this._winnerFlashStart = 0;
       this._footballShowerActive = false;
+      this._flashFloodActive = false;
+      this._flashFloodCurrent = 0;
+      this._flashFloodLerpTimer = 0;
+      this._flashFloodDebris = [];
       this._rainstormActive = false;
       this._rainstormSkyDarkness = 0;
       this._rainstormSkyFlash = 0;
@@ -16495,6 +16691,10 @@ this.ctx.restore();
       this._asteroidTimer = 1800 + Math.random() * 600;
       this._whiteFlashAlpha = 0;
       this._footballShowerActive = false;
+      this._flashFloodActive = false;
+      this._flashFloodCurrent = 0;
+      this._flashFloodLerpTimer = 0;
+      this._flashFloodDebris = [];
       this._rainstormActive = false;
       this._rainstormSkyDarkness = 0;
       this._rainstormSkyFlash = 0;
@@ -16560,6 +16760,10 @@ this.ctx.restore();
       this.activeEvent = null;
       this.eventCount = 0;
       this._footballShowerActive = false;
+      this._flashFloodActive = false;
+      this._flashFloodCurrent = 0;
+      this._flashFloodLerpTimer = 0;
+      this._flashFloodDebris = [];
       this._rainstormActive = false;
       this._rainstormSkyDarkness = 0;
       this._rainstormSkyFlash = 0;
