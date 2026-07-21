@@ -4062,6 +4062,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
                   if (!obs.wrapSegments) obs.wrapSegments = [];
                   
                   // Pause ball physics - store original velocity
+                  ball._capturedByVine = true;
                   ball._vineCaptured = true;
                   ball._vineVoid = voidNum;
                   ball._vineCaptureVx = ball.vx;
@@ -4187,6 +4188,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
               if (ball) {
                 // Gentle release - restore physics
                 if (v.progress <= 0) {
+                  ball._capturedByVine = false;
                   ball._vineCaptured = false;
                   delete ball._vineVoid;
                   ball.vx = ball._vineCaptureVx || 0;

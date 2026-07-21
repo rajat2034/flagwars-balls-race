@@ -859,107 +859,76 @@ if (dist > 0.001) {
           // Carnivorous Vine — thin wire extending from wall with 2 capture voids
           // Wire acts as solid barrier; balls hitting wire get caught in void or slide around
           
-          const wireLen = 75; // ~2.5x ball diameter (ball radius ~15)
-          const wireW = 6; // thin wire width (physical collision)
-          const wireX = obs.x;
-          const wireY = obs.y; // position at wall
-          const wallDir = obs.wallSide === 'top' ? 1 : -1; // top=1 (extends down), bottom=-1 (extends up)
+          // Skip if ball was previously captured by this vine (permanent memory)
+          if (obs.capturedBallIds && obs.capturedBallIds.has(ball.id)) return;
           
-          // Wire vertical bounds (extends from wall inward)
+          const wireLen = 75;
+          const wireW = 6;
+          const wireX = obs.x;
+          const wireY = obs.y;
+          const wallDir = obs.wallSide === 'top' ? 1 : -1;
+          
           const wireTop = wallDir === 1 ? wireY : wireY - wireLen;
           const wireBot = wallDir === 1 ? wireY + wireLen : wireY;
           
-          // Two capture voids: one at ~1/3 and one at ~2/3 along wire (within wire length)
-          // Each void is ~40px tall, positioned along the wire
           const voidHeight = 35;
-          const void1Top = wireTop + wireLen * 0.2; // first void at 20% from wall
+          const void1Top = wireTop + wireLen * 0.2;
           const void1Bot = void1Top + voidHeight;
-          const void2Top = wireTop + wireLen * 0.6; // second void at 60% from wall
+          const void2Top = wireTop + wireLen * 0.6;
           const void2Bot = void2Top + voidHeight;
           
-          // Check if ball is at ground level and horizontally overlapping wire
-          if (ball.z === 0 && ball.x > wireX - wireW/2 && ball.x < wireX + wireW/2) {
+          const horizNear = Math.abs(ball.x - wireX) < ball.radius + wireW/2 + 2;
+          
+          if (ball.z === 0 && horizNear) {
             const ballTop = ball.y - ball.radius;
             const ballBot = ball.y + ball.radius;
             const ballCenterY = ball.y;
             
-            // Check if ball vertically overlaps with wire (solid barrier)
             const overlapsWire = ballBot > wireTop && ballTop < wireBot;
             
             if (overlapsWire) {
-              // Ball hits the solid wire - check which void it's closer to
+              // Push ball to wire surface to prevent crossing
+              const touchDist = ball.radius + wireW/2;
+              const horizDist = Math.abs(ball.x - wireX);
+              if (horizDist < touchDist) {
+                const pushX = ball.x > wireX ? (touchDist - horizDist) : -(touchDist - horizDist);
+                ball.x += pushX;
+              }
+              
+              // Check void occupancy via game.js state machine
+              const void1Occupied = obs.voids && obs.voids[1] && obs.voids[1].state !== 'idle';
+              const void2Occupied = obs.voids && obs.voids[2] && obs.voids[2].state !== 'idle';
+              
               const distToVoid1 = Math.abs(ballCenterY - (void1Top + void1Bot) * 0.5);
               const distToVoid2 = Math.abs(ballCenterY - (void2Top + void2Bot) * 0.5);
               const targetVoid = distToVoid1 < distToVoid2 ? 1 : 2;
-              const targetDist = targetVoid === 1 ? distToVoid1 : distToVoid2;
-              
-              const capturedBalls = obs.capturedBalls || [];
-              const void1Occupied = capturedBalls.some(id => {
-                const b = this.balls?.find(ball => ball.id === id);
-                return b && b._vineVoid === 1;
-              });
-              const void2Occupied = capturedBalls.some(id => {
-                const b = this.balls?.find(ball => ball.id === id);
-                return b && b._vineVoid === 2;
-              });
               const targetOccupied = targetVoid === 1 ? void1Occupied : void2Occupied;
               
-              if (!targetOccupied && capturedBalls.length < 2) {
-                // Check if ball is actually within the void's vertical range
-                const voidTop = targetVoid === 1 ? void1Top : void2Top;
-                const voidBot = targetVoid === 1 ? void1Bot : void2Bot;
-                const inVoidRange = ballCenterY >= voidTop - 5 && ballCenterY <= voidBot + 5;
-                
-if (inVoidRange) {
-                  // CAPTURE: trap ball in the void for 2 seconds
-                  obs.captureState = 'capturing';
-                  obs.captureBallId = ball.id;
-                  obs.captureTimer = 0;
-                  obs.captureProgress = 0;
-                  if (!obs.capturedBallIds) obs.capturedBallIds = new Set();
-                  obs.capturedBallIds.add(ball.id);
-                  ball._capturedByVine = true;
-                  ball._vineVoid = targetVoid;
-                  ball._vineCaptureVx = ball.vx;
-                  ball._vineCaptureVy = ball.vy;
-                  ball._vineCaptureX = ball.x;
-                  ball._vineCaptureY = ball.y;
-                  ball.vx = 0;
-                  ball.vy = 0;
-                  ball._vineCaptured = true;
-                  
-                  if (!obs.capturedBalls) obs.capturedBalls = [];
-                  obs.capturedBalls.push(ball.id);
+              const voidTop = targetVoid === 1 ? void1Top : void2Top;
+              const voidBot = targetVoid === 1 ? void1Bot : void2Bot;
+              const inVoidRange = ballCenterY >= voidTop - 5 && ballCenterY <= voidBot + 5;
+              
+              if (!targetOccupied && inVoidRange) {
+                // CAPTURE: stop ball — game.js state machine manages lifecycle
+                ball._capturedByVine = true;
+                ball._vineVoid = targetVoid;
+                ball._vineCaptureVx = ball.vx;
+                ball._vineCaptureVy = ball.vy;
+                ball._vineCaptureX = ball.x;
+                ball._vineCaptureY = ball.y;
+                ball.vx = 0;
+                ball.vy = 0;
+                ball._vineCaptured = true;
+              } else {
+                // SLIDE PAST: strong vertical force toward nearest wire end each frame
+                const distToWireTop = ballCenterY - wireTop;
+                const distToWireBot = wireBot - ballCenterY;
+                if (distToWireTop < distToWireBot) {
+                  ball.vy -= 10;
                 } else {
-                  // WIRE FULL or void occupied or not in void range - SLIDE PAST the vine along wall
-                  // Push ball horizontally out of wire first
-                  const overlapX = wireW/2 - Math.abs(ball.x - wireX) + 1;
-                  if (overlapX > 0) {
-                    const pushX = ball.x > wireX ? overlapX : -overlapX;
-                    ball.x += pushX;
-                  }
-                  
-                  // Slide PAST the vine: determine which side to slide to
-                  const void1Center = (void1Top + void1Bot) * 0.5;
-                  const void2Center = (void2Top + void2Bot) * 0.5;
-                  const distToV1 = Math.abs(ballCenterY - void1Center);
-                  const distToV2 = Math.abs(ballCenterY - void2Center);
-                  
-                  // Slide past nearest void center
-                  let slideTarget;
-                  if (distToV1 < distToV2) {
-                    slideTarget = ballCenterY < void1Center ? void1Top - ball.radius - 10 : void1Bot + ball.radius + 10;
-                  } else {
-                    slideTarget = ballCenterY < void2Center ? void2Top - ball.radius - 10 : void2Bot + ball.radius + 10;
-                  }
-                  
-                  // Apply slide force toward target
-                  const slideDir = slideTarget > ballCenterY ? 1 : -1;
-                  ball.vy += slideDir * 6; // stronger slide force
-                  ball.vx *= 0.3; // reduce forward velocity more
-                  // Also push horizontally away from wire
-                  if (ball.x > wireX) ball.vx += 2; else ball.vx -= 2;
+                  ball.vy += 10;
                 }
+                if (ball.x > wireX) ball.vx += 0.5; else ball.vx -= 0.5;
               }
             }
           }
