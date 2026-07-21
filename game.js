@@ -28,7 +28,7 @@ const MAP_THEMES = {
   },
   jungle: {
     name: "Amazon Canopy",
-    bgGrad: ["#196f3d", "#145a32"],
+    bgGrad: ["#5a7a8a", "#3a5a6a"],
     wallColor: "#504325",
     pegColor: "#229954",
     pegBouncyColor: "#f4d03f",
