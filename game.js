@@ -2082,7 +2082,7 @@ class GameEngine {
 
   preloadAmazonBg() {
     this.amazonBgImg = new Image();
-    this.amazonBgImg.src = 'amazon canopy bg.png';
+    this.amazonBgImg.src = 'amazon canopy bg2.png';
     this.amazonBgImg.onerror = () => { this.amazonBgImg = null; };
   }
 
