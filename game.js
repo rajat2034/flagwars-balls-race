@@ -29,7 +29,7 @@ const MAP_THEMES = {
   jungle: {
     name: "Amazon Canopy",
     bgGrad: ["#196f3d", "#145a32"],
-    wallColor: "#114f24",
+    wallColor: "#504325",
     pegColor: "#229954",
     pegBouncyColor: "#f4d03f",
     particleColor: "#58d68d",
@@ -137,6 +137,7 @@ const EVENT_REGISTRY = [
   { key: 'lava_shower', name: 'Lava Shower', implemented: true },
   { key: 'sandstorm', name: 'Sandstorm', implemented: false },
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
+  { key: 'tropical_rainstorm', name: 'Tropical Rainstorm', implemented: true },
 ];
 
 // Text contrast helper ??? returns appropriate colors based on map brightness
@@ -1896,6 +1897,10 @@ class GameEngine {
     this.particles = [];
     this.selectedBallId = null;
     this._footballShowerActive = false;
+    this._rainstormActive = false;
+    this._rainstormSkyDarkness = 0;
+    this._rainstormSkyFlash = 0;
+    this._rainstormLerpTimer = 0;
     this._lavaShowerActive = false;
     this._lavaChunks = [];
     this._lavaShowerSkyDim = 0;
@@ -3828,9 +3833,9 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           obs._lifetime -= dt;
           if (obs._lifetime <= 0) obs._remove = true;
         }
-        // Remove rain drops that hit the ground
-        const bounds = this.physics.getWallBoundaries(obs.x, this.track);
-        if (bounds && obs.y > bounds.bottomY + 50) {
+        // Remove rain drops that fall far below the screen
+        const rdBounds = this.physics.getWallBoundaries(obs.x, this.track);
+        if (rdBounds && obs.y > rdBounds.bottomY + 800) {
           obs._remove = true;
         }
       } else if (obs.type === 'hammer') {
@@ -4290,7 +4295,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
                 type: 'sparkle',
                 x: obs.x + (Math.random() - 0.5) * 8,
                 y: obs.y + (Math.random() - 0.5) * 4,
-                vx: (Math.random() - 0.5) * 1,
+      vx: (Math.random() - 0.5) * 2,
                 vy: -1 - Math.random() * 2,
                 alpha: 0.8,
                 size: 2 + Math.random() * 2,
@@ -4672,20 +4677,20 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
     if (!this.track || !this.balls.length) return;
     const leadBall = [...this.balls].filter(b => !b.finished).sort((a, b) => b.x - a.x)[0];
     if (!leadBall) return;
-    const range = 1000;
+    const range = 2400;
     const spawnX = leadBall.x + (Math.random() - 0.5) * range;
     const bounds = this.physics.getWallBoundaries(spawnX, this.track);
     if (!bounds) return;
-    const spawnY = bounds.topY - 50; // spawn above track
+    const spawnY = -100 - Math.random() * 60;
     this.track.obstacles.push({
       type: 'rain_drop',
       x: spawnX, y: spawnY,
-      radius: 3 + Math.random() * 2,
-      vx: (Math.random() - 0.5) * 1,
-      vy: 8 + Math.random() * 4,
+      radius: 4 + Math.random() * 2,
+      vx: 4 + Math.random() * 4,
+      vy: 18 + Math.random() * 6,
       mass: 0.5,
       bounce: 0,
-      _lifetime: 200 + Math.random() * 100,
+      _lifetime: 360 + Math.random() * 120,
       _isRainDrop: true
     });
   }
@@ -4757,6 +4762,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
     const isVolcano = this.currentThemeKey === 'volcano';
 
     const events = [
+      { name: '\u{26C5} TROPICAL RAINSTORM!', key: 'tropical_rainstorm', duration: 300, description: 'A tropical storm drenches the Amazon canopy, slowing racers!' },
       { name: '\u{26BD} FOOTBALL SHOWER!', key: 'football_shower', duration: 420, description: 'Footballs rain across the track, creating unpredictable collisions.' },
       { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.' },
       { name: '\u{26A1} SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.' },
@@ -4775,7 +4781,8 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano))
       .filter(e => e.key !== 'firestorm' || isVolcano)
       .filter(e => e.key !== 'aurora_borealis' || this.currentThemeKey === 'snow')
-      .filter(e => e.key !== 'football_shower' || !isVolcano)
+      .filter(e => e.key !== 'tropical_rainstorm' || this.currentThemeKey === 'jungle')
+      .filter(e => e.key !== 'football_shower' || (this.currentThemeKey !== 'jungle' && !isVolcano))
       .filter(e => e.key !== 'lava_shower' || isVolcano)
       .map(e => ({ ...e, weight: freqToWeight(eventFreqs[e.key] || 3) }));
 
@@ -5010,6 +5017,11 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 
       // Total duration 360 frames = 6 seconds
       this.eventTimer = 360;
+    } else if (evt.key === 'tropical_rainstorm') {
+      this._rainstormActive = true;
+      this._rainstormSkyDarkness = 0;
+      this._rainstormSkyFlash = 0;
+      this._rainstormLerpTimer = 0;
     }
 
     this.eventCount++;
@@ -5061,6 +5073,10 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         this._volcanicEruptionFountainParticles = [];
         this._volcanicEruptionBombSpawnCounter = 0;
         this._volcanicEruptionScreenFlash = 0;
+      }
+      if (this.activeEvent.key === 'tropical_rainstorm') {
+        this._rainstormActive = false;
+        this._rainstormLerpTimer = 30;
       }
       if (this.activeEvent.key === 'firestorm') {
         this._firestormActive = false;
@@ -6210,6 +6226,54 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
 
+      // Raindrop-ball collision (handled in game.js, not physics.js)
+      // Must run before meteor collision particles to set _hitMeteorThisFrame
+      if (this._rainstormActive && this.track) {
+        for (const obs of this.track.obstacles) {
+          if (obs.type !== 'rain_drop' || obs._remove) continue;
+          for (const ball of this.balls) {
+            if (ball.finished || ball.eliminated) continue;
+            const dx = ball.x - obs.x;
+            const dy = ball.y - obs.y;
+            const dist = Math.hypot(dx, dy);
+            const minDist = ball.radius + obs.radius;
+            if (dist < minDist) {
+              const overlap = minDist - dist;
+              const nx = dist > 0.001 ? dx / dist : (Math.random() - 0.5);
+              const ny = dist > 0.001 ? dy / dist : (Math.random() - 0.5);
+              const pushFrac = 0.5;
+              ball.x += nx * overlap * pushFrac;
+              ball.y += ny * overlap * pushFrac;
+              obs.x -= nx * overlap * (1 - pushFrac);
+              obs.y -= ny * overlap * (1 - pushFrac);
+              ball.vx += obs.vx * 0.04;
+              ball.vy += obs.vy * 0.04;
+              ball._hitMeteorThisFrame = true;
+            }
+          }
+        }
+      }
+
+      // Tropical rainstorm visual effects only (no speed reduction)
+      if (this._rainstormActive) {
+        // Ramp sky darkness to target 0.5
+        if (this._rainstormSkyDarkness < 0.5) {
+          this._rainstormSkyDarkness = Math.min(0.5, this._rainstormSkyDarkness + 0.008 * dt);
+        }
+        // Lightning flash timing — more frequent and dramatic
+        if (this._rainstormSkyFlash > 0) {
+          this._rainstormSkyFlash -= dt;
+        } else if (Math.random() < 0.006 * dt) {
+          this._rainstormSkyFlash = 8 + Math.random() * 6;
+        }
+      }
+      // Fade sky back when rainstorm ends
+      if (this._rainstormLerpTimer > 0) {
+        this._rainstormLerpTimer -= dt;
+        this._rainstormSkyDarkness = Math.max(0, this._rainstormSkyDarkness - 0.02 * dt);
+        if (this._rainstormLerpTimer <= 0) this._rainstormLerpTimer = 0;
+      }
+
       // Meteor/football collision particles
       this.balls.forEach(b => {
         if (b._hitMeteorThisFrame && !b.finished) {
@@ -6808,6 +6872,14 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       if (this._footballShowerActive && this.state === 'racing') {
         if (Math.random() < 0.18 * dt) {
           this.spawnMeteor();
+        }
+      }
+
+      // Tropical rainstorm spawning — dense rainfall
+      if (this._rainstormActive && this.state === 'racing') {
+        const count = 20 + Math.floor(Math.random() * 10);
+        for (let i = 0; i < count; i++) {
+          this.spawnRainDrop();
         }
       }
 
@@ -9736,6 +9808,26 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             this.ctx.fill();
             this.ctx.shadowBlur = 0;
           }
+          this.ctx.restore();
+        } else if (obs.type === 'rain_drop') {
+          this.ctx.save();
+          const rx = obsX, ry = obs.y;
+          const rSize = obs.radius || 3;
+          // Blue streak shape
+          this.ctx.strokeStyle = 'rgba(180, 210, 255, 0.6)';
+          this.ctx.lineWidth = rSize * 0.5;
+          this.ctx.lineCap = 'round';
+          const streakLen = 8 + rSize * 1.5;
+          this.ctx.beginPath();
+          this.ctx.moveTo(rx, ry);
+          const streakDir = Math.atan2(obs.vy || 4, obs.vx || 0);
+          this.ctx.lineTo(rx - Math.cos(streakDir) * streakLen, ry - Math.sin(streakDir) * streakLen);
+          this.ctx.stroke();
+          // Bright tip
+          this.ctx.fillStyle = 'rgba(200, 220, 255, 0.8)';
+          this.ctx.beginPath();
+          this.ctx.arc(rx, ry, rSize * 0.4, 0, Math.PI * 2);
+          this.ctx.fill();
           this.ctx.restore();
         } else if (obs.type === 'flap') {
           // Door-style: opens to block (horizontal), closes to allow (vertical)
@@ -15340,6 +15432,29 @@ this.ctx.restore();
         this.ctx.restore();
       }
 
+      // Tropical Rainstorm — dark overcast sky
+      if ((this._rainstormActive || this._rainstormLerpTimer > 0) && this._rainstormSkyDarkness > 0.01 && this.state === 'racing') {
+        this.ctx.save();
+        const d = this._rainstormSkyDarkness;
+        const grad = this.ctx.createRadialGradient(screenW * 0.5, screenH * 0.3, 0, screenW * 0.5, screenH * 0.3, screenH * 1.2);
+        grad.addColorStop(0, `rgba(10, 10, 18, ${d * 0.7})`);
+        grad.addColorStop(0.5, `rgba(8, 8, 16, ${d * 0.85})`);
+        grad.addColorStop(1, `rgba(5, 5, 12, ${d})`);
+        this.ctx.fillStyle = grad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        this.ctx.restore();
+      }
+
+      // Tropical Rainstorm lightning flash overlay
+      if (this._rainstormActive && this._rainstormSkyFlash > 0 && this.state === 'racing') {
+        this.ctx.save();
+        const t = this._rainstormSkyFlash;
+        const flashIntensity = t > 6 ? (t - 6) / 4 : t / 6;
+        this.ctx.fillStyle = `rgba(220, 230, 255, ${flashIntensity * 0.35})`;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        this.ctx.restore();
+      }
+
       // A0aa. Aurora Borealis ??? comprehensive atmospheric overlay
       if (this._auroraActive && this.state === 'racing') {
         const fade = this._auroraFadeProgress;
@@ -16000,6 +16115,10 @@ this.ctx.restore();
       this._winnerFlashBall = null;
       this._winnerFlashStart = 0;
       this._footballShowerActive = false;
+      this._rainstormActive = false;
+      this._rainstormSkyDarkness = 0;
+      this._rainstormSkyFlash = 0;
+      this._rainstormLerpTimer = 0;
       this._lavaShowerActive = false;
       this._lavaChunks = [];
       this._lavaShowerSkyDim = 0;
@@ -16376,6 +16495,10 @@ this.ctx.restore();
       this._asteroidTimer = 1800 + Math.random() * 600;
       this._whiteFlashAlpha = 0;
       this._footballShowerActive = false;
+      this._rainstormActive = false;
+      this._rainstormSkyDarkness = 0;
+      this._rainstormSkyFlash = 0;
+      this._rainstormLerpTimer = 0;
       this._lavaShowerActive = false;
       this._lavaChunks = [];
       this._lavaShowerSkyDim = 0;
@@ -16437,6 +16560,10 @@ this.ctx.restore();
       this.activeEvent = null;
       this.eventCount = 0;
       this._footballShowerActive = false;
+      this._rainstormActive = false;
+      this._rainstormSkyDarkness = 0;
+      this._rainstormSkyFlash = 0;
+      this._rainstormLerpTimer = 0;
       this._lavaShowerActive = false;
       this._lavaChunks = [];
       this._lavaShowerSkyDim = 0;
