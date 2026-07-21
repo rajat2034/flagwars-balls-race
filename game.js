@@ -5031,29 +5031,29 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       this._rainstormLerpTimer = 0;
     } else if (evt.key === 'flash_flood') {
       this._flashFloodActive = true;
-      this._flashFloodCurrent = 0.25;
+      this._flashFloodCurrent = -0.25;
       this._flashFloodLerpTimer = 0;
       this._flashFloodDebris = [];
       // Initialize floating debris
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < 30; i++) {
         this._flashFloodDebris.push({
           x: Math.random(),
           y: Math.random(),
           size: 3 + Math.random() * 5,
-          speed: 0.2 + Math.random() * 0.3,
+          speed: 0.15 + Math.random() * 0.35,
           phase: Math.random() * Math.PI * 2,
           rot: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 0.03,
-          type: Math.random() > 0.5 ? 'leaf' : 'twig',
-          color: Math.random() > 0.5 ? '#5a7a3a' : '#7a5a3a'
+          rotSpeed: (Math.random() - 0.5) * 0.04,
+          type: Math.random() > 0.6 ? 'leaf' : (Math.random() > 0.3 ? 'twig' : 'branch'),
+          color: ['#5a7a3a', '#4a6a2a', '#7a5a3a', '#8a6a3a', '#3a5a2a'][Math.floor(Math.random() * 5)]
         });
       }
-      // Apply 1.2x speed boost
+      // Apply 0.7x speed reduction
       this.balls.forEach(ball => {
         if (!ball.finished && !ball.eliminated) {
           ball._floodOrigSpeed = Math.hypot(ball.vx, ball.vy);
-          ball.vx *= 1.2;
-          ball.vy *= 1.2;
+          ball.vx *= 0.7;
+          ball.vy *= 0.7;
         }
       });
     }
@@ -6318,7 +6318,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           if (ball.finished || ball.eliminated) return;
           ball.vx += this._flashFloodCurrent * dt;
           const origSpeed = ball._floodOrigSpeed || 0.01;
-          const cap = origSpeed * 1.2;
+          const cap = origSpeed * 0.7;
           const currentSpeed = Math.hypot(ball.vx, ball.vy);
           if (currentSpeed > cap) {
             const ratio = cap / currentSpeed;
@@ -6328,9 +6328,9 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         });
         // Update debris positions
         for (const d of this._flashFloodDebris) {
-          d.x += d.speed * 0.008 * dt;
+          d.x -= d.speed * 0.008 * dt;
           d.rot += d.rotSpeed * dt;
-          if (d.x > 1.1) d.x = -0.1;
+          if (d.x < -0.1) d.x = 1.1;
         }
         // Small splashes around moving balls
         if (this.particles) {
@@ -6356,12 +6356,12 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       if (this._flashFloodLerpTimer > 0) {
         this._flashFloodLerpTimer -= dt;
         const t = Math.max(0, this._flashFloodLerpTimer / 30);
-        this._flashFloodCurrent = 0.25 * t;
+        this._flashFloodCurrent = -0.25 * t;
         this.balls.forEach(ball => {
           if (ball.finished || ball.eliminated) return;
           ball.vx += this._flashFloodCurrent * dt;
           const origSpeed = ball._floodOrigSpeed || 0.01;
-          const cap = origSpeed * (1.0 + 0.2 * t);
+          const cap = origSpeed * (0.7 + 0.3 * (1 - t));
           const currentSpeed = Math.hypot(ball.vx, ball.vy);
           if (currentSpeed > cap) {
             const ratio = cap / currentSpeed;
@@ -6372,6 +6372,9 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         // Decay debris during lerp
         for (const d of this._flashFloodDebris) {
           d.speed *= 0.97;
+          d.x -= d.speed * 0.008 * dt;
+          d.rot += d.rotSpeed * dt;
+          if (d.x < -0.1) d.x = 1.1;
         }
         if (this._flashFloodLerpTimer <= 0) {
           this._flashFloodCurrent = 0;
@@ -9510,7 +9513,7 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
                 this.ctx.strokeStyle = 'rgba(40, 30, 20, 0.3)';
                 this.ctx.lineWidth = 0.5;
                 this.ctx.stroke();
-              } else {
+              } else if (d.type === 'twig') {
                 this.ctx.strokeStyle = d.color;
                 this.ctx.lineWidth = 1.5;
                 this.ctx.beginPath();
@@ -9520,6 +9523,21 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
                 this.ctx.beginPath();
                 this.ctx.moveTo(-d.size * 0.3, -d.size * 0.3);
                 this.ctx.lineTo(-d.size * 0.3, d.size * 0.3);
+                this.ctx.stroke();
+              } else {
+                this.ctx.strokeStyle = d.color;
+                this.ctx.lineWidth = 2.5;
+                this.ctx.beginPath();
+                this.ctx.moveTo(-d.size * 1.2, 0);
+                this.ctx.lineTo(d.size * 1.2, 0);
+                this.ctx.stroke();
+                this.ctx.beginPath();
+                this.ctx.moveTo(-d.size * 0.5, -d.size * 0.4);
+                this.ctx.lineTo(-d.size * 0.5, d.size * 0.4);
+                this.ctx.stroke();
+                this.ctx.beginPath();
+                this.ctx.moveTo(d.size * 0.3, -d.size * 0.3);
+                this.ctx.lineTo(d.size * 0.3, d.size * 0.3);
                 this.ctx.stroke();
               }
               this.ctx.restore();
