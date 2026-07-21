@@ -13705,6 +13705,23 @@ this.ctx.restore();
             ctx.ellipse(riX, riY, 5, 2, Math.sin(time * 0.001 + ri) * 0.5, 0, Math.PI * 2);
             ctx.fill();
           }
+          // Dancing light reflections on river surface
+          ctx.globalAlpha = 0.025;
+          ctx.fillStyle = 'rgba(220, 210, 180, 0.5)';
+          for (let ri = 0; ri < 16; ri++) {
+            const riT = (ri / 16) * 0.9 + 0.05;
+            const riSeg = Math.floor(riT * (pts.length - 1));
+            const riFrac = riT * (pts.length - 1) - riSeg;
+            const si = Math.sin(riT * Math.PI * 3 + time * 0.003 + ri) * 0.5 + 0.5;
+            const rX = pts[riSeg].x + (pts[Math.min(riSeg + 1, pts.length - 1)].x - pts[riSeg].x) * riFrac + Math.sin(time * 0.004 + ri * 1.7) * 15;
+            const rY = pts[riSeg].y + (pts[Math.min(riSeg + 1, pts.length - 1)].y - pts[riSeg].y) * riFrac + Math.sin(time * 0.005 + ri * 2.3) * 8;
+            const rW = 4 + si * 8;
+            const rH = 1.5 + si * 3;
+            ctx.globalAlpha = 0.015 + si * 0.025;
+            ctx.beginPath();
+            ctx.ellipse(rX, rY, rW, rH, Math.sin(time * 0.002 + ri * 1.1) * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+          }
           ctx.restore();
         }
 
@@ -13817,6 +13834,67 @@ this.ctx.restore();
               ctx.fill();
             }
           }
+        }
+        ctx.restore();
+
+        // ================================================================
+        // FOREGROUND CANOPY (near viewer, frames top with dark foliage)
+        // Parallax: 0.65x. Overlapping leaf clusters at top screen edge.
+        // ================================================================
+
+        ctx.save();
+        const fgCanopyOff = camParallax * 0.65;
+        const fcTime = time * 0.0006;
+        ctx.globalAlpha = 0.09;
+        // Left side - layered elliptical canopy clusters
+        for (let i = 0; i < 6; i++) {
+          const cx = -20 + i * 35 + Math.sin(fcTime * 1.1 + i * 1.7) * 12 + fgCanopyOff;
+          const cy = -5 + Math.sin(fcTime * 0.8 + i * 2.1) * 12 - i * 6;
+          const cw = 45 + Math.sin(i * 2.3) * 14;
+          const ch = 30 + Math.sin(i * 1.6) * 10;
+          ctx.fillStyle = i % 2 === 0 ? '#080f08' : '#0a120a';
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + 25, cw, ch, Math.sin(i * 1.1) * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Right side
+        for (let i = 0; i < 6; i++) {
+          const cx = screenW + 20 - i * 35 + Math.sin(fcTime * 0.9 + i * 2.0) * 12 - fgCanopyOff;
+          const cy = -5 + Math.sin(fcTime * 0.7 + i * 1.9) * 12 - i * 6;
+          const cw = 45 + Math.sin(i * 2.5) * 14;
+          const ch = 30 + Math.sin(i * 1.4) * 10;
+          ctx.fillStyle = i % 2 === 0 ? '#080f08' : '#0a120a';
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + 25, cw, ch, Math.sin(i * 1.3) * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Top edge canopy - dense overlapping crowns spanning the width
+        ctx.globalAlpha = 0.07;
+        for (let i = 0; i < 14; i++) {
+          const cx = (i / 13) * screenW + Math.sin(fcTime * 1.3 + i * 2.7) * 25 + fgCanopyOff * 0.3;
+          const cy = -25 + Math.sin(i * 1.2) * 30 + Math.sin(fcTime * 0.6 + i) * 10;
+          const cw = 35 + Math.sin(i * 2.2) * 12;
+          const ch = 28 + Math.sin(i * 1.5) * 10;
+          ctx.fillStyle = '#060e06';
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + 20, cw, ch, Math.sin(i * 0.9) * 0.35, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Hanging tendrils from foreground canopy
+        ctx.globalAlpha = 0.04;
+        ctx.strokeStyle = '#1a2a1a';
+        ctx.lineWidth = 0.6;
+        for (let i = 0; i < 12; i++) {
+          const tx = (i / 11) * screenW + Math.sin(fcTime * 1.5 + i * 3.1) * 30;
+          const tLen = 25 + Math.sin(i * 2.3 + fcTime) * 15;
+          const tSway = Math.sin(fcTime * 1.2 + i * 1.7) * 8;
+          ctx.beginPath();
+          ctx.moveTo(tx, 0);
+          for (let ty = 0; ty < tLen; ty += 2) {
+            const tx2 = tx + tSway * (ty / tLen) + Math.sin(ty * 0.08 + i + fcTime) * 3;
+            ctx.lineTo(tx2, ty);
+          }
+          ctx.stroke();
         }
         ctx.restore();
 
@@ -14073,22 +14151,32 @@ ctx.restore();
         // ================================================================
 
         ctx.save();
-        const rayPhase = Math.sin(time * 0.015) * 0.2 + 0.8;
+        const rayPhase = Math.sin(time * 0.012) * 0.25 + 0.75;
         for (let i = 0; i < this._jungleSunRays.length; i++) {
           const sr = this._jungleSunRays[i];
-          const rx = sr.x * screenW + camParallax * sr.parallax + Math.sin(time * 0.008 + i * 1.5) * 20;
-          const pulse = rayPhase * (0.7 + 0.3 * Math.sin(time * 0.01 + sr.phase));
-          ctx.globalAlpha = 0.025 * pulse;
-          const grad = ctx.createLinearGradient(rx, 0, rx + sr.width * 0.3, screenH * 0.5);
-          grad.addColorStop(0, 'rgba(240, 220, 170, 0.10)');
-          grad.addColorStop(0.5, 'rgba(230, 210, 160, 0.05)');
-          grad.addColorStop(1, 'rgba(220, 200, 150, 0)');
+          const rx = sr.x * screenW + camParallax * sr.parallax + Math.sin(time * 0.006 + i * 1.5) * 15;
+          const pulse = rayPhase * (0.6 + 0.4 * Math.sin(time * 0.008 + sr.phase));
+          ctx.globalAlpha = 0.035 * pulse;
+          const grad = ctx.createLinearGradient(rx, 0, rx + sr.width * 0.5, screenH * 0.55);
+          grad.addColorStop(0, 'rgba(240, 225, 180, 0.12)');
+          grad.addColorStop(0.3, 'rgba(235, 215, 170, 0.07)');
+          grad.addColorStop(0.7, 'rgba(220, 200, 155, 0.03)');
+          grad.addColorStop(1, 'rgba(200, 180, 140, 0)');
           ctx.fillStyle = grad;
           ctx.beginPath();
-          ctx.moveTo(rx - sr.width * 0.3, 0);
-          ctx.lineTo(rx + sr.width * 0.3, 0);
-          ctx.lineTo(rx + sr.width * 0.3, screenH * 0.50);
-          ctx.lineTo(rx - sr.width * 0.3, screenH * 0.50);
+          ctx.moveTo(rx - sr.width * 0.4, 0);
+          ctx.lineTo(rx + sr.width * 0.4, 0);
+          ctx.lineTo(rx + sr.width * 0.5, screenH * 0.55);
+          ctx.lineTo(rx - sr.width * 0.5, screenH * 0.55);
+          ctx.closePath();
+          ctx.fill();
+          // Second fainter wider ray for glow
+          ctx.globalAlpha = 0.015 * pulse;
+          ctx.beginPath();
+          ctx.moveTo(rx - sr.width * 0.7, 0);
+          ctx.lineTo(rx + sr.width * 0.7, 0);
+          ctx.lineTo(rx + sr.width * 0.9, screenH * 0.45);
+          ctx.lineTo(rx - sr.width * 0.9, screenH * 0.45);
           ctx.closePath();
           ctx.fill();
         }
@@ -14100,16 +14188,17 @@ ctx.restore();
 
         ctx.save();
         for (const m of this._jungleMistParticles) {
-          const mx = (m.x * screenW + camParallax * 0.15 + Math.sin(time * 0.0008 + m.phase) * 25) % (screenW + 40) - 20;
-          const my = m.y * screenH + Math.sin(time * 0.001 + m.phase * 0.7) * 8;
-          ctx.globalAlpha = m.alpha * (0.7 + 0.3 * Math.sin(time * 0.002 + m.phase));
+          const mx = (m.x * screenW + camParallax * 0.12 + Math.sin(time * 0.0006 + m.phase) * 30) % (screenW + 60) - 30;
+          const my = m.y * screenH + Math.sin(time * 0.0008 + m.phase * 0.7) * 12;
+          ctx.globalAlpha = m.alpha * (0.6 + 0.4 * Math.sin(time * 0.0015 + m.phase));
           const mistGrad = ctx.createRadialGradient(mx, my, 0, mx, my, m.size);
-          mistGrad.addColorStop(0, 'rgba(190, 220, 200, 0.05)');
-          mistGrad.addColorStop(0.5, 'rgba(180, 210, 190, 0.03)');
+          mistGrad.addColorStop(0, 'rgba(200, 230, 210, 0.06)');
+          mistGrad.addColorStop(0.4, 'rgba(190, 220, 200, 0.04)');
+          mistGrad.addColorStop(0.8, 'rgba(180, 210, 190, 0.02)');
           mistGrad.addColorStop(1, 'rgba(170, 200, 180, 0)');
           ctx.fillStyle = mistGrad;
           ctx.beginPath();
-          ctx.arc(mx, my, m.size, 0, Math.PI * 2);
+          ctx.ellipse(mx, my, m.size, m.size * 0.6, Math.sin(time * 0.0003 + m.phase) * 0.3, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
@@ -14132,9 +14221,9 @@ ctx.restore();
           if (progress <= 0 || progress >= 1) continue;
           const bx = (b.startX * screenW + progress * screenW * 1.5 + camParallax * 0.08) % (screenW + 100) - 50;
           const by = b.y * screenH + Math.sin(progress * Math.PI + b.phase) * 12;
-          const isToucan = b.species === 'toucan';
-          const isHarpy = b.species === 'harpy';
-          const isMacaw = b.species === 'macaw';
+          const isToucan = b.type === 'toucan';
+          const isHarpy = b.type === 'harpy';
+          const isMacaw = b.type === 'macaw';
           ctx.globalAlpha = 0.12 * (1 - Math.abs(progress - 0.5) * 0.6);
           ctx.fillStyle = b.color || '#1a1a2a';
           ctx.beginPath();
@@ -14467,31 +14556,36 @@ ctx.restore();
     _initJungleObjects() {
       this._jungleGiantTrees = [];
       const species = [
-        { name: 'kapok', trunkScale: 1.4, crownScale: 1.3, buttress: true, branchCount: 5, leanRange: 0.05, crownShape: 'umbrella' },
-        { name: 'rubber', trunkScale: 1.2, crownScale: 1.1, buttress: false, branchCount: 4, leanRange: 0.03, crownShape: 'rounded' },
-        { name: 'brazil_nut', trunkScale: 1.3, crownScale: 1.2, buttress: true, branchCount: 4, leanRange: 0.04, crownShape: 'spreading' },
-        { name: 'kapok', trunkScale: 1.3, crownScale: 1.4, buttress: true, branchCount: 6, leanRange: 0.04, crownShape: 'umbrella' },
-        { name: 'rubber', trunkScale: 1.1, crownScale: 1.2, buttress: false, branchCount: 4, leanRange: 0.02, crownShape: 'rounded' },
+        { name: 'kapok', trunkScale: 1.5, crownScale: 1.4, buttress: true, branchCount: 6, leanRange: 0.04, crownShape: 'umbrella' },
+        { name: 'rubber', trunkScale: 1.3, crownScale: 1.2, buttress: false, branchCount: 5, leanRange: 0.03, crownShape: 'rounded' },
+        { name: 'brazil_nut', trunkScale: 1.4, crownScale: 1.3, buttress: true, branchCount: 5, leanRange: 0.04, crownShape: 'spreading' },
+        { name: 'kapok', trunkScale: 1.4, crownScale: 1.5, buttress: true, branchCount: 6, leanRange: 0.03, crownShape: 'umbrella' },
+        { name: 'rubber', trunkScale: 1.3, crownScale: 1.3, buttress: false, branchCount: 5, leanRange: 0.02, crownShape: 'rounded' },
+        { name: 'ironwood', trunkScale: 1.3, crownScale: 1.1, buttress: false, branchCount: 4, leanRange: 0.03, crownShape: 'conical' },
+        { name: 'mahogany', trunkScale: 1.3, crownScale: 1.2, buttress: false, branchCount: 4, leanRange: 0.04, crownShape: 'broad' },
+        { name: 'strangler_fig', trunkScale: 1.2, crownScale: 1.3, buttress: true, branchCount: 5, leanRange: 0.04, crownShape: 'spreading' },
+        { name: 'kapok', trunkScale: 1.5, crownScale: 1.3, buttress: true, branchCount: 6, leanRange: 0.03, crownShape: 'umbrella' },
+        { name: 'rubber', trunkScale: 1.4, crownScale: 1.1, buttress: false, branchCount: 4, leanRange: 0.03, crownShape: 'rounded' },
         { name: 'ironwood', trunkScale: 1.2, crownScale: 1.0, buttress: false, branchCount: 3, leanRange: 0.03, crownShape: 'conical' },
-        { name: 'kapok', trunkScale: 1.5, crownScale: 1.2, buttress: true, branchCount: 5, leanRange: 0.03, crownShape: 'umbrella' },
-        { name: 'rubber', trunkScale: 1.3, crownScale: 1.0, buttress: false, branchCount: 4, leanRange: 0.04, crownShape: 'rounded' },
-        { name: 'mahogany', trunkScale: 1.1, crownScale: 1.0, buttress: false, branchCount: 3, leanRange: 0.05, crownShape: 'broad' },
-        { name: 'palm', trunkScale: 0.8, crownScale: 0.9, buttress: false, branchCount: 2, leanRange: 0.08, crownShape: 'fan' }
+        { name: 'brazil_nut', trunkScale: 1.3, crownScale: 1.3, buttress: true, branchCount: 5, leanRange: 0.04, crownShape: 'spreading' },
+        { name: 'palm', trunkScale: 1.1, crownScale: 1.0, buttress: false, branchCount: 2, leanRange: 0.06, crownShape: 'fan' },
+        { name: 'mahogany', trunkScale: 1.2, crownScale: 1.1, buttress: false, branchCount: 4, leanRange: 0.04, crownShape: 'broad' }
       ];
-      const crownColors = ['#082510', '#0a2d12', '#0d3516', '#103d1a', '#1a4e22', '#0c3818', '#1a5020', '#0e3a16', '#1e521e', '#2a6a2a'];
-      const crownHighlights = ['#1a5e2a', '#2a6e3a', '#3a7e48', '#4a8e50', '#2a6e30', '#1a5e2a', '#4a8a48', '#2a6a3a', '#4a8a3a', '#5a9a4a'];
+      const crownColors = ['#082510', '#0a2d12', '#0d3516', '#103d1a', '#1a4e22', '#0c3818', '#1a5020', '#0e3a16', '#1e521e', '#2a6a2a', '#083010', '#0c3a16', '#124020', '#1e5a28'];
+      const crownHighlights = ['#1a5e2a', '#2a6e3a', '#3a7e48', '#4a8e50', '#2a6e30', '#1a5e2a', '#4a8a48', '#2a6a3a', '#4a8a3a', '#5a9a4a', '#1a6a2a', '#2a7a3a', '#3a8848', '#4a9850'];
+      const barkColors = ['#0d1a10', '#1a2a18', '#102012', '#1f2f1a', '#152512', '#1f3018', '#0d1d0d', '#1a2a18', '#0e1e0e', '#1b2b1b', '#0f1f0f', '#1d2d1a', '#122212', '#1e2e1c'];
       for (let i = 0; i < species.length; i++) {
         const sp = species[i];
-        const tScale = sp.trunkScale;
+        const tScale = Math.max(sp.trunkScale, 1.0);
         const cScale = sp.crownScale;
         this._jungleGiantTrees.push({
-          x: 0.03 + (i / species.length) * 0.94 + Math.random() * 0.03,
-          baseY: 1.0, // anchored at bottom of screen - trees grow from ground up
-          trunkW: 7 * tScale + Math.random() * 5,
-          trunkH: (0.80 + Math.random() * 0.15) * tScale, // very tall - 80-95% of screen height
-          crownW: 30 * cScale + Math.random() * 20,
-          crownH: 22 * cScale + Math.random() * 16,
-          crownY: -0.18 + Math.random() * -0.06,
+          x: 0.03 + (i / species.length) * 0.94 + Math.random() * 0.02,
+          baseY: 1.0,
+          trunkW: 8 * tScale + Math.random() * 6,
+          trunkH: (0.95 + Math.random() * 0.15) * tScale,
+          crownW: 48 * cScale + Math.random() * 30,
+          crownH: 35 * cScale + Math.random() * 24,
+          crownY: -0.28 + Math.random() * -0.10,
           crownColor: crownColors[i % crownColors.length],
           crownHighlight: crownHighlights[i % crownHighlights.length],
           species: sp.name,
@@ -14501,7 +14595,7 @@ ctx.restore();
           crownShape: sp.crownShape,
           parallax: 0.20 + Math.random() * 0.15,
           phase: Math.random() * Math.PI * 2,
-          barkColor: ['#0d1a10', '#1a2a18', '#102012', '#1f2f1a', '#152512', '#1f3018', '#0d1d0d', '#1a2a18', '#0e1e0e', '#1b2b1b'][i]
+          barkColor: barkColors[i]
         });
       }
       this._jungleRoots = [];
@@ -14528,10 +14622,10 @@ ctx.restore();
         });
       }
       this._jungleSunRays = [];
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 8; i++) {
         this._jungleSunRays.push({
-          x: 0.1 + i * 0.18 + Math.random() * 0.04,
-          width: 12 + Math.random() * 15,
+          x: 0.05 + i * 0.12 + Math.random() * 0.06,
+          width: 15 + Math.random() * 25,
           parallax: 0.1 + Math.random() * 0.1,
           phase: Math.random() * Math.PI * 2
         });
@@ -14548,22 +14642,22 @@ ctx.restore();
         });
       }
       this._jungleRiver.parallax = 0.22;
-      // Cross-vines connecting between tree positions - more dense, like lianas
+      // Cross-vines connecting between tree positions - dense liana curtain
       this._jungleCrossVines = [];
-      for (let i = 0; i < 18; i++) {
+      for (let i = 0; i < 30; i++) {
         this._jungleCrossVines.push({
-          x1: Math.random() * 0.85 + 0.05,
-          y1: 0.15 + Math.random() * 0.25,
-          x2: Math.random() * 0.85 + 0.1,
-          y2: 0.25 + Math.random() * 0.30,
-          sag: 20 + Math.random() * 35,
+          x1: Math.random() * 0.90 + 0.05,
+          y1: 0.10 + Math.random() * 0.30,
+          x2: Math.random() * 0.90 + 0.05,
+          y2: 0.15 + Math.random() * 0.35,
+          sag: 25 + Math.random() * 40,
           phase: Math.random() * Math.PI * 2,
-          width: 1.0 + Math.random() * 1.0
+          width: 1.0 + Math.random() * 1.5
         });
       }
       // Hanging lianas from canopy - dense curtain of vines
       this._jungleHangingVines = [];
-      for (let i = 0; i < 45; i++) {
+      for (let i = 0; i < 60; i++) {
         this._jungleHangingVines.push({
           x: Math.random(),
           topY: 0.08 + Math.random() * 0.15,
@@ -14587,9 +14681,12 @@ ctx.restore();
         { type: 'harpy', color: '#3a3a4a', tailColor: '#2a2a3a', hasLongTail: true, wingColor: '#4a4a5a' },
         { type: 'parrot', color: '#00cc66', tailColor: '#008844', hasLongTail: true, wingColor: '#00aa55' },
         { type: 'toucan', color: '#1a1a1a', tailColor: '#0d0d0d', hasLongTail: false, beakColor: '#ff6600', beakSize: 1.3 },
-        { type: 'macaw', color: '#00ffff', tailColor: '#00aaaa', hasLongTail: true, wingColor: '#00cccc' }
+        { type: 'macaw', color: '#00ffff', tailColor: '#00aaaa', hasLongTail: true, wingColor: '#00cccc' },
+        { type: 'macaw', color: '#ff6600', tailColor: '#cc4400', hasLongTail: true, wingColor: '#cc5500' },
+        { type: 'parrot', color: '#ff3333', tailColor: '#cc0000', hasLongTail: true, wingColor: '#cc2222' },
+        { type: 'harpy', color: '#2a2a3a', tailColor: '#1a1a2a', hasLongTail: true, wingColor: '#3a3a4a' }
       ];
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < 12; i++) {
         const sp = birdSpecies[i];
         this._jungleBirds.push({
           type: sp.type,
@@ -14621,7 +14718,7 @@ ctx.restore();
         { type: 'glasswing', color: 'rgba(255,255,255,0.25)', shimmer: 'rgba(200,255,255,0.4)', size: 4 },
         { type: 'morpho', color: '#0099ff', shimmer: '#00bbff', size: 5 }
       ];
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 16; i++) {
         const bt = butterflyTypes[i % butterflyTypes.length];
         this._jungleButterflies.push({
           type: bt.type,
@@ -14676,12 +14773,12 @@ ctx.restore();
         });
       }
       this._jungleMistParticles = [];
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 35; i++) {
         this._jungleMistParticles.push({
-          x: Math.random() * 1.2 - 0.1,
-          y: 0.55 + Math.random() * 0.30,
-          size: 12 + Math.random() * 25,
-          alpha: 0.02 + Math.random() * 0.03,
+          x: Math.random() * 1.3 - 0.15,
+          y: 0.35 + Math.random() * 0.45,
+          size: 20 + Math.random() * 40,
+          alpha: 0.025 + Math.random() * 0.035,
           phase: Math.random() * Math.PI * 2
         });
       }
@@ -14709,7 +14806,7 @@ ctx.restore();
         });
       }
       this._jungleFireflies = [];
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < 24; i++) {
         this._jungleFireflies.push({
           x: Math.random() * 1.0 + 0.0,
           y: 0.40 + Math.random() * 0.30,
@@ -14720,7 +14817,7 @@ ctx.restore();
         });
       }
       this._jungleAmbientParticles = [];
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 30; i++) {
         this._jungleAmbientParticles.push({
           x: Math.random() * 1.2 - 0.1,
           y: Math.random() * 0.7 + 0.05,
