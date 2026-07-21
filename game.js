@@ -2068,6 +2068,7 @@ class GameEngine {
     this.countryDatabase = db;
     this.preloadFlags(db);
     this.preloadFootballImage();
+    this.preloadAmazonBg();
     this.startBackgroundLoop();
     this.setupClickToFocus();
   }
@@ -2077,6 +2078,12 @@ class GameEngine {
     img.src = 'football_image-preview.png';
     img.onload = () => { this.footballImg = img; };
     img.onerror = () => { this.footballImg = 'failed'; };
+  }
+
+  preloadAmazonBg() {
+    this.amazonBgImg = new Image();
+    this.amazonBgImg.src = 'amazon canopy bg.png';
+    this.amazonBgImg.onerror = () => { this.amazonBgImg = null; };
   }
 
   // Pre-load flags asynchronously in the background
@@ -13618,6 +13625,14 @@ this.ctx.restore();
         // DEPTH LAYER 1 ??? VERY FAR BACKGROUND (sky, mountains, silhouettes, fog)
         // Parallax: 0.02???0.08x. Deepest atmospheric backdrop.
         // ================================================================
+
+        // 0. Amazon canopy background photo (subtle reference image)
+        if (this.amazonBgImg && this.amazonBgImg.complete && this.amazonBgImg.naturalWidth > 0) {
+          ctx.save();
+          ctx.globalAlpha = 0.10;
+          ctx.drawImage(this.amazonBgImg, 0, 0, screenW, screenH);
+          ctx.restore();
+        }
 
         // 1a. Sky ??? pale morning sky through canopy gap
         ctx.save();
