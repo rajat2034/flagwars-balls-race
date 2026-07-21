@@ -116,6 +116,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'jellyfish', name: 'Jellyfish', category: 'signature', map: 'ocean' },
   { type: 'crab_claw', name: 'Crab Claw', category: 'signature', map: 'ocean' },
   { type: 'sea_mine', name: 'Sea Mine', category: 'signature', map: 'ocean' },
+  { type: 'bubble_trap', name: 'Bubble Trap', category: 'signature', map: 'ocean' },
   // Sahara
   { type: 'quicksand', name: 'Quicksand', category: 'signature', map: 'desert' },
   { type: 'sand_geyser', name: 'Sand Geyser', category: 'signature', map: 'desert' },
@@ -2042,6 +2043,9 @@ class GameEngine {
     // Football image for meteor obstacles
     this.footballImg = null;
 
+    // Bubble trap image for Mariana Depths
+    this.bubbleTrapImg = null;
+
     // Commentary & Event systems
     this.commentary = new Commentary();
     this.eventBanner = new GlobalEventBanner(this);
@@ -2068,6 +2072,7 @@ class GameEngine {
     this.countryDatabase = db;
     this.preloadFlags(db);
     this.preloadFootballImage();
+    this.preloadBubbleTrapImage();
     this.preloadAmazonBg();
     this.preloadGlacierBg();
     this.preloadVolcanoBg();
@@ -2082,6 +2087,13 @@ class GameEngine {
     img.src = 'football_image-preview.png';
     img.onload = () => { this.footballImg = img; };
     img.onerror = () => { this.footballImg = 'failed'; };
+  }
+
+  preloadBubbleTrapImage() {
+    const img = new Image();
+    img.src = 'bubbles image.png';
+    img.onload = () => { this.bubbleTrapImg = img; };
+    img.onerror = () => { this.bubbleTrapImg = 'failed'; };
   }
 
   preloadAmazonBg() {
@@ -2290,19 +2302,19 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       lava_pool: { min: 80, preferred: 120, recovery: 60, safeLanding: 40 },
       lava_geyser: { min: 180, preferred: 300, recovery: 200, safeLanding: 100 },
       launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
-      ice_cannon: { min: 200, preferred: 320, recovery: 150, safeLanding: 120 }
-    };
+      ice_cannon: { min: 200, preferred: 320, recovery: 150, safeLanding: 120 },
+      };
 
     // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.45,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser']) },
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap']) },
       { start: 0.20, end: 0.60, density: 0.35,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser']) },
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap']) },
       { start: 0.60, end: 0.85, density: 0.40,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser']) },
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap']) },
       { start: 0.85, end: 1.00, density: 0.45,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser']) }
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -2339,6 +2351,15 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       { weight: 2, types: ['lava_geyser', 'sweep_arm'], gap: 50 },
       { weight: 1, types: ['lava_geyser', 'punchfist'], gap: 50 },
       { weight: 1, types: ['lava_geyser', 'portal'], gap: 60 },
+      // Mariana Depths: Bubble Trap combinations
+      { weight: 3, types: ['boost', 'bubble_trap'], gap: 50 },
+      { weight: 3, types: ['spinner', 'bubble_trap'], gap: 50 },
+      { weight: 2, types: ['bubble_trap', 'hammer'], gap: 50 },
+      { weight: 2, types: ['barrier', 'bubble_trap'], gap: 50 },
+      { weight: 2, types: ['bubble_trap', 'sweep_arm'], gap: 50 },
+      { weight: 2, types: ['bubble_trap', 'punchfist'], gap: 50 },
+      { weight: 1, types: ['bubble_trap', 'portal'], gap: 60 },
+      { weight: 1, types: ['c_bumper', 'bubble_trap'], gap: 40 },
     ].filter(c => _allEnabled(c.types));
 
     // 3-obstacle templates that shuffle per race for variety
@@ -2364,6 +2385,11 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       ['lava_geyser', 'spinner', 'barrier'],
       ['hammer', 'lava_geyser', 'sweep_arm'],
       ['portal', 'lava_geyser', 'boost'],
+      // Mariana Depths: Bubble Trap templates
+      ['boost', 'bubble_trap', 'hammer'],
+      ['bubble_trap', 'spinner', 'hammer'],
+      ['barrier', 'bubble_trap', 'boost'],
+      ['hammer', 'bubble_trap', 'sweep_arm'],
     ].filter(t => _allEnabled(t));
     // Shuffle templates once per race
     const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
@@ -3081,6 +3107,31 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             _eruptionHeight: 180 + Math.random() * 60, // 180-240px lava column height
             _eruptionWidth: 24 + Math.random() * 12, // 24-36px column width
             _seed: Math.random() * 1000 // For deterministic particle positions
+          });
+        } else if (type === 'bubble_trap') {
+          // Mariana Depths exclusive: Bubble Trap - semi-transparent bubble that traps balls for 2s
+          // Diameter 30% more than ball = radius ~1.3x ball radius (ball radius ~15-20, so bubble ~20-26)
+          const bubbleRadius = 20 + Math.random() * 6; // 20-26px radius (~1.3x ball)
+          const bubbleY = clampY(centerY + (Math.random() - 0.5) * availH * 0.6, bounds, bubbleRadius + 10);
+          track.obstacles.push({
+            type: 'bubble_trap', x, y: bubbleY,
+            radius: bubbleRadius,
+            // State: 'idle' | 'trapping' | 'popping'
+            _state: 'idle',
+            _stateTimer: 0,
+            _trappedBallId: null,
+            // Visual properties
+            _wobblePhase: Math.random() * Math.PI * 2,
+            _wobbleAmount: 0.05 + Math.random() * 0.03,
+            _floatPhase: Math.random() * Math.PI * 2,
+            _floatAmount: 2 + Math.random() * 3,
+            _risingBubbles: Array(8).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * bubbleRadius * 0.6,
+              y: Math.random() * bubbleRadius * 1.5,
+              speed: 0.5 + Math.random() * 1.5,
+              size: 2 + Math.random() * 3,
+              alpha: 0.4 + Math.random() * 0.4
+            }))
           });
         }
 
@@ -4664,6 +4715,210 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
             obs._stateTimer = 0;
             obs._crumbleProgress = 0;
             obs._standingDuration = 480 + Math.floor(Math.random() * 420);
+          }
+        }
+      });
+    }
+
+    // Bubble Trap update (Mariana Depths exclusive)
+    if (this.currentThemeKey === 'ocean') {
+      this.track.obstacles.forEach(obs => {
+        if (obs.type !== 'bubble_trap') return;
+
+        // Update visual animation timers
+        obs._wobblePhase = (obs._wobblePhase || 0) + dt * 0.08;
+        obs._floatPhase = (obs._floatPhase || 0) + dt * 0.02;
+        obs._pulsePhase = (obs._pulsePhase || 0) + dt * 0.04;
+
+        // Update rising bubbles
+        if (obs._risingBubbles) {
+          for (const rb of obs._risingBubbles) {
+            rb.y -= rb.speed * dt * 0.05;
+            if (rb.y < -obs.radius * 1.5) {
+              rb.y = obs.radius * 1.5;
+              rb.x = (Math.random() - 0.5) * obs.radius * 0.6;
+              rb.speed = 0.5 + Math.random() * 1.5;
+              rb.size = 2 + Math.random() * 3;
+              rb.alpha = 0.5 + Math.random() * 0.5;
+            }
+          }
+        }
+
+        const state = obs._state || 'idle';
+
+        if (state === 'idle') {
+          // Check for ball collision to trap
+          if (this.balls) {
+            for (const ball of this.balls) {
+              if (ball.finished || ball.eliminated) continue;
+              // Anti-loop: don't trap the same ball that was just released from this bubble
+              if (obs._lastTrappedBallId === ball.id) continue;
+
+              const dx = ball.x - obs.x;
+              const dy = ball.y - obs.y;
+              const dist = Math.hypot(dx, dy);
+              const trapRadius = obs.radius + ball.radius;
+
+              if (dist < trapRadius) {
+                // Trap the ball!
+                obs._state = 'trapping';
+                obs._stateTimer = 0;
+                obs._trappedBallId = ball.id;
+                obs._lastTrappedBallId = ball.id;
+
+                // Ball is trapped
+                ball._bubbleTrapped = true;
+                ball._bubbleTrapRef = obs;
+                ball._bubbleTrapStartVx = ball.vx;
+                ball._bubbleTrapStartVy = ball.vy;
+                ball.vx = 0;
+                ball.vy = 0;
+
+                // Trap particles
+                for (let p = 0; p < 12; p++) {
+                  const angle = Math.random() * Math.PI * 2;
+                  this.particles.push({
+                    type: 'sparkle',
+                    x: ball.x, y: ball.y,
+                    vx: Math.cos(angle) * (0.5 + Math.random()),
+                    vy: Math.sin(angle) * (0.5 + Math.random()),
+                    alpha: 0.7, size: 2 + Math.random() * 3,
+                    life: 15 + Math.floor(Math.random() * 10),
+                    color: '#b2ebf2'
+                  });
+                }
+                break; // Only trap one ball at a time
+              }
+            }
+          }
+        } else if (state === 'trapping') {
+          // Hold ball for exactly 2 seconds (120 frames at 60fps)
+          obs._stateTimer += dt;
+
+          // Keep ball centered in bubble with STRUGGLE effect
+          if (this.balls) {
+            const ball = this.balls.find(b => b.id === obs._trappedBallId);
+            if (ball) {
+              // Base float position
+              const floatX = Math.sin(obs._floatPhase) * obs._floatAmount * 0.3;
+              const floatY = Math.cos(obs._floatPhase * 0.7) * obs._floatAmount * 0.3;
+              
+              // STRUGGLE: Random shake/jitter as ball tries to break free
+              const struggleIntensity = 0.15 + (obs._stateTimer / 120) * 0.25; // Increases over time
+              const struggleX = (Math.random() - 0.5) * obs.radius * struggleIntensity;
+              const struggleY = (Math.random() - 0.5) * obs.radius * struggleIntensity;
+              
+              ball.x = obs.x + floatX + struggleX;
+              ball.y = obs.y + floatY + struggleY;
+              ball.vx = 0;
+              ball.vy = 0;
+
+              // Struggle particles - dust/scratch marks
+              if (Math.random() < 0.15 * dt) {
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * ball.radius,
+                  y: ball.y + (Math.random() - 0.5) * ball.radius,
+                  vx: (Math.random() - 0.5) * 1.5,
+                  vy: (Math.random() - 0.5) * 1.5,
+                  alpha: 0.5 + Math.random() * 0.3,
+                  size: 1.5 + Math.random() * 2.5,
+                  life: 8 + Math.floor(Math.random() * 8),
+                  color: '#b2ebf2'
+                });
+              }
+
+              // Bubble distortion particles from struggle
+              if (Math.random() < 0.08 * dt) {
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * obs.radius * 0.8,
+                  y: ball.y + (Math.random() - 0.5) * obs.radius * 0.8,
+                  vx: (Math.random() - 0.5) * 0.5,
+                  vy: (Math.random() - 0.5) * 0.5,
+                  alpha: 0.4 + Math.random() * 0.2,
+                  size: 1 + Math.random() * 2,
+                  life: 10 + Math.floor(Math.random() * 8),
+                  color: '#80deea'
+                });
+              }
+            }
+          }
+
+          if (obs._stateTimer >= 120) { // 2 seconds
+            obs._state = 'popping';
+            obs._stateTimer = 0;
+            // Pop burst particles - MORE DRAMATIC
+            for (let p = 0; p < 40; p++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 2 + Math.random() * 6;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x, y: obs.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 1, size: 6 + Math.random() * 10,
+                life: 30 + Math.floor(Math.random() * 20),
+                color: ['#4df8ff', '#00ffff', '#7fffff', '#bfffff', '#4df8ff'][Math.floor(Math.random() * 5)]
+              });
+            }
+            // Ring burst
+            for (let p = 0; p < 16; p++) {
+              const ringAngle = (p / 16) * Math.PI * 2;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x, y: obs.y,
+                vx: Math.cos(ringAngle) * 6,
+                vy: Math.sin(ringAngle) * 6,
+                alpha: 0.9, size: 5 + Math.random() * 5,
+                life: 25 + Math.floor(Math.random() * 15),
+                color: '#00ffff'
+              });
+            }
+            // Small bubbles scatter
+            for (let p = 0; p < 20; p++) {
+              this.particles.push({
+                type: 'bubble',
+                x: obs.x + (Math.random() - 0.5) * obs.radius * 2,
+                y: obs.y + (Math.random() - 0.5) * obs.radius * 2,
+                radius: 3 + Math.random() * 5,
+                vx: (Math.random() - 0.5) * 4,
+                vy: -2 - Math.random() * 4,
+                alpha: 0.6 + Math.random() * 0.3,
+                life: 35 + Math.floor(Math.random() * 25)
+              });
+            }
+          }
+        } else if (state === 'popping') {
+          obs._stateTimer += dt;
+          // Release ball after pop animation (~0.25s)
+          if (obs._stateTimer >= 15) {
+            if (this.balls) {
+              const ball = this.balls.find(b => b.id === obs._trappedBallId);
+              if (ball) {
+                ball._bubbleTrapped = false;
+                ball._bubbleTrapRef = null;
+                // Release with zero velocity - accelerates naturally from rest
+                ball.vx = 0;
+                ball.vy = 0;
+                // Release particles
+                for (let p = 0; p < 8; p++) {
+                  const angle = Math.random() * Math.PI * 2;
+                  this.particles.push({
+                    type: 'sparkle',
+                    x: ball.x, y: ball.y,
+                    vx: Math.cos(angle) * (0.5 + Math.random()),
+                    vy: Math.sin(angle) * (0.5 + Math.random()),
+                    alpha: 0.7, size: 1.5 + Math.random() * 2,
+                    life: 12 + Math.floor(Math.random() * 10),
+                    color: '#b2ebf2'
+                  });
+                }
+              }
+            }
+            obs._trappedBallId = null;
+            // DESTROY - one-time use! Mark for removal
+            obs._remove = true;
           }
         }
       });
@@ -10662,6 +10917,131 @@ this.ctx.restore();
         });
       }
 
+      // Draw Bubble Traps ??? Mariana Depths exclusive
+      if (this.currentThemeKey === 'ocean' && this.bubbleTrapImg && this.bubbleTrapImg !== 'failed') {
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'bubble_trap') return;
+          if (obs._remove) return;
+          
+          const obsX = obs.x - camX;
+          const r = obs.radius;
+          const state = obs._state || 'idle';
+          const time = performance.now() * 0.001;
+          const wobblePhase = obs._wobblePhase || 0;
+          const floatPhase = obs._floatPhase || 0;
+          const wobbleAmount = obs._wobbleAmount || 0.05;
+          const floatAmount = obs._floatAmount || 3;
+          
+          // Calculate position with gentle wobble and float
+          const wobbleX = Math.sin(wobblePhase) * r * wobbleAmount;
+          const wobbleY = Math.cos(wobblePhase * 1.3) * r * wobbleAmount * 0.5;
+          const floatY = Math.sin(floatPhase) * floatAmount;
+          
+          const cx = obsX + wobbleX;
+          const cy = obs.y + wobbleY + floatY;
+          
+          // STRUGGLE SHAKE: whole bubble shakes when trapping
+          let struggleShakeX = 0;
+          let struggleShakeY = 0;
+          if (state === 'trapping') {
+            const struggleIntensity = 0.12 + (obs._stateTimer / 120) * 0.2;
+            struggleShakeX = (Math.random() - 0.5) * r * struggleIntensity * 2;
+            struggleShakeY = (Math.random() - 0.5) * r * struggleIntensity * 2;
+          }
+          
+          const finalCx = cx + struggleShakeX;
+          const finalCy = cy + struggleShakeY;
+          
+          this.ctx.save();
+          
+          if (state === 'popping') {
+            // POP ANIMATION - expanding ring + particle burst
+            const popProgress = (obs._stateTimer || 0) / 15;
+            const easeOut = 1 - Math.pow(1 - popProgress, 3);
+            const popR = r * (1 + easeOut * 1.5);
+            const popAlpha = 1 - easeOut;
+            
+            // Expanding shockwave ring
+            this.ctx.strokeStyle = `rgba(77, 248, 255, ${popAlpha * 0.8})`;
+            this.ctx.lineWidth = 4 * popAlpha;
+            this.ctx.shadowColor = '#4df8ff';
+            this.ctx.shadowBlur = 25 * popAlpha;
+            this.ctx.beginPath();
+            this.ctx.arc(cx, cy, popR, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+          } else {
+            // IDLE / TRAPPING - bubble image + cyan glow + micro-bubbles
+            
+            // Use shaken position for trapping state
+            const renderCx = finalCx;
+            const renderCy = finalCy;
+            
+            // Outer cyan glow ring
+            const glowAlpha = 0.4 + Math.sin(time * 1.5) * 0.15;
+            this.ctx.shadowColor = '#00ffff';
+            this.ctx.shadowBlur = 30;
+            this.ctx.strokeStyle = `rgba(0, 255, 255, ${glowAlpha})`;
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.arc(renderCx, renderCy, r + 4, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
+            
+            // Bubble image scaled to radius
+            const imgSize = r * 2.2;
+            this.ctx.drawImage(this.bubbleTrapImg, renderCx - imgSize/2, renderCy - imgSize/2, imgSize, imgSize);
+            
+            // Rising micro-bubbles
+            if (obs._risingBubbles) {
+              obs._risingBubbles.forEach(rb => {
+                this.ctx.fillStyle = `rgba(128, 240, 255, ${rb.alpha})`;
+                this.ctx.beginPath();
+                this.ctx.arc(renderCx + rb.x, renderCy + rb.y, rb.size, 0, Math.PI * 2);
+                this.ctx.fill();
+              });
+            }
+            
+            // Trapped ball visible INSIDE bubble
+            if (state === 'trapping' && this.balls && obs._trappedBallId) {
+              const ball = this.balls.find(b => b.id === obs._trappedBallId);
+              if (ball) {
+                this.ctx.save();
+                // Clip to bubble interior so ball appears inside (use renderCx/renderCy with shake)
+                this.ctx.beginPath();
+                this.ctx.arc(renderCx, renderCy, r * 0.85, 0, Math.PI * 2);
+                this.ctx.clip();
+                
+                const ballR = ball.radius;
+                const ballGrad = this.ctx.createRadialGradient(
+                  renderCx - ballR * 0.3, renderCy - ballR * 0.3, ballR * 0.1,
+                  renderCx, renderCy, ballR
+                );
+                const mainColor = ball.primaryColor || '#ff6b35';
+                const darkColor = ball.secondaryColor || '#cc3300';
+                ballGrad.addColorStop(0, mainColor);
+                ballGrad.addColorStop(0.7, darkColor);
+                ballGrad.addColorStop(1, '#881100');
+                this.ctx.fillStyle = ballGrad;
+                this.ctx.beginPath();
+                this.ctx.arc(renderCx, renderCy, ballR, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Ball highlight
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                this.ctx.beginPath();
+                this.ctx.arc(renderCx - ballR * 0.25, renderCy - ballR * 0.25, ballR * 0.22, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                this.ctx.restore();
+              }
+            }
+          }
+          
+          this.ctx.restore();
+        });
+      }
+
     // Draw Flag Balls (racing + collector for finished)
       const finishLineX = this.track ? (this.track.finishLineX || this.track.length - 400) : 0;
       let collectorIdx = 0;
@@ -11685,17 +12065,17 @@ this.ctx.restore();
 ctx.restore();
       }
 
-      // ---- LAYER 4: Map-specific atmospheric effects (reduced opacity) ----
+// ---- LAYER 4: Map-specific atmospheric effects (reduced opacity) ----
       // Desert, Snow, Volcano, Ocean, Desert now use background images instead of procedural rendering
-      if (theme === 'space') {
+      if (theme === 'snow') {
         // Glacier Summit background photo
         if (this.glacierBgImg && this.glacierBgImg.complete && this.glacierBgImg.naturalWidth > 0) {
           ctx.save();
-           ctx.globalAlpha = 0.08;
-           ctx.drawImage(this.glacierBgImg, 0, 0, screenW, screenH);
-           ctx.restore();
-         }
-} else if (theme === 'volcano') {
+          ctx.globalAlpha = 0.08;
+          ctx.drawImage(this.glacierBgImg, 0, 0, screenW, screenH);
+          ctx.restore();
+        }
+      } else if (theme === 'volcano') {
         // Magma Crater background photo replaces procedural background
         if (this.volcanoBgImg && this.volcanoBgImg.complete && this.volcanoBgImg.naturalWidth > 0) {
           ctx.save();
