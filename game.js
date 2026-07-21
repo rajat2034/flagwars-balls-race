@@ -13212,7 +13212,13 @@ this.ctx.restore();
         ctx.fillRect(0, 0, screenW, screenH);
         ctx.restore();
       } else if (theme === 'jungle') {
-        // No additional background rendering - green bgGrad fills beneath the track
+        // Subtle Amazon canopy texture — barely visible behind green gradient
+        if (this.amazonBgImg && this.amazonBgImg.complete && this.amazonBgImg.naturalWidth > 0) {
+          ctx.save();
+          ctx.globalAlpha = 0.06;
+          ctx.drawImage(this.amazonBgImg, 0, 0, screenW, screenH);
+          ctx.restore();
+        }
       }
 
       ctx.globalAlpha = 1;
