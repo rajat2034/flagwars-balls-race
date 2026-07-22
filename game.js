@@ -117,6 +117,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'crab_claw', name: 'Crab Claw', category: 'signature', map: 'ocean' },
   { type: 'sea_mine', name: 'Sea Mine', category: 'signature', map: 'ocean' },
   { type: 'bubble_trap', name: 'Bubble Trap', category: 'signature', map: 'ocean' },
+
   // Sahara
   { type: 'quicksand', name: 'Quicksand', category: 'signature', map: 'desert' },
   { type: 'sand_geyser', name: 'Sand Geyser', category: 'signature', map: 'desert' },
@@ -2179,6 +2180,12 @@ class GameEngine {
       freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15); // High weight ~same as boost
     }
 
+    // Mariana Depths: boost ocean obstacle spawn rates
+    if (themeKey === 'ocean') {
+      if (freqWeights.bubble_trap) freqWeights.bubble_trap = Math.max(freqWeights.bubble_trap, 12);
+      if (freqWeights.sea_mine) freqWeights.sea_mine = Math.max(freqWeights.sea_mine, 12);
+    }
+
     const track = {
       length: length,
       walls: [],
@@ -2301,20 +2308,23 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       slow: { min: 100, preferred: 160, recovery: 80, safeLanding: 60 },
       lava_pool: { min: 80, preferred: 120, recovery: 60, safeLanding: 40 },
       lava_geyser: { min: 180, preferred: 300, recovery: 200, safeLanding: 100 },
-      launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
+launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       ice_cannon: { min: 200, preferred: 320, recovery: 150, safeLanding: 120 },
-      };
+      hydrothermal_vent: { min: 200, preferred: 350, recovery: 150, safeLanding: 100 },
+      sea_mine: { min: 180, preferred: 280, recovery: 120, safeLanding: 80 },
+      bubble_trap: { min: 150, preferred: 220, recovery: 80, safeLanding: 60 }
+    };
 
     // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.45,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap']) },
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'hydrothermal_vent', 'sea_mine']) },
       { start: 0.20, end: 0.60, density: 0.35,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap']) },
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'hydrothermal_vent', 'sea_mine']) },
       { start: 0.60, end: 0.85, density: 0.40,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap']) },
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'hydrothermal_vent', 'sea_mine']) },
       { start: 0.85, end: 1.00, density: 0.45,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap']) }
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'hydrothermal_vent', 'sea_mine']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -2360,6 +2370,22 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       { weight: 2, types: ['bubble_trap', 'punchfist'], gap: 50 },
       { weight: 1, types: ['bubble_trap', 'portal'], gap: 60 },
       { weight: 1, types: ['c_bumper', 'bubble_trap'], gap: 40 },
+      // Mariana Depths: Hydrothermal Vent combinations
+      { weight: 3, types: ['boost', 'hydrothermal_vent'], gap: 50 },
+      { weight: 3, types: ['spinner', 'hydrothermal_vent'], gap: 50 },
+      { weight: 2, types: ['hydrothermal_vent', 'hammer'], gap: 50 },
+      { weight: 2, types: ['barrier', 'hydrothermal_vent'], gap: 50 },
+      { weight: 2, types: ['hydrothermal_vent', 'sweep_arm'], gap: 50 },
+      { weight: 1, types: ['hydrothermal_vent', 'portal'], gap: 60 },
+      { weight: 1, types: ['c_bumper', 'hydrothermal_vent'], gap: 40 },
+      // Mariana Depths: Sea Mine combinations
+      { weight: 3, types: ['boost', 'sea_mine'], gap: 50 },
+      { weight: 3, types: ['spinner', 'sea_mine'], gap: 50 },
+      { weight: 2, types: ['sea_mine', 'hammer'], gap: 50 },
+      { weight: 2, types: ['barrier', 'sea_mine'], gap: 50 },
+      { weight: 2, types: ['sea_mine', 'sweep_arm'], gap: 50 },
+      { weight: 1, types: ['sea_mine', 'portal'], gap: 60 },
+      { weight: 1, types: ['c_bumper', 'sea_mine'], gap: 40 },
     ].filter(c => _allEnabled(c.types));
 
     // 3-obstacle templates that shuffle per race for variety
@@ -2390,6 +2416,16 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       ['bubble_trap', 'spinner', 'hammer'],
       ['barrier', 'bubble_trap', 'boost'],
       ['hammer', 'bubble_trap', 'sweep_arm'],
+      // Mariana Depths: Hydrothermal Vent templates
+      ['boost', 'hydrothermal_vent', 'hammer'],
+      ['hydrothermal_vent', 'spinner', 'hammer'],
+      ['barrier', 'hydrothermal_vent', 'boost'],
+      ['hammer', 'hydrothermal_vent', 'sweep_arm'],
+      // Mariana Depths: Sea Mine templates
+      ['boost', 'sea_mine', 'hammer'],
+      ['sea_mine', 'spinner', 'hammer'],
+      ['barrier', 'sea_mine', 'boost'],
+      ['hammer', 'sea_mine', 'sweep_arm'],
     ].filter(t => _allEnabled(t));
     // Shuffle templates once per race
     const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
@@ -2469,6 +2505,21 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         maxX = obs.x + crackW / 2;
         minY = obs.y - crackH / 2;
         maxY = obs.y + crackH / 2 + eruptionH;
+      } else if (obs.type === 'hydrothermal_vent') {
+        // Hydrothermal vent: tall chimney from seabed
+        const r = obs.radius || 22;
+        const h = obs.height || 70;
+        minX = obs.x - r;
+        maxX = obs.x + r;
+        minY = obs.y - h;
+        maxY = obs.y;
+      } else if (obs.type === 'sea_mine') {
+        // Sea Mine: spherical mine with radius
+        const r = obs.radius || 25;
+        minX = obs.x - r;
+        maxX = obs.x + r;
+        minY = obs.y - r;
+        maxY = obs.y + r;
       } else if (obs.type === 'carnivorous_vine') {
         if (!obs || !obs.x || !obs.y) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
         const vineR = 30;
@@ -3133,6 +3184,64 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
               alpha: 0.4 + Math.random() * 0.4
             }))
           });
+        } else if (type === 'hydrothermal_vent') {
+          // Mariana Depths exclusive: Hydrothermal Vent - static chimney that erupts every 5-7s
+          const ventRadius = 20 + Math.random() * 4; // 20-24px radius base
+          const ventHeight = 60 + Math.random() * 20; // 60-80px tall chimney (~1.5x ball height)
+          const ventY = clampY(centerY + (Math.random() - 0.5) * availH * 0.5, bounds, ventRadius + 15);
+          track.obstacles.push({
+            type: 'hydrothermal_vent', x, y: ventY,
+            radius: ventRadius,
+            height: ventHeight,
+            // State: 'idle' | 'erupting'
+            _state: 'idle',
+            _stateTimer: 0,
+            // Random eruption cycle: 5-7 seconds (300-420 frames at 60fps)
+            _eruptionInterval: 300 + Math.floor(Math.random() * 120),
+            _eruptionDuration: 60, // 1 second at 60fps
+            // Visual properties
+            _idleBubbles: Array(12).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * ventRadius * 0.8,
+              y: Math.random() * ventHeight,
+              speed: 0.8 + Math.random() * 1.2,
+              size: 2 + Math.random() * 3,
+              alpha: 0.3 + Math.random() * 0.3
+            })),
+            _idleSmoke: Array(6).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * ventRadius * 1.2,
+              y: Math.random() * ventHeight * 1.5,
+              speed: 0.3 + Math.random() * 0.5,
+              size: 5 + Math.random() * 8,
+              alpha: 0.1 + Math.random() * 0.15
+            })),
+            _eruptionBubbles: [],
+            _eruptionSmoke: [],
+            _glowPhase: Math.random() * Math.PI * 2
+          });
+        } else if (type === 'sea_mine') {
+          // Mariana Depths exclusive: Sea Mine - contact-triggered underwater pressure mine
+          const mineRadius = 15 + Math.random() * 4; // ~1x ball diameter (reduced 30%)
+          const mineY = clampY(centerY + (Math.random() - 0.5) * availH * 0.5, bounds, mineRadius + 20);
+          track.obstacles.push({
+            type: 'sea_mine', x, y: mineY,
+            radius: mineRadius,
+            chainLength: 40 + Math.random() * 20, // chain to seabed
+            // State: 'idle' | 'exploding'
+            _state: 'idle',
+            _stateTimer: 0,
+            // Visual properties
+            _swayPhase: Math.random() * Math.PI * 2,
+            _swayAmount: 0.03 + Math.random() * 0.02,
+            _rotatePhase: Math.random() * Math.PI * 2,
+            _rotateAmount: 0.02 + Math.random() * 0.01,
+            _idleBubbles: Array(8).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * mineRadius * 0.8,
+              y: Math.random() * mineRadius * 1.2,
+              speed: 0.5 + Math.random() * 1.0,
+              size: 2 + Math.random() * 3,
+              alpha: 0.3 + Math.random() * 0.3
+            }))
+          });
         }
 
         // Track last 3 types to prevent triplicates
@@ -3563,6 +3672,59 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       track.zones = track.zones.filter(z => z.type !== 'portal' || (portalCounts.get(z.pairId) || 0) >= 2);
     }
 
+    // Mariana Depths: inject early ocean obstacles near start (accessible within ~30s)
+    if (themeKey === 'ocean') {
+      const _earlyTypes = ['bubble_trap', 'sea_mine'];
+      for (let _ei = 0; _ei < 4; _ei++) {
+        const _px = 600 + Math.random() * 2000;
+        if (_isRestricted(_px)) continue;
+        const _b = getBounds(_px);
+        if (!_b || _b.bottomY - _b.topY < 120) continue;
+        const _cY = (_b.topY + _b.bottomY) / 2;
+        const _aH = _b.bottomY - _b.topY;
+        const _type = _earlyTypes[_ei % 2];
+        if (_type === 'bubble_trap') {
+          const _br = 20 + Math.random() * 6;
+          const _by = clampY(_cY + (Math.random() - 0.5) * _aH * 0.6, _b, _br + 10);
+          track.obstacles.push({
+            type: 'bubble_trap', x: _px, y: _by, radius: _br,
+            _state: 'idle', _stateTimer: 0, _trappedBallId: null,
+            _wobblePhase: Math.random() * Math.PI * 2,
+            _wobbleAmount: 0.05 + Math.random() * 0.03,
+            _floatPhase: Math.random() * Math.PI * 2,
+            _floatAmount: 2 + Math.random() * 3,
+            _risingBubbles: Array(8).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * _br * 0.6,
+              y: Math.random() * _br * 1.5,
+              speed: 0.5 + Math.random() * 1.5,
+              size: 2 + Math.random() * 3,
+              alpha: 0.4 + Math.random() * 0.4
+            }))
+          });
+        } else if (_type === 'sea_mine') {
+          const _mr = 15 + Math.random() * 4;
+          const _my = clampY(_cY + (Math.random() - 0.5) * _aH * 0.5, _b, _mr + 20);
+          track.obstacles.push({
+            type: 'sea_mine', x: _px, y: _my,
+            radius: _mr,
+            chainLength: 40 + Math.random() * 20,
+            _state: 'idle', _stateTimer: 0,
+            _swayPhase: Math.random() * Math.PI * 2,
+            _swayAmount: 0.03 + Math.random() * 0.02,
+            _rotatePhase: Math.random() * Math.PI * 2,
+            _rotateAmount: 0.02 + Math.random() * 0.01,
+            _idleBubbles: Array(8).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * _mr * 0.8,
+              y: Math.random() * _mr * 1.2,
+              speed: 0.5 + Math.random() * 1.0,
+              size: 2 + Math.random() * 3,
+              alpha: 0.3 + Math.random() * 0.3
+            }))
+          });
+        }
+      }
+    }
+
     // Generate decorative celestial objects for space theme
     this._initSpaceObjects(track);
 
@@ -3798,6 +3960,22 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
           _dustOverlay: null
         });
       }
+    }
+
+    // Mariana Depths: cap ocean obstacle counts
+    if (themeKey === 'ocean') {
+      const _oceanTypes = ['sea_mine', 'bubble_trap'];
+      const _maxCounts = { sea_mine: 60, bubble_trap: 60 };
+      _oceanTypes.forEach(_ot => {
+        const _indices = [];
+        track.obstacles.forEach((o, i) => { if (o.type === _ot) _indices.push(i); });
+        const _max = _maxCounts[_ot];
+        if (_indices.length > _max) {
+          const _removeCount = _indices.length - _max;
+          const _remove = new Set(_indices.slice(0, _removeCount));
+          track.obstacles = track.obstacles.filter((_, i) => !_remove.has(i));
+        }
+      });
     }
 
     this.track = track;
@@ -4916,10 +5094,282 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
                 }
               }
             }
-            obs._trappedBallId = null;
+obs._trappedBallId = null;
             // DESTROY - one-time use! Mark for removal
             obs._remove = true;
           }
+        }
+      });
+    }
+
+    // Hydrothermal Vent update (Mariana Depths exclusive)
+    if (this.currentThemeKey === 'ocean') {
+      this.track.obstacles.forEach(obs => {
+        if (obs.type !== 'hydrothermal_vent') return;
+
+        const state = obs._state || 'idle';
+        obs._stateTimer = (obs._stateTimer || 0) + dt;
+        
+        // Update glow phase
+        obs._glowPhase = (obs._glowPhase || 0) + dt * 0.05;
+
+        if (state === 'idle') {
+          // Update idle bubbles
+          if (obs._idleBubbles) {
+            obs._idleBubbles.forEach(b => {
+              b.y -= b.speed * dt * 0.05;
+              if (b.y < -obs.radius) {
+                b.y = obs.height + Math.random() * obs.height * 0.5;
+                b.x = (Math.random() - 0.5) * obs.radius * 0.8;
+                b.speed = 0.8 + Math.random() * 1.2;
+                b.size = 2 + Math.random() * 3;
+                b.alpha = 0.3 + Math.random() * 0.3;
+              }
+            });
+          }
+
+          // Update idle smoke
+          if (obs._idleSmoke) {
+            obs._idleSmoke.forEach(s => {
+              s.y -= s.speed * dt * 0.05;
+              if (s.y < -obs.height * 0.5) {
+                s.y = obs.height * 1.5;
+                s.x = (Math.random() - 0.5) * obs.radius * 1.2;
+                s.speed = 0.3 + Math.random() * 0.5;
+                s.size = 5 + Math.random() * 8;
+                s.alpha = 0.1 + Math.random() * 0.15;
+              }
+            });
+          }
+
+          // Check for eruption trigger
+          if (obs._stateTimer >= (obs._eruptionInterval || 360)) {
+            obs._state = 'erupting';
+            obs._stateTimer = 0;
+            obs._eruptionInterval = 300 + Math.floor(Math.random() * 120); // Next: 5-7 seconds
+            
+            // Eruption burst particles
+            for (let p = 0; p < 30; p++) {
+              const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6;
+              const speed = 2 + Math.random() * 4;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x, y: obs.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 1,
+                alpha: 0.9, size: 4 + Math.random() * 6,
+                life: 25 + Math.floor(Math.random() * 20),
+                color: ['#ff8800', '#ffaa00', '#ffcc00', '#ff6600', '#ffff88'][Math.floor(Math.random() * 5)]
+              });
+            }
+            // Steam plume
+            for (let p = 0; p < 15; p++) {
+              this.particles.push({
+                type: 'smoke',
+                x: obs.x + (Math.random() - 0.5) * obs.radius,
+                y: obs.y - Math.random() * obs.height,
+                vx: (Math.random() - 0.5) * 1.5,
+                vy: -1 - Math.random() * 2.5,
+                alpha: 0.3 + Math.random() * 0.2,
+                size: 8 + Math.random() * 12,
+                life: 30 + Math.floor(Math.random() * 20),
+                color: '#554433'
+              });
+            }
+            // Glowing particles
+            for (let p = 0; p < 10; p++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 1 + Math.random() * 2;
+              this.particles.push({
+                type: 'sparkle',
+                x: obs.x, y: obs.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.8, size: 3 + Math.random() * 4,
+                life: 20 + Math.floor(Math.random() * 15),
+                color: '#ff8800'
+              });
+            }
+            
+            // Initialize eruption particles
+            obs._eruptionBubbles = Array(20).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * obs.radius,
+              y: obs.height,
+              speed: 2 + Math.random() * 3,
+              size: 3 + Math.random() * 4,
+              alpha: 0.6 + Math.random() * 0.3
+            }));
+            obs._eruptionSmoke = Array(10).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * obs.radius * 1.5,
+              y: obs.height + Math.random() * obs.height,
+              speed: 0.5 + Math.random() * 1.5,
+              size: 10 + Math.random() * 15,
+              alpha: 0.2 + Math.random() * 0.2
+            }));
+          }
+        } else if (state === 'erupting') {
+          obs._stateTimer += dt;
+
+          // Apply upward launch force to balls directly above vent
+          if (this.balls) {
+            for (const ball of this.balls) {
+              if (ball.finished || ball.eliminated) continue;
+              
+              const dx = ball.x - obs.x;
+              const dy = ball.y - obs.y;
+              
+              // Check if ball is directly above vent (within vent radius horizontally)
+              if (Math.abs(dx) < obs.radius && dy < 0 && dy > -obs.height - ball.radius * 2) {
+                // Apply smooth upward launch (35% of rotating arm impact force)
+                // Rotating arm impact is typically around 12-15, so 35% = ~4-5
+                const launchForce = 4.5;
+                ball.vy -= launchForce;
+                
+                // Launch particles
+                if (Math.random() < 0.3) {
+                  this.particles.push({
+                    type: 'sparkle',
+                    x: ball.x, y: ball.y,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: -1 - Math.random() * 1.5,
+                    alpha: 0.6, size: 2 + Math.random() * 3,
+                    life: 12 + Math.floor(Math.random() * 10),
+                    color: '#80deea'
+                  });
+                }
+              }
+            }
+
+          // Update eruption bubbles
+          if (obs._eruptionBubbles) {
+            obs._eruptionBubbles.forEach(b => {
+              b.y -= b.speed * dt * 0.05;
+              if (b.y < -obs.height * 1.5) {
+                b.y = obs.height;
+                b.x = (Math.random() - 0.5) * obs.radius;
+                b.speed = 2 + Math.random() * 3;
+                b.size = 3 + Math.random() * 4;
+                b.alpha = 0.6 + Math.random() * 0.3;
+              }
+            });
+          }
+
+          // Update eruption smoke
+          if (obs._eruptionSmoke) {
+            obs._eruptionSmoke.forEach(s => {
+              s.y -= s.speed * dt * 0.05;
+              if (s.y < -obs.height) {
+                s.y = obs.height * 2;
+                s.x = (Math.random() - 0.5) * obs.radius * 1.5;
+                s.speed = 0.5 + Math.random() * 1.5;
+                s.size = 10 + Math.random() * 15;
+                s.alpha = 0.2 + Math.random() * 0.2;
+              }
+            });
+          }
+
+          // Eruption lasts ~1 second
+          if (obs._stateTimer >= 60) {
+            obs._state = 'idle';
+            obs._stateTimer = 0;
+            obs._eruptionBubbles = [];
+            obs._eruptionSmoke = [];
+          }
+        }
+}
+      });
+    }
+
+    // Sea Mine update (Mariana Depths exclusive)
+    if (this.currentThemeKey === 'ocean') {
+      this.track.obstacles.forEach(obs => {
+        if (obs.type !== 'sea_mine') return;
+
+        const state = obs._state || 'idle';
+        obs._stateTimer = (obs._stateTimer || 0) + dt;
+
+        if (state === 'idle') {
+          // Sway animation
+          obs._swayPhase = (obs._swayPhase || 0) + dt * 0.5;
+          obs._rotatePhase = (obs._rotatePhase || 0) + dt * 0.3;
+          obs._bubblePhase = (obs._bubblePhase || 0) + dt * 0.08;
+
+          // Update idle bubbles
+          if (obs._idleBubbles) {
+            obs._idleBubbles.forEach(b => {
+              b.y -= b.speed * dt * 0.05;
+              if (b.y < -obs.radius) {
+                b.y = obs.radius * 1.5;
+                b.x = (Math.random() - 0.5) * obs.radius * 0.8;
+                b.speed = 0.5 + Math.random() * 1.0;
+                b.size = 2 + Math.random() * 3;
+                b.alpha = 0.3 + Math.random() * 0.3;
+              }
+            });
+          }
+        } else if (state === 'exploding') {
+          // Instant explosion on contact - no delay, remove mine immediately
+          // Mine shell fragments burst outward
+          for (let _fp = 0; _fp < 40; _fp++) {
+            const _fa = Math.random() * Math.PI * 2;
+            const _fs = 3 + Math.random() * 10;
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * 4,
+              y: obs.y + (Math.random() - 0.5) * 4,
+              vx: Math.cos(_fa) * _fs,
+              vy: Math.sin(_fa) * _fs,
+              alpha: 1, size: 5 + Math.random() * 8,
+              life: 45 + Math.floor(Math.random() * 30),
+              color: ['#4a4540', '#3a3530', '#2a2520', '#5a5550'][Math.floor(Math.random() * 4)]
+            });
+          }
+          // Smoke billows
+          for (let _fsm = 0; _fsm < 20; _fsm++) {
+            const _fsa = Math.random() * Math.PI * 2;
+            const _fss = 1.5 + Math.random() * 4;
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * 8,
+              y: obs.y + (Math.random() - 0.5) * 8,
+              vx: Math.cos(_fsa) * _fss,
+              vy: Math.sin(_fsa) * _fss - 0.5,
+              alpha: 0.4, size: 12 + Math.random() * 10,
+              life: 50 + Math.floor(Math.random() * 40),
+              color: '#2a2a2a'
+            });
+          }
+          // Burst bubbles
+          for (let _fb = 0; _fb < 30; _fb++) {
+            const _fba = Math.random() * Math.PI * 2;
+            const _fbs = 2 + Math.random() * 8;
+            this.particles.push({
+              type: 'bubble',
+              x: obs.x + (Math.random() - 0.5) * 12,
+              y: obs.y + (Math.random() - 0.5) * 12,
+              radius: 3 + Math.random() * 7,
+              vx: Math.cos(_fba) * _fbs,
+              vy: Math.sin(_fba) * _fbs - 1,
+              alpha: 0.5 + Math.random() * 0.3,
+              life: 40 + Math.floor(Math.random() * 30)
+            });
+          }
+          // Water splash
+          for (let _fw = 0; _fw < 20; _fw++) {
+            const _fwa = Math.random() * Math.PI * 2;
+            const _fws = 4 + Math.random() * 8;
+            this.particles.push({
+              type: 'sparkle',
+              x: obs.x + (Math.random() - 0.5) * 6,
+              y: obs.y + (Math.random() - 0.5) * 6,
+              vx: Math.cos(_fwa) * _fws,
+              vy: Math.sin(_fwa) * _fws,
+              alpha: 0.6, size: 8 + Math.random() * 10,
+              life: 25 + Math.floor(Math.random() * 20),
+              color: 'rgba(180, 230, 255, 0.8)'
+            });
+          }
+          obs._remove = true;
         }
       });
     }
@@ -6549,6 +6999,17 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
       // Step physics
       this.physics.update(this.balls, this.track, dt);
 
+      // Camera shake trigger from physics (e.g. Sea Mine explosion)
+      if (this.physics._cameraShakeTrigger) {
+        this._cameraShakeIntensity = 8;
+        this._cameraShakeTimer = 60; // ~1s at 60fps
+        this.physics._cameraShakeTrigger = false;
+      }
+      if (this._cameraShakeTimer > 0) {
+        this._cameraShakeTimer -= dt;
+        if (this._cameraShakeTimer < 0) this._cameraShakeTimer = 0;
+      }
+
       // Reset forward force parameter if gravity flip event ended
       if (!this.activeEvent || this.activeEvent.key !== 'gravity_flip') {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
@@ -7772,6 +8233,14 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
         this.cameraX = Math.max(0, fX - margin);
       }
       this.cameraX = Math.max(0, this.cameraX);
+    }
+
+    // Camera shake offset (brief jolt from explosions like Sea Mine)
+    if (this._cameraShakeTimer > 0) {
+      const shakeProgress = this._cameraShakeTimer / 15;
+      const shakeDecay = shakeProgress; // linear decay over ~1s
+      const shakeIntensity = (this._cameraShakeIntensity || 8) * shakeDecay;
+      this.cameraX += (Math.random() - 0.5) * 2.5 * shakeIntensity;
     }
   }
 
@@ -11038,6 +11507,396 @@ this.ctx.restore();
             }
           }
           
+          this.ctx.restore();
+        });
+      }
+
+      // Draw Hydrothermal Vents ??? Mariana Depths exclusive
+      if (this.currentThemeKey === 'ocean') {
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'hydrothermal_vent') return;
+
+          const obsX = obs.x - camX;
+          const r = obs.radius;
+          const h = obs.height;
+          const state = obs._state || 'idle';
+          const time = performance.now() * 0.001;
+          const glowPhase = obs._glowPhase || 0;
+
+          this.ctx.save();
+
+          // Vent chimney base (dark basalt)
+          const chimneyGrad = this.ctx.createLinearGradient(obsX - r, obs.y, obsX + r, obs.y);
+          chimneyGrad.addColorStop(0, '#1a1510');
+          chimneyGrad.addColorStop(0.3, '#2a2218');
+          chimneyGrad.addColorStop(0.6, '#1f1a14');
+          chimneyGrad.addColorStop(1, '#0f0a07');
+          this.ctx.fillStyle = chimneyGrad;
+          this.ctx.beginPath();
+          this.ctx.roundRect(obsX - r, obs.y - h, r * 2, h, 4);
+          this.ctx.fill();
+
+          // Base cracks with glow
+          const crackGlow = 0.3 + Math.sin(glowPhase * 2) * 0.2;
+          this.ctx.strokeStyle = `rgba(255, 100, 20, ${crackGlow})`;
+          this.ctx.lineWidth = 1.5;
+          this.ctx.shadowColor = '#ff6600';
+          this.ctx.shadowBlur = 6;
+          for (let c = 0; c < 4; c++) {
+            const cx = obsX - r * 0.6 + c * r * 0.4;
+            const cy = obs.y - h * 0.1 + Math.sin(glowPhase + c) * 3;
+            this.ctx.beginPath();
+            this.ctx.moveTo(cx, cy);
+            this.ctx.lineTo(cx + (Math.random() - 0.5) * 8, cy - h * 0.3 - Math.random() * 10);
+            this.ctx.stroke();
+          }
+          this.ctx.shadowBlur = 0;
+
+          // Idle state: continuous bubbles and smoke
+          if (state === 'idle') {
+            // Rising bubbles
+            if (obs._idleBubbles) {
+              obs._idleBubbles.forEach(b => {
+                const bx = obsX + b.x;
+                const by = obs.y - b.y;
+                const bubbleGrad = this.ctx.createRadialGradient(bx - b.size * 0.3, by - b.size * 0.3, 0, bx, by, b.size);
+                bubbleGrad.addColorStop(0, `rgba(180, 230, 255, ${b.alpha})`);
+                bubbleGrad.addColorStop(0.5, `rgba(100, 200, 255, ${b.alpha * 0.6})`);
+                bubbleGrad.addColorStop(1, `rgba(40, 160, 230, 0)`);
+                this.ctx.fillStyle = bubbleGrad;
+                this.ctx.beginPath();
+                this.ctx.arc(bx, by, b.size, 0, Math.PI * 2);
+                this.ctx.fill();
+              });
+            }
+
+            // Drifting smoke
+            if (obs._idleSmoke) {
+              obs._idleSmoke.forEach(s => {
+                const sx = obsX + s.x;
+                const sy = obs.y - s.y;
+                this.ctx.fillStyle = `rgba(60, 50, 40, ${s.alpha})`;
+                this.ctx.beginPath();
+                this.ctx.ellipse(sx, sy, s.size, s.size * 0.6, 0, 0, Math.PI * 2);
+                this.ctx.fill();
+              });
+            }
+
+            // Vent opening glow
+            const ventGlow = 0.4 + Math.sin(glowPhase * 3) * 0.15;
+            const openingGrad = this.ctx.createRadialGradient(obsX, obs.y - h * 0.95, 0, obsX, obs.y - h * 0.95, r * 0.8);
+            openingGrad.addColorStop(0, `rgba(255, 140, 0, ${ventGlow * 0.6})`);
+            openingGrad.addColorStop(0.4, `rgba(255, 80, 0, ${ventGlow * 0.3})`);
+            openingGrad.addColorStop(1, 'rgba(255, 40, 0, 0)');
+            this.ctx.fillStyle = openingGrad;
+            this.ctx.beginPath();
+            this.ctx.arc(obsX, obs.y - h * 0.95, r * 0.8, 0, Math.PI * 2);
+            this.ctx.fill();
+
+          } else if (state === 'erupting') {
+            // Eruption state: strong bubbles, thick steam, glow particles
+            
+            // Eruption bubbles
+            if (obs._eruptionBubbles) {
+              obs._eruptionBubbles.forEach(b => {
+                const bx = obsX + b.x;
+                const by = obs.y - b.y;
+                const bubbleGrad = this.ctx.createRadialGradient(bx - b.size * 0.3, by - b.size * 0.3, 0, bx, by, b.size);
+                bubbleGrad.addColorStop(0, `rgba(220, 245, 255, ${b.alpha})`);
+                bubbleGrad.addColorStop(0.5, `rgba(140, 220, 255, ${b.alpha * 0.7})`);
+                bubbleGrad.addColorStop(1, `rgba(60, 180, 240, 0)`);
+                this.ctx.fillStyle = bubbleGrad;
+                this.ctx.beginPath();
+                this.ctx.arc(bx, by, b.size, 0, Math.PI * 2);
+                this.ctx.fill();
+              });
+            }
+
+            // Thick steam plume
+            if (obs._eruptionSmoke) {
+              obs._eruptionSmoke.forEach(s => {
+                const sx = obsX + s.x;
+                const sy = obs.y - s.y;
+                this.ctx.fillStyle = `rgba(90, 80, 70, ${s.alpha})`;
+                this.ctx.beginPath();
+                this.ctx.ellipse(sx, sy, s.size, s.size * 0.7, Math.sin(time * 0.5 + s.x) * 0.2, 0, Math.PI * 2);
+                this.ctx.fill();
+              });
+            }
+
+            // Glowing particles at vent opening
+            const eruptionGlow = 0.7 + Math.sin(glowPhase * 5) * 0.3;
+            const eruptionGrad = this.ctx.createRadialGradient(obsX, obs.y - h * 0.95, 0, obsX, obs.y - h * 0.95, r * 1.5);
+            eruptionGrad.addColorStop(0, `rgba(255, 180, 0, ${eruptionGlow * 0.8})`);
+            eruptionGrad.addColorStop(0.3, `rgba(255, 120, 0, ${eruptionGlow * 0.5})`);
+            eruptionGrad.addColorStop(0.7, `rgba(255, 60, 0, ${eruptionGlow * 0.2})`);
+            eruptionGrad.addColorStop(1, 'rgba(255, 40, 0, 0)');
+            this.ctx.fillStyle = eruptionGrad;
+            this.ctx.beginPath();
+            this.ctx.arc(obsX, obs.y - h * 0.95, r * 1.2, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Light rays upward
+            this.ctx.strokeStyle = `rgba(255, 200, 100, ${eruptionGlow * 0.4})`;
+            this.ctx.lineWidth = 2;
+            for (let ray = 0; ray < 6; ray++) {
+              const rayAngle = (ray / 6) * Math.PI * 2 + time * 0.3;
+              const rayLen = h * 0.8 + Math.sin(time * 2 + ray) * 20;
+              this.ctx.beginPath();
+              this.ctx.moveTo(obsX, obs.y - h * 0.95);
+              this.ctx.lineTo(obsX + Math.cos(rayAngle) * rayLen * 0.3, obs.y - h * 0.95 - rayLen);
+              this.ctx.stroke();
+            }
+          }
+
+          this.ctx.restore();
+        });
+      }
+
+      // Draw Sea Mines ??? Mariana Depths exclusive
+      if (this.currentThemeKey === 'ocean') {
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'sea_mine') return;
+          if (obs._remove) return;
+
+          const obsX = obs.x - camX;
+          const r = obs.radius;
+          const state = obs._state || 'idle';
+          const time = performance.now() * 0.001;
+          const swayPhase = obs._swayPhase || 0;
+          const rotatePhase = obs._rotatePhase || 0;
+
+          // Calculate sway position
+          const swayX = Math.sin(swayPhase) * r * 0.12;
+          const swayY = Math.cos(swayPhase * 0.7) * r * 0.08;
+          const rotate = Math.sin(rotatePhase) * 0.08;
+
+          const cx = obsX + swayX;
+          const cy = obs.y + swayY;
+
+          this.ctx.save();
+          this.ctx.translate(cx, cy);
+          this.ctx.rotate(rotate);
+
+          // Anchor chain (from seabed)
+          const chainLength = 100;
+          const chainSegments = 8;
+          this.ctx.strokeStyle = 'rgba(60, 55, 50, 0.6)';
+          this.ctx.lineWidth = 2;
+          this.ctx.lineCap = 'round';
+          this.ctx.beginPath();
+          this.ctx.moveTo(0, r);
+          for (let i = 1; i <= chainSegments; i++) {
+            const t = i / chainSegments;
+            const segX = Math.sin(swayPhase * 0.5 + i * 0.5) * 4 * t;
+            const segY = r + t * chainLength;
+            this.ctx.lineTo(segX, segY);
+          }
+          this.ctx.stroke();
+
+          // Anchor at bottom
+          this.ctx.fillStyle = '#2a2520';
+          this.ctx.beginPath();
+          this.ctx.ellipse(0, r + chainLength + 5, 12, 6, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Mine body (dark steel sphere with spikes)
+          const spikeCount = 12;
+          const spikeLength = r * 0.35;
+
+          // Mine shadow
+          this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(0, r * 0.1, r * 0.9, r * 0.15, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Mine body - dark steel
+          const mineGrad = this.ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+          mineGrad.addColorStop(0, '#3a3530');
+          mineGrad.addColorStop(0.4, '#2a2520');
+          mineGrad.addColorStop(0.7, '#1a1510');
+          mineGrad.addColorStop(1, '#0a0500');
+          this.ctx.fillStyle = mineGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(0, 0, r, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Rust/marine growth patches
+          this.ctx.fillStyle = 'rgba(80, 70, 55, 0.4)';
+          for (let p = 0; p < 5; p++) {
+            const angle = (p / 5) * Math.PI * 2;
+            const px = Math.cos(angle) * r * 0.5;
+            const py = Math.sin(angle) * r * 0.5;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, r * 0.15 + Math.random() * 3, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Barnacles/algae
+          this.ctx.fillStyle = 'rgba(60, 80, 60, 0.5)';
+          for (let b = 0; b < 8; b++) {
+            const angle = (b / 8) * Math.PI * 2;
+            const bx = Math.cos(angle) * r * 0.7;
+            const by = Math.sin(angle) * r * 0.7;
+            this.ctx.beginPath();
+            this.ctx.arc(bx, by, 2 + Math.random() * 2, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Spikes
+          this.ctx.strokeStyle = '#1a1510';
+          this.ctx.lineWidth = 2;
+          this.ctx.fillStyle = '#2a2520';
+          for (let s = 0; s < spikeCount; s++) {
+            const angle = (s / spikeCount) * Math.PI * 2;
+            const sx = Math.cos(angle) * (r + 1);
+            const sy = Math.sin(angle) * (r + 1);
+            const ex = Math.cos(angle) * (r + spikeLength);
+            const ey = Math.sin(angle) * (r + spikeLength);
+            const mx = sx + (ex - sx) * 0.5 + (Math.random() - 0.5) * 2;
+            const my = sy + (ey - sy) * 0.5 + (Math.random() - 0.5) * 2;
+
+            this.ctx.beginPath();
+            this.ctx.moveTo(sx, sy);
+            this.ctx.quadraticCurveTo(mx, my, ex, ey);
+            this.ctx.stroke();
+            // Spike base
+            this.ctx.beginPath();
+            this.ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Idle bubbles
+          if (obs._idleBubbles) {
+            obs._idleBubbles.forEach(b => {
+              const bx = b.x;
+              const by = -b.y; // rising
+              const bubbleGrad = this.ctx.createRadialGradient(bx - b.size * 0.3, by - b.size * 0.3, 0, bx, by, b.size);
+              bubbleGrad.addColorStop(0, `rgba(180, 230, 255, ${b.alpha})`);
+              bubbleGrad.addColorStop(0.5, `rgba(100, 200, 255, ${b.alpha * 0.6})`);
+              bubbleGrad.addColorStop(1, `rgba(40, 160, 230, 0)`);
+              this.ctx.fillStyle = bubbleGrad;
+              this.ctx.beginPath();
+              this.ctx.arc(bx, by, b.size, 0, Math.PI * 2);
+              this.ctx.fill();
+            });
+          }
+
+          // Water reflection glow
+          this.ctx.shadowColor = '#4da6e0';
+          this.ctx.shadowBlur = 15;
+          this.ctx.strokeStyle = 'rgba(77, 166, 224, 0.25)';
+          this.ctx.lineWidth = 2;
+          this.ctx.beginPath();
+          this.ctx.arc(0, 0, r + 3, 0, Math.PI * 2);
+          this.ctx.stroke();
+          this.ctx.shadowBlur = 0;
+
+          // Explosion state - mine breaking apart with fragments, smoke, and pressure wave
+          if (state === 'exploding') {
+            const explodeProgress = Math.min(1, obs._stateTimer / 30);
+            const easeOut = 1 - Math.pow(1 - explodeProgress, 3);
+            const explodeAlpha = 1 - easeOut;
+
+            // Mine body breaks apart: shrinking shell with cracks
+            const bodyScale = 1 - easeOut * 0.7;
+            const bodyAlpha = 1 - easeOut * 0.6;
+            if (bodyScale > 0.05) {
+              // Cracked mine body
+              this.ctx.save();
+              this.ctx.scale(bodyScale, bodyScale);
+              this.ctx.globalAlpha = bodyAlpha;
+              // Dark cracked shell
+              this.ctx.fillStyle = '#2a2520';
+              this.ctx.beginPath();
+              this.ctx.arc(0, 0, r, 0, Math.PI * 2);
+              this.ctx.fill();
+              // Crack lines
+              this.ctx.strokeStyle = `rgba(90, 80, 60, ${explodeAlpha})`;
+              this.ctx.lineWidth = 1.5;
+              for (let cr = 0; cr < 6; cr++) {
+                const ca = cr * 1.2 + explodeProgress * 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(Math.cos(ca) * r * 0.3, Math.sin(ca) * r * 0.3);
+                this.ctx.lineTo(Math.cos(ca + 0.2) * r * 0.9, Math.sin(ca + 0.2) * r * 0.9);
+                this.ctx.stroke();
+              }
+              this.ctx.restore();
+            }
+
+            // Bright pressure flash at center
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${explodeAlpha * 0.5})`;
+            this.ctx.shadowColor = '#ffffff';
+            this.ctx.shadowBlur = 50 * explodeAlpha;
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, r * (0.6 - easeOut * 0.2), 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+
+            // Expanding shockwave rings (3 concentric, staggered)
+            for (let ri = 0; ri < 3; ri++) {
+              const ringDelay = ri * 0.1;
+              const ringProgress = Math.max(0, Math.min(1, (explodeProgress - ringDelay) / (1 - ringDelay)));
+              if (ringProgress > 0) {
+                const ringRadius = r * (0.8 + ringProgress * 7 - ri * 0.3);
+                const ringAlpha = explodeAlpha * (1 - ri * 0.3) * ringProgress;
+                this.ctx.strokeStyle = `rgba(${ri === 0 ? '255, 255, 255' : ri === 1 ? '200, 230, 255' : '80, 170, 220'}, ${ringAlpha * 0.6})`;
+                this.ctx.lineWidth = (6 - ri * 1.5) * ringAlpha;
+                this.ctx.shadowColor = '#a8e6ff';
+                this.ctx.shadowBlur = 25 * ringAlpha;
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+                this.ctx.stroke();
+                this.ctx.shadowBlur = 0;
+              }
+            }
+
+            // Dark smoke cloud expanding around blast
+            this.ctx.fillStyle = `rgba(30, 30, 35, ${explodeAlpha * 0.2})`;
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, r * (1 + easeOut * 3.5), 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Water splash dome - translucent expanding arc
+            this.ctx.fillStyle = `rgba(180, 230, 255, ${explodeAlpha * 0.12})`;
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, r * (1 + easeOut * 6), 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Flying fragments: mine shell pieces + bubbles thrown outward
+            if (!obs._explosionParticles) {
+              obs._explosionParticles = Array(40).fill(0).map(() => ({
+                angle: Math.random() * Math.PI * 2,
+                speed: 2 + Math.random() * 7,
+                size: 2 + Math.random() * 6,
+                alpha: 0.8 + Math.random() * 0.2,
+                life: 1.0,
+                type: Math.random() < 0.35 ? 'debris' : Math.random() < 0.5 ? 'smoke' : 'bubble'
+              }));
+            }
+            obs._explosionParticles.forEach(p => {
+              p.life -= 0.035;
+              const dist = r + p.speed * explodeProgress * 20;
+              const px = Math.cos(p.angle) * dist;
+              const py = Math.sin(p.angle) * dist;
+              if (p.type === 'debris') {
+                this.ctx.fillStyle = `rgba(42, 37, 32, ${p.alpha * p.life})`;
+                this.ctx.beginPath();
+                this.ctx.arc(px, py, p.size * p.life * 0.7, 0, Math.PI * 2);
+              } else if (p.type === 'smoke') {
+                this.ctx.fillStyle = `rgba(50, 50, 55, ${p.alpha * p.life * 0.5})`;
+                this.ctx.beginPath();
+                this.ctx.arc(px, py, p.size * p.life * 1.5, 0, Math.PI * 2);
+              } else {
+                this.ctx.fillStyle = `rgba(180, 230, 255, ${p.alpha * p.life * 0.7})`;
+                this.ctx.beginPath();
+                this.ctx.arc(px, py, p.size * p.life, 0, Math.PI * 2);
+              }
+              this.ctx.fill();
+            });
+            obs._explosionParticles = obs._explosionParticles.filter(p => p.life > 0);
+          }
+
           this.ctx.restore();
         });
       }
@@ -14627,6 +15486,17 @@ this.ctx.restore();
           maxY = (obs.y || 300) + maxGap / 2 + hh;
         } else if (obs.type === 'portal') {
           const r = obs.radius || 25;
+          minX = obs.x - r; maxX = obs.x + r;
+          minY = obs.y - r; maxY = obs.y + r;
+        } else if (obs.type === 'hydrothermal_vent') {
+          // Hydrothermal vent: tall chimney
+          const r = obs.radius || 22;
+          const h = obs.height || 70;
+          minX = obs.x - r; maxX = obs.x + r;
+          minY = obs.y - h; maxY = obs.y;
+        } else if (obs.type === 'sea_mine') {
+          // Sea Mine: spherical mine with chain
+          const r = obs.radius || 24;
           minX = obs.x - r; maxX = obs.x + r;
           minY = obs.y - r; maxY = obs.y + r;
         } else {

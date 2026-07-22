@@ -12,6 +12,7 @@ class PhysicsEngine {
     this.reliefX = 0;
     this.reliefTimer = 0;
     this._isGlacier = false;
+    this._cameraShakeTrigger = false;
   }
 
   update(balls, track, dt = 1) {
@@ -795,6 +796,81 @@ class PhysicsEngine {
               ball._geyserBurnTimer = 120; // 2 seconds at 60fps
               ball._geyserBurnExitSpeed = Math.hypot(ball.vx, ball.vy);
             }
+          }
+        } else if (obs.type === 'hydrothermal_vent') {
+          // Mariana Depths: static chimney collision
+          const vR = obs.radius;
+          const vH = obs.height;
+          const vX = obs.x;
+          const vY = obs.y;
+          
+          // Chimney is a rounded rect from vY - vH to vY
+          const closestX = Math.max(vX - vR, Math.min(ball.x, vX + vR));
+          const closestY = Math.max(vY - vH, Math.min(ball.y, vY));
+          const dx = ball.x - closestX;
+          const dy = ball.y - closestY;
+          const dist = Math.hypot(dx, dy);
+          
+          if (dist < ball.radius && dist > 0.001) {
+            // Push ball out
+            const overlap = ball.radius - dist;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            ball.x += nx * overlap;
+            ball.y += ny * overlap;
+            
+            ball._hitObstacleThisFrame = true;
+            ball._hitHydrothermalVentThisFrame = true;
+            
+            // Bounce response
+            const dot = ball.vx * nx + ball.vy * ny;
+            if (dot < 0) {
+              ball.vx -= dot * nx * 0.8;
+              ball.vy -= dot * ny * 0.8;
+            }
+          }
+        } else if (obs.type === 'sea_mine') {
+          // Mariana Depths: Sea Mine - contact trigger for explosion
+          const mR = obs.radius;
+          const mX = obs.x;
+          const mY = obs.y;
+          
+          const dx = ball.x - mX;
+          const dy = ball.y - mY;
+          const dist = Math.hypot(dx, dy);
+          const minDist = ball.radius + mR;
+          
+          if (dist < minDist && obs._state !== 'exploding') {
+            // Trigger explosion!
+            obs._state = 'exploding';
+            obs._stateTimer = 0;
+            this._cameraShakeTrigger = true;
+            
+              // Apply radial blast force to ALL balls within blast radius using the balls parameter
+               const blastRadius = 4.5 * (ball.radius * 2); // ~4.5 ball diameters
+               const maxForce = 22.0; // ~1.5x rotating arm hit (powerful underwater pressure wave)
+             
+             for (const otherBall of balls) {
+               if (otherBall.finished || otherBall.eliminated) continue;
+               
+               const bdx = otherBall.x - mX;
+               const bdy = otherBall.y - mY;
+               const bDist = Math.hypot(bdx, bdy);
+               
+               if (bDist < blastRadius && bDist > 0.001) {
+                 // Calculate force based on distance (closer = stronger)
+                 const falloff = 1 - (bDist / blastRadius);
+                 const force = maxForce * falloff;
+                 const nx = bdx / bDist;
+                 const ny = bdy / bDist;
+                 
+                 otherBall.vx += nx * force;
+                 otherBall.vy += ny * force;
+                 
+                 otherBall._hitObstacleThisFrame = true;
+                 otherBall._hitSeaMineThisFrame = true;
+               }
+             }
           }
         } else if (obs.type === 'collapsing_pillar') {
           // Collapsing Rock Pillar — only collides when fallen
