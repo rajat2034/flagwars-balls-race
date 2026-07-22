@@ -118,6 +118,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'sea_mine', name: 'Sea Mine', category: 'signature', map: 'ocean' },
   { type: 'bubble_trap', name: 'Bubble Trap', category: 'signature', map: 'ocean' },
   { type: 'sea_urchin_field', name: 'Sea Urchin Field', category: 'signature', map: 'ocean' },
+  { type: 'floating_kelp', name: 'Floating Kelp', category: 'signature', map: 'ocean' },
 
   // Sahara
   { type: 'quicksand', name: 'Quicksand', category: 'signature', map: 'desert' },
@@ -2051,6 +2052,9 @@ class GameEngine {
     // Sea urchin image for Mariana Depths
     this.seaUrchinImg = null;
 
+    // Floating Kelp images for Mariana Depths (3 variants)
+    this.floatingKelpImgs = [null, null, null];
+
     // Commentary & Event systems
     this.commentary = new Commentary();
     this.eventBanner = new GlobalEventBanner(this);
@@ -2079,6 +2083,7 @@ class GameEngine {
     this.preloadFootballImage();
     this.preloadBubbleTrapImage();
     this.preloadSeaUrchinImage();
+    this.preloadFloatingKelpImages();
     this.preloadAmazonBg();
     this.preloadGlacierBg();
     this.preloadVolcanoBg();
@@ -2107,6 +2112,16 @@ class GameEngine {
     img.src = 'sea urchin image.png';
     img.onload = () => { this.seaUrchinImg = img; };
     img.onerror = () => { this.seaUrchinImg = 'failed'; };
+  }
+
+  preloadFloatingKelpImages() {
+    const files = ['floating kelp 1.png', 'floating kelp 2.png', 'floating kelp 3.png'];
+    files.forEach((f, i) => {
+      const img = new Image();
+      img.src = f;
+      img.onload = () => { this.floatingKelpImgs[i] = img; };
+      img.onerror = () => { this.floatingKelpImgs[i] = 'failed'; };
+    });
   }
 
   preloadAmazonBg() {
@@ -2194,9 +2209,10 @@ class GameEngine {
 
     // Mariana Depths: boost ocean obstacle spawn rates
     if (themeKey === 'ocean') {
-      if (freqWeights.bubble_trap) freqWeights.bubble_trap = Math.max(freqWeights.bubble_trap, 12);
-      if (freqWeights.sea_mine) freqWeights.sea_mine = Math.max(freqWeights.sea_mine, 12);
-      if (freqWeights.sea_urchin_field) freqWeights.sea_urchin_field = Math.max(freqWeights.sea_urchin_field, 10);
+      if (freqWeights.bubble_trap) freqWeights.bubble_trap = 20;
+      if (freqWeights.sea_mine) freqWeights.sea_mine = 20;
+      if (freqWeights.sea_urchin_field) freqWeights.sea_urchin_field = 20;
+      if (freqWeights.floating_kelp) freqWeights.floating_kelp = 20;
     }
 
     const track = {
@@ -2324,21 +2340,22 @@ peg: { min: 100, preferred: 150, recovery: 60, safeLanding: 40 },
 launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       ice_cannon: { min: 200, preferred: 320, recovery: 150, safeLanding: 120 },
       hydrothermal_vent: { min: 200, preferred: 350, recovery: 150, safeLanding: 100 },
-      sea_mine: { min: 180, preferred: 280, recovery: 120, safeLanding: 80 },
-      bubble_trap: { min: 150, preferred: 220, recovery: 80, safeLanding: 60 },
-      sea_urchin_field: { min: 160, preferred: 240, recovery: 100, safeLanding: 80 }
+      sea_mine: { min: 100, preferred: 130, recovery: 50, safeLanding: 40 },
+      bubble_trap: { min: 100, preferred: 120, recovery: 40, safeLanding: 30 },
+      sea_urchin_field: { min: 100, preferred: 120, recovery: 50, safeLanding: 40 },
+      floating_kelp: { min: 100, preferred: 110, recovery: 40, safeLanding: 30 }
     };
 
     // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
-      { start: 0.00, end: 0.20, density: 0.40,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field']) },
-      { start: 0.20, end: 0.60, density: 0.40,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field']) },
-      { start: 0.60, end: 0.85, density: 0.40,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field']) },
-      { start: 0.85, end: 1.00, density: 0.40,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field']) }
+      { start: 0.00, end: 0.20, density: 0.50,
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp']) },
+      { start: 0.20, end: 0.60, density: 0.50,
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp']) },
+      { start: 0.60, end: 0.85, density: 0.50,
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp']) },
+      { start: 0.85, end: 1.00, density: 0.50,
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -2405,6 +2422,11 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       { weight: 2, types: ['spinner', 'sea_urchin_field'], gap: 50 },
       { weight: 1, types: ['sea_urchin_field', 'bubble_trap'], gap: 60 },
       { weight: 1, types: ['sea_mine', 'sea_urchin_field'], gap: 60 },
+      // Mariana Depths: Floating Kelp combinations
+      { weight: 2, types: ['floating_kelp', 'boost'], gap: 50 },
+      { weight: 2, types: ['spinner', 'floating_kelp'], gap: 50 },
+      { weight: 1, types: ['floating_kelp', 'bubble_trap'], gap: 60 },
+      { weight: 1, types: ['sea_mine', 'floating_kelp'], gap: 60 },
     ].filter(c => _allEnabled(c.types));
 
     // 3-obstacle templates that shuffle per race for variety
@@ -2449,6 +2471,10 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       ['sea_urchin_field', 'boost', 'spinner'],
       ['bubble_trap', 'sea_urchin_field', 'boost'],
       ['sea_mine', 'sea_urchin_field', 'hammer'],
+      // Mariana Depths: Floating Kelp templates
+      ['floating_kelp', 'boost', 'spinner'],
+      ['bubble_trap', 'floating_kelp', 'boost'],
+      ['sea_mine', 'floating_kelp', 'hammer'],
     ].filter(t => _allEnabled(t));
     // Shuffle templates once per race
     const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
@@ -2551,6 +2577,10 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           else cy += off;
           minX = cx - s / 2; maxX = cx + s / 2;
           minY = cy - s / 2; maxY = cy + s / 2;
+        } else if (obs.type === 'floating_kelp') {
+          const r = obs.radius || 28;
+          minX = obs.x - r; maxX = obs.x + r;
+          minY = obs.y - r; maxY = obs.y + r;
         } else if (obs.type === 'carnivorous_vine') {
         if (!obs || !obs.x || !obs.y) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
         const vineR = 30;
@@ -3296,6 +3326,30 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
               speed: 0.3 + Math.random() * 0.6,
               size: 2 + Math.random() * 3,
               alpha: 0.2 + Math.random() * 0.2
+            }))
+          });
+        } else if (type === 'floating_kelp') {
+          const kr = 28 + Math.random() * 10;
+          const onTop = Math.random() < 0.5;
+          const halfImg = kr * 1.4;
+          const gapFix = 6;
+          const ky = onTop
+            ? bounds.topY + halfImg - gapFix
+            : bounds.bottomY - halfImg + gapFix;
+          const variant = 1 + Math.floor(track._kelpVariantCounter % 3);
+          track._kelpVariantCounter = (track._kelpVariantCounter || 0) + 1;
+          track.obstacles.push({
+            type: 'floating_kelp', x, y: ky,
+            radius: kr,
+            _kelpVariant: variant,
+            _bubblePhase: Math.random() * Math.PI * 2,
+            _inverted: onTop,
+            _bubbles: Array(3).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * kr * 0.5,
+              y: Math.random() * kr * 0.25,
+              speed: 0.3 + Math.random() * 0.5,
+              size: 2 + Math.random() * 2,
+              alpha: 0.15 + Math.random() * 0.15
             }))
           });
         }
@@ -5401,6 +5455,24 @@ obs._trappedBallId = null;
               b.speed = 0.3 + Math.random() * 0.6;
               b.size = 2 + Math.random() * 3;
               b.alpha = 0.2 + Math.random() * 0.2;
+            }
+          });
+        }
+      });
+      // Floating Kelp bubble animation
+      this.track.obstacles.forEach(obs => {
+        if (obs.type !== 'floating_kelp') return;
+        obs._bubblePhase = (obs._bubblePhase || 0) + dt * 0.05;
+        if (obs._bubbles) {
+          const r = obs.radius || 28;
+          obs._bubbles.forEach(b => {
+            b.y -= b.speed * dt * 0.04;
+            if (b.y < -r * 0.5) {
+              b.y = r * 0.2;
+              b.x = (Math.random() - 0.5) * r * 0.8;
+              b.speed = 0.3 + Math.random() * 0.5;
+              b.size = 2 + Math.random() * 2;
+              b.alpha = 0.15 + Math.random() * 0.15;
             }
           });
         }
@@ -11263,6 +11335,63 @@ obs._trappedBallId = null;
         });
       }
 
+      // Draw Floating Kelp - Mariana Depths exclusive (render before other obstacles)
+      if (this.currentThemeKey === 'ocean' && this.track && this.track.obstacles) {
+        const _now = performance.now() * 0.001;
+        const imgs = this.floatingKelpImgs;
+        const imgReady = imgs[0] && imgs[0] !== 'failed' && imgs[1] && imgs[1] !== 'failed' && imgs[2] && imgs[2] !== 'failed';
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'floating_kelp') return;
+          const kx = obs.x - camX;
+          const r = obs.radius || 28;
+          const cullBuf = 300;
+          if (kx + r * 2 < -cullBuf || kx - r * 2 > screenW / zoom + cullBuf) return;
+
+          const bp = obs._bubblePhase || 0;
+          const bubbles = obs._bubbles || [];
+          const baseY = obs.y;
+
+          this.ctx.save();
+          this.ctx.translate(kx, baseY);
+
+          // Shadow
+          this.ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(0, r * 0.2, r * 1.0, r * 0.08, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          if (imgReady) {
+            const imgIdx = (obs._kelpVariant || 1) - 1;
+            const img = imgs[imgIdx];
+            const imgSize = r * 2.8;
+            if (obs._inverted) {
+              this.ctx.save();
+              this.ctx.scale(1, -1);
+              this.ctx.drawImage(img, -imgSize / 2, -imgSize / 2, imgSize, imgSize);
+              this.ctx.restore();
+            } else {
+              this.ctx.drawImage(img, -imgSize / 2, -imgSize / 2, imgSize, imgSize);
+            }
+          }
+
+          // Rising bubbles
+          bubbles.forEach(b => {
+            const bx = b.x + Math.sin(_now * 0.4 + bp) * 1.5;
+            const by = -b.y;
+            const bg = this.ctx.createRadialGradient(bx - b.size * 0.3, by - b.size * 0.3, 0, bx, by, b.size);
+            bg.addColorStop(0, `rgba(180, 230, 255, ${b.alpha})`);
+            bg.addColorStop(0.5, `rgba(100, 200, 255, ${b.alpha * 0.6})`);
+            bg.addColorStop(1, `rgba(40, 160, 230, 0)`);
+            this.ctx.fillStyle = bg;
+            this.ctx.beginPath();
+            this.ctx.arc(bx, by, b.size, 0, Math.PI * 2);
+            this.ctx.fill();
+          });
+
+          this.ctx.restore();
+        });
+      }
+
       // Draw Retractable Wall Icicles ??? natural ice formations on track boundaries
       if (this.track && this.track.obstacles) {
         this.track.obstacles.forEach(obs => {
@@ -15611,6 +15740,10 @@ this.ctx.restore();
           else cy += off;
           minX = cx - s / 2; maxX = cx + s / 2;
           minY = cy - s / 2; maxY = cy + s / 2;
+        } else if (obs.type === 'floating_kelp') {
+          const r = obs.radius || 28;
+          minX = obs.x - r; maxX = obs.x + r;
+          minY = obs.y - r; maxY = obs.y + r;
         } else {
           const halfW = w / 2, halfH = h / 2;
           minX = obs.x - halfW; maxX = obs.x + halfW;

@@ -91,6 +91,7 @@ class PhysicsEngine {
       let inBoost = false;
       ball._wasInBoost = ball._wasInBoost || false;
       ball._wasInSlow = ball._wasInSlow || false;
+      ball._wasInKelp = ball._wasInKelp || false;
       ball._wasInLavaPool = ball._wasInLavaPool || false;
       ball._wasInMudPuddle = ball._wasInMudPuddle || false;
 
@@ -882,6 +883,21 @@ class PhysicsEngine {
           const box = { x: boxX, y: boxY, width: boxSize, height: boxSize };
           this.resolveBallBoxCollision(ball, box);
           ball._hitObstacleThisFrame = true;
+        } else if (obs.type === 'floating_kelp') {
+          // Floating Kelp: 0.6x speed on first contact per ball (slow-zone style)
+          const kR = obs.radius || 24;
+          const dx = ball.x - obs.x;
+          const dy = ball.y - obs.y;
+          const dist = Math.hypot(dx, dy);
+          const minDist = ball.radius + kR;
+          if (dist < minDist) {
+            if (!ball._wasInKelp) {
+              ball.vx *= 0.6;
+              ball.vy *= 0.6;
+              ball._wasInKelp = true;
+              ball._hitObstacleThisFrame = true;
+            }
+          }
         } else if (obs.type === 'collapsing_pillar') {
           // Collapsing Rock Pillar — only collides when fallen
           if (obs._state !== 'fallen') return;
@@ -1018,6 +1034,15 @@ if (dist > 0.001) {
               }
             }
           }
+        }
+        // Reset kelp flag if ball is outside all kelp patches
+        if (ball._wasInKelp) {
+          const kelpPatches = track.obstacles.filter(o => o.type === 'floating_kelp');
+          const inAnyKelp = kelpPatches.some(k => {
+            const kR = k.radius || 24;
+            return Math.hypot(ball.x - k.x, ball.y - k.y) < ball.radius + kR;
+          });
+          if (!inAnyKelp) ball._wasInKelp = false;
         }
     });
   });
