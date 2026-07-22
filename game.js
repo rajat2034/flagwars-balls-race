@@ -117,6 +117,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'crab_claw', name: 'Crab Claw', category: 'signature', map: 'ocean' },
   { type: 'sea_mine', name: 'Sea Mine', category: 'signature', map: 'ocean' },
   { type: 'bubble_trap', name: 'Bubble Trap', category: 'signature', map: 'ocean' },
+  { type: 'sea_urchin_field', name: 'Sea Urchin Field', category: 'signature', map: 'ocean' },
 
   // Sahara
   { type: 'quicksand', name: 'Quicksand', category: 'signature', map: 'desert' },
@@ -2047,6 +2048,9 @@ class GameEngine {
     // Bubble trap image for Mariana Depths
     this.bubbleTrapImg = null;
 
+    // Sea urchin image for Mariana Depths
+    this.seaUrchinImg = null;
+
     // Commentary & Event systems
     this.commentary = new Commentary();
     this.eventBanner = new GlobalEventBanner(this);
@@ -2074,6 +2078,7 @@ class GameEngine {
     this.preloadFlags(db);
     this.preloadFootballImage();
     this.preloadBubbleTrapImage();
+    this.preloadSeaUrchinImage();
     this.preloadAmazonBg();
     this.preloadGlacierBg();
     this.preloadVolcanoBg();
@@ -2095,6 +2100,13 @@ class GameEngine {
     img.src = 'bubbles image.png';
     img.onload = () => { this.bubbleTrapImg = img; };
     img.onerror = () => { this.bubbleTrapImg = 'failed'; };
+  }
+
+  preloadSeaUrchinImage() {
+    const img = new Image();
+    img.src = 'sea urchin image.png';
+    img.onload = () => { this.seaUrchinImg = img; };
+    img.onerror = () => { this.seaUrchinImg = 'failed'; };
   }
 
   preloadAmazonBg() {
@@ -2184,6 +2196,7 @@ class GameEngine {
     if (themeKey === 'ocean') {
       if (freqWeights.bubble_trap) freqWeights.bubble_trap = Math.max(freqWeights.bubble_trap, 12);
       if (freqWeights.sea_mine) freqWeights.sea_mine = Math.max(freqWeights.sea_mine, 12);
+      if (freqWeights.sea_urchin_field) freqWeights.sea_urchin_field = Math.max(freqWeights.sea_urchin_field, 10);
     }
 
     const track = {
@@ -2312,19 +2325,20 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       ice_cannon: { min: 200, preferred: 320, recovery: 150, safeLanding: 120 },
       hydrothermal_vent: { min: 200, preferred: 350, recovery: 150, safeLanding: 100 },
       sea_mine: { min: 180, preferred: 280, recovery: 120, safeLanding: 80 },
-      bubble_trap: { min: 150, preferred: 220, recovery: 80, safeLanding: 60 }
+      bubble_trap: { min: 150, preferred: 220, recovery: 80, safeLanding: 60 },
+      sea_urchin_field: { min: 160, preferred: 240, recovery: 100, safeLanding: 80 }
     };
 
     // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
-      { start: 0.00, end: 0.20, density: 0.45,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'hydrothermal_vent', 'sea_mine']) },
-      { start: 0.20, end: 0.60, density: 0.35,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'hydrothermal_vent', 'sea_mine']) },
+      { start: 0.00, end: 0.20, density: 0.40,
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field']) },
+      { start: 0.20, end: 0.60, density: 0.40,
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field']) },
       { start: 0.60, end: 0.85, density: 0.40,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'hydrothermal_vent', 'sea_mine']) },
-      { start: 0.85, end: 1.00, density: 0.45,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'hydrothermal_vent', 'sea_mine']) }
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field']) },
+      { start: 0.85, end: 1.00, density: 0.40,
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -2386,6 +2400,11 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       { weight: 2, types: ['sea_mine', 'sweep_arm'], gap: 50 },
       { weight: 1, types: ['sea_mine', 'portal'], gap: 60 },
       { weight: 1, types: ['c_bumper', 'sea_mine'], gap: 40 },
+      // Mariana Depths: Sea Urchin Field combinations
+      { weight: 2, types: ['sea_urchin_field', 'boost'], gap: 50 },
+      { weight: 2, types: ['spinner', 'sea_urchin_field'], gap: 50 },
+      { weight: 1, types: ['sea_urchin_field', 'bubble_trap'], gap: 60 },
+      { weight: 1, types: ['sea_mine', 'sea_urchin_field'], gap: 60 },
     ].filter(c => _allEnabled(c.types));
 
     // 3-obstacle templates that shuffle per race for variety
@@ -2426,6 +2445,10 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       ['sea_mine', 'spinner', 'hammer'],
       ['barrier', 'sea_mine', 'boost'],
       ['hammer', 'sea_mine', 'sweep_arm'],
+      // Mariana Depths: Sea Urchin Field templates
+      ['sea_urchin_field', 'boost', 'spinner'],
+      ['bubble_trap', 'sea_urchin_field', 'boost'],
+      ['sea_mine', 'sea_urchin_field', 'hammer'],
     ].filter(t => _allEnabled(t));
     // Shuffle templates once per race
     const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
@@ -2513,14 +2536,22 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         maxX = obs.x + r;
         minY = obs.y - h;
         maxY = obs.y;
-      } else if (obs.type === 'sea_mine') {
-        // Sea Mine: spherical mine with radius
-        const r = obs.radius || 25;
-        minX = obs.x - r;
-        maxX = obs.x + r;
-        minY = obs.y - r;
-        maxY = obs.y + r;
-      } else if (obs.type === 'carnivorous_vine') {
+        } else if (obs.type === 'sea_mine') {
+          // Sea Mine: spherical mine with radius
+          const r = obs.radius || 25;
+          minX = obs.x - r;
+          maxX = obs.x + r;
+          minY = obs.y - r;
+          maxY = obs.y + r;
+        } else if (obs.type === 'sea_urchin_field') {
+          const s = obs._boxSize || 60;
+          const off = obs._moveOffset || 0;
+          let cx = obs.x, cy = obs.y;
+          if (obs._isHorizontal) cx += off;
+          else cy += off;
+          minX = cx - s / 2; maxX = cx + s / 2;
+          minY = cy - s / 2; maxY = cy + s / 2;
+        } else if (obs.type === 'carnivorous_vine') {
         if (!obs || !obs.x || !obs.y) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
         const vineR = 30;
         minX = obs.x - vineR;
@@ -3242,6 +3273,31 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
               alpha: 0.3 + Math.random() * 0.3
             }))
           });
+        } else if (type === 'sea_urchin_field') {
+          const ur = 25 + Math.random() * 15;
+          const uy = clampY(centerY + (Math.random() - 0.5) * availH * 0.6, bounds, ur + 15);
+          const isHorizontal = Math.random() < 0.5;
+          const moveRange = 60 + Math.random() * 20;
+          track.obstacles.push({
+            type: 'sea_urchin_field', x, y: uy,
+            radius: ur,
+            _boxSize: ur * 2.0,
+            _isHorizontal: isHorizontal,
+            _moveRange: moveRange,
+            _moveSpeed: 1.5 + Math.random() * 1.5,
+            _moveOffset: (Math.random() - 0.5) * moveRange * 2,
+            _moveState: Math.random() < 0.5 ? 'extending' : 'retracting',
+            _stateTimer: Math.random() * 60,
+            _swayPhase: Math.random() * Math.PI * 2,
+            _bubblePhase: Math.random() * Math.PI * 2,
+            _bubbles: Array(5).fill(0).map(() => ({
+              x: (Math.random() - 0.5) * ur * 1.2,
+              y: Math.random() * ur * 0.5,
+              speed: 0.3 + Math.random() * 0.6,
+              size: 2 + Math.random() * 3,
+              alpha: 0.2 + Math.random() * 0.2
+            }))
+          });
         }
 
         // Track last 3 types to prevent triplicates
@@ -3672,59 +3728,6 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       track.zones = track.zones.filter(z => z.type !== 'portal' || (portalCounts.get(z.pairId) || 0) >= 2);
     }
 
-    // Mariana Depths: inject early ocean obstacles near start (accessible within ~30s)
-    if (themeKey === 'ocean') {
-      const _earlyTypes = ['bubble_trap', 'sea_mine'];
-      for (let _ei = 0; _ei < 4; _ei++) {
-        const _px = 600 + Math.random() * 2000;
-        if (_isRestricted(_px)) continue;
-        const _b = getBounds(_px);
-        if (!_b || _b.bottomY - _b.topY < 120) continue;
-        const _cY = (_b.topY + _b.bottomY) / 2;
-        const _aH = _b.bottomY - _b.topY;
-        const _type = _earlyTypes[_ei % 2];
-        if (_type === 'bubble_trap') {
-          const _br = 20 + Math.random() * 6;
-          const _by = clampY(_cY + (Math.random() - 0.5) * _aH * 0.6, _b, _br + 10);
-          track.obstacles.push({
-            type: 'bubble_trap', x: _px, y: _by, radius: _br,
-            _state: 'idle', _stateTimer: 0, _trappedBallId: null,
-            _wobblePhase: Math.random() * Math.PI * 2,
-            _wobbleAmount: 0.05 + Math.random() * 0.03,
-            _floatPhase: Math.random() * Math.PI * 2,
-            _floatAmount: 2 + Math.random() * 3,
-            _risingBubbles: Array(8).fill(0).map(() => ({
-              x: (Math.random() - 0.5) * _br * 0.6,
-              y: Math.random() * _br * 1.5,
-              speed: 0.5 + Math.random() * 1.5,
-              size: 2 + Math.random() * 3,
-              alpha: 0.4 + Math.random() * 0.4
-            }))
-          });
-        } else if (_type === 'sea_mine') {
-          const _mr = 15 + Math.random() * 4;
-          const _my = clampY(_cY + (Math.random() - 0.5) * _aH * 0.5, _b, _mr + 20);
-          track.obstacles.push({
-            type: 'sea_mine', x: _px, y: _my,
-            radius: _mr,
-            chainLength: 40 + Math.random() * 20,
-            _state: 'idle', _stateTimer: 0,
-            _swayPhase: Math.random() * Math.PI * 2,
-            _swayAmount: 0.03 + Math.random() * 0.02,
-            _rotatePhase: Math.random() * Math.PI * 2,
-            _rotateAmount: 0.02 + Math.random() * 0.01,
-            _idleBubbles: Array(8).fill(0).map(() => ({
-              x: (Math.random() - 0.5) * _mr * 0.8,
-              y: Math.random() * _mr * 1.2,
-              speed: 0.5 + Math.random() * 1.0,
-              size: 2 + Math.random() * 3,
-              alpha: 0.3 + Math.random() * 0.3
-            }))
-          });
-        }
-      }
-    }
-
     // Generate decorative celestial objects for space theme
     this._initSpaceObjects(track);
 
@@ -3962,22 +3965,6 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       }
     }
 
-    // Mariana Depths: cap ocean obstacle counts
-    if (themeKey === 'ocean') {
-      const _oceanTypes = ['sea_mine', 'bubble_trap'];
-      const _maxCounts = { sea_mine: 60, bubble_trap: 60 };
-      _oceanTypes.forEach(_ot => {
-        const _indices = [];
-        track.obstacles.forEach((o, i) => { if (o.type === _ot) _indices.push(i); });
-        const _max = _maxCounts[_ot];
-        if (_indices.length > _max) {
-          const _removeCount = _indices.length - _max;
-          const _remove = new Set(_indices.slice(0, _removeCount));
-          track.obstacles = track.obstacles.filter((_, i) => !_remove.has(i));
-        }
-      });
-    }
-
     this.track = track;
   }
 
@@ -4046,6 +4033,35 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           if (obs.stateTimer > (obs.closeDuration || 20)) {
             obs.state = 'opening';
             obs.stateTimer = 0;
+          }
+        }
+      } else if (obs.type === 'sea_urchin_field') {
+        obs._stateTimer = (obs._stateTimer || 0) + dt;
+        const halfRange = obs._moveRange || 70;
+        const speed = obs._moveSpeed || 2;
+        if (obs._moveState === 'extending') {
+          obs._moveOffset = Math.min(obs._moveOffset + speed * dt, halfRange);
+          if (obs._moveOffset >= halfRange) {
+            obs._moveOffset = halfRange;
+            obs._moveState = 'extended';
+            obs._stateTimer = 0;
+          }
+        } else if (obs._moveState === 'extended') {
+          if (obs._stateTimer > 30) {
+            obs._moveState = 'retracting';
+            obs._stateTimer = 0;
+          }
+        } else if (obs._moveState === 'retracting') {
+          obs._moveOffset = Math.max(obs._moveOffset - speed * dt, -halfRange);
+          if (obs._moveOffset <= -halfRange) {
+            obs._moveOffset = -halfRange;
+            obs._moveState = 'retracted';
+            obs._stateTimer = 0;
+          }
+        } else if (obs._moveState === 'retracted') {
+          if (obs._stateTimer > 30) {
+            obs._moveState = 'extending';
+            obs._stateTimer = 0;
           }
         }
       } else if (obs.type === 'spinner') {
@@ -5370,6 +5386,23 @@ obs._trappedBallId = null;
             });
           }
           obs._remove = true;
+        }
+      });
+      // Sea Urchin Field bubble animation
+      this.track.obstacles.forEach(obs => {
+        if (obs.type !== 'sea_urchin_field') return;
+        obs._bubblePhase = (obs._bubblePhase || 0) + dt * 0.06;
+        if (obs._bubbles) {
+          obs._bubbles.forEach(b => {
+            b.y -= b.speed * dt * 0.05;
+            if (b.y < -obs.radius * 0.8) {
+              b.y = obs.radius * 0.6;
+              b.x = (Math.random() - 0.5) * obs.radius * 1.2;
+              b.speed = 0.3 + Math.random() * 0.6;
+              b.size = 2 + Math.random() * 3;
+              b.alpha = 0.2 + Math.random() * 0.2;
+            }
+          });
         }
       });
     }
@@ -11158,6 +11191,77 @@ obs._trappedBallId = null;
         }
       }
 
+      // Draw Sea Urchin Fields - Mariana Depths exclusive (render before other obstacles)
+      if (this.currentThemeKey === 'ocean' && this.track && this.track.obstacles) {
+        const _now = performance.now() * 0.001;
+        const img = this.seaUrchinImg;
+        const imgReady = img && img !== 'failed';
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'sea_urchin_field') return;
+          const ux = obs.x - camX;
+          const r = obs.radius || 35;
+          const cullBuf = 300;
+          if (ux + r < -cullBuf || ux - r > screenW / zoom + cullBuf) return;
+
+          const swayPhase = obs._swayPhase || 0;
+          const bp = obs._bubblePhase || 0;
+          const bob = Math.sin(_now * 1.2 + swayPhase) * 3;
+          const sway = Math.sin(_now * 0.5 + swayPhase) * 2;
+          const rotate = Math.sin(_now * 0.4 + swayPhase) * 0.04;
+          const bubbles = obs._bubbles || [];
+          const offset = obs._moveOffset || 0;
+
+          this.ctx.save();
+          let renderX = ux + sway;
+          let renderY = obs.y + bob;
+          if (obs._isHorizontal) renderX += offset;
+          else renderY += offset;
+          this.ctx.translate(renderX, renderY);
+          this.ctx.rotate(rotate);
+
+          // Subtle seabed shadow beneath
+          this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(0, r * 0.4, r * 0.7, r * 0.08, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          if (imgReady) {
+            const imgSize = r * 2.2;
+            this.ctx.drawImage(img, -imgSize / 2, -imgSize / 2, imgSize, imgSize);
+          } else {
+            // Fallback: simple dark circle with spike lines
+            this.ctx.fillStyle = '#1a1025';
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.strokeStyle = '#3a2a5a';
+            this.ctx.lineWidth = 1.5;
+            for (let si = 0; si < 14; si++) {
+              const sa = (si / 14) * Math.PI * 2 + rotate;
+              this.ctx.beginPath();
+              this.ctx.moveTo(Math.cos(sa) * r * 0.3, Math.sin(sa) * r * 0.3);
+              this.ctx.lineTo(Math.cos(sa) * r * 0.7, Math.sin(sa) * r * 0.7);
+              this.ctx.stroke();
+            }
+          }
+
+          // Rising bubbles
+          bubbles.forEach(b => {
+            const bx = b.x + Math.sin(_now * 0.4 + bp) * 1.5;
+            const by = -b.y;
+            const bg = this.ctx.createRadialGradient(bx - b.size * 0.3, by - b.size * 0.3, 0, bx, by, b.size);
+            bg.addColorStop(0, `rgba(180, 230, 255, ${b.alpha})`);
+            bg.addColorStop(0.5, `rgba(100, 200, 255, ${b.alpha * 0.6})`);
+            bg.addColorStop(1, `rgba(40, 160, 230, 0)`);
+            this.ctx.fillStyle = bg;
+            this.ctx.beginPath();
+            this.ctx.arc(bx, by, b.size, 0, Math.PI * 2);
+            this.ctx.fill();
+          });
+
+          this.ctx.restore();
+        });
+      }
 
       // Draw Retractable Wall Icicles ??? natural ice formations on track boundaries
       if (this.track && this.track.obstacles) {
@@ -15499,6 +15603,14 @@ this.ctx.restore();
           const r = obs.radius || 24;
           minX = obs.x - r; maxX = obs.x + r;
           minY = obs.y - r; maxY = obs.y + r;
+        } else if (obs.type === 'sea_urchin_field') {
+          const s = obs._boxSize || 60;
+          const off = obs._moveOffset || 0;
+          let cx = obs.x, cy = obs.y;
+          if (obs._isHorizontal) cx += off;
+          else cy += off;
+          minX = cx - s / 2; maxX = cx + s / 2;
+          minY = cy - s / 2; maxY = cy + s / 2;
         } else {
           const halfW = w / 2, halfH = h / 2;
           minX = obs.x - halfW; maxX = obs.x + halfW;

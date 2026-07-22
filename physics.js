@@ -870,8 +870,18 @@ class PhysicsEngine {
                  otherBall._hitObstacleThisFrame = true;
                  otherBall._hitSeaMineThisFrame = true;
                }
-             }
+            }
           }
+        } else if (obs.type === 'sea_urchin_field') {
+          const boxSize = obs._boxSize || 60;
+          const offset = obs._moveOffset || 0;
+          let boxX = obs.x - boxSize / 2;
+          let boxY = obs.y - boxSize / 2;
+          if (obs._isHorizontal) boxX += offset;
+          else boxY += offset;
+          const box = { x: boxX, y: boxY, width: boxSize, height: boxSize };
+          this.resolveBallBoxCollision(ball, box);
+          ball._hitObstacleThisFrame = true;
         } else if (obs.type === 'collapsing_pillar') {
           // Collapsing Rock Pillar — only collides when fallen
           if (obs._state !== 'fallen') return;
