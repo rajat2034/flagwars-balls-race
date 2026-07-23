@@ -144,6 +144,7 @@ const EVENT_REGISTRY = [
   { key: 'tropical_rainstorm', name: 'Tropical Rainstorm', implemented: true },
   { key: 'flash_flood', name: 'Flash Flood', implemented: true },
   { key: 'whirlpool_current', name: 'Whirlpool Current', implemented: true },
+  { key: 'sonar_shockwave', name: 'Sonar Shockwave', implemented: true },
 ];
 
 // Text contrast helper ??? returns appropriate colors based on map brightness
@@ -1919,6 +1920,10 @@ class GameEngine {
     this._whirlpoolActive = false;
     this._whirlpools = [];
     this._whirlpoolFadeTimer = 0;
+    this._sonarActive = false;
+    this._sonarEmitter = null;
+    this._sonarWave = null;
+    this._sonarHitBalls = new Set();
     this._blackoutActive = false;
     this._blackoutFadeLevel = 0;
     this._blackoutFlickerTimer = 0;
@@ -5632,12 +5637,13 @@ obs._trappedBallId = null;
       { name: '\uD83D\uDD25 FIRESTORM', key: 'firestorm', duration: 360, description: 'Scorching volcanic winds sweep across the crater!' },
       { name: '\uD83C\uDF2B LAVA SHOWER', key: 'lava_shower', duration: 360, description: 'Molten rocks rain from the volcano above!' },
       { name: '\u{1F300} WHIRLPOOL CURRENT', key: 'whirlpool_current', duration: 300, description: 'Powerful whirlpools swirl across the track, pulling racers off course!' },
+      { name: '\u{1F4A1} SONAR SHOCKWAVE', key: 'sonar_shockwave', duration: 300, description: 'An underwater sonar pulse sweeps across the ocean, shoving racers off course!' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'jungle' && this.currentThemeKey !== 'ocean'))
       .filter(e => e.key !== 'volcanic_eruption' || isVolcano)
-      .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano))
+      .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'ocean'))
       .filter(e => e.key !== 'firestorm' || isVolcano)
       .filter(e => e.key !== 'aurora_borealis' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'tropical_rainstorm' || this.currentThemeKey === 'jungle')
@@ -5645,6 +5651,7 @@ obs._trappedBallId = null;
       .filter(e => e.key !== 'lava_shower' || isVolcano)
       .filter(e => e.key !== 'flash_flood' || this.currentThemeKey === 'jungle')
       .filter(e => e.key !== 'whirlpool_current' || this.currentThemeKey === 'ocean')
+      .filter(e => e.key !== 'sonar_shockwave' || this.currentThemeKey === 'ocean')
       .map(e => ({ ...e, weight: freqToWeight(eventFreqs[e.key] || 3) }));
 
     // Weighted random selection using frequencies
@@ -5726,6 +5733,16 @@ obs._trappedBallId = null;
         });
         placed++;
       }
+    } else if (evt.key === 'sonar_shockwave') {
+      this._sonarActive = true;
+      this._sonarHitBalls = new Set();
+      const camX = this.cameraX || 0;
+      const sw = Math.max(this.canvas.width, 800);
+      const sourceX = camX + sw * 0.2 + Math.random() * sw * 0.6;
+      const bounds = this.physics.getWallBoundaries(sourceX, this.track);
+      const sourceY = bounds ? bounds.topY + (bounds.bottomY - bounds.topY) * 0.5 : 300;
+      this._sonarEmitter = { x: sourceX, y: sourceY, phase: 0 };
+      this._sonarWave = { x: sourceX, y: sourceY, radius: 0, alpha: 1 };
     } else if (evt.key === 'blackout') {
       this._blackoutActive = true;
       this._blackoutFadeLevel = 0;
@@ -6087,6 +6104,12 @@ obs._trappedBallId = null;
         this._whirlpools = [];
         this._whirlpoolFadeTimer = 0;
       }
+      if (this.activeEvent.key === 'sonar_shockwave') {
+        this._sonarActive = false;
+        this._sonarEmitter = null;
+        this._sonarWave = null;
+        this._sonarHitBalls = new Set();
+      }
       this.activeEvent = null;
       return;
     }
@@ -6181,6 +6204,30 @@ obs._trappedBallId = null;
         if (this._whirlpoolFadeTimer <= 0) {
           this._whirlpoolActive = false;
           this._whirlpools = [];
+        }
+      }
+    } else if (this.activeEvent.key === 'sonar_shockwave') {
+      if (this._sonarWave && this._sonarWave.alpha > 0) {
+        this._sonarWave.radius += 7 * dt;
+        this._sonarWave.alpha = Math.max(0, 1 - this._sonarWave.radius / 5000);
+        if (this._sonarEmitter) {
+          this._sonarEmitter.phase += 0.08 * dt;
+        }
+        if (this.balls) {
+          this.balls.forEach(ball => {
+            if (ball.finished || ball.eliminated || ball.z > 0) return;
+            if (this._sonarHitBalls.has(ball)) return;
+            const dx = ball.x - this._sonarWave.x;
+            const dy = ball.y - this._sonarWave.y;
+            const dist = Math.hypot(dx, dy);
+            if (Math.abs(dist - this._sonarWave.radius) < 35) {
+              const nx = dist > 0.001 ? dx / dist : 0;
+              const ny = dist > 0.001 ? dy / dist : 0;
+              ball.vx += nx * 3.0;
+              ball.vy += ny * 3.0;
+              this._sonarHitBalls.add(ball);
+            }
+          });
         }
       }
     } else if (this.activeEvent.key === 'blackout') {
@@ -7267,7 +7314,7 @@ obs._trappedBallId = null;
       }
 
       // Reset forward force parameter if gravity flip event ended
-      if (!this.activeEvent || (this.activeEvent.key !== 'gravity_flip' && this.activeEvent.key !== 'whirlpool_current')) {
+      if (!this.activeEvent || (this.activeEvent.key !== 'gravity_flip' && this.activeEvent.key !== 'whirlpool_current' && this.activeEvent.key !== 'sonar_shockwave')) {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
 
@@ -12436,6 +12483,75 @@ this.ctx.restore();
         });
       }
 
+      // Sonar Shockwave event rendering (Mariana Depths only)
+      if (this._sonarActive && this._sonarWave && this._sonarWave.alpha > 0 && this._sonarEmitter) {
+        const now = Date.now();
+        const wave = this._sonarWave;
+        const em = this._sonarEmitter;
+        this.ctx.save();
+
+        // Sonar emitter glow on seabed
+        const emX = em.x - camX;
+        const emY = em.y;
+        const pulse = 1 + Math.sin(em.phase) * 0.15;
+        const glow = this.ctx.createRadialGradient(emX, emY, 0, emX, emY, 30 * pulse);
+        glow.addColorStop(0, `rgba(0, 220, 255, ${0.6 * wave.alpha})`);
+        glow.addColorStop(0.5, `rgba(0, 100, 200, ${0.3 * wave.alpha})`);
+        glow.addColorStop(1, 'rgba(0, 50, 150, 0)');
+        this.ctx.fillStyle = glow;
+        this.ctx.beginPath();
+        this.ctx.arc(emX, emY, 30 * pulse, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Expanding sonar ring
+        const r = wave.radius;
+        const ringAlpha = wave.alpha * 0.5;
+        const wX = wave.x - camX;
+        const wY = wave.y;
+
+        // Thick ring with gradient edges
+        const ringGrad = this.ctx.createRadialGradient(wX, wY, r - 12, wX, wY, r + 8);
+        ringGrad.addColorStop(0, `rgba(0, 150, 255, 0)`);
+        ringGrad.addColorStop(0.4, `rgba(0, 200, 255, ${ringAlpha * 0.3})`);
+        ringGrad.addColorStop(0.5, `rgba(0, 230, 255, ${ringAlpha * 0.7})`);
+        ringGrad.addColorStop(0.55, `rgba(100, 240, 255, ${ringAlpha * 0.9})`);
+        ringGrad.addColorStop(0.6, `rgba(0, 230, 255, ${ringAlpha * 0.7})`);
+        ringGrad.addColorStop(0.7, `rgba(0, 200, 255, ${ringAlpha * 0.3})`);
+        ringGrad.addColorStop(1, `rgba(0, 150, 255, 0)`);
+        this.ctx.fillStyle = ringGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(wX, wY, r + 8, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Ripple distortion edges
+        this.ctx.strokeStyle = `rgba(100, 240, 255, ${ringAlpha * 0.4})`;
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        for (let a = 0; a < Math.PI * 2; a += 0.05) {
+          const ripple = Math.sin(a * 6 + now * 0.01) * 3;
+          const px = wX + Math.cos(a) * (r + ripple);
+          const py = wY + Math.sin(a) * (r + ripple);
+          a === 0 ? this.ctx.moveTo(px, py) : this.ctx.lineTo(px, py);
+        }
+        this.ctx.closePath();
+        this.ctx.stroke();
+
+        // Bubbles trailing the wavefront
+        for (let i = 0; i < 8; i++) {
+          const bAngle = i * Math.PI / 4 + now * 0.002;
+          const bDist = r * (0.95 + Math.sin(now * 0.003 + i) * 0.04);
+          const bx = wX + Math.cos(bAngle) * bDist;
+          const by = wY + Math.sin(bAngle) * bDist + Math.sin(now * 0.005 + i * 2) * 4;
+          const bSize = 1.5 + Math.sin(now * 0.004 + i) * 0.5;
+          this.ctx.fillStyle = `rgba(180, 235, 255, ${wave.alpha * 0.25})`;
+          this.ctx.beginPath();
+          this.ctx.arc(bx, by, bSize, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+
+        this.ctx.restore();
+      }
+
     // Draw Flag Balls (racing + collector for finished)
       const finishLineX = this.track ? (this.track.finishLineX || this.track.length - 400) : 0;
       let collectorIdx = 0;
@@ -15740,6 +15856,10 @@ this.ctx.restore();
       this._whirlpoolActive = false;
       this._whirlpools = [];
       this._whirlpoolFadeTimer = 0;
+      this._sonarActive = false;
+      this._sonarEmitter = null;
+      this._sonarWave = null;
+      this._sonarHitBalls = new Set();
       this._blackoutActive = false;
       this._blackoutPhase = null;
       this._blackoutFadeLevel = 0;
@@ -15812,6 +15932,10 @@ this.ctx.restore();
       this._whirlpoolActive = false;
       this._whirlpools = [];
       this._whirlpoolFadeTimer = 0;
+      this._sonarActive = false;
+      this._sonarEmitter = null;
+      this._sonarWave = null;
+      this._sonarHitBalls = new Set();
       this._blackoutActive = false;
       this._blackoutPhase = null;
       this._volcanicEruptionActive = false;
