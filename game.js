@@ -5686,21 +5686,45 @@ obs._trappedBallId = null;
       const camX = this.cameraX || 0;
       const sw = this.canvas.width;
       const numPools = 3 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < numPools; i++) {
-        const poolX = camX + sw * 0.2 + Math.random() * sw * 0.6;
+      let placed = 0;
+      let attempts = 0;
+      const maxAttempts = 100;
+      while (placed < numPools && attempts < maxAttempts) {
+        attempts++;
+        const poolX = camX + Math.max(sw, 800) * (0.2 + Math.random() * 0.6);
         const bounds = this.physics.getWallBoundaries(poolX, this.track);
         if (!bounds) continue;
         const poolY = bounds.topY + (bounds.bottomY - bounds.topY) * (0.3 + Math.random() * 0.4);
+        const radius = (55 + Math.random() * 25) * 0.8;
+        // Reject if too close to any existing whirlpool (edge-to-edge separation >= 1 radius)
+        let overlap = false;
+        for (const existing of this._whirlpools) {
+          const dxx = poolX - existing.x;
+          const dyy = poolY - existing.y;
+          if (Math.hypot(dxx, dyy) < Math.max(radius, existing.radius) * 4) {
+            overlap = true;
+            break;
+          }
+        }
+        // Reject if too close to track walls
+        if (!overlap) {
+          const margin = radius + 10;
+          if (poolY - margin < bounds.topY || poolY + margin > bounds.bottomY) {
+            overlap = true;
+          }
+        }
+        if (overlap) continue;
         this._whirlpools.push({
           x: poolX,
           y: poolY,
-          radius: (55 + Math.random() * 25) * 0.8,
+          radius,
           angle: Math.random() * Math.PI * 2,
           speed: 0.04 + Math.random() * 0.03,
           direction: Math.random() < 0.5 ? 1 : -1,
           rotation: Math.random() * Math.PI * 2,
           seed: Math.random() * 1000,
         });
+        placed++;
       }
     } else if (evt.key === 'blackout') {
       this._blackoutActive = true;
@@ -6036,6 +6060,23 @@ obs._trappedBallId = null;
       if (this.activeEvent.key === 'whirlpool_current') {
         if (this.balls) {
           this.balls.forEach(ball => {
+            if (ball._whirlpoolCaptured && ball._whirlpoolRef) {
+              const pool = ball._whirlpoolRef;
+              const dx = ball.x - pool.x;
+              const dy = ball.y - pool.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist > 0) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                // Tangential direction at ball's current position on the orbit
+                const tx = -ny * pool.direction;
+                const ty = nx * pool.direction;
+                // Launch at 1.2x normal racing speed (MAX_SPEED = 7.5)
+                const launchSpeed = Math.max(Math.hypot(ball.vx, ball.vy), 9);
+                ball.vx = tx * launchSpeed;
+                ball.vy = ty * launchSpeed;
+              }
+            }
             delete ball._whirlpoolCaptured;
             delete ball._whirlpoolRef;
             delete ball._whirlpoolOrbitR;
