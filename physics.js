@@ -12,6 +12,7 @@ class PhysicsEngine {
     this.reliefX = 0;
     this.reliefTimer = 0;
     this._isGlacier = false;
+    this._isOcean = false;
     this._cameraShakeTrigger = false;
   }
 
@@ -132,7 +133,7 @@ class PhysicsEngine {
           } else if (zone.type === 'slow' || zone.type === 'sand' || zone.type === 'lava_pool' || zone.type === 'mud_puddle') {
             if (ball.z === 0 && !ball._wasInSlow && (zone.type === 'slow' || zone.type === 'lava_pool' || zone.type === 'mud_puddle')) {
               if (!this._isGlacier && zone.type === 'slow') {
-                ball.vx *= 0.7;
+                ball.vx *= this._isOcean ? 0.6 : 0.7;
               }
               if (zone.type === 'mud_puddle') {
                 // Store original speed and decelerate to 0.3x on entry

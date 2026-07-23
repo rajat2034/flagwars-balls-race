@@ -2180,6 +2180,7 @@ class GameEngine {
     this.currentThemeKey = themeKey;
     this.currentTheme = theme;
     this.physics._isGlacier = themeKey === 'snow';
+    this.physics._isOcean = themeKey === 'ocean';
     this.physics.forwardForce = theme.forwardForce * 0.65;
 
     // Build enabled set for obstacle filtering
@@ -2207,8 +2208,10 @@ class GameEngine {
       freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15); // High weight ~same as boost
     }
 
-    // Mariana Depths: boost ocean obstacle spawn rates
+    // Mariana Depths: boost ocean obstacle spawn rates, remove boost pads and spinner
     if (themeKey === 'ocean') {
+      enabledSet.delete('boost');
+      enabledSet.delete('spinner');
       if (freqWeights.bubble_trap) freqWeights.bubble_trap = 20;
       if (freqWeights.sea_mine) freqWeights.sea_mine = 20;
       if (freqWeights.sea_urchin_field) freqWeights.sea_urchin_field = 20;
@@ -9010,6 +9013,74 @@ obs._trappedBallId = null;
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText('ICE', zX + zone.width / 2, zone.y + zone.height / 2);
             this.ctx.restore();
+          } else if (zone.type === 'slow' && this.currentThemeKey === 'ocean') {
+            // Thick Algae Patch visual (Mariana Depths only) — visual replacement for Slow Pad
+            this.ctx.save();
+            const now = Date.now();
+            const seed = ((zone.x * 7 + zone.y * 13) % 1000) / 1000;
+            const S = 1.5;
+            const SW = S * 0.8;
+            const cx = zX + zone.width / 2;
+            const by = zone.y + zone.height;
+
+            // Thick overlapping algae leaves — swaying gently
+            const leafCount = 6 + Math.floor(seed * 3);
+            const leafColors = ['#1a4a1a', '#2d5a2d', '#3d6b35', '#4a7a3a', '#1e3e1e', '#2a5a2a', '#3a7a3a'];
+            for (let i = 0; i < leafCount; i++) {
+              const baseX = cx + (i / leafCount - 0.5) * zone.width * 1.4 * SW;
+              const sway = Math.sin(now * 0.0015 + i * 1.7 + seed * 8) * 4;
+              const leafH = zone.height * (0.55 + (seed * 0.25 + (i % 3) * 0.08)) * S;
+              this.ctx.fillStyle = leafColors[i % leafColors.length];
+              this.ctx.globalAlpha = 0.65 + Math.sin(now * 0.001 + i * 0.5) * 0.1;
+              this.ctx.beginPath();
+              this.ctx.moveTo(baseX - 4, by);
+              this.ctx.quadraticCurveTo(baseX + sway - 1, by - leafH * 0.5, baseX + sway, by - leafH);
+              this.ctx.quadraticCurveTo(baseX + sway + 2, by - leafH * 0.55, baseX + 4, by);
+              this.ctx.fill();
+            }
+            this.ctx.globalAlpha = 1;
+
+            // Sea grass strands
+            this.ctx.strokeStyle = 'rgba(60, 130, 60, 0.4)';
+            this.ctx.lineWidth = 1.5;
+            for (let g = 0; g < 8; g++) {
+              const gx = cx + (g / 8 - 0.5) * zone.width * 1.3 * SW;
+              const gSway = Math.sin(now * 0.002 + g * 0.9) * 3;
+              const gh = zone.height * (0.3 + seed * 0.15) * S;
+              this.ctx.beginPath();
+              this.ctx.moveTo(gx, by);
+              this.ctx.quadraticCurveTo(gx + gSway, by - gh * 0.5, gx + gSway, by - gh);
+              this.ctx.stroke();
+            }
+
+            // Small rocks and shells along the bottom
+            for (let r = 0; r < 4; r++) {
+              const rx = cx + (r / 4 - 0.5) * zone.width * 1.2 * SW;
+              const ry = by - 3 - r * 2;
+              const rs = (1.5 + r * 0.4 + Math.sin(seed * 10 + r) * 0.3) * S * 0.6;
+              this.ctx.fillStyle = `rgba(${50 + r * 10}, ${45 + r * 5}, ${35 + r * 5}, 0.35)`;
+              this.ctx.beginPath();
+              this.ctx.arc(rx, ry, Math.max(1, rs), 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.fillStyle = 'rgba(200, 190, 170, 0.12)';
+              this.ctx.beginPath();
+              this.ctx.arc(rx - rs * 0.2, ry - rs * 0.3, rs * 0.3, 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            // Tiny bubbles rising through algae
+            for (let b = 0; b < 4; b++) {
+              const bPhase = (now * 0.008 + b * 27 + seed * 60) % (zone.width * 1.2 + zone.height * 1.5);
+              const bx = cx + (bPhase % (zone.width * 1.2)) - zone.width * 0.6;
+              const by2 = by - ((bPhase * 0.3) % (zone.height * 1.5));
+              const bSize = (1 + Math.sin(now * 0.004 + b * 3) * 0.4) * S * 0.7;
+              this.ctx.fillStyle = 'rgba(180, 230, 255, 0.25)';
+              this.ctx.beginPath();
+              this.ctx.arc(bx, by2, Math.max(0.5, bSize), 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+
+            this.ctx.restore();
           } else {
             // Original slow/sand zone rendering (non-glacier or sand)
             this.ctx.save();
@@ -9507,7 +9578,7 @@ obs._trappedBallId = null;
         }
       });
       };
-      if (this.currentThemeKey !== 'volcano') renderTrackZones();
+      if (this.currentThemeKey !== 'volcano' && this.currentThemeKey !== 'ocean') renderTrackZones();
 
       // Draw Static Pegs (Bumpers) ??? white, shiny, glossy
       this.track.pegs.forEach(peg => {
@@ -10024,6 +10095,8 @@ obs._trappedBallId = null;
       if (this.currentThemeKey === 'volcano') renderTrackZones();
       // Jungle: draw zones on top of track (mud puddles would be hidden underneath track surface)
       if (this.currentThemeKey === 'jungle') renderTrackZones();
+      // Ocean: draw zones on top of track (algae patch must overlay track surface)
+      if (this.currentThemeKey === 'ocean') renderTrackZones();
 
       this.track.obstacles.forEach(obs => {
         const obsX = obs.x - camX;
