@@ -143,6 +143,7 @@ const EVENT_REGISTRY = [
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
   { key: 'tropical_rainstorm', name: 'Tropical Rainstorm', implemented: true },
   { key: 'flash_flood', name: 'Flash Flood', implemented: true },
+  { key: 'whirlpool_current', name: 'Whirlpool Current', implemented: true },
 ];
 
 // Text contrast helper ??? returns appropriate colors based on map brightness
@@ -1915,6 +1916,9 @@ class GameEngine {
     this._lavaShowerSkyDim = 0;
     this._speedSurgeActive = false;
     this._speedSurgeMultipliers = new Map();
+    this._whirlpoolActive = false;
+    this._whirlpools = [];
+    this._whirlpoolFadeTimer = 0;
     this._blackoutActive = false;
     this._blackoutFadeLevel = 0;
     this._blackoutFlickerTimer = 0;
@@ -5627,10 +5631,11 @@ obs._trappedBallId = null;
       { name: '\uD83C\uDF0B VOLCANIC ERUPTION', key: 'volcanic_eruption', duration: 480, description: 'The volcano has awakened. The entire crater becomes unstable!' },
       { name: '\uD83D\uDD25 FIRESTORM', key: 'firestorm', duration: 360, description: 'Scorching volcanic winds sweep across the crater!' },
       { name: '\uD83C\uDF2B LAVA SHOWER', key: 'lava_shower', duration: 360, description: 'Molten rocks rain from the volcano above!' },
+      { name: '\u{1F300} WHIRLPOOL CURRENT', key: 'whirlpool_current', duration: 300, description: 'Powerful whirlpools swirl across the track, pulling racers off course!' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
-      .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'jungle'))
+      .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'jungle' && this.currentThemeKey !== 'ocean'))
       .filter(e => e.key !== 'volcanic_eruption' || isVolcano)
       .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano))
       .filter(e => e.key !== 'firestorm' || isVolcano)
@@ -5639,6 +5644,7 @@ obs._trappedBallId = null;
       .filter(e => e.key !== 'football_shower' || (this.currentThemeKey !== 'jungle' && !isVolcano))
       .filter(e => e.key !== 'lava_shower' || isVolcano)
       .filter(e => e.key !== 'flash_flood' || this.currentThemeKey === 'jungle')
+      .filter(e => e.key !== 'whirlpool_current' || this.currentThemeKey === 'ocean')
       .map(e => ({ ...e, weight: freqToWeight(eventFreqs[e.key] || 3) }));
 
     // Weighted random selection using frequencies
@@ -5673,6 +5679,29 @@ obs._trappedBallId = null;
           ball.vy *= mult;
         }
       });
+    } else if (evt.key === 'whirlpool_current') {
+      this._whirlpoolActive = true;
+      this._whirlpoolFadeTimer = 0;
+      this._whirlpools = [];
+      const camX = this.cameraX || 0;
+      const sw = this.canvas.width;
+      const numPools = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < numPools; i++) {
+        const poolX = camX + sw * 0.2 + Math.random() * sw * 0.6;
+        const bounds = this.physics.getWallBoundaries(poolX, this.track);
+        if (!bounds) continue;
+        const poolY = bounds.topY + (bounds.bottomY - bounds.topY) * (0.3 + Math.random() * 0.4);
+        this._whirlpools.push({
+          x: poolX,
+          y: poolY,
+          radius: (55 + Math.random() * 25) * 0.8,
+          angle: Math.random() * Math.PI * 2,
+          speed: 0.04 + Math.random() * 0.03,
+          direction: Math.random() < 0.5 ? 1 : -1,
+          rotation: Math.random() * Math.PI * 2,
+          seed: Math.random() * 1000,
+        });
+      }
     } else if (evt.key === 'blackout') {
       this._blackoutActive = true;
       this._blackoutFadeLevel = 0;
@@ -6004,6 +6033,19 @@ obs._trappedBallId = null;
         this._auroraSceneBrightness = 1.0;
         this.sounds.stopAuroraAmbient();
       }
+      if (this.activeEvent.key === 'whirlpool_current') {
+        if (this.balls) {
+          this.balls.forEach(ball => {
+            delete ball._whirlpoolCaptured;
+            delete ball._whirlpoolRef;
+            delete ball._whirlpoolOrbitR;
+            delete ball._whirlpoolOrbitAngle;
+          });
+        }
+        this._whirlpoolActive = false;
+        this._whirlpools = [];
+        this._whirlpoolFadeTimer = 0;
+      }
       this.activeEvent = null;
       return;
     }
@@ -6035,6 +6077,71 @@ obs._trappedBallId = null;
     } else if (this.activeEvent.key === 'speed_surge') {
       // Multiplier already applied at event start in triggerRandomEvent
       // No continuous application needed - velocity naturally decays via physics
+    } else if (this.activeEvent.key === 'whirlpool_current') {
+      // Rotate whirlpools and orbit balls (only when not fading out)
+      if (this._whirlpoolFadeTimer <= 0) {
+        this._whirlpools.forEach(p => {
+          p.angle += p.speed * p.direction * dt;
+        });
+        if (this.balls) {
+          this.balls.forEach(ball => {
+            if (ball.finished || ball.eliminated || ball.z > 0) return;
+            // Find the nearest whirlpool this ball is inside
+            let wp = null;
+            let dist = Infinity;
+            let dx = 0, dy = 0;
+            for (const pool of this._whirlpools) {
+              const dxx = ball.x - pool.x;
+              const dyy = ball.y - pool.y;
+              const d = Math.hypot(dxx, dyy);
+              if (d < pool.radius + ball.radius * 0.5 && d < dist) {
+                dist = d;
+                dx = dxx;
+                dy = dyy;
+                wp = pool;
+              }
+            }
+            if (!wp) {
+              if (ball._whirlpoolCaptured) {
+                delete ball._whirlpoolCaptured;
+                delete ball._whirlpoolRef;
+                delete ball._whirlpoolOrbitR;
+                delete ball._whirlpoolOrbitAngle;
+              }
+              return;
+            }
+            // Ball is inside a whirlpool
+            if (!ball._whirlpoolCaptured) {
+              // First entry — capture into orbit, store reference to this whirlpool
+              ball._whirlpoolCaptured = true;
+              ball._whirlpoolRef = wp;
+              ball._whirlpoolOrbitR = Math.max(dist, ball.radius * 1.5);
+              ball._whirlpoolOrbitAngle = Math.atan2(dy, dx);
+            }
+            // Always orbit around the capturing whirlpool
+            const pool = ball._whirlpoolRef;
+            if (!pool) return;
+            // Advance orbit angle (~1.5-2 s per rev, matches texture rotation)
+            ball._whirlpoolOrbitAngle += pool.speed * pool.direction * dt;
+            // Target position on the orbit circle
+            const targetX = pool.x + Math.cos(ball._whirlpoolOrbitAngle) * ball._whirlpoolOrbitR;
+            const targetY = pool.y + Math.sin(ball._whirlpoolOrbitAngle) * ball._whirlpoolOrbitR;
+            // Set velocity to reach target in one frame
+            if (dt > 0) {
+              ball.vx = (targetX - ball.x) / dt;
+              ball.vy = (targetY - ball.y) / dt;
+            }
+          });
+        }
+      }
+      // Handle fade-out (visual only — ball state already freed in stopRandomEvent)
+      if (this._whirlpoolFadeTimer > 0) {
+        this._whirlpoolFadeTimer -= dt;
+        if (this._whirlpoolFadeTimer <= 0) {
+          this._whirlpoolActive = false;
+          this._whirlpools = [];
+        }
+      }
     } else if (this.activeEvent.key === 'blackout') {
       if (this.eventTimer > 60) {
         this._blackoutPhase = 'active';
@@ -7119,7 +7226,7 @@ obs._trappedBallId = null;
       }
 
       // Reset forward force parameter if gravity flip event ended
-      if (!this.activeEvent || this.activeEvent.key !== 'gravity_flip') {
+      if (!this.activeEvent || (this.activeEvent.key !== 'gravity_flip' && this.activeEvent.key !== 'whirlpool_current')) {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
 
@@ -10097,6 +10204,87 @@ obs._trappedBallId = null;
       if (this.currentThemeKey === 'jungle') renderTrackZones();
       // Ocean: draw zones on top of track (algae patch must overlay track surface)
       if (this.currentThemeKey === 'ocean') renderTrackZones();
+
+      // Whirlpool Current event rendering (Mariana Depths only)
+      if (this._whirlpoolActive && this._whirlpools.length > 0) {
+        const now = Date.now();
+        this.ctx.save();
+        this._whirlpools.forEach(p => {
+          const wX = p.x - camX;
+          const wY = p.y;
+          const r = p.radius;
+          const fadeAlpha = this._whirlpoolFadeTimer > 0
+            ? Math.max(0, this._whirlpoolFadeTimer / 30)
+            : 1;
+          if (fadeAlpha <= 0.01) return;
+
+          // Outer glow
+          this.ctx.shadowColor = `rgba(0, 180, 255, ${0.3 * fadeAlpha})`;
+          this.ctx.shadowBlur = 20;
+
+          // Deep blue vortex base
+          const grad = this.ctx.createRadialGradient(wX, wY, 0, wX, wY, r);
+          grad.addColorStop(0, `rgba(10, 30, 60, ${0.85 * fadeAlpha})`);
+          grad.addColorStop(0.3, `rgba(15, 50, 90, ${0.6 * fadeAlpha})`);
+          grad.addColorStop(0.6, `rgba(20, 80, 140, ${0.4 * fadeAlpha})`);
+          grad.addColorStop(0.85, `rgba(40, 150, 220, ${0.25 * fadeAlpha})`);
+          grad.addColorStop(1, 'rgba(0, 100, 200, 0)');
+          this.ctx.fillStyle = grad;
+          this.ctx.beginPath();
+          this.ctx.arc(wX, wY, r, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+
+          // Spiral arms (rotating)
+          this.ctx.strokeStyle = `rgba(100, 220, 255, ${0.3 * fadeAlpha})`;
+          this.ctx.lineWidth = 2;
+          for (let a = 0; a < 4; a++) {
+            this.ctx.beginPath();
+            for (let t = 0; t < 1; t += 0.02) {
+              const spiralAngle = p.angle + a * Math.PI / 2 + t * Math.PI * 3 * p.direction;
+              const spiralR = t * r;
+              const sx = wX + Math.cos(spiralAngle) * spiralR;
+              const sy = wY + Math.sin(spiralAngle) * spiralR;
+              if (t === 0) this.ctx.moveTo(sx, sy);
+              else this.ctx.lineTo(sx, sy);
+            }
+            this.ctx.stroke();
+          }
+
+          // White foam / highlight ring
+          this.ctx.strokeStyle = `rgba(200, 240, 255, ${0.2 * fadeAlpha})`;
+          this.ctx.lineWidth = 1.5;
+          this.ctx.beginPath();
+          this.ctx.arc(wX, wY, r * 0.9, 0, Math.PI * 2);
+          this.ctx.stroke();
+
+          // Bubble particles following whirlpool rotation
+          for (let b = 0; b < 5; b++) {
+            const bAngle = p.angle + b * 1.3 + Math.sin(now * 0.002 + b) * 0.3 + now * 0.002 * p.direction;
+            const bDist = r * (0.2 + Math.sin(now * 0.001 + b * 2 + p.seed) * 0.3 + 0.3);
+            const bx = wX + Math.cos(bAngle) * bDist;
+            const by = wY + Math.sin(bAngle) * bDist + Math.sin(now * 0.003 + b) * 3 - ((now * 0.008 + b * 10) % (r * 0.5));
+            const bSize = 1.5 + Math.sin(now * 0.003 + b) * 0.5;
+            this.ctx.fillStyle = `rgba(180, 235, 255, ${0.2 * fadeAlpha})`;
+            this.ctx.beginPath();
+            this.ctx.arc(bx, by, bSize, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Small orbiting debris
+          for (let d = 0; d < 3; d++) {
+            const dAngle = p.angle + d * 2.1 + now * 0.001 * p.direction;
+            const dDist = r * (0.4 + d * 0.15);
+            const dx = wX + Math.cos(dAngle) * dDist;
+            const dy = wY + Math.sin(dAngle) * dDist;
+            this.ctx.fillStyle = `rgba(60, 50, 40, ${0.15 * fadeAlpha})`;
+            this.ctx.beginPath();
+            this.ctx.arc(dx, dy, 1.5 + d * 0.3, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+        });
+        this.ctx.restore();
+      }
 
       this.track.obstacles.forEach(obs => {
         const obsX = obs.x - camX;
@@ -15508,6 +15696,9 @@ this.ctx.restore();
       this._lavaChunks = [];
       this._lavaShowerSkyDim = 0;
       this._speedSurgeActive = false;
+      this._whirlpoolActive = false;
+      this._whirlpools = [];
+      this._whirlpoolFadeTimer = 0;
       this._blackoutActive = false;
       this._blackoutPhase = null;
       this._blackoutFadeLevel = 0;
@@ -15577,6 +15768,9 @@ this.ctx.restore();
       this._lavaChunks = [];
       this._lavaShowerSkyDim = 0;
       this._speedSurgeActive = false;
+      this._whirlpoolActive = false;
+      this._whirlpools = [];
+      this._whirlpoolFadeTimer = 0;
       this._blackoutActive = false;
       this._blackoutPhase = null;
       this._volcanicEruptionActive = false;
