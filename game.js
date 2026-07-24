@@ -4050,7 +4050,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           x: vx,
           y: (vb.topY + vb.bottomY) / 2,
           radius: 45,
-          height: 200,
+          height: 100,
           _affectedBalls: new Set()
         };
       }
