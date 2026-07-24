@@ -145,6 +145,7 @@ const EVENT_REGISTRY = [
   { key: 'flash_flood', name: 'Flash Flood', implemented: true },
   { key: 'whirlpool_current', name: 'Whirlpool Current', implemented: true },
   { key: 'sonar_shockwave', name: 'Sonar Shockwave', implemented: true },
+  { key: 'jellyfish_bloom', name: 'Jellyfish Bloom', implemented: true },
 ];
 
 // Text contrast helper ??? returns appropriate colors based on map brightness
@@ -1920,10 +1921,18 @@ class GameEngine {
     this._whirlpoolActive = false;
     this._whirlpools = [];
     this._whirlpoolFadeTimer = 0;
-    this._sonarActive = false;
-    this._sonarEmitter = null;
-    this._sonarWave = null;
-    this._sonarHitBalls = new Set();
+      this._sonarActive = false;
+      this._sonarEmitter = null;
+      this._sonarWave = null;
+      this._sonarHitBalls = new Set();
+      this._jellyfishBloomActive = false;
+      this._jellyfishList = [];
+      this._jellyfishHitCount = 0;
+      this._jellyfishBloomTime = 0;
+    this._jellyfishBloomActive = false;
+    this._jellyfishList = [];
+    this._jellyfishHitCount = 0;
+    this._jellyfishBloomTime = 0;
     this._blackoutActive = false;
     this._blackoutFadeLevel = 0;
     this._blackoutFlickerTimer = 0;
@@ -5638,6 +5647,7 @@ obs._trappedBallId = null;
       { name: '\uD83C\uDF2B LAVA SHOWER', key: 'lava_shower', duration: 360, description: 'Molten rocks rain from the volcano above!' },
       { name: '\u{1F300} WHIRLPOOL CURRENT', key: 'whirlpool_current', duration: 300, description: 'Powerful whirlpools swirl across the track, pulling racers off course!' },
       { name: '\u{1F4A1} SONAR SHOCKWAVE', key: 'sonar_shockwave', duration: 300, description: 'An underwater sonar pulse sweeps across the ocean, shoving racers off course!' },
+      { name: '\u{1F419} JELLYFISH BLOOM', key: 'jellyfish_bloom', duration: 300, description: 'A bloom of glowing jellyfish drifts across the track, stunning racers on contact!' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
@@ -5647,11 +5657,12 @@ obs._trappedBallId = null;
       .filter(e => e.key !== 'firestorm' || isVolcano)
       .filter(e => e.key !== 'aurora_borealis' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'tropical_rainstorm' || this.currentThemeKey === 'jungle')
-      .filter(e => e.key !== 'football_shower' || (this.currentThemeKey !== 'jungle' && !isVolcano))
+      .filter(e => e.key !== 'football_shower' || (this.currentThemeKey !== 'jungle' && !isVolcano && this.currentThemeKey !== 'ocean'))
       .filter(e => e.key !== 'lava_shower' || isVolcano)
       .filter(e => e.key !== 'flash_flood' || this.currentThemeKey === 'jungle')
       .filter(e => e.key !== 'whirlpool_current' || this.currentThemeKey === 'ocean')
       .filter(e => e.key !== 'sonar_shockwave' || this.currentThemeKey === 'ocean')
+      .filter(e => e.key !== 'jellyfish_bloom' || this.currentThemeKey === 'ocean')
       .map(e => ({ ...e, weight: freqToWeight(eventFreqs[e.key] || 3) }));
 
     // Weighted random selection using frequencies
@@ -5745,6 +5756,62 @@ obs._trappedBallId = null;
       this._sonarWave = { x: sourceX, y: sourceY, radius: 0, alpha: 1 };
       this._cameraShakeIntensity = 4;
       this._cameraShakeTimer = 12;
+    } else if (evt.key === 'jellyfish_bloom') {
+      this._jellyfishBloomActive = true;
+      this._jellyfishList = [];
+      this._jellyfishHitCount = 0;
+      this._jellyfishBloomTime = 0;
+      const camX = this.cameraX || 0;
+      const sw = Math.max(this.canvas.width, 800);
+      const numJellyfish = 20 + Math.floor(Math.random() * 11);
+      let placed = 0;
+      let attempts = 0;
+      const maxAttempts = 200;
+      const jellyfishRadius = 32;
+      const minSpacing = jellyfishRadius * 4;
+      while (placed < numJellyfish && attempts < maxAttempts) {
+        attempts++;
+        const jx = camX + sw * (0.1 + Math.random() * 0.8);
+        const bounds = this.physics.getWallBoundaries(jx, this.track);
+        if (!bounds) continue;
+        const trackHeight = bounds.bottomY - bounds.topY;
+        const jy = bounds.topY + trackHeight * (0.15 + Math.random() * 0.7);
+        let overlap = false;
+        for (const existing of this._jellyfishList) {
+          const dx = jx - existing.x;
+          const dy = jy - existing.y;
+          if (Math.hypot(dx, dy) < minSpacing) {
+            overlap = true;
+            break;
+          }
+        }
+        if (jy - jellyfishRadius < bounds.topY || jy + jellyfishRadius > bounds.bottomY) {
+          overlap = true;
+        }
+        if (overlap) continue;
+        const colorSet = [
+          { bell: 'rgba(0, 220, 255, 0.3)', glow: 'rgba(0, 200, 255, 0.15)' },
+          { bell: 'rgba(100, 255, 220, 0.3)', glow: 'rgba(80, 240, 200, 0.15)' },
+          { bell: 'rgba(180, 130, 255, 0.3)', glow: 'rgba(160, 120, 240, 0.15)' },
+          { bell: 'rgba(50, 180, 255, 0.3)', glow: 'rgba(40, 160, 240, 0.15)' },
+        ];
+        const ci = Math.floor(Math.random() * colorSet.length);
+        this._jellyfishList.push({
+          x: jx, y: jy,
+          radius: jellyfishRadius,
+          baseY: jy,
+          vx: (Math.random() - 0.5) * 0.15,
+          vy: (Math.random() - 0.5) * 0.1,
+          phase: Math.random() * Math.PI * 2,
+          tentaclePhase: Math.random() * Math.PI * 2,
+          pulsePhase: Math.random() * Math.PI * 2,
+          bellColor: colorSet[ci].bell,
+          glowColor: colorSet[ci].glow,
+          colorIdx: ci,
+          stunnedBalls: new Set(),
+        });
+        placed++;
+      }
     } else if (evt.key === 'blackout') {
       this._blackoutActive = true;
       this._blackoutFadeLevel = 0;
@@ -6112,6 +6179,19 @@ obs._trappedBallId = null;
         this._sonarWave = null;
         this._sonarHitBalls = new Set();
       }
+      if (this.activeEvent.key === 'jellyfish_bloom') {
+        this._jellyfishBloomActive = false;
+        this._jellyfishList = [];
+        this._jellyfishHitCount = 0;
+        this._jellyfishBloomTime = 0;
+        this.balls.forEach(ball => {
+          delete ball._jellyfishStunned;
+          delete ball._jellyfishStunTimer;
+          delete ball._jellyfishStunOrigVx;
+          delete ball._jellyfishStunOrigVy;
+          delete ball._jellyfishStunWobble;
+        });
+      }
       this.activeEvent = null;
       return;
     }
@@ -6259,6 +6339,91 @@ obs._trappedBallId = null;
                 });
               }
               this._sonarHitBalls.add(ball);
+            }
+          });
+        }
+      }
+    } else if (this.activeEvent.key === 'jellyfish_bloom') {
+      this._jellyfishBloomTime += dt;
+      if (this._jellyfishList && this._jellyfishList.length > 0) {
+        const now = this._jellyfishBloomTime;
+        this._jellyfishList.forEach(j => {
+          const driftVx = Math.sin(now * 0.008 + j.phase) * 0.04;
+          const driftVy = Math.sin(now * 0.005 + j.phase * 1.3) * 0.03;
+          j.x += (j.vx + driftVx) * dt;
+          j.y = j.baseY + Math.sin(now * 0.006 + j.phase) * 8 + driftVy * dt * 2;
+          const bounds = this.physics.getWallBoundaries(j.x, this.track);
+          if (bounds) {
+            const margin = j.radius + 5;
+            if (j.y < bounds.topY + margin) j.y = bounds.topY + margin;
+            if (j.y > bounds.bottomY - margin) j.y = bounds.bottomY - margin;
+          }
+        });
+        if (this.balls) {
+          this.balls.forEach(ball => {
+            if (ball.finished || ball.eliminated || ball.z > 0) return;
+            if (ball._jellyfishStunned) {
+              ball._jellyfishStunTimer -= dt;
+              ball._jellyfishStunWobble = (ball._jellyfishStunWobble || 0) + 0.3;
+              ball.vx = (ball._jellyfishStunOrigVx || 0) * 0.05;
+              ball.vy = (ball._jellyfishStunOrigVy || 0) * 0.05;
+              if (ball._jellyfishStunTimer <= 0) {
+                delete ball._jellyfishStunned;
+                delete ball._jellyfishStunTimer;
+                delete ball._jellyfishStunOrigVx;
+                delete ball._jellyfishStunOrigVy;
+                delete ball._jellyfishStunWobble;
+              }
+              return;
+            }
+            for (const j of this._jellyfishList) {
+              if (j.stunnedBalls.has(ball.id)) continue;
+              const dx = ball.x - j.x;
+              const dy = ball.y - j.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist < j.radius + ball.radius) {
+                j.stunnedBalls.add(ball.id);
+                this._jellyfishHitCount++;
+                ball._jellyfishStunned = true;
+                ball._jellyfishStunTimer = 60;
+                ball._jellyfishStunOrigVx = ball.vx;
+                ball._jellyfishStunOrigVy = ball.vy;
+                ball._jellyfishStunWobble = 0;
+                ball.vx *= 0.05;
+                ball.vy *= 0.05;
+                const cx = ball.x;
+                const cy = ball.y;
+                for (let i = 0; i < 15; i++) {
+                  const a = Math.random() * Math.PI * 2;
+                  const spd = 1 + Math.random() * 3;
+                  this.particles.push({
+                    type: 'sparkle',
+                    x: cx + (Math.random() - 0.5) * 8,
+                    y: cy + (Math.random() - 0.5) * 8,
+                    vx: Math.cos(a) * spd,
+                    vy: Math.sin(a) * spd,
+                    alpha: 1,
+                    size: 2 + Math.random() * 3,
+                    life: 12 + Math.floor(Math.random() * 10),
+                    color: '#60d0ff'
+                  });
+                }
+                for (let i = 0; i < 5; i++) {
+                  const a = Math.random() * Math.PI * 2;
+                  this.particles.push({
+                    type: 'sparkle',
+                    x: cx,
+                    y: cy,
+                    vx: Math.cos(a) * (1 + Math.random() * 2),
+                    vy: Math.sin(a) * (1 + Math.random() * 2),
+                    alpha: 0.6,
+                    size: 3 + Math.random() * 3,
+                    life: 8 + Math.floor(Math.random() * 6),
+                    color: '#b0ecff'
+                  });
+                }
+                break;
+              }
             }
           });
         }
@@ -12516,6 +12681,120 @@ this.ctx.restore();
         });
       }
 
+      // Jellyfish Bloom event rendering (Mariana Depths only)
+      if (this._jellyfishBloomActive && this._jellyfishList && this._jellyfishList.length > 0) {
+        const now = performance.now() * 0.001;
+        this._jellyfishList.forEach(j => {
+          const jx = j.x - camX;
+          const cullBuf = 300;
+          if (jx + j.radius * 3 < -cullBuf || jx - j.radius * 3 > screenW / zoom + cullBuf) return;
+
+          const bob = Math.sin(now * 1.2 + j.phase) * 3;
+          const sway = Math.sin(now * 0.4 + j.phase) * 4;
+          const pulse = 0.7 + 0.3 * Math.sin(now * 2 + j.pulsePhase);
+          const ry = j.y + bob;
+
+          this.ctx.save();
+          this.ctx.translate(jx + sway, ry);
+
+          // Outer glow
+          const glowGrad = this.ctx.createRadialGradient(0, 0, 0, 0, 0, j.radius * 2);
+          glowGrad.addColorStop(0, `rgba(0, 200, 255, ${0.08 * pulse})`);
+          glowGrad.addColorStop(0.5, `rgba(0, 150, 255, ${0.04 * pulse})`);
+          glowGrad.addColorStop(1, 'rgba(0, 100, 255, 0)');
+          this.ctx.fillStyle = glowGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(0, 0, j.radius * 2, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Bell glow
+          this.ctx.shadowColor = '#00ccff';
+          this.ctx.shadowBlur = 25 * pulse;
+
+          // Bell body - semi-transparent dome
+          const bellGrad = this.ctx.createRadialGradient(-j.radius * 0.2, -j.radius * 0.2, 0, 0, 0, j.radius);
+          bellGrad.addColorStop(0, `rgba(180, 240, 255, ${0.5 * pulse})`);
+          bellGrad.addColorStop(0.3, j.bellColor.replace('0.3', String(0.25 * pulse)));
+          bellGrad.addColorStop(0.7, j.bellColor.replace('0.3', String(0.15 * pulse)));
+          bellGrad.addColorStop(1, 'rgba(0, 100, 150, 0.05)');
+          this.ctx.fillStyle = bellGrad;
+          this.ctx.beginPath();
+          this.ctx.ellipse(0, 0, j.radius * 0.9, j.radius * 0.7, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Bell dome highlight
+          this.ctx.shadowBlur = 0;
+          this.ctx.fillStyle = `rgba(255, 255, 255, ${0.15 * pulse})`;
+          this.ctx.beginPath();
+          this.ctx.ellipse(-j.radius * 0.15, -j.radius * 0.2, j.radius * 0.3, j.radius * 0.2, -0.3, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Inner glow lines (radiating from center)
+          this.ctx.strokeStyle = `rgba(100, 220, 255, ${0.1 * pulse})`;
+          this.ctx.lineWidth = 1;
+          for (let li = 0; li < 8; li++) {
+            const la = (li / 8) * Math.PI * 2 + Math.sin(now * 0.5 + j.phase) * 0.1;
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, 0);
+            this.ctx.lineTo(Math.cos(la) * j.radius * 0.6, Math.sin(la) * j.radius * 0.5);
+            this.ctx.stroke();
+          }
+
+          // Tentacles
+          this.ctx.shadowColor = 'rgba(0, 200, 255, 0.2)';
+          this.ctx.shadowBlur = 8;
+          const numTentacles = 6 + Math.floor(j.phase * 2) % 3;
+          for (let t = 0; t < numTentacles; t++) {
+            const ta = (t / numTentacles) * Math.PI * 2 + Math.sin(now * 0.3 + j.tentaclePhase) * 0.2;
+            const tLen = j.radius * (0.7 + 0.4 * Math.sin(now * 0.7 + t + j.tentaclePhase));
+            const tb = Math.sin(now * 0.5 + t * 1.5 + j.tentaclePhase) * 0.3;
+
+            this.ctx.strokeStyle = `rgba(100, 200, 255, ${0.2 * pulse})`;
+            this.ctx.lineWidth = 1.5;
+            this.ctx.beginPath();
+            this.ctx.moveTo(Math.cos(ta) * j.radius * 0.5, Math.sin(ta) * j.radius * 0.3 + j.radius * 0.2);
+            for (let s = 0; s <= 8; s++) {
+              const tProg = s / 8;
+              const tx = Math.cos(ta + tb * tProg) * j.radius * 0.5 * tProg;
+              const ty = j.radius * 0.2 + tLen * tProg + Math.sin(now * 1.5 + t * 2 + j.tentaclePhase + tProg * 3) * 3;
+              if (s === 0) this.ctx.moveTo(tx, ty);
+              else this.ctx.lineTo(tx, ty);
+            }
+            this.ctx.stroke();
+          }
+
+          this.ctx.shadowBlur = 0;
+
+          // Tiny glowing particles around jellyfish
+          const numParticles = 4 + Math.floor(Math.sin(j.phase + now * 0.5) * 2 + 2);
+          for (let p = 0; p < numParticles; p++) {
+            const pa = Math.random() * Math.PI * 2 + now * 0.2;
+            const pd = j.radius * (0.6 + Math.random() * 0.6);
+            const px = Math.cos(pa + Math.sin(now * 0.3 + p + j.phase) * 0.3) * pd;
+            const py = Math.sin(pa + Math.sin(now * 0.3 + p + j.phase) * 0.3) * pd;
+            const ps = 1 + Math.random() * 1.5;
+            this.ctx.fillStyle = `rgba(150, 230, 255, ${0.3 + Math.random() * 0.3})`;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py + Math.sin(now + p + j.phase) * 3, ps, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Rising small bubbles
+          for (let b = 0; b < 3; b++) {
+            const bx = (Math.random() - 0.5) * j.radius * 1.2;
+            const by = -(j.radius * 0.3 + ((now * 30 + b * 20 + j.phase * 100) % (j.radius * 0.8)));
+            const bs = 1 + Math.random() * 1.5;
+            this.ctx.strokeStyle = `rgba(180, 230, 255, ${0.15 + Math.random() * 0.1})`;
+            this.ctx.lineWidth = 0.5;
+            this.ctx.beginPath();
+            this.ctx.arc(bx, by, bs, 0, Math.PI * 2);
+            this.ctx.stroke();
+          }
+
+          this.ctx.restore();
+        });
+      }
+
       // Sonar Shockwave event rendering (Mariana Depths only)
       if (this._sonarActive && this._sonarWave && this._sonarWave.alpha > 0 && this._sonarEmitter) {
         const now = Date.now();
@@ -12658,6 +12937,12 @@ this.ctx.restore();
 
         // 3) Flag ball body ??? redesigned with professional lighting
         this.ctx.save();
+
+        // Apply stun wobble vibration offset
+        if (ball._jellyfishStunned) {
+          const wobble = ball._jellyfishStunWobble || 0;
+          this.ctx.translate(Math.sin(wobble * 15) * 2.5, Math.cos(wobble * 12) * 2.5);
+        }
 
         // --- Antialiasing via sub-pixel offset ---
         const aaX = Math.round(bX) + 0.5 - bX;
@@ -15893,6 +16178,10 @@ this.ctx.restore();
       this._sonarEmitter = null;
       this._sonarWave = null;
       this._sonarHitBalls = new Set();
+      this._jellyfishBloomActive = false;
+      this._jellyfishList = [];
+      this._jellyfishHitCount = 0;
+      this._jellyfishBloomTime = 0;
       this._blackoutActive = false;
       this._blackoutPhase = null;
       this._blackoutFadeLevel = 0;
@@ -15969,6 +16258,10 @@ this.ctx.restore();
       this._sonarEmitter = null;
       this._sonarWave = null;
       this._sonarHitBalls = new Set();
+      this._jellyfishBloomActive = false;
+      this._jellyfishList = [];
+      this._jellyfishHitCount = 0;
+      this._jellyfishBloomTime = 0;
       this._blackoutActive = false;
       this._blackoutPhase = null;
       this._volcanicEruptionActive = false;
