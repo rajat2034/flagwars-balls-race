@@ -2211,6 +2211,10 @@ class GameEngine {
     if (themeKey === 'volcano') {
       enabledSet.delete('slow');
     }
+    // Sahara Desert: replace Slow Pad with Quicksand Pit entirely
+    if (themeKey === 'desert') {
+      enabledSet.delete('slow');
+    }
 
     // Build frequency weight map (1???1, 2???3, 3???5, 4???10, 5???20)
     const freqWeights = {};
