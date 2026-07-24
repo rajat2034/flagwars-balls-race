@@ -7981,7 +7981,7 @@ obs._trappedBallId = null;
         }
       }
 
-      // Sand Vortex gameplay (Sahara Desert exclusive) - spiral carry motion
+      // Sand Vortex gameplay (Sahara Desert exclusive) - zigzag sine-wave carry
       if (this.currentThemeKey === 'desert' && this._debugVortex && this.balls) {
         const vortex = this._debugVortex;
         for (const ball of this.balls) {
@@ -7990,43 +7990,45 @@ obs._trappedBallId = null;
             ball._vortexTimer -= dt;
             const elapsed = 120 - ball._vortexTimer;
             const progress = Math.max(0, Math.min(1, elapsed / 120));
-            const angle = ball._vortexOrbitAngle + progress * 1.75 * Math.PI * 2;
-            const r = ball._vortexOrbitR * (1 - 0.12 * progress);
-            const vertOffset = ball._vortexEntryY * Math.cos(progress * Math.PI);
-            const targetX = vortex.x + Math.cos(angle) * r;
-            const targetY = vortex.y + vertOffset;
+            const amp = ball._vortexMaxAmp * Math.sin(progress * Math.PI);
+            const osc = Math.sin(progress * 3 * Math.PI * 2 + ball._vortexPhase);
+            const targetX = vortex.x + amp * osc;
+            const targetY = vortex.y + ball._vortexEntryY * (1 - progress) + ball._vortexExitY * progress;
             if (dt > 0) {
               ball.vx = (targetX - ball.x) / dt;
               ball.vy = (targetY - ball.y) / dt;
             }
             if (ball._vortexTimer <= 0) {
-              const tangentAngle = angle + Math.PI * 0.5;
-              const launchSpeed = 10;
-              const outwardSpeed = 3;
-              ball.vx = Math.cos(tangentAngle) * launchSpeed + Math.cos(angle) * outwardSpeed;
-              ball.vy = Math.sin(tangentAngle) * launchSpeed + Math.sin(angle) * outwardSpeed;
+              const launchSpeed = 11;
+              const outX = ball.x - vortex.x;
+              const outY = ball.y - vortex.y;
+              const outDist = Math.hypot(outX, outY) || 1;
+              const angle = Math.atan2(outY, outX);
+              ball.vx = Math.cos(angle) * launchSpeed + outX * 0.06;
+              ball.vy = Math.sin(angle) * launchSpeed + outY * 0.06;
               vortex._affectedBalls.add(ball.id);
-              for (let p = 0; p < 10; p++) {
+              for (let p = 0; p < 12; p++) {
                 const a = Math.random() * Math.PI * 2;
-                const spd = 2 + Math.random() * 3;
+                const spd = 2 + Math.random() * 4;
                 this.particles.push({
                   type: 'sparkle',
-                  x: ball.x + (Math.random() - 0.5) * 8,
-                  y: ball.y + (Math.random() - 0.5) * 8,
+                  x: ball.x + (Math.random() - 0.5) * 12,
+                  y: ball.y + (Math.random() - 0.5) * 12,
                   vx: Math.cos(a) * spd,
                   vy: Math.sin(a) * spd,
                   alpha: 1,
                   size: 2 + Math.random() * 3,
-                  life: 15 + Math.floor(Math.random() * 10),
-                  color: '#d4a050'
+                  life: 20 + Math.floor(Math.random() * 10),
+                  color: '#e8c87a'
                 });
               }
               delete ball._vortexCaptured;
               delete ball._vortexRef;
               delete ball._vortexTimer;
-              delete ball._vortexOrbitR;
-              delete ball._vortexOrbitAngle;
+              delete ball._vortexMaxAmp;
+              delete ball._vortexPhase;
               delete ball._vortexEntryY;
+              delete ball._vortexExitY;
             }
           } else {
             if (vortex._affectedBalls.has(ball.id)) continue;
@@ -8037,9 +8039,10 @@ obs._trappedBallId = null;
               ball._vortexCaptured = true;
               ball._vortexRef = vortex;
               ball._vortexTimer = 120;
-              ball._vortexOrbitR = dist;
-              ball._vortexOrbitAngle = Math.atan2(dy, dx);
+              ball._vortexMaxAmp = Math.min(dist, vortex.radius * 0.6);
+              ball._vortexPhase = Math.atan2(dy, dx);
               ball._vortexEntryY = dy;
+              ball._vortexExitY = -dy * 0.8;
             }
           }
         }
@@ -10652,7 +10655,7 @@ obs._trappedBallId = null;
         this.ctx.restore();
       }
 
-      // Debug Sand Vortex (desert only) - solid brown tornado with spiral stripes
+      // Sand Vortex rendering (desert only) - dust devil tornado
       if (this._debugVortex) {
         const v = this._debugVortex;
         const vx = v.x - camX;
@@ -10662,40 +10665,101 @@ obs._trappedBallId = null;
         const topY = baseY - h * 0.5;
         const botY = baseY + h * 0.5;
         const angle = Date.now() * 0.003;
-        const steps = 24;
+        const layers = 12;
 
         this.ctx.save();
 
         // Ground shadow
-        this.ctx.fillStyle = 'rgba(80, 60, 20, 0.4)';
+        const shadowPulse = 0.3 + Math.sin(Date.now() * 0.002) * 0.1;
+        this.ctx.fillStyle = `rgba(80, 55, 20, ${shadowPulse})`;
         this.ctx.beginPath();
-        this.ctx.ellipse(vx, botY + 4, r * 0.9, 12, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(vx, botY + 5, r * 1.0, 14, 0, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Tornado body - tapered column (narrow at top, wide at bottom)
-        for (let i = 0; i < steps; i++) {
-          const t = i / steps;
+        // Outer dust haze
+        this.ctx.fillStyle = 'rgba(210, 180, 130, 0.08)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(vx, baseY - h * 0.15, r * 1.8, h * 0.55, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Dust column - tapered tornado body with semi-transparent layers
+        for (let i = 0; i < layers; i++) {
+          const t = i / (layers - 1);
           const y = topY + h * t;
-          const w = r * (0.2 + 0.8 * t);
-          this.ctx.fillStyle = '#B8862D';
+          const w = r * (0.12 + 0.88 * Math.sin(t * Math.PI * 0.85));
+          const sway = Math.sin(angle + t * 1.5 + v.x * 0.005) * w * 0.25;
+          const xOff = vx + sway;
+          const alpha = 0.35 - t * 0.18;
+
+          const grad = this.ctx.createRadialGradient(xOff, y, 0, xOff, y, w);
+          grad.addColorStop(0, `rgba(215, 185, 125, ${alpha})`);
+          grad.addColorStop(0.5, `rgba(190, 160, 100, ${alpha * 0.65})`);
+          grad.addColorStop(1, 'rgba(170, 140, 80, 0)');
+          this.ctx.fillStyle = grad;
           this.ctx.beginPath();
-          this.ctx.ellipse(vx, y, w, h / steps + 1, 0, 0, Math.PI * 2);
+          this.ctx.arc(xOff, y, w, 0, Math.PI * 2);
           this.ctx.fill();
         }
 
-        // Darker spiral stripes (3 stripes wrapping the column)
-        for (let s = 0; s < 3; s++) {
-          this.ctx.strokeStyle = s === 1 ? '#6B4F10' : '#8B6914';
-          this.ctx.lineWidth = 6;
+        // Inner bright core funnel
+        for (let i = 0; i < 5; i++) {
+          const t = i / 4;
+          const y = topY + h * t;
+          const cw = r * (0.04 + 0.18 * Math.sin(t * Math.PI));
+          const cs = Math.sin(angle * 1.5 + t * 2) * cw * 0.2;
+          this.ctx.fillStyle = `rgba(240, 210, 150, ${0.22 - t * 0.08})`;
           this.ctx.beginPath();
-          for (let i = 0; i <= steps; i++) {
-            const t = i / steps;
-            const y = topY + h * t;
-            const w = r * (0.2 + 0.8 * t);
-            const sx = vx + Math.sin(angle + s * 2.094 + t * Math.PI * 4) * w * 0.6;
-            if (i === 0) this.ctx.moveTo(sx, y);
-            else this.ctx.lineTo(sx, y);
-          }
+          this.ctx.arc(vx + cs, y, cw, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+
+        // Dust puffs at base
+        for (let p = 0; p < 5; p++) {
+          const pa = angle + p * 1.257;
+          const pd = r * (0.5 + 0.35 * Math.sin(Date.now() * 0.0005 + p * 1.7));
+          const px = vx + Math.cos(pa) * pd;
+          const py = baseY + r * 0.1 + Math.sin(Date.now() * 0.0008 + p) * r * 0.06;
+          const pr = r * (0.12 + 0.08 * Math.sin(Date.now() * 0.0006 + p * 2.3));
+          this.ctx.fillStyle = 'rgba(200, 170, 120, 0.2)';
+          this.ctx.beginPath();
+          this.ctx.arc(px, py, pr, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+
+        // Swirling sand particles
+        for (let p = 0; p < 10; p++) {
+          const pa = angle * 1.5 + p * 0.628;
+          const pd = r * (0.2 + 0.65 * Math.sin(Date.now() * 0.001 + p * 0.9 + v.x * 0.0001));
+          const px = vx + Math.cos(pa) * pd;
+          const py = baseY - r * 0.3 + Math.sin(pa * 0.5 + Date.now() * 0.001) * r * 0.7;
+          const ps = 2 + Math.sin(Date.now() * 0.002 + p * 2) * 1.2;
+          this.ctx.fillStyle = `rgba(230, 200, 140, ${0.35 + Math.sin(Date.now() * 0.002 + p) * 0.15})`;
+          this.ctx.beginPath();
+          this.ctx.arc(px, py, ps, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+
+        // Golden grain specks
+        for (let g = 0; g < 5; g++) {
+          const ga = angle * 2 + g * 1.257;
+          const gd = r * (0.4 + 0.3 * Math.sin(Date.now() * 0.0025 + g * 1.1));
+          const gx = vx + Math.cos(ga) * gd;
+          const gy = baseY - r * 0.4 + Math.sin(ga + Date.now() * 0.001) * r * 0.3;
+          this.ctx.fillStyle = `rgba(255, 225, 130, ${0.4 + Math.sin(Date.now() * 0.003 + g) * 0.2})`;
+          this.ctx.beginPath();
+          this.ctx.arc(gx, gy, 1.5 + Math.sin(Date.now() * 0.003 + g) * 0.6, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+
+        // Heat shimmer
+        this.ctx.strokeStyle = 'rgba(255, 220, 150, 0.10)';
+        this.ctx.lineWidth = 2;
+        for (let s = 0; s < 3; s++) {
+          const sx = vx + Math.sin(Date.now() * 0.0012 + s * 2) * r * 0.5;
+          const sy = baseY - r * (0.3 + s * 0.35);
+          this.ctx.beginPath();
+          this.ctx.moveTo(sx - r * 0.35, sy);
+          this.ctx.quadraticCurveTo(sx, sy - r * 0.15, sx + r * 0.35, sy);
           this.ctx.stroke();
         }
 
