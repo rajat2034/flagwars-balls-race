@@ -125,6 +125,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'sand_geyser', name: 'Sand Geyser', category: 'signature', map: 'desert' },
   { type: 'rolling_tumbleweed', name: 'Rolling Tumbleweed', category: 'signature', map: 'desert' },
   { type: 'moving_dune', name: 'Moving Dune', category: 'signature', map: 'desert' },
+  { type: 'sand_vortex', name: 'Sand Vortex', category: 'signature', map: 'desert' },
 ];
 
 const EVENT_REGISTRY = [
@@ -2197,7 +2198,6 @@ class GameEngine {
     const theme = MAP_THEMES[themeKey];
     this.currentThemeKey = themeKey;
     this.currentTheme = theme;
-    delete this._debugVortex;
     this.physics._isGlacier = themeKey === 'snow';
     this.physics._isOcean = themeKey === 'ocean';
     this.physics.forwardForce = theme.forwardForce * 0.65;
@@ -2366,18 +2366,19 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       bubble_trap: { min: 100, preferred: 120, recovery: 40, safeLanding: 30 },
       sea_urchin_field: { min: 100, preferred: 120, recovery: 50, safeLanding: 40 },
       floating_kelp: { min: 100, preferred: 110, recovery: 40, safeLanding: 30 },
+      sand_vortex: { min: 200, preferred: 300, recovery: 150, safeLanding: 80 },
     };
 
     // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.50,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp']) },
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) },
       { start: 0.20, end: 0.60, density: 0.50,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp']) },
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) },
       { start: 0.60, end: 0.85, density: 0.50,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp']) },
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) },
       { start: 0.85, end: 1.00, density: 0.50,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp']) }
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -3374,6 +3375,16 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
               alpha: 0.15 + Math.random() * 0.15
             }))
           });
+        } else if (type === 'sand_vortex') {
+          const r = 35 + Math.random() * 20;
+          const h = 80 + Math.random() * 40;
+          const sy = clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, h * 0.5 + 10);
+          track.obstacles.push({
+            type: 'sand_vortex', x, y: sy,
+            radius: r,
+            height: h,
+            _affectedBalls: new Set()
+          });
         }
 
         // Track last 3 types to prevent triplicates
@@ -3587,7 +3598,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
     const MIN_COUNT = 30;
     const TYPE_COUNTS = {};
     ['hammer', 'spinner', 'barrier', 'sweep_arm', 'punchfist',
-     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon', 'mud_puddle', 'lava_geyser']
+     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon', 'mud_puddle', 'lava_geyser', 'sand_vortex']
       .filter(t => enabledSet.has(t))
       .forEach(t => { TYPE_COUNTS[t] = 0; });
     track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
@@ -3734,6 +3745,15 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             cannonHeight: 50, barrelLength: 40,
             _lastFireTime: Math.floor(Math.random() * 120), _fireInterval: 120,
             _projectiles: [], _splashEffects: []
+          });
+        } else if (ut === 'sand_vortex') {
+          const r = 35 + Math.random() * 20;
+          const h = 80 + Math.random() * 40;
+          track.obstacles.push({
+            type: 'sand_vortex', x: tryX, y: clampY(cY, b, h * 0.5 + 10),
+            radius: r,
+            height: h,
+            _affectedBalls: new Set()
           });
         }
       }
@@ -4038,21 +4058,6 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           _crumbleProgress: 0,
           _dustOverlay: null
         });
-      }
-    }
-
-    // Debug Sand Vortex: one forced spawn near starting straight (desert only)
-    if (themeKey === 'desert') {
-      const vx = 750;
-      const vb = this.physics.getWallBoundaries(vx, track);
-      if (vb) {
-        this._debugVortex = {
-          x: vx,
-          y: (vb.topY + vb.bottomY) / 2,
-          radius: 45,
-          height: 100,
-          _affectedBalls: new Set()
-        };
       }
     }
 
@@ -7982,67 +7987,69 @@ obs._trappedBallId = null;
       }
 
       // Sand Vortex gameplay (Sahara Desert exclusive) - zigzag sine-wave carry
-      if (this.currentThemeKey === 'desert' && this._debugVortex && this.balls) {
-        const vortex = this._debugVortex;
-        for (const ball of this.balls) {
-          if (ball.finished || ball.eliminated || ball.z > 0) continue;
-          if (ball._vortexCaptured) {
-            ball._vortexTimer -= dt;
-            const elapsed = 120 - ball._vortexTimer;
-            const progress = Math.max(0, Math.min(1, elapsed / 120));
-            const amp = ball._vortexMaxAmp * Math.sin(progress * Math.PI);
-            const osc = Math.sin(progress * 3 * Math.PI * 2 + ball._vortexPhase);
-            const targetX = vortex.x + amp * osc;
-            const targetY = vortex.y + ball._vortexEntryY * (1 - progress) + ball._vortexExitY * progress;
-            if (dt > 0) {
-              ball.vx = (targetX - ball.x) / dt;
-              ball.vy = (targetY - ball.y) / dt;
-            }
-            if (ball._vortexTimer <= 0) {
-              const launchSpeed = 11;
-              const outX = ball.x - vortex.x;
-              const outY = ball.y - vortex.y;
-              const outDist = Math.hypot(outX, outY) || 1;
-              const angle = Math.atan2(outY, outX);
-              ball.vx = Math.cos(angle) * launchSpeed + outX * 0.06;
-              ball.vy = Math.sin(angle) * launchSpeed + outY * 0.06;
-              vortex._affectedBalls.add(ball.id);
-              for (let p = 0; p < 12; p++) {
-                const a = Math.random() * Math.PI * 2;
-                const spd = 2 + Math.random() * 4;
-                this.particles.push({
-                  type: 'sparkle',
-                  x: ball.x + (Math.random() - 0.5) * 12,
-                  y: ball.y + (Math.random() - 0.5) * 12,
-                  vx: Math.cos(a) * spd,
-                  vy: Math.sin(a) * spd,
-                  alpha: 1,
-                  size: 2 + Math.random() * 3,
-                  life: 20 + Math.floor(Math.random() * 10),
-                  color: '#e8c87a'
-                });
+      if (this.currentThemeKey === 'desert' && this.track && this.track.obstacles && this.balls) {
+        const vortices = this.track.obstacles.filter(o => o.type === 'sand_vortex');
+        for (const vortex of vortices) {
+          for (const ball of this.balls) {
+            if (ball.finished || ball.eliminated || ball.z > 0) continue;
+            if (ball._vortexCaptured) {
+              ball._vortexTimer -= dt;
+              const elapsed = 120 - ball._vortexTimer;
+              const progress = Math.max(0, Math.min(1, elapsed / 120));
+              const amp = ball._vortexMaxAmp * Math.sin(progress * Math.PI);
+              const osc = Math.sin(progress * 3 * Math.PI * 2 + ball._vortexPhase);
+              const targetX = vortex.x + amp * osc;
+              const targetY = vortex.y + ball._vortexEntryY * (1 - progress) + ball._vortexExitY * progress;
+              if (dt > 0) {
+                ball.vx = (targetX - ball.x) / dt;
+                ball.vy = (targetY - ball.y) / dt;
               }
-              delete ball._vortexCaptured;
-              delete ball._vortexRef;
-              delete ball._vortexTimer;
-              delete ball._vortexMaxAmp;
-              delete ball._vortexPhase;
-              delete ball._vortexEntryY;
-              delete ball._vortexExitY;
-            }
-          } else {
-            if (vortex._affectedBalls.has(ball.id)) continue;
-            const dx = ball.x - vortex.x;
-            const dy = ball.y - vortex.y;
-            const dist = Math.hypot(dx, dy);
-            if (dist < vortex.radius + ball.radius + 4) {
-              ball._vortexCaptured = true;
-              ball._vortexRef = vortex;
-              ball._vortexTimer = 120;
-              ball._vortexMaxAmp = Math.min(dist, vortex.radius * 0.6);
-              ball._vortexPhase = Math.atan2(dy, dx);
-              ball._vortexEntryY = dy;
-              ball._vortexExitY = -dy * 0.8;
+              if (ball._vortexTimer <= 0) {
+                const launchSpeed = 11;
+                const outX = ball.x - vortex.x;
+                const outY = ball.y - vortex.y;
+                const outDist = Math.hypot(outX, outY) || 1;
+                const angle = Math.atan2(outY, outX);
+                ball.vx = Math.cos(angle) * launchSpeed + outX * 0.06;
+                ball.vy = Math.sin(angle) * launchSpeed + outY * 0.06;
+                vortex._affectedBalls.add(ball.id);
+                for (let p = 0; p < 12; p++) {
+                  const a = Math.random() * Math.PI * 2;
+                  const spd = 2 + Math.random() * 4;
+                  this.particles.push({
+                    type: 'sparkle',
+                    x: ball.x + (Math.random() - 0.5) * 12,
+                    y: ball.y + (Math.random() - 0.5) * 12,
+                    vx: Math.cos(a) * spd,
+                    vy: Math.sin(a) * spd,
+                    alpha: 1,
+                    size: 2 + Math.random() * 3,
+                    life: 20 + Math.floor(Math.random() * 10),
+                    color: '#e8c87a'
+                  });
+                }
+                delete ball._vortexCaptured;
+                delete ball._vortexRef;
+                delete ball._vortexTimer;
+                delete ball._vortexMaxAmp;
+                delete ball._vortexPhase;
+                delete ball._vortexEntryY;
+                delete ball._vortexExitY;
+              }
+            } else {
+              if (vortex._affectedBalls.has(ball.id)) continue;
+              const dx = ball.x - vortex.x;
+              const dy = ball.y - vortex.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist < vortex.radius + ball.radius + 4) {
+                ball._vortexCaptured = true;
+                ball._vortexRef = vortex;
+                ball._vortexTimer = 120;
+                ball._vortexMaxAmp = Math.min(dist, vortex.radius * 0.6);
+                ball._vortexPhase = Math.atan2(dy, dx);
+                ball._vortexEntryY = dy;
+                ball._vortexExitY = -dy * 0.8;
+              }
             }
           }
         }
@@ -10656,114 +10663,116 @@ obs._trappedBallId = null;
       }
 
       // Sand Vortex rendering (desert only) - dust devil tornado
-      if (this._debugVortex) {
-        const v = this._debugVortex;
-        const vx = v.x - camX;
-        const r = v.radius;
-        const h = v.height;
-        const baseY = v.y;
-        const topY = baseY - h * 0.5;
-        const botY = baseY + h * 0.5;
-        const angle = Date.now() * 0.003;
-        const layers = 12;
+      if (this.currentThemeKey === 'desert' && this.track && this.track.obstacles) {
+        const vortices = this.track.obstacles.filter(o => o.type === 'sand_vortex');
+        for (const v of vortices) {
+          const vx = v.x - camX;
+          const r = v.radius;
+          const h = v.height;
+          const baseY = v.y;
+          const topY = baseY - h * 0.5;
+          const botY = baseY + h * 0.5;
+          const angle = Date.now() * 0.003;
+          const layers = 12;
 
-        this.ctx.save();
+          this.ctx.save();
 
-        // Ground shadow
-        const shadowPulse = 0.3 + Math.sin(Date.now() * 0.002) * 0.1;
-        this.ctx.fillStyle = `rgba(80, 55, 20, ${shadowPulse})`;
-        this.ctx.beginPath();
-        this.ctx.ellipse(vx, botY + 5, r * 1.0, 14, 0, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Outer dust haze
-        this.ctx.fillStyle = 'rgba(210, 180, 130, 0.08)';
-        this.ctx.beginPath();
-        this.ctx.ellipse(vx, baseY - h * 0.15, r * 1.8, h * 0.55, 0, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Dust column - tapered tornado body with semi-transparent layers
-        for (let i = 0; i < layers; i++) {
-          const t = i / (layers - 1);
-          const y = topY + h * t;
-          const w = r * (0.12 + 0.88 * Math.sin(t * Math.PI * 0.85));
-          const sway = Math.sin(angle + t * 1.5 + v.x * 0.005) * w * 0.25;
-          const xOff = vx + sway;
-          const alpha = 0.35 - t * 0.18;
-
-          const grad = this.ctx.createRadialGradient(xOff, y, 0, xOff, y, w);
-          grad.addColorStop(0, `rgba(215, 185, 125, ${alpha})`);
-          grad.addColorStop(0.5, `rgba(190, 160, 100, ${alpha * 0.65})`);
-          grad.addColorStop(1, 'rgba(170, 140, 80, 0)');
-          this.ctx.fillStyle = grad;
+          // Ground shadow
+          const shadowPulse = 0.3 + Math.sin(Date.now() * 0.002) * 0.1;
+          this.ctx.fillStyle = `rgba(80, 55, 20, ${shadowPulse})`;
           this.ctx.beginPath();
-          this.ctx.arc(xOff, y, w, 0, Math.PI * 2);
+          this.ctx.ellipse(vx, botY + 5, r * 1.0, 14, 0, 0, Math.PI * 2);
           this.ctx.fill();
-        }
 
-        // Inner bright core funnel
-        for (let i = 0; i < 5; i++) {
-          const t = i / 4;
-          const y = topY + h * t;
-          const cw = r * (0.04 + 0.18 * Math.sin(t * Math.PI));
-          const cs = Math.sin(angle * 1.5 + t * 2) * cw * 0.2;
-          this.ctx.fillStyle = `rgba(240, 210, 150, ${0.22 - t * 0.08})`;
+          // Outer dust haze
+          this.ctx.fillStyle = 'rgba(210, 180, 130, 0.08)';
           this.ctx.beginPath();
-          this.ctx.arc(vx + cs, y, cw, 0, Math.PI * 2);
+          this.ctx.ellipse(vx, baseY - h * 0.15, r * 1.8, h * 0.55, 0, 0, Math.PI * 2);
           this.ctx.fill();
-        }
 
-        // Dust puffs at base
-        for (let p = 0; p < 5; p++) {
-          const pa = angle + p * 1.257;
-          const pd = r * (0.5 + 0.35 * Math.sin(Date.now() * 0.0005 + p * 1.7));
-          const px = vx + Math.cos(pa) * pd;
-          const py = baseY + r * 0.1 + Math.sin(Date.now() * 0.0008 + p) * r * 0.06;
-          const pr = r * (0.12 + 0.08 * Math.sin(Date.now() * 0.0006 + p * 2.3));
-          this.ctx.fillStyle = 'rgba(200, 170, 120, 0.2)';
-          this.ctx.beginPath();
-          this.ctx.arc(px, py, pr, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
+          // Dust column - tapered tornado body with semi-transparent layers
+          for (let i = 0; i < layers; i++) {
+            const t = i / (layers - 1);
+            const y = topY + h * t;
+            const w = r * (0.12 + 0.88 * Math.sin(t * Math.PI * 0.85));
+            const sway = Math.sin(angle + t * 1.5 + v.x * 0.005) * w * 0.25;
+            const xOff = vx + sway;
+            const alpha = 0.35 - t * 0.18;
 
-        // Swirling sand particles
-        for (let p = 0; p < 10; p++) {
-          const pa = angle * 1.5 + p * 0.628;
-          const pd = r * (0.2 + 0.65 * Math.sin(Date.now() * 0.001 + p * 0.9 + v.x * 0.0001));
-          const px = vx + Math.cos(pa) * pd;
-          const py = baseY - r * 0.3 + Math.sin(pa * 0.5 + Date.now() * 0.001) * r * 0.7;
-          const ps = 2 + Math.sin(Date.now() * 0.002 + p * 2) * 1.2;
-          this.ctx.fillStyle = `rgba(230, 200, 140, ${0.35 + Math.sin(Date.now() * 0.002 + p) * 0.15})`;
-          this.ctx.beginPath();
-          this.ctx.arc(px, py, ps, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
+            const grad = this.ctx.createRadialGradient(xOff, y, 0, xOff, y, w);
+            grad.addColorStop(0, `rgba(215, 185, 125, ${alpha})`);
+            grad.addColorStop(0.5, `rgba(190, 160, 100, ${alpha * 0.65})`);
+            grad.addColorStop(1, 'rgba(170, 140, 80, 0)');
+            this.ctx.fillStyle = grad;
+            this.ctx.beginPath();
+            this.ctx.arc(xOff, y, w, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
 
-        // Golden grain specks
-        for (let g = 0; g < 5; g++) {
-          const ga = angle * 2 + g * 1.257;
-          const gd = r * (0.4 + 0.3 * Math.sin(Date.now() * 0.0025 + g * 1.1));
-          const gx = vx + Math.cos(ga) * gd;
-          const gy = baseY - r * 0.4 + Math.sin(ga + Date.now() * 0.001) * r * 0.3;
-          this.ctx.fillStyle = `rgba(255, 225, 130, ${0.4 + Math.sin(Date.now() * 0.003 + g) * 0.2})`;
-          this.ctx.beginPath();
-          this.ctx.arc(gx, gy, 1.5 + Math.sin(Date.now() * 0.003 + g) * 0.6, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
+          // Inner bright core funnel
+          for (let i = 0; i < 5; i++) {
+            const t = i / 4;
+            const y = topY + h * t;
+            const cw = r * (0.04 + 0.18 * Math.sin(t * Math.PI));
+            const cs = Math.sin(angle * 1.5 + t * 2) * cw * 0.2;
+            this.ctx.fillStyle = `rgba(240, 210, 150, ${0.22 - t * 0.08})`;
+            this.ctx.beginPath();
+            this.ctx.arc(vx + cs, y, cw, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
 
-        // Heat shimmer
-        this.ctx.strokeStyle = 'rgba(255, 220, 150, 0.10)';
-        this.ctx.lineWidth = 2;
-        for (let s = 0; s < 3; s++) {
-          const sx = vx + Math.sin(Date.now() * 0.0012 + s * 2) * r * 0.5;
-          const sy = baseY - r * (0.3 + s * 0.35);
-          this.ctx.beginPath();
-          this.ctx.moveTo(sx - r * 0.35, sy);
-          this.ctx.quadraticCurveTo(sx, sy - r * 0.15, sx + r * 0.35, sy);
-          this.ctx.stroke();
-        }
+          // Dust puffs at base
+          for (let p = 0; p < 5; p++) {
+            const pa = angle + p * 1.257;
+            const pd = r * (0.5 + 0.35 * Math.sin(Date.now() * 0.0005 + p * 1.7));
+            const px = vx + Math.cos(pa) * pd;
+            const py = baseY + r * 0.1 + Math.sin(Date.now() * 0.0008 + p) * r * 0.06;
+            const pr = r * (0.12 + 0.08 * Math.sin(Date.now() * 0.0006 + p * 2.3));
+            this.ctx.fillStyle = 'rgba(200, 170, 120, 0.2)';
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, pr, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
 
-        this.ctx.restore();
+          // Swirling sand particles
+          for (let p = 0; p < 10; p++) {
+            const pa = angle * 1.5 + p * 0.628;
+            const pd = r * (0.2 + 0.65 * Math.sin(Date.now() * 0.001 + p * 0.9 + v.x * 0.0001));
+            const px = vx + Math.cos(pa) * pd;
+            const py = baseY - r * 0.3 + Math.sin(pa * 0.5 + Date.now() * 0.001) * r * 0.7;
+            const ps = 2 + Math.sin(Date.now() * 0.002 + p * 2) * 1.2;
+            this.ctx.fillStyle = `rgba(230, 200, 140, ${0.35 + Math.sin(Date.now() * 0.002 + p) * 0.15})`;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, ps, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Golden grain specks
+          for (let g = 0; g < 5; g++) {
+            const ga = angle * 2 + g * 1.257;
+            const gd = r * (0.4 + 0.3 * Math.sin(Date.now() * 0.0025 + g * 1.1));
+            const gx = vx + Math.cos(ga) * gd;
+            const gy = baseY - r * 0.4 + Math.sin(ga + Date.now() * 0.001) * r * 0.3;
+            this.ctx.fillStyle = `rgba(255, 225, 130, ${0.4 + Math.sin(Date.now() * 0.003 + g) * 0.2})`;
+            this.ctx.beginPath();
+            this.ctx.arc(gx, gy, 1.5 + Math.sin(Date.now() * 0.003 + g) * 0.6, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Heat shimmer
+          this.ctx.strokeStyle = 'rgba(255, 220, 150, 0.10)';
+          this.ctx.lineWidth = 2;
+          for (let s = 0; s < 3; s++) {
+            const sx = vx + Math.sin(Date.now() * 0.0012 + s * 2) * r * 0.5;
+            const sy = baseY - r * (0.3 + s * 0.35);
+            this.ctx.beginPath();
+            this.ctx.moveTo(sx - r * 0.35, sy);
+            this.ctx.quadraticCurveTo(sx, sy - r * 0.15, sx + r * 0.35, sy);
+            this.ctx.stroke();
+          }
+
+          this.ctx.restore();
+        }
       }
 
       this.track.obstacles.forEach(obs => {
@@ -11594,7 +11603,14 @@ obs._trappedBallId = null;
             }
           }
 
-        } else if (obs.type === 'collapsing_pillar') {
+      } else if (obs.type === 'sand_vortex') {
+        const r = obs.radius || 45;
+        const h = obs.height || 100;
+        minX = obs.x - r;
+        maxX = obs.x + r;
+        minY = obs.y - h * 0.5;
+        maxY = obs.y + h * 0.5;
+      } else if (obs.type === 'collapsing_pillar') {
           // Collapsing Rock Pillar ??? Magma Crater exclusive volcanic obstacle
           const pState = obs._state || 'standing';
           const pCamX = obs.x - camX;
