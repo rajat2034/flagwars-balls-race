@@ -5743,6 +5743,8 @@ obs._trappedBallId = null;
       const sourceY = bounds ? bounds.topY + (bounds.bottomY - bounds.topY) * 0.5 : 300;
       this._sonarEmitter = { x: sourceX, y: sourceY, phase: 0 };
       this._sonarWave = { x: sourceX, y: sourceY, radius: 0, alpha: 1 };
+      this._cameraShakeIntensity = 4;
+      this._cameraShakeTimer = 12;
     } else if (evt.key === 'blackout') {
       this._blackoutActive = true;
       this._blackoutFadeLevel = 0;
@@ -6223,8 +6225,39 @@ obs._trappedBallId = null;
             if (Math.abs(dist - this._sonarWave.radius) < 35) {
               const nx = dist > 0.001 ? dx / dist : 0;
               const ny = dist > 0.001 ? dy / dist : 0;
-              ball.vx += nx * 3.0;
-              ball.vy += ny * 3.0;
+              ball.vx += nx * 8.0;
+              ball.vy += ny * 8.0;
+              // Ripple particles at impact point
+              for (let i = 0; i < 6; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const r = 5 + Math.random() * 4;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + Math.cos(a) * r,
+                  y: ball.y + Math.sin(a) * r,
+                  vx: Math.cos(a) * 0.2,
+                  vy: Math.sin(a) * 0.2 + 0.15,
+                  alpha: 0.45,
+                  size: 2.5 + Math.random() * 2,
+                  life: 10 + Math.floor(Math.random() * 6),
+                  color: '#60d0ff'
+                });
+              }
+              // Bubbles radiating outward
+              for (let i = 0; i < 4; i++) {
+                const a = Math.random() * Math.PI * 2;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x,
+                  y: ball.y,
+                  vx: Math.cos(a) * (1.2 + Math.random() * 1.5),
+                  vy: Math.sin(a) * (1.2 + Math.random() * 1.5) - 0.3,
+                  alpha: 0.35,
+                  size: 1.5 + Math.random() * 1.5,
+                  life: 8 + Math.floor(Math.random() * 5),
+                  color: '#b0ecff'
+                });
+              }
               this._sonarHitBalls.add(ball);
             }
           });
