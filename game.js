@@ -2222,6 +2222,9 @@ class GameEngine {
       });
     }
 
+    // Boost boost frequency to ensure ~30 pads per map
+    if (!obstacleFreqs || !obstacleFreqs.boost) freqWeights.boost = 20;
+
     // Magma Crater: significantly boost Lava Pool spawn rate to match Boost Pad count
     if (themeKey === 'volcano' && freqWeights.lava_pool) {
       freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15); // High weight ~same as boost
@@ -9299,8 +9302,8 @@ obs._trappedBallId = null;
           const innerY = zone.y + frW;
           const innerW = zone.width - frW * 2;
           const innerH = zone.height - frW * 2;
-          // Blue outer frame
-          this.ctx.fillStyle = '#2980b9';
+          // Green outer frame
+          this.ctx.fillStyle = '#27ae60';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
           // Green interior fill
           this.ctx.fillStyle = 'rgba(46,204,113,0.20)';
@@ -9357,7 +9360,7 @@ obs._trappedBallId = null;
           }
           // BOOST label with stroke for readability
           this.ctx.fillStyle = '#ffffff';
-          this.ctx.strokeStyle = '#1a5276';
+          this.ctx.strokeStyle = '#1e8449';
           this.ctx.lineWidth = 3;
           this.ctx.font = 'bold 14px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
