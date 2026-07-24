@@ -8061,7 +8061,7 @@ obs._trappedBallId = null;
               if (dist < vortex.radius + ball.radius) {
                 ball._sandVortexCaptured = true;
                 ball._sandVortexRef = vortex;
-                ball._sandVortexTimer = 72;
+                ball._sandVortexTimer = 120;
                 ball._sandVortexOrbitR = Math.max(dist * 0.5, ball.radius * 2);
                 ball._sandVortexOrbitAngle = Math.atan2(dy, dx);
                 break;
@@ -10678,6 +10678,140 @@ obs._trappedBallId = null;
         this.ctx.restore();
       }
 
+      // Sand Vortex rendering (Sahara Desert exclusive) - before other obstacles
+      if (this.currentThemeKey === 'desert' && this.track && this.track.obstacles) {
+        const now = performance.now() * 0.001;
+        this.track.obstacles.forEach(obs => {
+          if (obs.type !== 'sand_vortex') return;
+          const vx = obs.x - camX;
+          const r = obs.radius || 40;
+          const cullBuf = 300;
+          if (vx + r * 3 < -cullBuf || vx - r * 3 > screenW / zoom + cullBuf) return;
+          const height = r * 2.5;
+          const baseY = obs.y;
+          const angle = obs.angle || 0;
+          const direction = obs.direction || 1;
+
+          this.ctx.save();
+
+          // Ground shadow
+          this.ctx.fillStyle = 'rgba(180, 140, 80, 0.30)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(vx, baseY + r * 0.3, r * 1.3, r * 0.18, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Outer dust haze
+          this.ctx.fillStyle = 'rgba(210, 180, 130, 0.12)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(vx, baseY - height * 0.4, r * 1.6, height * 0.5, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Dust column body - tornado shape with 8 layers
+          for (let layer = 0; layer < 8; layer++) {
+            const layerT = layer / 7;
+            const layerY = baseY - height * layerT;
+            const layerWidth = r * (0.2 + 0.8 * Math.sin(layerT * Math.PI));
+            const sway = Math.sin(now * 0.9 + layerT * 2.5 + obs.x * 0.01) * layerWidth * 0.35;
+            const alpha = 0.50 - layerT * 0.25;
+            const xOff = vx + sway;
+
+            const dustGrad = this.ctx.createRadialGradient(xOff, layerY, 0, xOff, layerY, layerWidth);
+            dustGrad.addColorStop(0, `rgba(215, 185, 125, ${alpha})`);
+            dustGrad.addColorStop(0.4, `rgba(195, 165, 105, ${alpha * 0.7})`);
+            dustGrad.addColorStop(0.7, `rgba(180, 150, 90, ${alpha * 0.3})`);
+            dustGrad.addColorStop(1, 'rgba(160, 130, 70, 0)');
+            this.ctx.fillStyle = dustGrad;
+            this.ctx.beginPath();
+            this.ctx.arc(xOff, layerY, layerWidth, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Inner bright core (thinner tornado funnel)
+          for (let layer = 0; layer < 4; layer++) {
+            const layerT = layer / 3;
+            const layerY = baseY - height * layerT;
+            const coreWidth = r * (0.08 + 0.25 * Math.sin(layerT * Math.PI));
+            const coreSway = Math.sin(now * 1.2 + layerT * 3 + obs.x * 0.015) * coreWidth * 0.3;
+            const coreAlpha = 0.30 - layerT * 0.12;
+            const xOff = vx + coreSway;
+
+            this.ctx.fillStyle = `rgba(240, 210, 150, ${coreAlpha})`;
+            this.ctx.beginPath();
+            this.ctx.arc(xOff, layerY, coreWidth, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Small dust puffs at base
+          for (let p = 0; p < 4; p++) {
+            const puffAngle = angle + (p / 4) * Math.PI * 2 + now * 0.3 * direction;
+            const puffDist = r * (0.5 + 0.4 * Math.sin(now * 0.5 + p * 2));
+            const puffX = vx + Math.cos(puffAngle) * puffDist;
+            const puffY = baseY + r * 0.1 + Math.sin(now * 0.7 + p) * r * 0.1;
+            const puffR = r * (0.15 + 0.1 * Math.sin(now * 0.6 + p * 3));
+            this.ctx.fillStyle = `rgba(200, 170, 120, 0.25)`;
+            this.ctx.beginPath();
+            this.ctx.arc(puffX, puffY, puffR, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Swirling sand particles (rotating)
+          for (let p = 0; p < 12; p++) {
+            const pa = angle + (p / 12) * Math.PI * 2 + now * 0.15 * direction;
+            const pd = r * (0.2 + 0.6 * Math.sin(now * 1.5 + p * 0.7 + obs.x * 0.1));
+            const px = vx + Math.cos(pa) * pd;
+            const py = baseY - r * 0.3 - Math.abs(Math.sin(pa + now * 0.2)) * r * 0.9;
+            const ps = 2.5 + Math.sin(now * 2 + p * 3) * 1.5;
+            this.ctx.fillStyle = `rgba(230, 200, 140, ${0.55 + Math.sin(now + p) * 0.15})`;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, ps, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Golden grain particles
+          for (let g = 0; g < 6; g++) {
+            const ga = angle * 2 + (g / 6) * Math.PI * 2 + now * 0.4 * direction;
+            const gd = r * (0.4 + 0.4 * Math.sin(now * 2 + g * 1.3));
+            const gx = vx + Math.cos(ga) * gd;
+            const gy = baseY - r * 0.5 + Math.sin(ga * 0.5 + now) * r * 0.4;
+            this.ctx.fillStyle = `rgba(255, 220, 120, ${0.5 + Math.sin(now * 2.5 + g) * 0.2})`;
+            this.ctx.beginPath();
+            this.ctx.arc(gx, gy, 1.5 + Math.sin(now * 3 + g) * 0.8, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Debris pieces orbiting around vortex
+          if (obs._debris) {
+            obs._debris.forEach(d => {
+              const da = angle * direction * 3 + d.angle + Math.sin(now * 0.5 + d.phase) * 0.3;
+              const dd = d.dist + Math.sin(now * 1.2 + d.phase) * r * 0.15;
+              const dx = vx + Math.cos(da) * dd;
+              const dy = baseY - r * 0.2 + Math.sin(da) * dd * 0.35 - Math.sin(now * 0.7 + d.phase) * r * 0.3;
+              this.ctx.fillStyle = `rgba(160, 130, 80, ${0.5 + Math.sin(now + d.phase) * 0.2})`;
+              this.ctx.shadowColor = 'rgba(160, 130, 80, 0.3)';
+              this.ctx.shadowBlur = 4;
+              this.ctx.beginPath();
+              this.ctx.arc(dx, dy, d.size * 0.6, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.shadowBlur = 0;
+            });
+          }
+
+          // Heat shimmer effect
+          this.ctx.strokeStyle = 'rgba(255, 220, 150, 0.15)';
+          this.ctx.lineWidth = 2;
+          for (let s = 0; s < 3; s++) {
+            const sx = vx + Math.sin(now * 1.2 + s * 2 + obs.x * 0.05) * r * 0.5;
+            const sy = baseY - r * (0.3 + s * 0.4);
+            this.ctx.beginPath();
+            this.ctx.moveTo(sx - r * 0.4, sy);
+            this.ctx.quadraticCurveTo(sx, sy - r * 0.2, sx + r * 0.4, sy);
+            this.ctx.stroke();
+          }
+
+          this.ctx.restore();
+        });
+      }
+
       this.track.obstacles.forEach(obs => {
         const obsX = obs.x - camX;
         const obsCullBuffer = Math.max(300, 400 / this.userZoomMultiplier);
@@ -11825,90 +11959,6 @@ obs._trappedBallId = null;
         }
       
       });
-
-      // Sand Vortex rendering (Sahara Desert exclusive)
-      if (this.currentThemeKey === 'desert' && this.track && this.track.obstacles) {
-        const now = performance.now() * 0.001;
-        this.track.obstacles.forEach(obs => {
-          if (obs.type !== 'sand_vortex') return;
-          const vx = obs.x - camX;
-          const r = obs.radius || 40;
-          const cullBuf = 300;
-          if (vx + r * 3 < -cullBuf || vx - r * 3 > screenW / zoom + cullBuf) return;
-          const height = r * 2.5;
-          const baseY = obs.y;
-          const angle = obs.angle || 0;
-          const direction = obs.direction || 1;
-
-          this.ctx.save();
-
-          // Base dust shadow on ground
-          this.ctx.fillStyle = 'rgba(180, 140, 80, 0.08)';
-          this.ctx.beginPath();
-          this.ctx.ellipse(vx, baseY + r * 0.3, r * 1.2, r * 0.15, 0, 0, Math.PI * 2);
-          this.ctx.fill();
-
-          // Dust column body - wide at middle, narrow at top and base
-          for (let layer = 0; layer < 5; layer++) {
-            const layerT = layer / 4;
-            const layerY = baseY - height * layerT;
-            const layerWidth = r * (0.3 + 0.7 * Math.sin(layerT * Math.PI));
-            const sway = Math.sin(now * 0.8 + layerT * 2 + obs.x * 0.01) * layerWidth * 0.3;
-            const alpha = 0.12 - layerT * 0.07;
-            const xOff = vx + sway;
-
-            const dustGrad = this.ctx.createRadialGradient(xOff, layerY, 0, xOff, layerY, layerWidth);
-            dustGrad.addColorStop(0, `rgba(210, 180, 120, ${alpha})`);
-            dustGrad.addColorStop(0.5, `rgba(190, 160, 100, ${alpha * 0.6})`);
-            dustGrad.addColorStop(1, 'rgba(180, 150, 90, 0)');
-            this.ctx.fillStyle = dustGrad;
-            this.ctx.beginPath();
-            this.ctx.arc(xOff, layerY, layerWidth, 0, Math.PI * 2);
-            this.ctx.fill();
-          }
-
-          // Swirling sand particles (rotating)
-          this.ctx.fillStyle = 'rgba(220, 190, 130, 0.25)';
-          for (let p = 0; p < 8; p++) {
-            const pa = angle + (p / 8) * Math.PI * 2;
-            const pd = r * (0.3 + 0.5 * Math.sin(now * 1.5 + p + obs.x * 0.1));
-            const px = vx + Math.cos(pa) * pd;
-            const py = baseY - r * 0.3 - Math.abs(Math.sin(pa)) * r * 0.8;
-            const ps = 2 + Math.sin(now * 2 + p * 3) * 1.5;
-            this.ctx.beginPath();
-            this.ctx.arc(px, py, ps, 0, Math.PI * 2);
-            this.ctx.fill();
-          }
-
-          // Debris pieces rotating around vortex
-          if (obs._debris) {
-            obs._debris.forEach(d => {
-              const da = angle * direction * 3 + d.angle + Math.sin(now * 0.5 + d.phase) * 0.2;
-              const dd = d.dist + Math.sin(now * 1.2 + d.phase) * r * 0.1;
-              const dx = vx + Math.cos(da) * dd;
-              const dy = baseY - r * 0.2 + Math.sin(da) * dd * 0.3 - Math.sin(now * 0.7 + d.phase) * r * 0.3;
-              this.ctx.fillStyle = `rgba(180, 150, 100, ${0.2 + Math.sin(now + d.phase) * 0.1})`;
-              this.ctx.beginPath();
-              this.ctx.arc(dx, dy, d.size * 0.5, 0, Math.PI * 2);
-              this.ctx.fill();
-            });
-          }
-
-          // Heat shimmer effect
-          this.ctx.strokeStyle = 'rgba(255, 220, 150, 0.04)';
-          this.ctx.lineWidth = 2;
-          for (let s = 0; s < 3; s++) {
-            const sx = vx + Math.sin(now * 1.2 + s * 2 + obs.x * 0.05) * r * 0.5;
-            const sy = baseY - r * (0.3 + s * 0.4);
-            this.ctx.beginPath();
-            this.ctx.moveTo(sx - r * 0.3, sy);
-            this.ctx.quadraticCurveTo(sx, sy - r * 0.15, sx + r * 0.3, sy);
-            this.ctx.stroke();
-          }
-
-          this.ctx.restore();
-        });
-      }
 
       // Lava Shower ??? render molten lava chunks
       if (this._lavaChunks && this._lavaChunks.length > 0) {
