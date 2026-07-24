@@ -130,8 +130,8 @@ class PhysicsEngine {
               ball.vy *= boostMult;
               ball._wasInBoost = true;
             }
-          } else if (zone.type === 'slow' || zone.type === 'sand' || zone.type === 'lava_pool' || zone.type === 'mud_puddle' || zone.type === 'quicksand') {
-            if (ball.z === 0 && !ball._wasInSlow && (zone.type === 'slow' || zone.type === 'lava_pool' || zone.type === 'mud_puddle' || zone.type === 'quicksand')) {
+          } else if (zone.type === 'slow' || zone.type === 'sand' || zone.type === 'lava_pool' || zone.type === 'mud_puddle') {
+            if (ball.z === 0 && !ball._wasInSlow && (zone.type === 'slow' || zone.type === 'lava_pool' || zone.type === 'mud_puddle')) {
               if (!this._isGlacier && zone.type === 'slow') {
                 ball.vx *= this._isOcean ? 0.6 : 0.7;
               }
@@ -147,21 +147,6 @@ class PhysicsEngine {
                   ball.vy = (ball.vy / speed) * targetSpeed;
                 }
                 currentDamping = 0.92;
-              } else if (zone.type === 'quicksand') {
-                // Quicksand Pit: sink and slow to 30%, disable boost
-                const speed = Math.hypot(ball.vx, ball.vy);
-                ball._quicksandOriginalSpeed = speed > 0 ? speed : 1;
-                ball._quicksandOriginalVx = ball.vx;
-                ball._quicksandOriginalVy = ball.vy;
-                ball._quicksandTimer = 90; // 1.5 seconds at 60fps
-                ball._quicksandSinking = 0;
-                const targetSpeed = speed * 0.3;
-                if (speed > 0) {
-                  ball.vx = (ball.vx / speed) * targetSpeed;
-                  ball.vy = (ball.vy / speed) * targetSpeed;
-                }
-                currentDamping = 0.9;
-                ball._disableBoost = true;
               }
               ball._wasInSlow = true;
               ball._enteredSlowThisFrame = true;
@@ -171,29 +156,80 @@ class PhysicsEngine {
               } else if (zone.type === 'mud_puddle') {
                 ball._enteredMudPuddleThisFrame = true;
                 ball._wasInMudPuddle = true;
-              } else if (zone.type === 'quicksand') {
-                ball._enteredQuicksandThisFrame = true;
-                ball._wasInQuicksand = true;
               } else {
                 ball._wasInLavaPool = false;
                 ball._wasInMudPuddle = false;
-                ball._wasInQuicksand = false;
               }
             }
             // Continuous mud damping while in puddle
             if (zone.type === 'mud_puddle' && ball.z === 0) {
               currentDamping = 0.92;
             }
-            // Continuous quicksand effect while in pit
-            if (zone.type === 'quicksand' && ball.z === 0) {
-              currentDamping = 0.9;
+            if (zone.type === 'sand') inSand = true;
+          } else if (zone.type === 'quicksand_pit') {
+            // ===== QUICKSAND PIT (Sahara Desert) - 3 Phase System =====
+            // Phase 1: Sink (0.5s) - ball visually sinks 40%
+            // Phase 2: Struggle (1s) - 35% speed, heavy movement, continuous particles
+            // Phase 3: Escape (0.5-0.8s) - rise up, burst particles, restore speed
+            
+            if (ball.z === 0 && !ball._wasInQuicksandPit) {
+              // Phase 1 - Sink: Entry
+              const speed = Math.hypot(ball.vx, ball.vy);
+              ball._qsOriginalSpeed = speed > 0 ? speed : 1;
+              ball._qsOriginalVx = ball.vx;
+              ball._qsOriginalVy = ball.vy;
+              ball._qsPhase = 'sink';
+              ball._qsTimer = 30; // 0.5s at 60fps
+              ball._qsSinkDepth = 0;
               ball._disableBoost = true;
-              // Sink animation
-              if (ball._quicksandSinking < 1) {
-                ball._quicksandSinking = Math.min(1, ball._quicksandSinking + 0.05);
+              
+              // Initial speed reduction to 35%
+              const targetSpeed = speed * 0.35;
+              if (speed > 0) {
+                ball.vx = (ball.vx / speed) * targetSpeed;
+                ball.vy = (ball.vy / speed) * targetSpeed;
+              }
+              currentDamping = 0.85;
+            }
+            
+            // Phase handling while in pit
+            if (ball._wasInQuicksandPit || ball._qsPhase) {
+              ball._wasInQuicksandPit = true;
+              ball._enteredQuicksandPitThisFrame = true;
+              
+              if (ball._qsPhase === 'sink') {
+                // Phase 1: Sink animation (0.5s)
+                ball._qsTimer -= dt;
+                ball._qsSinkDepth = Math.min(1, 1 - ball._qsTimer / 30); // 0 to 1
+                
+                if (ball._qsTimer <= 0) {
+                  // Transition to Phase 2: Struggle
+                  ball._qsPhase = 'struggle';
+                  ball._qsTimer = 60; // 1s at 60fps
+                }
+              } else if (ball._qsPhase === 'struggle') {
+                // Phase 2: Struggle - heavy movement, 35% speed
+                ball._qsTimer -= dt;
+                currentDamping = 0.85;
+                ball._disableBoost = true;
+                
+                // Maintain 35% speed
+                const currentSpeed = Math.hypot(ball.vx, ball.vy);
+                const targetSpeed = ball._qsOriginalSpeed * 0.35;
+                if (currentSpeed > 0 && currentSpeed > targetSpeed * 1.2) {
+                  ball.vx = (ball.vx / currentSpeed) * targetSpeed;
+                  ball.vy = (ball.vy / currentSpeed) * targetSpeed;
+                }
+                
+                if (ball._qsTimer <= 0) {
+                  // Struggle phase maxed out, but stays in struggle until exit
+                }
               }
             }
-            if (zone.type === 'sand') inSand = true;
+            
+            // Track if ball was in quicksand this frame
+            ball._qsInPitThisFrame = true;
+            
           } else if (zone.type === 'ice') {
             inIce = true;
             currentDamping = 0.998;
@@ -228,9 +264,11 @@ class PhysicsEngine {
       });
 
       // Reset zone visit flags (only when outside the respective zones)
-      const slowZones = track.zones.filter(z => z.type === 'slow' || z.type === 'lava_pool' || z.type === 'mud_puddle' || z.type === 'quicksand');
+      const slowZones = track.zones.filter(z => z.type === 'slow' || z.type === 'lava_pool' || z.type === 'mud_puddle');
+      const quicksandPits = track.zones.filter(z => z.type === 'quicksand_pit');
       const wasInMud = ball._wasInMudPuddle;
-      const wasInQuicksand = ball._wasInQuicksand;
+      const wasInQuicksandPit = ball._wasInQuicksandPit;
+      
       if (slowZones.every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
         if (ball._wasInSlow) {
           ball._exitedSlowThisFrame = true;
@@ -246,23 +284,37 @@ class PhysicsEngine {
             delete ball._mudOriginalVx;
             delete ball._mudOriginalVy;
           }
-          // Restore original speed when exiting quicksand
-          if (wasInQuicksand && ball._quicksandOriginalSpeed !== undefined) {
-            const currentSpeed = Math.hypot(ball.vx, ball.vy);
-            if (currentSpeed > 0) {
-              // Gradual restore over ~0.8s
-              ball._quicksandRecovering = true;
-              ball._quicksandRecoverTimer = 48; // 0.8s at 60fps
-            }
-            delete ball._quicksandOriginalSpeed;
-            delete ball._quicksandOriginalVx;
-            delete ball._quicksandOriginalVy;
-          }
         }
         ball._wasInSlow = false;
         ball._wasInLavaPool = false;
         ball._wasInMudPuddle = false;
-        ball._wasInQuicksand = false;
+      }
+      
+      // Quicksand Pit exit handling
+      if (quicksandPits.every(z => !(ball.x >= z.x && ball.x <= z.x + z.width && ball.y >= z.y && ball.y <= z.y + z.height))) {
+        if (wasInQuicksandPit) {
+          // Phase 3: Escape - ball leaving the pit
+          ball._qsPhase = 'escape';
+          ball._qsTimer = 48; // 0.8s recovery
+          
+          // Burst particles behind ball (opposite to movement direction)
+          const moveAngle = Math.atan2(ball.vy, ball.vx);
+          const burstAngle = moveAngle + Math.PI; // Opposite direction
+          // These particles will be emitted by the renderer
+          ball._qsEscapeBurst = true;
+          ball._qsEscapeAngle = burstAngle;
+          ball._qsEscapeSpeed = Math.hypot(ball.vx, ball.vy);
+          
+          // Re-enable boost
+          ball._disableBoost = false;
+          
+          // Set recovery flags for renderer
+          ball._qsRecovering = true;
+          ball._qsRecoverTimer = 48;
+          ball._qsBurstEmitted = false;
+        }
+        ball._wasInQuicksandPit = false;
+        ball._qsInPitThisFrame = false;
       }
       // Decrement portal cooldown
       if (ball._portalCooldown > 0) {
@@ -278,38 +330,25 @@ class PhysicsEngine {
         if (ball._shortcutCooldown < 0) ball._shortcutCooldown = 0;
       }
 
-      // Quicksand timer: count down 1.5s while in quicksand
-      if (ball._quicksandTimer > 0) {
-        ball._quicksandTimer -= dt;
-        if (ball._quicksandTimer <= 0) {
-          ball._quicksandTimer = 0;
+      // Quicksand Pit escape phase - gradual speed restoration
+      if (ball._qsPhase === 'escape' && ball._qsTimer > 0) {
+        ball._qsTimer -= dt;
+        if (ball._qsTimer <= 0) {
+          ball._qsPhase = 'normal';
+          ball._qsTimer = 0;
+          // Restore original speed
+          if (ball._qsOriginalSpeed !== undefined) {
+            const currentSpeed = Math.hypot(ball.vx, ball.vy);
+            if (currentSpeed > 0) {
+              const targetRatio = ball._qsOriginalSpeed / currentSpeed;
+              ball.vx *= targetRatio;
+              ball.vy *= targetRatio;
+            }
+            delete ball._qsOriginalSpeed;
+            delete ball._qsOriginalVx;
+            delete ball._qsOriginalVy;
+          }
         }
-      }
-      // Quicksand sinking animation reset when exiting
-      if (ball._quicksandSinking > 0 && !ball._wasInQuicksand) {
-        // Ball exited quicksand - rise back up smoothly
-        ball._quicksandSinking = Math.max(0, ball._quicksandSinking - 0.08);
-        if (ball._quicksandSinking <= 0) {
-          ball._quicksandSinking = 0;
-        }
-      }
-      // Quicksand disable boost flag
-      if (ball._disableBoost && !ball._wasInQuicksand && !ball._quicksandRecovering) {
-        ball._disableBoost = false;
-      }
-
-      // Quicksand recovery: gradual speed restoration over ~0.8s
-      if (ball._quicksandRecovering && ball._quicksandRecoverTimer > 0) {
-        ball._quicksandRecoverTimer -= dt;
-        if (ball._quicksandRecoverTimer <= 0) {
-          ball._quicksandRecovering = false;
-          delete ball._quicksandRecoverTimer;
-        }
-      }
-      // Disable boost while in quicksand or recovering
-      if (ball._disableBoost || ball._quicksandRecovering) {
-        // Override any boost application during quicksand effect
-        ball._inBoost = false;
       }
 
       // Normal forward force

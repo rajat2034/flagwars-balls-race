@@ -121,7 +121,6 @@ const OBSTACLE_REGISTRY = [
   { type: 'floating_kelp', name: 'Floating Kelp', category: 'signature', map: 'ocean' },
 
   // Sahara
-  { type: 'quicksand', name: 'Quicksand', category: 'signature', map: 'desert' },
   { type: 'sand_geyser', name: 'Sand Geyser', category: 'signature', map: 'desert' },
   { type: 'rolling_tumbleweed', name: 'Rolling Tumbleweed', category: 'signature', map: 'desert' },
   { type: 'moving_dune', name: 'Moving Dune', category: 'signature', map: 'desert' },
@@ -2367,19 +2366,18 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       sea_urchin_field: { min: 100, preferred: 120, recovery: 50, safeLanding: 40 },
       floating_kelp: { min: 100, preferred: 110, recovery: 40, safeLanding: 30 },
       sand_vortex: { min: 200, preferred: 300, recovery: 150, safeLanding: 80 },
-      quicksand: { min: 150, preferred: 220, recovery: 100, safeLanding: 60 },
     };
 
     // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.50,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand']) },
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) },
       { start: 0.20, end: 0.60, density: 0.50,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand']) },
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) },
       { start: 0.60, end: 0.85, density: 0.50,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand']) },
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) },
       { start: 0.85, end: 1.00, density: 0.50,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand']) }
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -3079,7 +3077,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             });
           }
         } else if (type === 'boost') {
-          const boostClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle' || z.type === 'lava_pool' || z.type === 'quicksand') && Math.abs(z.x + z.width / 2 - x) < 400);
+          const boostClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle' || z.type === 'lava_pool') && Math.abs(z.x + z.width / 2 - x) < 400);
           if (boostClose) { x += 200; continue; }
           const w = 75;
           const h = 45;
@@ -3107,9 +3105,9 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             const w = 60;
             const h = 45;
             const isDesert = themeKey === 'desert';
-            const zoneType = isDesert ? 'quicksand' : 'slow';
-            const qw = isDesert ? 55 + Math.random() * 25 : w;
-            const qh = isDesert ? 55 + Math.random() * 25 : h;
+            const zoneType = isDesert ? 'quicksand_pit' : 'slow';
+            const qw = isDesert ? 72 + Math.random() * 32 : w; // 30% larger: 72-104
+            const qh = isDesert ? 72 + Math.random() * 32 : h; // 30% larger
             track.zones.push({
               type: zoneType, x: x - (isDesert ? qw : w) / 2,
               y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, (isDesert ? qh : h) / 2 + 5) - (isDesert ? qh : h) / 2,
@@ -3531,7 +3529,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
                 if (fb.length === 0) continue;
                 const ft = fb[Math.floor(Math.random() * fb.length)];
                 if (ft === 'boost') {
-                  const bClose = track.zones.some(z => (z.type === 'slow' || z.type === 'lava_pool' || z.type === 'quicksand') && Math.abs(z.x + z.width / 2 - insX) < 400);
+                  const bClose = track.zones.some(z => (z.type === 'slow' || z.type === 'lava_pool' || z.type === 'quicksand_pit') && Math.abs(z.x + z.width / 2 - insX) < 400);
                   if (bClose) continue;
                   track.zones.push({ type: 'boost', x: insX - 37, y: clampY(icY - 22, ib, 27), width: 75, height: 45, force: 0.20 });
                 } else if (ft === 'spinner') {
@@ -3611,7 +3609,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
     const MIN_COUNT = 30;
     const TYPE_COUNTS = {};
     ['hammer', 'spinner', 'barrier', 'sweep_arm', 'punchfist',
-     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon', 'mud_puddle', 'lava_geyser', 'sand_vortex', 'quicksand']
+     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon', 'mud_puddle', 'lava_geyser', 'sand_vortex', 'quicksand_pit']
       .filter(t => enabledSet.has(t))
       .forEach(t => { TYPE_COUNTS[t] = 0; });
     track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
@@ -3687,7 +3685,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           });
 
         } else if (ut === 'boost') {
-          const tooClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle' || z.type === 'lava_pool' || z.type === 'quicksand') && Math.abs(z.x + z.width / 2 - tryX) < 400);
+          const tooClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle' || z.type === 'lava_pool' || z.type === 'quicksand_pit') && Math.abs(z.x + z.width / 2 - tryX) < 400);
           if (tooClose) continue;
           track.zones.push({
             type: 'boost', x: tryX - 37, y: clampY(cY - 22, b, 27),
@@ -3719,12 +3717,12 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             _warningGlow: 0,
             _eruptionParticles: []
           });
-        } else if (ut === 'quicksand') {
-          // Sahara Desert: Quicksand Pit (replaces Slow Ramp)
-          const qw = 55 + Math.random() * 25;
-          const qh = 55 + Math.random() * 25;
+        } else if (ut === 'quicksand_pit') {
+          // Sahara Desert: Quicksand Pit (replaces Slow Ramp) - 30% larger
+          const qw = 72 + Math.random() * 32;
+          const qh = 72 + Math.random() * 32;
           track.zones.push({
-            type: 'quicksand', x: tryX - qw / 2, y: clampY(cY - qh / 2, b, qh / 2 + 5),
+            type: 'quicksand_pit', x: tryX - qw / 2, y: clampY(cY - qh / 2, b, qh / 2 + 5),
             width: qw, height: qh
           });
 
@@ -9617,88 +9615,118 @@ obs._trappedBallId = null;
             this.ctx.fillText('SLOW', zX + zone.width / 2, zone.y + zone.height / 2);
             this.ctx.restore();
           }
-        } else if (zone.type === 'quicksand') {
-          // ===== QUICKSAND PIT (Sahara Desert only) =====
-          // Irregular organic shape with swirling sand animation
+        } else if (zone.type === 'quicksand_pit') {
+          // ===== QUICKSAND PIT (Sahara Desert only) - Rebuilt from scratch =====
+          // Natural irregular organic shape with animated swirling sand
           if (this.currentThemeKey !== 'desert') return;
           this.ctx.save();
 
           const time = Date.now() * 0.001;
-          const seed = ((zone.x * 13 + zone.y * 19) % 10000) / 10000;
+          const seed = ((zone.x * 17 + zone.y * 23) % 10000) / 10000;
           const cx = zX + zone.width / 2;
           const cy = zone.y + zone.height / 2;
-          const r = Math.min(zone.width, zone.height) / 2;
+          // 30% larger base radius
+          const r = Math.min(zone.width, zone.height) / 2 * 1.3;
 
-          // Base pit - irregular organic shape using noise
-          const points = 16;
+          // Generate irregular shape points (cached per zone)
+          if (!zone._pitShape) {
+            const points = 20;
+            zone._pitShape = [];
+            for (let i = 0; i < points; i++) {
+              const angle = (i / points) * Math.PI * 2;
+              // Multi-layer noise for natural irregularity
+              const noise1 = Math.sin(angle * 3 + seed * 13) * 0.18;
+              const noise2 = Math.sin(angle * 5 + seed * 29) * 0.1;
+              const noise3 = Math.sin(angle * 7 + seed * 41) * 0.06;
+              const radius = r * (1 + noise1 + noise2 + noise3);
+              zone._pitShape.push({ angle, radius });
+            }
+          }
+
+          // 1. Base pit - dark sunken center
           this.ctx.beginPath();
-          for (let i = 0; i <= points; i++) {
-            const angle = (i / points) * Math.PI * 2;
-            const noise = Math.sin(angle * 3 + seed * 10) * 0.15 + Math.sin(angle * 5 + seed * 20) * 0.08;
-            const radius = r * (1 + noise);
-            const px = cx + Math.cos(angle) * radius;
-            const py = cy + Math.sin(angle) * radius * 0.8;
+          for (let i = 0; i < zone._pitShape.length; i++) {
+            const p = zone._pitShape[i];
+            const px = cx + Math.cos(p.angle) * p.radius;
+            const py = cy + Math.sin(p.angle) * p.radius * 0.85;
             if (i === 0) this.ctx.moveTo(px, py);
             else this.ctx.lineTo(px, py);
           }
           this.ctx.closePath();
 
-          // Sunken gradient - darker in center
-          const pitGrad = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 1.2);
-          pitGrad.addColorStop(0, 'rgba(120, 90, 50, 0.45)');
-          pitGrad.addColorStop(0.4, 'rgba(90, 70, 35, 0.55)');
-          pitGrad.addColorStop(0.7, 'rgba(60, 45, 20, 0.6)');
-          pitGrad.addColorStop(1, 'rgba(40, 30, 15, 0.65)');
+          // Deep center gradient
+          const pitGrad = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 1.1);
+          pitGrad.addColorStop(0, 'rgba(80, 55, 25, 0.75)');
+          pitGrad.addColorStop(0.3, 'rgba(60, 42, 18, 0.8)');
+          pitGrad.addColorStop(0.6, 'rgba(45, 30, 12, 0.85)');
+          pitGrad.addColorStop(1, 'rgba(30, 20, 8, 0.9)');
           this.ctx.fillStyle = pitGrad;
           this.ctx.fill();
 
-          // Swirling sand ripples
-          this.ctx.strokeStyle = 'rgba(160, 130, 80, 0.15)';
-          this.ctx.lineWidth = 1.5;
-          for (let ring = 1; ring < 5; ring++) {
+          // 2. Swirling sand ripples (animated)
+          for (let ring = 1; ring <= 5; ring++) {
             this.ctx.beginPath();
-            for (let i = 0; i <= points; i++) {
-              const angle = (i / points) * Math.PI * 2;
-              const wave = Math.sin(time * 1.5 + angle * 4 + ring * 2 + seed * 8) * 3;
-              const radius = r * (ring / 5) * 0.9 + wave;
-              const px = cx + Math.cos(angle) * radius;
-              const py = cy + Math.sin(angle) * radius * 0.7;
+            for (let i = 0; i < zone._pitShape.length; i++) {
+              const p = zone._pitShape[i];
+              const wave = Math.sin(time * 2 + p.angle * 4 + ring * 1.5 + seed * 7) * 4;
+              const radius = p.radius * (ring / 6) * 0.85 + wave;
+              const px = cx + Math.cos(p.angle) * radius;
+              const py = cy + Math.sin(p.angle) * radius * 0.75;
               if (i === 0) this.ctx.moveTo(px, py);
               else this.ctx.lineTo(px, py);
             }
             this.ctx.closePath();
+            this.ctx.strokeStyle = `rgba(180, 145, 95, ${0.12 - ring * 0.015})`;
+            this.ctx.lineWidth = 1.5;
             this.ctx.stroke();
           }
 
-          // Edge highlight - soft feathered border
-          this.ctx.strokeStyle = 'rgba(200, 170, 120, 0.25)';
-          this.ctx.lineWidth = 2;
+          // 3. Soft feathered edge highlight
           this.ctx.beginPath();
-          for (let i = 0; i <= points; i++) {
-            const angle = (i / points) * Math.PI * 2;
-            const noise = Math.sin(angle * 3 + seed * 10) * 0.15 + Math.sin(angle * 5 + seed * 20) * 0.08;
-            const radius = r * (1 + noise) + 2;
-            const px = cx + Math.cos(angle) * radius;
-            const py = cy + Math.sin(angle) * radius * 0.8;
+          for (let i = 0; i < zone._pitShape.length; i++) {
+            const p = zone._pitShape[i];
+            const radius = p.radius + 3;
+            const px = cx + Math.cos(p.angle) * radius;
+            const py = cy + Math.sin(p.angle) * radius * 0.8;
             if (i === 0) this.ctx.moveTo(px, py);
             else this.ctx.lineTo(px, py);
           }
           this.ctx.closePath();
+          this.ctx.strokeStyle = 'rgba(210, 175, 125, 0.25)';
+          this.ctx.lineWidth = 2;
           this.ctx.stroke();
 
-          // Drifting sand particles around edges
-          const particleCount = 8;
+          // 4. Drifting sand particles around perimeter
+          const particleCount = 10;
           for (let p = 0; p < particleCount; p++) {
-            const phase = time * 0.3 + p * 2.5 + seed * 6;
-            const angle = phase * 0.7;
-            const dist = r * (0.85 + Math.sin(phase * 1.3) * 0.15);
+            const phase = time * 0.4 + p * 2.8 + seed * 8;
+            const angle = phase * 0.8;
+            const dist = r * (0.82 + Math.sin(phase * 1.2) * 0.18);
             const px = cx + Math.cos(angle) * dist;
             const py = cy + Math.sin(angle) * dist * 0.7;
-            const alpha = 0.3 + Math.sin(time * 2 + p) * 0.15;
-            this.ctx.fillStyle = `rgba(220, 190, 140, ${alpha})`;
+            const alpha = 0.35 + Math.sin(time * 2.5 + p) * 0.15;
+            const size = 1.8 + Math.sin(time * 1.8 + p * 2.2) * 1;
+            this.ctx.fillStyle = `rgba(230, 195, 140, ${alpha})`;
             this.ctx.beginPath();
-            this.ctx.arc(px, py, 1.5 + Math.sin(time * 1.5 + p) * 0.8, 0, Math.PI * 2);
+            this.ctx.arc(px, py, size, 0, Math.PI * 2);
             this.ctx.fill();
+          }
+
+          // 5. Slow rotating inner swirl
+          const swirlPhase = time * 0.6;
+          this.ctx.strokeStyle = 'rgba(160, 130, 85, 0.08)';
+          this.ctx.lineWidth = 1;
+          for (let s = 0; s < 3; s++) {
+            this.ctx.beginPath();
+            const offset = s * 2.1;
+            for (let a = 0; a < Math.PI * 2; a += 0.2) {
+              const radius = r * 0.25 + Math.sin(a * 3 + swirlPhase + offset) * 8;
+              const px = cx + Math.cos(a) * radius;
+              const py = cy + Math.sin(a) * radius * 0.6;
+              if (a === 0) this.ctx.moveTo(px, py);
+              else this.ctx.lineTo(px, py);
+            }
+            this.ctx.stroke();
           }
 
           this.ctx.restore();
@@ -13254,38 +13282,100 @@ this.ctx.restore();
           this.ctx.translate(Math.sin(wobble * 15) * 2.5, Math.cos(wobble * 12) * 2.5);
         }
 
-        // Quicksand sinking visual effect
-        let quicksandSinkY = 0;
-        if (ball._quicksandSinking > 0) {
-          quicksandSinkY = ball._quicksandSinking * renderRadius * 0.4; // sink ~40% of height
-          this.ctx.translate(0, quicksandSinkY);
-          
-          // Sand trail behind ball while sinking
-          const now = Date.now();
-          for (let t = 0; t < 3; t++) {
-            const trailAlpha = 0.3 - t * 0.1;
-            const trailY = ball.y - t * 6 - quicksandSinkY;
-            const trailScale = 1 - t * 0.2;
-            this.ctx.save();
-            this.ctx.globalAlpha = trailAlpha;
-            this.ctx.fillStyle = `rgba(200, 170, 120, ${trailAlpha})`;
-            this.ctx.beginPath();
-            this.ctx.ellipse(bX, trailY, renderRadius * trailScale, renderRadius * 0.3 * trailScale, 0, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.restore();
+        // ===== QUICKSAND PIT - 3 Phase Visual Effects =====
+        // Phase 1: Sink (0-30 frames) - ball sinks 40%
+        // Phase 2: Struggle (30-90 frames) - 35% speed, sand particles, ripples
+        // Phase 3: Escape - rise up, burst particles, restore speed
+        let qsSinkY = 0;
+        let qsPhase = ball._qsPhase;
+        let qsSinkDepth = ball._qsSinkDepth || 0;
+        const qsStruggleTimer = ball._qsTimer || 0;
+        
+        if (qsPhase === 'sink' || qsPhase === 'struggle' || ball._qsRecovering) {
+          // Calculate sink depth
+          if (qsPhase === 'sink') {
+            qsSinkDepth = Math.min(1, qsSinkDepth); // 0 to 1 over 0.5s
+          } else if (qsPhase === 'struggle') {
+            qsSinkDepth = 1; // Fully sunk during struggle
+          } else if (ball._qsRecovering) {
+            // Rising back up during escape
+            qsSinkDepth = Math.max(0, ball._qsRecoverTimer / 48); // 1 to 0 over 0.8s
           }
           
-          // Sand puff particles around ball
-          for (let p = 0; p < 4; p++) {
-            const angle = now * 0.005 + p * 1.6;
-            const dist = renderRadius * (0.6 + Math.sin(now * 0.01 + p) * 0.3);
-            const px = bX + Math.cos(angle) * dist;
-            const py = ball.y + Math.sin(angle) * dist * 0.7 - quicksandSinkY;
-            const size = 2 + Math.sin(now * 0.008 + p * 2) * 1;
-            this.ctx.fillStyle = `rgba(220, 190, 140, ${0.4 + Math.sin(now * 0.01 + p) * 0.2})`;
-            this.ctx.beginPath();
-            this.ctx.arc(px, py, size, 0, Math.PI * 2);
-            this.ctx.fill();
+          qsSinkY = qsSinkDepth * renderRadius * 0.4; // 40% sink
+          this.ctx.translate(0, qsSinkY);
+          
+          // Phase 1 & 2: Continuous sand effects while sunk
+          if (qsPhase === 'sink' || qsPhase === 'struggle') {
+            const now = Date.now();
+            
+            // Sand trail behind ball (3 layers)
+            for (let t = 0; t < 3; t++) {
+              const trailAlpha = 0.35 - t * 0.1;
+              const trailY = ball.y - t * 8 - qsSinkY;
+              const trailScale = 1 - t * 0.2;
+              this.ctx.save();
+              this.ctx.globalAlpha = trailAlpha;
+              this.ctx.fillStyle = `rgba(200, 170, 120, ${trailAlpha})`;
+              this.ctx.beginPath();
+              this.ctx.ellipse(bX, trailY, renderRadius * trailScale, renderRadius * 0.3 * trailScale, 0, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.restore();
+            }
+            
+            // Sand puff particles orbiting the ball (struggle phase)
+            if (qsPhase === 'struggle') {
+              for (let p = 0; p < 6; p++) {
+                const angle = now * 0.008 + p * 1.05 + qsStruggleTimer * 0.1;
+                const dist = renderRadius * (0.55 + Math.sin(now * 0.012 + p) * 0.35);
+                const px = bX + Math.cos(angle) * dist;
+                const py = ball.y + Math.sin(angle) * dist * 0.6 - qsSinkY;
+                const size = 2.5 + Math.sin(now * 0.01 + p * 2.5) * 1.5;
+                const alpha = 0.5 + Math.sin(now * 0.015 + p) * 0.2;
+                this.ctx.fillStyle = `rgba(220, 190, 140, ${alpha})`;
+                this.ctx.beginPath();
+                this.ctx.arc(px, py, size, 0, Math.PI * 2);
+                this.ctx.fill();
+              }
+              
+              // Sand ripples on ground around ball
+              for (let r = 0; r < 3; r++) {
+                const ripplePhase = (now * 0.003 + r * 2) % (Math.PI * 2);
+                const rippleRadius = renderRadius * (0.8 + r * 0.4);
+                const rippleAlpha = 0.25 * (1 - r / 4) * Math.sin(ripplePhase);
+                if (rippleAlpha > 0) {
+                  this.ctx.strokeStyle = `rgba(180, 150, 100, ${rippleAlpha})`;
+                  this.ctx.lineWidth = 1.5;
+                  this.ctx.beginPath();
+                  this.ctx.ellipse(bX, ball.y + renderRadius * 0.9, rippleRadius, rippleRadius * 0.3, 0, 0, Math.PI * 2);
+                  this.ctx.stroke();
+                }
+              }
+            }
+          }
+          
+          // Phase 3: Escape burst - sand thrown backward opposite to movement
+          if (ball._qsRecovering && ball._qsBurstEmitted !== true) {
+            const moveAngle = Math.atan2(ball.vy, ball.vx) || 0;
+            const burstAngle = moveAngle + Math.PI; // Opposite to movement
+            
+            for (let p = 0; p < 15; p++) {
+              const spread = (Math.random() - 0.5) * 0.8;
+              const speed = 3 + Math.random() * 6;
+              const angle = burstAngle + spread;
+              this.particles.push({
+                type: 'sand',
+                x: ball.x + Math.cos(angle) * renderRadius,
+                y: ball.y + Math.sin(angle) * renderRadius * 0.8,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 0.8,
+                size: 2 + Math.random() * 3,
+                life: 25 + Math.floor(Math.random() * 15),
+                color: '#d6c48c'
+              });
+            }
+            ball._qsBurstEmitted = true;
           }
         }
 
