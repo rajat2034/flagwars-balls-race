@@ -4050,7 +4050,8 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           x: vx,
           y: (vb.topY + vb.bottomY) / 2,
           radius: 45,
-          height: 200
+          height: 200,
+          _affectedBalls: new Set()
         };
       }
     }
@@ -7976,6 +7977,70 @@ obs._trappedBallId = null;
             const ratio = ball._blizzardCapSpeed / currentSpeed;
             ball.vx *= ratio;
             ball.vy *= ratio;
+          }
+        }
+      }
+
+      // Sand Vortex gameplay (Sahara Desert exclusive) - spiral carry motion
+      if (this.currentThemeKey === 'desert' && this._debugVortex && this.balls) {
+        const vortex = this._debugVortex;
+        for (const ball of this.balls) {
+          if (ball.finished || ball.eliminated || ball.z > 0) continue;
+          if (ball._vortexCaptured) {
+            ball._vortexTimer -= dt;
+            const elapsed = 120 - ball._vortexTimer;
+            const progress = Math.max(0, Math.min(1, elapsed / 120));
+            const angle = ball._vortexOrbitAngle + progress * 1.75 * Math.PI * 2;
+            const r = ball._vortexOrbitR * (1 - 0.12 * progress);
+            const vertOffset = ball._vortexEntryY * Math.cos(progress * Math.PI);
+            const targetX = vortex.x + Math.cos(angle) * r;
+            const targetY = vortex.y + vertOffset;
+            if (dt > 0) {
+              ball.vx = (targetX - ball.x) / dt;
+              ball.vy = (targetY - ball.y) / dt;
+            }
+            if (ball._vortexTimer <= 0) {
+              const tangentAngle = angle + Math.PI * 0.5;
+              const launchSpeed = 10;
+              const outwardSpeed = 3;
+              ball.vx = Math.cos(tangentAngle) * launchSpeed + Math.cos(angle) * outwardSpeed;
+              ball.vy = Math.sin(tangentAngle) * launchSpeed + Math.sin(angle) * outwardSpeed;
+              vortex._affectedBalls.add(ball.id);
+              for (let p = 0; p < 10; p++) {
+                const a = Math.random() * Math.PI * 2;
+                const spd = 2 + Math.random() * 3;
+                this.particles.push({
+                  type: 'sparkle',
+                  x: ball.x + (Math.random() - 0.5) * 8,
+                  y: ball.y + (Math.random() - 0.5) * 8,
+                  vx: Math.cos(a) * spd,
+                  vy: Math.sin(a) * spd,
+                  alpha: 1,
+                  size: 2 + Math.random() * 3,
+                  life: 15 + Math.floor(Math.random() * 10),
+                  color: '#d4a050'
+                });
+              }
+              delete ball._vortexCaptured;
+              delete ball._vortexRef;
+              delete ball._vortexTimer;
+              delete ball._vortexOrbitR;
+              delete ball._vortexOrbitAngle;
+              delete ball._vortexEntryY;
+            }
+          } else {
+            if (vortex._affectedBalls.has(ball.id)) continue;
+            const dx = ball.x - vortex.x;
+            const dy = ball.y - vortex.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < vortex.radius + ball.radius + 4) {
+              ball._vortexCaptured = true;
+              ball._vortexRef = vortex;
+              ball._vortexTimer = 120;
+              ball._vortexOrbitR = dist;
+              ball._vortexOrbitAngle = Math.atan2(dy, dx);
+              ball._vortexEntryY = dy;
+            }
           }
         }
       }
