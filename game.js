@@ -3383,7 +3383,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             }))
           });
         } else if (type === 'sand_vortex') {
-          const r = 35 + Math.random() * 20;
+          const r = 55 + Math.random() * 25;
           const h = 80 + Math.random() * 40;
           const sy = clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, h * 0.5 + 10);
           track.obstacles.push({
@@ -3754,7 +3754,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             _projectiles: [], _splashEffects: []
           });
         } else if (ut === 'sand_vortex') {
-          const r = 35 + Math.random() * 20;
+          const r = 55 + Math.random() * 25;
           const h = 80 + Math.random() * 40;
           track.obstacles.push({
             type: 'sand_vortex', x: tryX, y: clampY(cY, b, h * 0.5 + 10),
