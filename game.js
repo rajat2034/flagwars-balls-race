@@ -121,6 +121,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'floating_kelp', name: 'Floating Kelp', category: 'signature', map: 'ocean' },
 
   // Sahara
+  { type: 'quicksand_pit', name: 'Quicksand Pit', category: 'signature', map: 'desert' },
   { type: 'sand_geyser', name: 'Sand Geyser', category: 'signature', map: 'desert' },
   { type: 'rolling_tumbleweed', name: 'Rolling Tumbleweed', category: 'signature', map: 'desert' },
   { type: 'moving_dune', name: 'Moving Dune', category: 'signature', map: 'desert' },
@@ -2366,18 +2367,19 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       sea_urchin_field: { min: 100, preferred: 120, recovery: 50, safeLanding: 40 },
       floating_kelp: { min: 100, preferred: 110, recovery: 40, safeLanding: 30 },
       sand_vortex: { min: 200, preferred: 300, recovery: 150, safeLanding: 80 },
+      quicksand_pit: { min: 150, preferred: 220, recovery: 100, safeLanding: 60 },
     };
 
     // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.50,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) },
+        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit']) },
       { start: 0.20, end: 0.60, density: 0.50,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) },
+        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit']) },
       { start: 0.60, end: 0.85, density: 0.50,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) },
+        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit']) },
       { start: 0.85, end: 1.00, density: 0.50,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex']) }
+        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit']) }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -2615,6 +2617,13 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         const h = obs.height || 100;
         minX = obs.x - r;
         maxX = obs.x + r;
+        minY = obs.y - h * 0.5;
+        maxY = obs.y + h * 0.5;
+      } else if (obs.type === 'quicksand_pit') {
+        const w = obs.width || 80;
+        const h = obs.height || 80;
+        minX = obs.x - w * 0.5;
+        maxX = obs.x + w * 0.5;
         minY = obs.y - h * 0.5;
         maxY = obs.y + h * 0.5;
       } else if (obs.type === 'collapsing_pillar') {
