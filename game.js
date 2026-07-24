@@ -2611,6 +2611,13 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         maxX = obs.x + vineR;
         minY = obs.y - vineR * 2;
         maxY = obs.y + vineR;
+      } else if (obs.type === 'sand_vortex') {
+        const r = obs.radius || 45;
+        const h = obs.height || 100;
+        minX = obs.x - r;
+        maxX = obs.x + r;
+        minY = obs.y - h * 0.5;
+        maxY = obs.y + h * 0.5;
       } else if (obs.type === 'collapsing_pillar') {
         if (obs._state === 'fallen' || obs._state === 'disappearing') {
           const fw = obs._fallenWidth || 80;
@@ -7993,6 +8000,7 @@ obs._trappedBallId = null;
           for (const ball of this.balls) {
             if (ball.finished || ball.eliminated || ball.z > 0) continue;
             if (ball._vortexCaptured) {
+              if (ball._vortexRef !== vortex) continue;
               ball._vortexTimer -= dt;
               const elapsed = 120 - ball._vortexTimer;
               const progress = Math.max(0, Math.min(1, elapsed / 120));
@@ -11603,13 +11611,6 @@ obs._trappedBallId = null;
             }
           }
 
-      } else if (obs.type === 'sand_vortex') {
-        const r = obs.radius || 45;
-        const h = obs.height || 100;
-        minX = obs.x - r;
-        maxX = obs.x + r;
-        minY = obs.y - h * 0.5;
-        maxY = obs.y + h * 0.5;
       } else if (obs.type === 'collapsing_pillar') {
           // Collapsing Rock Pillar ??? Magma Crater exclusive volcanic obstacle
           const pState = obs._state || 'standing';
