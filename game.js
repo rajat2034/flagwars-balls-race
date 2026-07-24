@@ -2222,9 +2222,6 @@ class GameEngine {
       });
     }
 
-    // Boost boost frequency to ensure ~30 pads per map
-    if (!obstacleFreqs || !obstacleFreqs.boost) freqWeights.boost = 20;
-
     // Magma Crater: significantly boost Lava Pool spawn rate to match Boost Pad count
     if (themeKey === 'volcano' && freqWeights.lava_pool) {
       freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15); // High weight ~same as boost
@@ -2241,7 +2238,6 @@ class GameEngine {
     }
 
     if (themeKey === 'desert') {
-      enabledSet.delete('spinner');
       if (freqWeights.sand_vortex) freqWeights.sand_vortex = 20;
     }
 
@@ -9295,62 +9291,19 @@ obs._trappedBallId = null;
         if (zX + zone.width < -zoneCullBuffer || zX > screenW / zoom + zoneCullBuffer) return; // offscreen cull
 
         if (zone.type === 'boost') {
-          // Large hazard-bordered boost pad
+          // Boost zone ??? green fill, forward arrows
           this.ctx.save();
-          const frW = 6;
-          const innerX = zX + frW;
-          const innerY = zone.y + frW;
-          const innerW = zone.width - frW * 2;
-          const innerH = zone.height - frW * 2;
-          // Green outer frame
-          this.ctx.fillStyle = '#27ae60';
+          this.ctx.fillStyle = 'rgba(46,204,113,0.25)';
           this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
-          // Green interior fill
-          this.ctx.fillStyle = 'rgba(46,204,113,0.20)';
-          this.ctx.fillRect(innerX, innerY, innerW, innerH);
-          // Yellow hazard border (top)
-          this.ctx.strokeStyle = '#f39c12';
-          this.ctx.lineWidth = 4;
-          this.ctx.shadowColor = 'rgba(243,156,18,0.5)';
-          this.ctx.shadowBlur = 8;
-          this.ctx.beginPath();
-          this.ctx.moveTo(zX, zone.y);
-          this.ctx.lineTo(zX + zone.width, zone.y);
-          this.ctx.stroke();
-          this.ctx.beginPath();
-          this.ctx.moveTo(zX, zone.y + zone.height);
-          this.ctx.lineTo(zX + zone.width, zone.y + zone.height);
-          this.ctx.stroke();
-          this.ctx.shadowBlur = 0;
-          // Black hazard dashes on yellow border
-          this.ctx.strokeStyle = '#2c3e50';
+          const boostBorderAlpha = this.currentThemeKey === 'snow' ? 0.50 : 0.35;
+          this.ctx.strokeStyle = `rgba(46,204,113,${boostBorderAlpha})`;
           this.ctx.lineWidth = 2.5;
-          this.ctx.setLineDash([10, 10]);
-          this.ctx.beginPath();
-          this.ctx.moveTo(zX, zone.y);
-          this.ctx.lineTo(zX + zone.width, zone.y);
-          this.ctx.stroke();
-          this.ctx.beginPath();
-          this.ctx.moveTo(zX, zone.y + zone.height);
-          this.ctx.lineTo(zX + zone.width, zone.y + zone.height);
-          this.ctx.stroke();
-          this.ctx.setLineDash([]);
-          // Yellow hazard border (left/right short edges)
-          this.ctx.strokeStyle = '#f39c12';
-          this.ctx.lineWidth = 3;
-          this.ctx.beginPath();
-          this.ctx.moveTo(zX, zone.y);
-          this.ctx.lineTo(zX, zone.y + zone.height);
-          this.ctx.stroke();
-          this.ctx.beginPath();
-          this.ctx.moveTo(zX + zone.width, zone.y);
-          this.ctx.lineTo(zX + zone.width, zone.y + zone.height);
-          this.ctx.stroke();
+          this.ctx.strokeRect(zX, zone.y, zone.width, zone.height);
           // Forward arrows (right)
           const animOffset = (Date.now() / 6) % 30;
-          this.ctx.strokeStyle = 'rgba(46,204,113,0.55)';
+          this.ctx.strokeStyle = 'rgba(46,204,113,0.50)';
           this.ctx.lineWidth = 2.5;
-          for (let ax = innerX + animOffset; ax < innerX + innerW; ax += 30) {
+          for (let ax = zX + animOffset; ax < zX + zone.width; ax += 30) {
             const acy = zone.y + zone.height / 2;
             this.ctx.beginPath();
             this.ctx.moveTo(ax - 10, acy - 8);
@@ -9358,14 +9311,14 @@ obs._trappedBallId = null;
             this.ctx.lineTo(ax - 10, acy + 8);
             this.ctx.stroke();
           }
-          // BOOST label with stroke for readability
-          this.ctx.fillStyle = '#ffffff';
-          this.ctx.strokeStyle = '#1e8449';
-          this.ctx.lineWidth = 3;
-          this.ctx.font = 'bold 14px Montserrat, sans-serif';
+          // label
+          this.ctx.fillStyle = this.currentThemeKey === 'jungle' ? '#102A16' : '#2ecc71';
+          this.ctx.strokeStyle = this.currentThemeKey === 'jungle' ? '#E5EBD9' : 'transparent';
+          this.ctx.lineWidth = this.currentThemeKey === 'jungle' ? 3 : 0;
+          this.ctx.font = this.currentThemeKey === 'jungle' ? 'bold 16px Montserrat, sans-serif' : 'bold 14px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
-          this.ctx.strokeText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
+          if (this.currentThemeKey === 'jungle') this.ctx.strokeText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.fillText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.restore();
         } else if (zone.type === 'mud_puddle || lava_pool') {
