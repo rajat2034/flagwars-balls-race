@@ -2207,9 +2207,6 @@ class GameEngine {
       ? new Set(enabledObstacles)
       : new Set(OBSTACLE_REGISTRY.filter(o => o.category === 'core' || o.map === themeKey).map(o => o.type));
 
-    // Remove green rectangular boost pads from all maps (keep boost_pipe ramps)
-    enabledSet.delete('boost');
-
     // Magma Crater: replace Slow Ramp with Lava Pool entirely
     if (themeKey === 'volcano') {
       enabledSet.delete('slow');
@@ -2230,8 +2227,9 @@ class GameEngine {
       freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15); // High weight ~same as boost
     }
 
-    // Mariana Depths: boost ocean obstacle spawn rates, remove spinner
+    // Mariana Depths: boost ocean obstacle spawn rates, remove boost pads and spinner
     if (themeKey === 'ocean') {
+      enabledSet.delete('boost');
       enabledSet.delete('spinner');
       if (freqWeights.bubble_trap) freqWeights.bubble_trap = 20;
       if (freqWeights.sea_mine) freqWeights.sea_mine = 20;
