@@ -1914,6 +1914,11 @@ class GameEngine {
     this._sandstormLerpTimer = 0;
     this._sandstormParticles = [];
     this._sandstormDebris = [];
+    this._sandstormDustSheets = [];
+    this._sandstormWindStreaks = [];
+    this._sandstormDustClouds = [];
+    this._sandstormGustTimer = 0;
+    this._sandstormGustIntensity = 1;
     this._sandstormSkyDarkness = 0;
     this._sandstormSkyTint = 0;
     this._rainstormActive = false;
@@ -6124,39 +6129,103 @@ obs._trappedBallId = null;
       this._sandstormLerpTimer = 0;
       this._sandstormParticles = [];
       this._sandstormDebris = [];
+      this._sandstormDustSheets = [];
+      this._sandstormWindStreaks = [];
+      this._sandstormDustClouds = [];
+      this._sandstormGustTimer = 0;
+      this._sandstormGustIntensity = 1;
       this._sandstormSkyDarkness = 0;
       this._sandstormSkyTint = 0;
-      // Initialize sand particles (fine sand + coarse grains)
-      for (let i = 0; i < 120; i++) {
+      // Layer 1: Fine sand particles (dense, fastest)
+      for (let i = 0; i < 400; i++) {
         this._sandstormParticles.push({
           x: Math.random(),
           y: Math.random(),
-          size: 0.5 + Math.random() * 2,
-          speed: 0.4 + Math.random() * 0.8,
-          alpha: 0.15 + Math.random() * 0.35,
+          size: 0.3 + Math.random() * 1.5,
+          speed: 0.5 + Math.random() * 1.2,
+          alpha: 0.1 + Math.random() * 0.3,
           phase: Math.random() * Math.PI * 2,
-          isCoarse: Math.random() > 0.7
+          layer: 1
         });
       }
-      // Initialize chaotic debris (twigs, dry leaves, grass, branches)
-      for (let i = 0; i < 35; i++) {
-        const types = ['twig', 'dryLeaf', 'grass', 'branch', 'scrap'];
-        const type = types[Math.floor(Math.random() * types.length)];
+      // Layer 2: Medium sand grains
+      for (let i = 0; i < 150; i++) {
+        this._sandstormParticles.push({
+          x: Math.random(),
+          y: Math.random(),
+          size: 1.5 + Math.random() * 3,
+          speed: 0.3 + Math.random() * 0.6,
+          alpha: 0.15 + Math.random() * 0.35,
+          phase: Math.random() * Math.PI * 2,
+          layer: 2
+        });
+      }
+      // Layer 3: Dust sheets (horizontal streaks)
+      for (let i = 0; i < 30; i++) {
+        this._sandstormDustSheets.push({
+          x: Math.random(),
+          y: Math.random(),
+          width: 0.15 + Math.random() * 0.35,
+          height: 0.008 + Math.random() * 0.02,
+          speed: 0.25 + Math.random() * 0.4,
+          alpha: 0.05 + Math.random() * 0.12,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      // Layer 4: Wind streaks (vertical streaks)
+      for (let i = 0; i < 25; i++) {
+        this._sandstormWindStreaks.push({
+          x: Math.random(),
+          y: Math.random(),
+          length: 0.08 + Math.random() * 0.2,
+          width: 0.001 + Math.random() * 0.003,
+          speed: 0.3 + Math.random() * 0.5,
+          alpha: 0.04 + Math.random() * 0.1,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      // Layer 5: Dust clouds (larger, slower)
+      for (let i = 0; i < 15; i++) {
+        this._sandstormDustClouds.push({
+          x: Math.random(),
+          y: Math.random(),
+          radius: 0.08 + Math.random() * 0.15,
+          speed: 0.1 + Math.random() * 0.2,
+          alpha: 0.08 + Math.random() * 0.15,
+          phase: Math.random() * Math.PI * 2,
+          wobble: Math.random() * Math.PI * 2,
+          wobbleSpeed: 0.01 + Math.random() * 0.02
+        });
+      }
+      // Debris: twigs, dry leaves, grass, branches, straw, sticks
+      const debrisTypes = [
+        { type: 'twig', color: '#8a7a5a', weight: 0.25 },
+        { type: 'dryLeaf', color: '#a68a5a', weight: 0.2 },
+        { type: 'grass', color: '#7a8a4a', weight: 0.15 },
+        { type: 'branch', color: '#6a5a4a', weight: 0.15 },
+        { type: 'straw', color: '#b8a06a', weight: 0.15 },
+        { type: 'stick', color: '#7a6a4a', weight: 0.1 }
+      ];
+      for (let i = 0; i < 45; i++) {
+        const rand = Math.random();
+        let cum = 0;
+        let chosen = debrisTypes[0];
+        for (const d of debrisTypes) {
+          cum += d.weight;
+          if (rand < cum) { chosen = d; break; }
+        }
         this._sandstormDebris.push({
           x: Math.random(),
           y: Math.random(),
-          size: 4 + Math.random() * 12,
-          speed: 0.15 + Math.random() * 0.4,
-          alpha: 0.25 + Math.random() * 0.4,
+          size: 3 + Math.random() * 14,
+          speed: 0.1 + Math.random() * 0.35,
+          alpha: 0.2 + Math.random() * 0.4,
           rot: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 0.08,
-          type,
+          rotSpeed: (Math.random() - 0.5) * 0.1,
+          type: chosen.type,
           wobble: Math.random() * Math.PI * 2,
-          wobbleSpeed: 0.02 + Math.random() * 0.05,
-          color: type === 'twig' ? '#8a7a5a' :
-                 type === 'dryLeaf' ? '#a68a5a' :
-                 type === 'grass' ? '#7a8a4a' :
-                 type === 'branch' ? '#6a5a4a' : '#9a8a6a'
+          wobbleSpeed: 0.015 + Math.random() * 0.04,
+          color: chosen.color
         });
       }
       // Apply 0.7x speed reduction
@@ -7812,7 +7881,7 @@ obs._trappedBallId = null;
       if (this._sandstormActive) {
         this.balls.forEach(ball => {
           if (ball.finished || ball.eliminated) return;
-          ball.vx += this._sandstormStrength * dt;
+          ball.vx += this._sandstormStrength * dt * (this._sandstormGustIntensity || 1);
           const origSpeed = ball._sandOrigSpeed || 0.01;
           const cap = origSpeed * 0.7;
           const currentSpeed = Math.hypot(ball.vx, ball.vy);
@@ -7822,18 +7891,65 @@ obs._trappedBallId = null;
             ball.vy *= ratio;
           }
         });
-        // Update sand particles
+        // Update particles — Layer 1: Fine sand (dense, fastest)
         for (const p of this._sandstormParticles) {
-          p.x -= p.speed * 0.008 * dt;
-          p.y += Math.sin(p.phase + Date.now() * 0.002) * 0.0002 * dt;
-          if (p.x < -0.05) p.x = 1.05;
+          if (p.layer === 1) {
+            p.x -= p.speed * 0.012 * dt * (this._sandstormGustIntensity || 1);
+            p.y += Math.sin(p.phase + Date.now() * 0.003) * 0.0003 * dt;
+            if (p.x < -0.05) p.x = 1.05;
+          }
         }
-        // Ramp sky darkness and tint
-        if (this._sandstormSkyDarkness < 0.22) {
-          this._sandstormSkyDarkness = Math.min(0.22, this._sandstormSkyDarkness + 0.008 * dt);
+        // Layer 2: Medium sand grains (slower)
+        for (const p of this._sandstormParticles) {
+          if (p.layer === 2) {
+            p.x -= p.speed * 0.006 * dt * (this._sandstormGustIntensity || 1);
+            p.y += Math.sin(p.phase + Date.now() * 0.002) * 0.0002 * dt;
+            if (p.x < -0.05) p.x = 1.05;
+          }
         }
-        if (this._sandstormSkyTint < 0.2) {
-          this._sandstormSkyTint = Math.min(0.2, this._sandstormSkyTint + 0.008 * dt);
+        // Layer 3: Dust sheets (horizontal streaks near ground)
+        for (const s of this._sandstormDustSheets) {
+          s.x -= s.speed * 0.008 * dt * (this._sandstormGustIntensity || 1);
+          s.y += Math.sin(s.phase + Date.now() * 0.0015) * s.wobbleAmp * dt;
+          if (s.x < -0.1) s.x = 1.1;
+        }
+        // Layer 4: Wind streaks (vertical streaks)
+        for (const w of this._sandstormWindStreaks) {
+          w.x -= w.speed * 0.01 * dt * (this._sandstormGustIntensity || 1);
+          w.y += Math.sin(w.phase + Date.now() * 0.004) * 0.0002 * dt;
+          if (w.x < -0.1) w.x = 1.1;
+        }
+        // Layer 5: Dust clouds (larger, slower)
+        for (const c of this._sandstormDustClouds) {
+          c.x -= c.speed * 0.004 * dt * (this._sandstormGustIntensity || 1);
+          c.wobble += c.wobbleSpeed * dt;
+          c.y += Math.sin(c.wobble) * 0.00015 * dt;
+          if (c.x < -0.3) c.x = 1.3;
+        }
+        // Debris: twigs, dry leaves, grass, branches, straw, sticks
+        for (const d of this._sandstormDebris) {
+          d.x -= d.speed * 0.006 * dt * (this._sandstormGustIntensity || 1);
+          d.rot += d.rotSpeed * dt * (this._sandstormGustIntensity || 1);
+          d.wobble += d.wobbleSpeed * dt;
+          d.y += Math.sin(d.wobble) * 0.0002 * dt;
+          if (d.x < -0.15) d.x = 1.15;
+        }
+        // Random gust system: every 0.5-1.5s intensify briefly
+        this._sandstormGustTimer -= dt;
+        if (this._sandstormGustTimer <= 0) {
+          this._sandstormGustIntensity = 1.5 + Math.random() * 0.8;
+          this._sandstormGustTimer = 30 + Math.random() * 60; // 0.5-1.5s at 60fps
+        } else {
+          this._sandstormGustIntensity = Math.max(1, this._sandstormGustIntensity - 0.02 * dt);
+        }
+        // Ramp sky darkness and tint (slightly stronger with gusts)
+        const darknessTarget = 0.25 + (this._sandstormGustIntensity - 1) * 0.1;
+        const tintTarget = 0.25 + (this._sandstormGustIntensity - 1) * 0.1;
+        if (this._sandstormSkyDarkness < darknessTarget) {
+          this._sandstormSkyDarkness = Math.min(darknessTarget, this._sandstormSkyDarkness + 0.008 * dt);
+        }
+        if (this._sandstormSkyTint < tintTarget) {
+          this._sandstormSkyTint = Math.min(tintTarget, this._sandstormSkyTint + 0.008 * dt);
         }
       }
       // Sandstorm — smooth lerp back
@@ -7841,6 +7957,7 @@ obs._trappedBallId = null;
         this._sandstormLerpTimer -= dt;
         const t = Math.max(0, this._sandstormLerpTimer / 30);
         this._sandstormStrength = -0.25 * t;
+        this._sandstormGustIntensity = 1;
         this.balls.forEach(ball => {
           if (ball.finished || ball.eliminated) return;
           ball.vx += this._sandstormStrength * dt;
@@ -7853,12 +7970,31 @@ obs._trappedBallId = null;
             ball.vy *= ratio;
           }
         });
-        // Decay sand particles during lerp
+        // Decay all layers during lerp
         for (const p of this._sandstormParticles) {
           p.speed *= 0.97;
           p.x -= p.speed * 0.008 * dt;
-          p.y += Math.sin(p.phase + Date.now() * 0.002) * 0.0002 * dt;
           if (p.x < -0.05) p.x = 1.05;
+        }
+        for (const s of this._sandstormDustSheets) {
+          s.alpha *= 0.97;
+          s.x -= s.speed * 0.008 * dt;
+          if (s.x < -0.1) s.x = 1.1;
+        }
+        for (const w of this._sandstormWindStreaks) {
+          w.alpha *= 0.97;
+          w.x -= w.speed * 0.01 * dt;
+          if (w.x < -0.1) w.x = 1.1;
+        }
+        for (const c of this._sandstormDustClouds) {
+          c.alpha *= 0.96;
+          c.x -= c.speed * 0.004 * dt;
+          if (c.x < -0.3) c.x = 1.3;
+        }
+        for (const d of this._sandstormDebris) {
+          d.alpha *= 0.98;
+          d.x -= d.speed * 0.006 * dt;
+          if (d.x < -0.15) d.x = 1.15;
         }
         // Fade darkness and tint back
         this._sandstormSkyDarkness = Math.max(0, this._sandstormSkyDarkness - 0.008 * dt);
@@ -7868,6 +8004,7 @@ obs._trappedBallId = null;
           this._sandstormLerpTimer = 0;
           this._sandstormSkyDarkness = 0;
           this._sandstormSkyTint = 0;
+          this._sandstormGustIntensity = 1;
         }
       }
 
@@ -15746,39 +15883,158 @@ ctx.restore();
         this.ctx.restore();
       }
 
-      // Sandstorm — darkening + dusty tint + sand particles
+      // Sandstorm — darkening + dusty tint + multi-layer particles + debris
       if ((this._sandstormActive || this._sandstormLerpTimer > 0) && (this._sandstormSkyDarkness > 0.01 || this._sandstormSkyTint > 0.01) && this.state === 'racing') {
         this.ctx.save();
         const d = this._sandstormSkyDarkness;
         const t = this._sandstormSkyTint;
+        const gustMult = this._sandstormGustIntensity || 1;
         // Dusty warm tint overlay
-        this.ctx.fillStyle = `rgba(160, 110, 60, ${t * 0.45})`;
+        this.ctx.fillStyle = `rgba(160, 110, 60, ${t * 0.45 * gustMult})`;
         this.ctx.fillRect(0, 0, screenW, screenH);
         // Darken vignette
         const vig = this.ctx.createRadialGradient(screenW / 2, screenH / 2, screenH * 0.2, screenW / 2, screenH / 2, screenH * 0.95);
         vig.addColorStop(0, `rgba(0,0,0,0)`);
-        vig.addColorStop(0.4, `rgba(0,0,0,${d * 0.2})`);
-        vig.addColorStop(0.7, `rgba(0,0,0,${d * 0.6})`);
-        vig.addColorStop(1, `rgba(0,0,0,${d})`);
+        vig.addColorStop(0.4, `rgba(0,0,0,${d * 0.2 * gustMult})`);
+        vig.addColorStop(0.7, `rgba(0,0,0,${d * 0.6 * gustMult})`);
+        vig.addColorStop(1, `rgba(0,0,0,${d * gustMult})`);
         this.ctx.fillStyle = vig;
         this.ctx.fillRect(0, 0, screenW, screenH);
-        // Sand particles moving right-to-left across screen
+        // Layer 1: Fine sand particles (densest, fastest)
         for (const p of this._sandstormParticles) {
-          const px = p.x * screenW;
-          const py = p.y * screenH;
-          const alpha = this._sandstormActive ? p.alpha : p.alpha * Math.max(0, this._sandstormLerpTimer / 30);
-          if (alpha < 0.01) continue;
-          if (p.isClump) {
-            this.ctx.fillStyle = `rgba(170, 130, 80, ${alpha * 0.5})`;
-            this.ctx.beginPath();
-            this.ctx.ellipse(px, py, p.size * 3, p.size * 1.5, 0, 0, Math.PI * 2);
-            this.ctx.fill();
-          } else {
+          if (p.layer === 1) {
+            const px = p.x * screenW;
+            const py = p.y * screenH;
+            const alpha = (this._sandstormActive ? p.alpha : p.alpha * Math.max(0, this._sandstormLerpTimer / 30)) * gustMult;
+            if (alpha < 0.01) continue;
             this.ctx.fillStyle = `rgba(210, 180, 130, ${alpha})`;
             this.ctx.beginPath();
             this.ctx.arc(px, py, p.size * 0.5, 0, Math.PI * 2);
             this.ctx.fill();
           }
+        }
+        // Layer 2: Medium sand grains
+        for (const p of this._sandstormParticles) {
+          if (p.layer === 2) {
+            const px = p.x * screenW;
+            const py = p.y * screenH;
+            const alpha = (this._sandstormActive ? p.alpha : p.alpha * Math.max(0, this._sandstormLerpTimer / 30)) * gustMult;
+            if (alpha < 0.01) continue;
+            this.ctx.fillStyle = `rgba(190, 160, 110, ${alpha})`;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, p.size * 0.6, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+        }
+        // Layer 3: Dust sheets (horizontal streaks)
+        for (const s of this._sandstormDustSheets) {
+          const px = s.x * screenW;
+          const py = s.y * screenH + Math.sin(s.phase + Date.now() * 0.001) * 3;
+          const w = s.width * screenW;
+          const h = s.height * screenH;
+          const alpha = (this._sandstormActive ? s.alpha : s.alpha * Math.max(0, this._sandstormLerpTimer / 30)) * gustMult;
+          if (alpha < 0.005) continue;
+          this.ctx.fillStyle = `rgba(180, 150, 100, ${alpha})`;
+          this.ctx.fillRect(px - w / 2, py - h / 2, w, h);
+        }
+        // Layer 4: Wind streaks (vertical streaks)
+        for (const s of this._sandstormWindStreaks) {
+          const px = s.x * screenW;
+          const py = s.y * screenH;
+          const len = s.length * screenH;
+          const w = s.width * screenW;
+          const alpha = (this._sandstormActive ? s.alpha : s.alpha * Math.max(0, this._sandstormLerpTimer / 30)) * gustMult;
+          if (alpha < 0.005) continue;
+          this.ctx.save();
+          this.ctx.translate(px, py);
+          this.ctx.rotate(-0.15);
+          this.ctx.fillStyle = `rgba(200, 170, 120, ${alpha})`;
+          this.ctx.fillRect(-w / 2, -len / 2, w, len);
+          this.ctx.restore();
+        }
+        // Layer 5: Dust clouds (larger, slower)
+        for (const c of this._sandstormDustClouds) {
+          const px = c.x * screenW;
+          const py = c.y * screenH + Math.sin(c.wobble + Date.now() * 0.001) * c.wobbleSpeed * 10;
+          const r = c.radius * screenW;
+          const alpha = (this._sandstormActive ? c.alpha : c.alpha * Math.max(0, this._sandstormLerpTimer / 30)) * gustMult;
+          if (alpha < 0.005) continue;
+          const grad = this.ctx.createRadialGradient(px, py, 0, px, py, r);
+          grad.addColorStop(0, `rgba(160, 130, 90, ${alpha * 0.8})`);
+          grad.addColorStop(1, `rgba(160, 130, 90, 0)`);
+          this.ctx.fillStyle = grad;
+          this.ctx.beginPath();
+          this.ctx.arc(px, py, r, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+        // Debris: twigs, dry leaves, grass, branches, straw, sticks
+        for (const d of this._sandstormDebris) {
+          const px = d.x * screenW;
+          const py = d.y * screenH + Math.sin(d.wobble) * 4;
+          const alpha = (this._sandstormActive ? d.alpha : d.alpha * Math.max(0, this._sandstormLerpTimer / 30)) * gustMult;
+          if (alpha < 0.02) continue;
+          this.ctx.save();
+          this.ctx.translate(px, py);
+          this.ctx.rotate(d.rot);
+          this.ctx.globalAlpha = alpha;
+          if (d.type === 'twig') {
+            this.ctx.strokeStyle = d.color;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(-d.size, 0);
+            this.ctx.lineTo(d.size, 0);
+            this.ctx.stroke();
+            this.ctx.beginPath();
+            this.ctx.moveTo(-d.size * 0.3, -d.size * 0.2);
+            this.ctx.lineTo(-d.size * 0.3, d.size * 0.2);
+            this.ctx.stroke();
+          } else if (d.type === 'dryLeaf') {
+            this.ctx.fillStyle = d.color;
+            this.ctx.beginPath();
+            this.ctx.ellipse(0, 0, d.size, d.size * 0.5, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+          } else if (d.type === 'grass') {
+            this.ctx.strokeStyle = d.color;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, -d.size);
+            this.ctx.lineTo(d.size * 0.3, -d.size * 0.4);
+            this.ctx.moveTo(0, -d.size);
+            this.ctx.lineTo(-d.size * 0.3, -d.size * 0.4);
+            this.ctx.moveTo(0, -d.size * 0.3);
+            this.ctx.lineTo(d.size * 0.2, -d.size * 0.6);
+            this.ctx.stroke();
+          } else if (d.type === 'branch') {
+            this.ctx.strokeStyle = d.color;
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.moveTo(-d.size * 1.5, 0);
+            this.ctx.lineTo(d.size * 1.5, 0);
+            this.ctx.stroke();
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(-d.size * 0.5, -d.size * 0.3);
+            this.ctx.lineTo(-d.size * 0.5, d.size * 0.3);
+            this.ctx.stroke();
+            this.ctx.moveTo(d.size * 0.5, -d.size * 0.3);
+            this.ctx.lineTo(d.size * 0.5, d.size * 0.3);
+            this.ctx.stroke();
+          } else if (d.type === 'straw') {
+            this.ctx.strokeStyle = d.color;
+            this.ctx.lineWidth = 1.5;
+            this.ctx.beginPath();
+            this.ctx.moveTo(-d.size * 1.2, -d.size * 0.1);
+            this.ctx.lineTo(d.size * 1.2, d.size * 0.1);
+            this.ctx.stroke();
+          } else if (d.type === 'stick') {
+            this.ctx.strokeStyle = d.color;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(-d.size, 0);
+            this.ctx.lineTo(d.size, 0);
+            this.ctx.stroke();
+          }
+          this.ctx.restore();
         }
         this.ctx.restore();
       }
@@ -16557,6 +16813,11 @@ this.ctx.restore();
       this._sandstormLerpTimer = 0;
       this._sandstormParticles = [];
       this._sandstormDebris = [];
+      this._sandstormDustSheets = [];
+      this._sandstormWindStreaks = [];
+      this._sandstormDustClouds = [];
+      this._sandstormGustTimer = 0;
+      this._sandstormGustIntensity = 1;
       this._sandstormSkyDarkness = 0;
       this._sandstormSkyTint = 0;
       this._rainstormActive = false;
@@ -17040,6 +17301,11 @@ this.ctx.restore();
       this._sandstormLerpTimer = 0;
       this._sandstormParticles = [];
       this._sandstormDebris = [];
+      this._sandstormDustSheets = [];
+      this._sandstormWindStreaks = [];
+      this._sandstormDustClouds = [];
+      this._sandstormGustTimer = 0;
+      this._sandstormGustIntensity = 1;
       this._sandstormSkyDarkness = 0;
       this._sandstormSkyTint = 0;
       this._rainstormActive = false;
