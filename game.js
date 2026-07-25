@@ -5929,7 +5929,6 @@ obs._trappedBallId = null;
           spiralRadius: 0
         };
       });
-    }
     } else if (evt.key === 'teleportation') {
       const activeBalls = this.balls.filter(b => !b.finished && !b.eliminated);
       if (activeBalls.length >= 10) {
@@ -6755,7 +6754,6 @@ obs._trappedBallId = null;
           // case 0: Straight - no modification
         }
       });
-      break;
     } else if (this.activeEvent.key === 'teleportation') {
       if (this._teleportState === 'warning') {
         this._teleportTimer -= dt;
