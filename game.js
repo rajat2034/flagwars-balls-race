@@ -5913,18 +5913,20 @@ obs._trappedBallId = null;
       this._mirageIntensity = 0;
       this._miragePatterns = {};
       this.eventTimer = 300;
-      // Assign movement patterns to each ball
+      // Assign hypnotic motion profiles to each ball (A-G)
       this.balls.forEach(ball => {
         if (ball.finished || ball.eliminated) return;
-        const pattern = Math.floor(Math.random() * 6); // 0-5
+        const profile = Math.floor(Math.random() * 7); // 0-6 (A-G)
         const phaseOffset = Math.random() * Math.PI * 2;
-        const amplitude = 0.5 + Math.random() * 0.8; // 0.5-1.3
-        const frequency = 0.02 + Math.random() * 0.04; // 0.02-0.06
+        const amplitude = 0.6 + Math.random() * 0.8; // 0.6-1.4
+        const frequency = 0.015 + Math.random() * 0.035; // 0.015-0.05
+        const reverseTimer = 0.6 + Math.random() * 0.4; // 0.6-1.0s for Profile D
         this._miragePatterns[ball.id] = {
-          pattern,
+          profile,
           phaseOffset,
           amplitude,
           frequency,
+          reverseTimer,
           spiralAngle: 0,
           spiralRadius: 0
         };
@@ -6719,39 +6721,80 @@ obs._trappedBallId = null;
       // Smooth intensity
       this._mirageIntensity = this._mirageFadeProgress;
       
-      // Apply movement patterns to balls
+      // Apply hypnotic motion profiles to balls
       this.balls.forEach(ball => {
         if (ball.finished || ball.eliminated) return;
         const patternData = this._miragePatterns[ball.id];
         if (!patternData) return;
         
-        const { pattern, phaseOffset, amplitude, frequency, spiralAngle: _sa, spiralRadius: _sr } = patternData;
+        const { profile, phaseOffset, amplitude, frequency, reverseTimer } = patternData;
         const time = this._mirageTimer * 0.1;
         
-        switch (pattern) {
-          case 1: // Zigzag - smooth left-right oscillation
-            ball.vy += Math.sin(time * frequency + phaseOffset) * amplitude * dt * 0.5;
-            break;
-          case 2: // Circular drift - gentle circular motion
-            const circleAngle = time * frequency + phaseOffset;
-            ball.vx += Math.cos(circleAngle) * amplitude * dt * 0.3;
-            ball.vy += Math.sin(circleAngle) * amplitude * dt * 0.5;
-            break;
-          case 3: // Spiral drift - widening spiral
-            const spiralAngle = time * frequency + phaseOffset;
-            const spiralRadius = Math.min(15, (this._mirageTimer * 0.05) * amplitude);
-            ball.vx += Math.cos(spiralAngle) * spiralRadius * dt * 0.08;
-            ball.vy += Math.sin(spiralAngle) * spiralRadius * dt * 0.08;
-            break;
-          case 4: // Vertical weave - up-down oscillation
+        switch (profile) {
+          case 0: // Profile A - Zigzag: smooth left-right oscillation
             ball.vy += Math.sin(time * frequency + phaseOffset) * amplitude * dt * 0.6;
             break;
-          case 5: // Figure eight - smooth figure-eight path
-            const fig8Angle = time * frequency + phaseOffset;
-            ball.vx += Math.sin(fig8Angle) * amplitude * dt * 0.4;
-            ball.vy += Math.sin(fig8Angle * 2) * amplitude * dt * 0.3;
+          case 1: // Profile B - Whirlpool Motion (reuse Mariana Depths, ~40% scale)
+            {
+              const angle = time * frequency * 1.2 + phaseOffset;
+              const radius = 12 * amplitude;
+              ball.vx += Math.cos(angle) * radius * dt * 0.25;
+              ball.vy += Math.sin(angle) * radius * dt * 0.4;
+            }
             break;
-          // case 0: Straight - no modification
+          case 2: // Profile C - Sand Vortex Motion (reuse Sahara Sand Vortex, ~50% scale)
+            {
+              const angle = time * frequency * 1.5 + phaseOffset;
+              const radius = 10 * amplitude;
+              ball.vx += Math.cos(angle) * radius * dt * 0.3;
+              ball.vy += Math.sin(angle) * radius * dt * 0.3;
+              // Add slight spiral expansion
+              ball.vx += Math.cos(angle + Math.PI * 0.5) * radius * 0.2 * dt * 0.15;
+              ball.vy += Math.sin(angle + Math.PI * 0.5) * radius * 0.2 * dt * 0.15;
+            }
+            break;
+          case 3: // Profile D - Reverse Wander
+            {
+              patternData.reverseTimer -= dt;
+              if (patternData.reverseTimer <= 0) {
+                // Apply brief reverse impulse
+                ball.vx -= ball.vx > 0 ? 0.5 : -0.5;
+                ball.vy -= ball.vy > 0 ? 0.3 : -0.3;
+                patternData.reverseTimer = 0.6 + Math.random() * 0.4; // 0.6-1.0s
+              }
+            }
+            break;
+          case 4: // Profile E - Floating Motion (reuse Gravity Flip, reduced height)
+            {
+              const floatHeight = 8 * amplitude;
+              const floatSpeed = frequency * 1.8;
+              ball.vy += Math.sin(time * floatSpeed + phaseOffset) * amplitude * dt * 0.8;
+              // Slight forward push to maintain progress
+              ball.vx += Math.abs(Math.cos(time * floatSpeed + phaseOffset)) * 0.1 * dt;
+            }
+            break;
+          case 5: // Profile F - Figure Eight
+            {
+              const fig8Angle = time * frequency + phaseOffset;
+              const radius = 10 * amplitude;
+              ball.vx += Math.sin(fig8Angle) * radius * dt * 0.35;
+              ball.vy += Math.sin(fig8Angle * 2) * radius * dt * 0.25;
+            }
+            break;
+          case 6: // Profile G - Wobble Drift (combine small circular + zigzag + speed variation)
+            {
+              const wobbleAngle = time * frequency * 2 + phaseOffset;
+              const wobbleRadius = 6 * amplitude;
+              ball.vx += Math.cos(wobbleAngle) * wobbleRadius * dt * 0.2;
+              ball.vy += Math.sin(wobbleAngle) * wobbleRadius * dt * 0.3;
+              // Add zigzag on top
+              ball.vy += Math.sin(time * frequency * 0.7 + phaseOffset + Math.PI * 0.3) * amplitude * dt * 0.4;
+              // Slight speed wobble
+              const speedWobble = 1 + Math.sin(time * 0.5 + phaseOffset) * 0.15;
+              ball.vx *= speedWobble;
+            }
+            break;
+            // case 0 (or default): Straight - no modification
         }
       });
     } else if (this.activeEvent.key === 'teleportation') {
