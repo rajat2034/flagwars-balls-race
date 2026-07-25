@@ -1913,9 +1913,14 @@ class GameEngine {
     this._sandstormStrength = 0;
     this._sandstormLerpTimer = 0;
     this._sandstormParticles = [];
+    this._sandstormDebris = [];
     this._sandstormSkyDarkness = 0;
     this._sandstormSkyTint = 0;
     this._rainstormActive = false;
+    this._rainstormSkyDarkness = 0;
+    this._rainstormSkyFlash = 0;
+    this._rainstormLerpTimer = 0;
+    this._lavaShowerActive = false;
     this._rainstormSkyDarkness = 0;
     this._rainstormSkyFlash = 0;
     this._rainstormLerpTimer = 0;
@@ -6118,18 +6123,40 @@ obs._trappedBallId = null;
       this._sandstormStrength = -0.25;
       this._sandstormLerpTimer = 0;
       this._sandstormParticles = [];
+      this._sandstormDebris = [];
       this._sandstormSkyDarkness = 0;
       this._sandstormSkyTint = 0;
-      // Initialize sand particles
-      for (let i = 0; i < 40; i++) {
+      // Initialize sand particles (fine sand + coarse grains)
+      for (let i = 0; i < 120; i++) {
         this._sandstormParticles.push({
           x: Math.random(),
           y: Math.random(),
-          size: 1 + Math.random() * 2.5,
-          speed: 0.3 + Math.random() * 0.6,
-          alpha: 0.2 + Math.random() * 0.4,
+          size: 0.5 + Math.random() * 2,
+          speed: 0.4 + Math.random() * 0.8,
+          alpha: 0.15 + Math.random() * 0.35,
           phase: Math.random() * Math.PI * 2,
-          isClump: Math.random() > 0.75
+          isCoarse: Math.random() > 0.7
+        });
+      }
+      // Initialize chaotic debris (twigs, dry leaves, grass, branches)
+      for (let i = 0; i < 35; i++) {
+        const types = ['twig', 'dryLeaf', 'grass', 'branch', 'scrap'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        this._sandstormDebris.push({
+          x: Math.random(),
+          y: Math.random(),
+          size: 4 + Math.random() * 12,
+          speed: 0.15 + Math.random() * 0.4,
+          alpha: 0.25 + Math.random() * 0.4,
+          rot: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.08,
+          type,
+          wobble: Math.random() * Math.PI * 2,
+          wobbleSpeed: 0.02 + Math.random() * 0.05,
+          color: type === 'twig' ? '#8a7a5a' :
+                 type === 'dryLeaf' ? '#a68a5a' :
+                 type === 'grass' ? '#7a8a4a' :
+                 type === 'branch' ? '#6a5a4a' : '#9a8a6a'
         });
       }
       // Apply 0.7x speed reduction
@@ -16529,6 +16556,7 @@ this.ctx.restore();
       this._sandstormStrength = 0;
       this._sandstormLerpTimer = 0;
       this._sandstormParticles = [];
+      this._sandstormDebris = [];
       this._sandstormSkyDarkness = 0;
       this._sandstormSkyTint = 0;
       this._rainstormActive = false;
@@ -16924,6 +16952,7 @@ this.ctx.restore();
       this._sandstormStrength = 0;
       this._sandstormLerpTimer = 0;
       this._sandstormParticles = [];
+      this._sandstormDebris = [];
       this._sandstormSkyDarkness = 0;
       this._sandstormSkyTint = 0;
       this._rainstormActive = false;
@@ -17010,6 +17039,7 @@ this.ctx.restore();
       this._sandstormStrength = 0;
       this._sandstormLerpTimer = 0;
       this._sandstormParticles = [];
+      this._sandstormDebris = [];
       this._sandstormSkyDarkness = 0;
       this._sandstormSkyTint = 0;
       this._rainstormActive = false;
