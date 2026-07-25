@@ -139,7 +139,7 @@ const EVENT_REGISTRY = [
   { key: 'volcanic_eruption', name: 'Volcanic Eruption', implemented: true },
   { key: 'firestorm', name: 'Firestorm', implemented: true },
   { key: 'lava_shower', name: 'Lava Shower', implemented: true },
-  { key: 'sandstorm', name: 'Sandstorm', implemented: false },
+  { key: 'sandstorm', name: 'Sandstorm', implemented: true },
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
   { key: 'tropical_rainstorm', name: 'Tropical Rainstorm', implemented: true },
   { key: 'flash_flood', name: 'Flash Flood', implemented: true },
@@ -1909,6 +1909,12 @@ class GameEngine {
     this._flashFloodCurrent = 0;
     this._flashFloodLerpTimer = 0;
     this._flashFloodDebris = [];
+    this._sandstormActive = false;
+    this._sandstormStrength = 0;
+    this._sandstormLerpTimer = 0;
+    this._sandstormParticles = [];
+    this._sandstormSkyDarkness = 0;
+    this._sandstormSkyTint = 0;
     this._rainstormActive = false;
     this._rainstormSkyDarkness = 0;
     this._rainstormSkyFlash = 0;
@@ -5707,13 +5713,15 @@ obs._trappedBallId = null;
       { name: '\uD83C\uDF0B VOLCANIC ERUPTION', key: 'volcanic_eruption', duration: 480, description: 'The volcano has awakened. The entire crater becomes unstable!' },
       { name: '\uD83D\uDD25 FIRESTORM', key: 'firestorm', duration: 360, description: 'Scorching volcanic winds sweep across the crater!' },
       { name: '\uD83C\uDF2B LAVA SHOWER', key: 'lava_shower', duration: 360, description: 'Molten rocks rain from the volcano above!' },
+      { name: '\uD83C\uDF2A SANDSTORM', key: 'sandstorm', duration: 300, description: 'A fierce sandstorm sweeps across the desert, pushing racers backward!' },
       { name: '\u{1F300} WHIRLPOOL CURRENT', key: 'whirlpool_current', duration: 300, description: 'Powerful whirlpools swirl across the track, pulling racers off course!' },
       { name: '\u{1F4A1} SONAR SHOCKWAVE', key: 'sonar_shockwave', duration: 300, description: 'An underwater sonar pulse sweeps across the ocean, shoving racers off course!' },
       { name: '\u{1F419} JELLYFISH BLOOM', key: 'jellyfish_bloom', duration: 300, description: 'A bloom of glowing jellyfish drifts across the track, stunning racers on contact!' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
-      .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'jungle' && this.currentThemeKey !== 'ocean'))
+      .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'jungle' && this.currentThemeKey !== 'ocean' && this.currentThemeKey !== 'desert'))
+      .filter(e => e.key !== 'sandstorm' || this.currentThemeKey === 'desert')
       .filter(e => e.key !== 'volcanic_eruption' || isVolcano)
       .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'ocean'))
       .filter(e => e.key !== 'firestorm' || isVolcano)
@@ -6105,6 +6113,33 @@ obs._trappedBallId = null;
           ball.vy *= 0.7;
         }
       });
+    } else if (evt.key === 'sandstorm') {
+      this._sandstormActive = true;
+      this._sandstormStrength = -0.25;
+      this._sandstormLerpTimer = 0;
+      this._sandstormParticles = [];
+      this._sandstormSkyDarkness = 0;
+      this._sandstormSkyTint = 0;
+      // Initialize sand particles
+      for (let i = 0; i < 40; i++) {
+        this._sandstormParticles.push({
+          x: Math.random(),
+          y: Math.random(),
+          size: 1 + Math.random() * 2.5,
+          speed: 0.3 + Math.random() * 0.6,
+          alpha: 0.2 + Math.random() * 0.4,
+          phase: Math.random() * Math.PI * 2,
+          isClump: Math.random() > 0.75
+        });
+      }
+      // Apply 0.7x speed reduction
+      this.balls.forEach(ball => {
+        if (!ball.finished && !ball.eliminated) {
+          ball._sandOrigSpeed = Math.hypot(ball.vx, ball.vy);
+          ball.vx *= 0.7;
+          ball.vy *= 0.7;
+        }
+      });
     }
 
     this.eventCount++;
@@ -6160,6 +6195,13 @@ obs._trappedBallId = null;
       if (this.activeEvent.key === 'flash_flood') {
         this._flashFloodActive = false;
         this._flashFloodLerpTimer = 30;
+      }
+      if (this.activeEvent.key === 'sandstorm') {
+        this._sandstormActive = false;
+        this._sandstormLerpTimer = 30;
+        this.balls.forEach(ball => {
+          delete ball._sandOrigSpeed;
+        });
       }
       if (this.activeEvent.key === 'tropical_rainstorm') {
         this._rainstormActive = false;
@@ -7616,8 +7658,8 @@ obs._trappedBallId = null;
         if (this._cameraShakeTimer < 0) this._cameraShakeTimer = 0;
       }
 
-      // Reset forward force parameter if gravity flip event ended
-      if (!this.activeEvent || (this.activeEvent.key !== 'gravity_flip' && this.activeEvent.key !== 'whirlpool_current' && this.activeEvent.key !== 'sonar_shockwave')) {
+      // Reset forward force parameter if gravity flip or sandstorm event ended
+      if (!this.activeEvent || (this.activeEvent.key !== 'gravity_flip' && this.activeEvent.key !== 'sandstorm' && this.activeEvent.key !== 'whirlpool_current' && this.activeEvent.key !== 'sonar_shockwave')) {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
 
@@ -7736,6 +7778,69 @@ obs._trappedBallId = null;
         if (this._flashFloodLerpTimer <= 0) {
           this._flashFloodCurrent = 0;
           this._flashFloodLerpTimer = 0;
+        }
+      }
+
+      // Sandstorm — continuous headwind push + speed cap
+      if (this._sandstormActive) {
+        this.balls.forEach(ball => {
+          if (ball.finished || ball.eliminated) return;
+          ball.vx += this._sandstormStrength * dt;
+          const origSpeed = ball._sandOrigSpeed || 0.01;
+          const cap = origSpeed * 0.7;
+          const currentSpeed = Math.hypot(ball.vx, ball.vy);
+          if (currentSpeed > cap) {
+            const ratio = cap / currentSpeed;
+            ball.vx *= ratio;
+            ball.vy *= ratio;
+          }
+        });
+        // Update sand particles
+        for (const p of this._sandstormParticles) {
+          p.x -= p.speed * 0.008 * dt;
+          p.y += Math.sin(p.phase + Date.now() * 0.002) * 0.0002 * dt;
+          if (p.x < -0.05) p.x = 1.05;
+        }
+        // Ramp sky darkness and tint
+        if (this._sandstormSkyDarkness < 0.22) {
+          this._sandstormSkyDarkness = Math.min(0.22, this._sandstormSkyDarkness + 0.008 * dt);
+        }
+        if (this._sandstormSkyTint < 0.2) {
+          this._sandstormSkyTint = Math.min(0.2, this._sandstormSkyTint + 0.008 * dt);
+        }
+      }
+      // Sandstorm — smooth lerp back
+      if (this._sandstormLerpTimer > 0) {
+        this._sandstormLerpTimer -= dt;
+        const t = Math.max(0, this._sandstormLerpTimer / 30);
+        this._sandstormStrength = -0.25 * t;
+        this.balls.forEach(ball => {
+          if (ball.finished || ball.eliminated) return;
+          ball.vx += this._sandstormStrength * dt;
+          const origSpeed = ball._sandOrigSpeed || 0.01;
+          const cap = origSpeed * (0.7 + 0.3 * (1 - t));
+          const currentSpeed = Math.hypot(ball.vx, ball.vy);
+          if (currentSpeed > cap) {
+            const ratio = cap / currentSpeed;
+            ball.vx *= ratio;
+            ball.vy *= ratio;
+          }
+        });
+        // Decay sand particles during lerp
+        for (const p of this._sandstormParticles) {
+          p.speed *= 0.97;
+          p.x -= p.speed * 0.008 * dt;
+          p.y += Math.sin(p.phase + Date.now() * 0.002) * 0.0002 * dt;
+          if (p.x < -0.05) p.x = 1.05;
+        }
+        // Fade darkness and tint back
+        this._sandstormSkyDarkness = Math.max(0, this._sandstormSkyDarkness - 0.008 * dt);
+        this._sandstormSkyTint = Math.max(0, this._sandstormSkyTint - 0.008 * dt);
+        if (this._sandstormLerpTimer <= 0) {
+          this._sandstormStrength = 0;
+          this._sandstormLerpTimer = 0;
+          this._sandstormSkyDarkness = 0;
+          this._sandstormSkyTint = 0;
         }
       }
 
@@ -15614,6 +15719,43 @@ ctx.restore();
         this.ctx.restore();
       }
 
+      // Sandstorm — darkening + dusty tint + sand particles
+      if ((this._sandstormActive || this._sandstormLerpTimer > 0) && (this._sandstormSkyDarkness > 0.01 || this._sandstormSkyTint > 0.01) && this.state === 'racing') {
+        this.ctx.save();
+        const d = this._sandstormSkyDarkness;
+        const t = this._sandstormSkyTint;
+        // Dusty warm tint overlay
+        this.ctx.fillStyle = `rgba(160, 110, 60, ${t * 0.45})`;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        // Darken vignette
+        const vig = this.ctx.createRadialGradient(screenW / 2, screenH / 2, screenH * 0.2, screenW / 2, screenH / 2, screenH * 0.95);
+        vig.addColorStop(0, `rgba(0,0,0,0)`);
+        vig.addColorStop(0.4, `rgba(0,0,0,${d * 0.2})`);
+        vig.addColorStop(0.7, `rgba(0,0,0,${d * 0.6})`);
+        vig.addColorStop(1, `rgba(0,0,0,${d})`);
+        this.ctx.fillStyle = vig;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        // Sand particles moving right-to-left across screen
+        for (const p of this._sandstormParticles) {
+          const px = p.x * screenW;
+          const py = p.y * screenH;
+          const alpha = this._sandstormActive ? p.alpha : p.alpha * Math.max(0, this._sandstormLerpTimer / 30);
+          if (alpha < 0.01) continue;
+          if (p.isClump) {
+            this.ctx.fillStyle = `rgba(170, 130, 80, ${alpha * 0.5})`;
+            this.ctx.beginPath();
+            this.ctx.ellipse(px, py, p.size * 3, p.size * 1.5, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+          } else {
+            this.ctx.fillStyle = `rgba(210, 180, 130, ${alpha})`;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, p.size * 0.5, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+        }
+        this.ctx.restore();
+      }
+
       // A0a. Blackout visual overlay
       if (this._blackoutActive && this.state === 'racing') {
         this.ctx.save();
@@ -16383,6 +16525,12 @@ this.ctx.restore();
       this._flashFloodCurrent = 0;
       this._flashFloodLerpTimer = 0;
       this._flashFloodDebris = [];
+      this._sandstormActive = false;
+      this._sandstormStrength = 0;
+      this._sandstormLerpTimer = 0;
+      this._sandstormParticles = [];
+      this._sandstormSkyDarkness = 0;
+      this._sandstormSkyTint = 0;
       this._rainstormActive = false;
       this._rainstormSkyDarkness = 0;
       this._rainstormSkyFlash = 0;
@@ -16772,6 +16920,12 @@ this.ctx.restore();
       this._flashFloodCurrent = 0;
       this._flashFloodLerpTimer = 0;
       this._flashFloodDebris = [];
+      this._sandstormActive = false;
+      this._sandstormStrength = 0;
+      this._sandstormLerpTimer = 0;
+      this._sandstormParticles = [];
+      this._sandstormSkyDarkness = 0;
+      this._sandstormSkyTint = 0;
       this._rainstormActive = false;
       this._rainstormSkyDarkness = 0;
       this._rainstormSkyFlash = 0;
@@ -16852,6 +17006,12 @@ this.ctx.restore();
       this._flashFloodCurrent = 0;
       this._flashFloodLerpTimer = 0;
       this._flashFloodDebris = [];
+      this._sandstormActive = false;
+      this._sandstormStrength = 0;
+      this._sandstormLerpTimer = 0;
+      this._sandstormParticles = [];
+      this._sandstormSkyDarkness = 0;
+      this._sandstormSkyTint = 0;
       this._rainstormActive = false;
       this._rainstormSkyDarkness = 0;
       this._rainstormSkyFlash = 0;
