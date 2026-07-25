@@ -122,7 +122,6 @@ const OBSTACLE_REGISTRY = [
 
   // Sahara
   { type: 'quicksand_pit', name: 'Quicksand Pit', category: 'signature', map: 'desert' },
-  { type: 'sand_geyser', name: 'Sand Geyser', category: 'signature', map: 'desert' },
   { type: 'rolling_tumbleweed', name: 'Rolling Tumbleweed', category: 'signature', map: 'desert' },
   { type: 'moving_dune', name: 'Moving Dune', category: 'signature', map: 'desert' },
   { type: 'sand_vortex', name: 'Sand Vortex', category: 'signature', map: 'desert' },
@@ -2108,6 +2107,7 @@ class GameEngine {
     this.preloadVolcanoBg();
     this.preloadOceanBg();
     this.preloadDesertBg();
+    this.preloadTumbleweedImage();
     this.startBackgroundLoop();
     this.setupClickToFocus();
   }
@@ -2173,6 +2173,13 @@ class GameEngine {
     this.desertBgImg.onerror = () => { this.desertBgImg = null; };
   }
 
+  preloadTumbleweedImage() {
+    const img = new Image();
+    img.src = 'tumbleweed image.png';
+    img.onload = () => { this.tumbleweedImg = img; };
+    img.onerror = () => { this.tumbleweedImg = 'failed'; };
+  }
+
   // Pre-load flags asynchronously in the background
   preloadFlags(db) {
     db.forEach(c => {
@@ -2206,6 +2213,7 @@ class GameEngine {
     const enabledSet = enabledObstacles
       ? new Set(enabledObstacles)
       : new Set(OBSTACLE_REGISTRY.filter(o => o.category === 'core' || o.map === themeKey).map(o => o.type));
+    this._enabledSet = enabledSet;
 
     // Magma Crater: replace Slow Ramp with Lava Pool entirely
     if (themeKey === 'volcano') {
@@ -7551,6 +7559,49 @@ obs._trappedBallId = null;
 
   updateSimulation(dt) {
     if (this.state === 'racing') {
+      this.physics._tumbleweeds = null;
+      // Tumbleweed management: move, wall clamp, despawn (pre-physics so collision is integrated)
+      if (this.currentThemeKey === 'desert' && this._enabledSet && this._enabledSet.has('rolling_tumbleweed') && this.balls && this.track && this.raceTimer > 30 && this.balls.some(b => !b.finished && !b.eliminated)) {
+        const tumbleR = 24;
+        const expectedCount = Math.floor((this.raceTimer - 30) / 15) + 1;
+        while (this._tumbleweedSpawnCount < expectedCount) {
+          this._tumbleweedSpawnCount++;
+          const tw = this._tumbleweedPool.pop() || {};
+          const racing = this.balls.filter(b => !b.finished && !b.eliminated);
+          if (racing.length === 0) continue;
+          const leadX = Math.max(...racing.map(b => b.x));
+          const spawnX = leadX + 800 + Math.random() * 300;
+          const bounds = this.physics.getWallBoundaries(spawnX, this.track);
+          const topY = bounds ? bounds.topY + 30 : 60;
+          const botY = bounds ? bounds.bottomY - 30 : 540;
+          tw.active = true;
+          tw.x = spawnX;
+          tw.y = topY + Math.random() * (botY - topY);
+          tw.speed = 5 + Math.random() * 1.5;
+          tw.rotation = Math.random() * Math.PI * 2;
+          tw._hitCD = {};
+          this._tumbleweeds.push(tw);
+        }
+        for (let i = this._tumbleweeds.length - 1; i >= 0; i--) {
+          const tw = this._tumbleweeds[i];
+          if (!tw.active) continue;
+          tw.x -= tw.speed * dt;
+          tw.rotation += 0.08 * dt;
+          const bounds = this.physics.getWallBoundaries(tw.x, this.track);
+          if (bounds) {
+            const margin = tumbleR + 10;
+            tw.y = Math.max(bounds.topY + margin, Math.min(bounds.bottomY - margin, tw.y));
+          }
+          const racing = this.balls.filter(b => !b.finished && !b.eliminated);
+          const minBallX = racing.length > 0 ? Math.min(...racing.map(b => b.x)) : -Infinity;
+          if (tw.x < minBallX - 400 || tw.x < -500) {
+            tw.active = false;
+            this._tumbleweedPool.push(tw);
+            this._tumbleweeds.splice(i, 1);
+          }
+        }
+        this.physics._tumbleweeds = this._tumbleweeds;
+      }
       // Step physics
       this.physics.update(this.balls, this.track, dt);
 
@@ -8085,6 +8136,23 @@ obs._trappedBallId = null;
                 ball._vortexExitY = -dy * 0.8;
               }
             }
+          }
+        }
+      }
+
+      // Rolling Tumbleweed dust particles (post-physics)
+      if (this.currentThemeKey === 'desert' && this._enabledSet && this._enabledSet.has('rolling_tumbleweed') && this._tumbleweeds) {
+        const tumbleR = 24;
+        for (const tw of this._tumbleweeds) {
+          if (!tw.active) continue;
+          if (Math.random() < 0.03) {
+            this.particles.push({
+              type: 'sparkle', x: tw.x + (Math.random() - 0.5) * 12,
+              y: tw.y + tumbleR * 0.4 + Math.random() * 6,
+              vx: 0.5 + Math.random(), vy: -0.5 - Math.random() * 1.5,
+              alpha: 0.4, size: 1 + Math.random() * 2,
+              life: 15 + Math.floor(Math.random() * 10), color: '#B8956A'
+            });
           }
         }
       }
@@ -12503,7 +12571,7 @@ this.ctx.restore();
             const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.02);
             this.ctx.save();
             this.ctx.globalAlpha = pulse * 0.6;
-            this.ctx.fillStyle = 'rgba(255, 140, 0, 0.4)';
+this.ctx.fillStyle = 'rgba(255, 140, 0, 0.4)';
             this.ctx.shadowColor = '#ff8800';
             this.ctx.shadowBlur = 20;
             this.ctx.beginPath();
@@ -12512,12 +12580,12 @@ this.ctx.restore();
             this.ctx.shadowBlur = 0;
             this.ctx.restore();
           }
-          
-          this.ctx.restore();
+
+this.ctx.restore();
         });
       }
 
-      // Draw Bubble Traps ??? Mariana Depths exclusive
+    // Draw Bubble Traps ??? Mariana Depths exclusive
       if (this.currentThemeKey === 'ocean' && this.bubbleTrapImg && this.bubbleTrapImg !== 'failed') {
         this.track.obstacles.forEach(obs => {
           if (obs.type !== 'bubble_trap') return;
@@ -13213,6 +13281,94 @@ this.ctx.restore();
         }
 
         this.ctx.restore();
+      }
+
+      // Rolling Tumbleweed rendering (Sahara Desert exclusive)
+      if (this.currentThemeKey === 'desert' && this._enabledSet && this._enabledSet.has('rolling_tumbleweed')) {
+        const tumbleR = 24;
+        for (const tw of this._tumbleweeds) {
+          if (!tw.active) continue;
+          const sx = tw.x - camX;
+          if (sx + 50 < -300 || sx - 50 > screenW / zoom + 300) continue;
+
+          this.ctx.save();
+
+          // Shadow
+          this.ctx.fillStyle = 'rgba(0,0,0,0.10)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(sx + 2, tw.y + tumbleR * 0.8, tumbleR * 0.7, tumbleR * 0.25, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Use image if loaded, fallback to procedural branches
+          if (this.tumbleweedImg && this.tumbleweedImg !== 'failed' && this.tumbleweedImg.complete) {
+            this.ctx.translate(sx, tw.y);
+            this.ctx.rotate(tw.rotation);
+            const imgSize = tumbleR * 2.2;
+            this.ctx.drawImage(this.tumbleweedImg, -imgSize / 2, -imgSize / 2, imgSize, imgSize);
+          } else {
+            // Procedural fallback: tangled branch cluster
+            this.ctx.translate(sx, tw.y);
+            this.ctx.rotate(tw.rotation);
+
+            this.ctx.strokeStyle = '#7A6548';
+            this.ctx.lineWidth = 3;
+            this.ctx.lineCap = 'round';
+            for (let i = 0; i < 12; i++) {
+              const a = i * Math.PI / 6 + 0.1;
+              const len = tumbleR * (0.7 + (i * 3 % 7) * 0.05);
+              const bend = Math.sin(i * 1.7) * 4;
+              this.ctx.beginPath();
+              this.ctx.moveTo(Math.cos(a) * 3, Math.sin(a) * 3);
+              this.ctx.quadraticCurveTo(
+                Math.cos(a + 0.3) * len * 0.6 + bend,
+                Math.sin(a + 0.3) * len * 0.6,
+                Math.cos(a) * len, Math.sin(a) * len
+              );
+              this.ctx.stroke();
+            }
+
+            this.ctx.strokeStyle = '#9B855E';
+            this.ctx.lineWidth = 2;
+            for (let i = 0; i < 10; i++) {
+              const a = i * Math.PI / 5 + 0.5;
+              const len = tumbleR * (0.5 + (i * 11 % 13) * 0.04);
+              this.ctx.beginPath();
+              this.ctx.moveTo(Math.cos(a) * len * 0.2, Math.sin(a) * len * 0.2);
+              this.ctx.lineTo(Math.cos(a + 0.4) * len, Math.sin(a + 0.4) * len);
+              this.ctx.stroke();
+              this.ctx.beginPath();
+              this.ctx.moveTo(
+                Math.cos(a + 0.2) * len * 0.5,
+                Math.sin(a + 0.2) * len * 0.5
+              );
+              this.ctx.lineTo(Math.cos(a - 0.3) * len * 0.7, Math.sin(a - 0.3) * len * 0.7);
+              this.ctx.stroke();
+            }
+
+            this.ctx.strokeStyle = '#BFA880';
+            this.ctx.lineWidth = 1.2;
+            for (let i = 0; i < 8; i++) {
+              const a = i * Math.PI / 4 + 0.2;
+              const len = tumbleR * (0.4 + (i * 7 % 9) * 0.06);
+              const wave = Math.sin(i * 2.3) * 3;
+              this.ctx.beginPath();
+              this.ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4);
+              this.ctx.quadraticCurveTo(
+                Math.cos(a + 0.5) * len * 0.6 + wave,
+                Math.sin(a + 0.5) * len * 0.6,
+                Math.cos(a + 0.8) * len, Math.sin(a + 0.8) * len
+              );
+              this.ctx.stroke();
+            }
+
+            this.ctx.fillStyle = '#5C4A32';
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, 4, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          this.ctx.restore();
+        }
       }
 
     // Draw Flag Balls (racing + collector for finished)
@@ -16313,6 +16469,11 @@ this.ctx.restore();
       this._firestormWhirls = [];
       this._firestormWhirlTimer = 0;
       this._firestormSkyTint = 0;
+
+      // Rolling Tumbleweed system (Sahara Desert)
+      this._tumbleweeds = [];
+      this._tumbleweedPool = [];
+      this._tumbleweedSpawnCount = 0;
 
       this.sounds.stopBlizzardWind();
       this.sounds.stopAuroraAmbient();

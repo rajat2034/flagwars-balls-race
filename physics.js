@@ -1159,6 +1159,28 @@ if (dist > 0.001) {
           });
           if (!inAnyKelp) ball._wasInKelp = false;
         }
+        // Rolling Tumbleweed collision (simple AABB + deflection)
+        if (this._tumbleweeds) {
+          const tumbleR = 24;
+          for (const tw of this._tumbleweeds) {
+            if (!tw.active) continue;
+            const dx = Math.abs(ball.x - tw.x);
+            const dy = Math.abs(ball.y - tw.y);
+            if (dx < tumbleR + ball.radius && dy < tumbleR + ball.radius) {
+              const pushDir = ball.x > tw.x ? -1 : 1;
+              ball.vx += pushDir * 6;
+              ball.vy *= 0.85;
+              // Separate positions to prevent re-collision next frame
+              const sepX = tumbleR + ball.radius - dx;
+              const sepY = tumbleR + ball.radius - dy;
+              if (sepX < sepY) {
+                ball.x += (ball.x > tw.x ? 1 : -1) * sepX;
+              } else {
+                ball.y += (ball.y > tw.y ? 1 : -1) * sepY;
+              }
+            }
+          }
+        }
     });
   });
 
