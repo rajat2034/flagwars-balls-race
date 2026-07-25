@@ -139,7 +139,8 @@ const EVENT_REGISTRY = [
   { key: 'volcanic_eruption', name: 'Volcanic Eruption', implemented: true },
   { key: 'firestorm', name: 'Firestorm', implemented: true },
   { key: 'lava_shower', name: 'Lava Shower', implemented: true },
-  { key: 'sandstorm', name: 'Sandstorm', implemented: true },
+  { key: 'sandstorm', name: 'Sandstorm', implemented: false },
+  { key: 'mirage', name: 'Mirage', implemented: true },
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
   { key: 'tropical_rainstorm', name: 'Tropical Rainstorm', implemented: true },
   { key: 'flash_flood', name: 'Flash Flood', implemented: true },
@@ -1909,18 +1910,6 @@ class GameEngine {
     this._flashFloodCurrent = 0;
     this._flashFloodLerpTimer = 0;
     this._flashFloodDebris = [];
-    this._sandstormActive = false;
-    this._sandstormStrength = 0;
-    this._sandstormLerpTimer = 0;
-    this._sandstormParticles = [];
-    this._sandstormDebris = [];
-    this._sandstormDustSheets = [];
-    this._sandstormWindStreaks = [];
-    this._sandstormDustClouds = [];
-    this._sandstormGustTimer = 0;
-    this._sandstormGustIntensity = 1;
-    this._sandstormSkyDarkness = 0;
-    this._sandstormSkyTint = 0;
     this._rainstormActive = false;
     this._rainstormSkyDarkness = 0;
     this._rainstormSkyFlash = 0;
@@ -1954,6 +1943,15 @@ class GameEngine {
     this._blackoutFlickerTimer = 0;
     this._blackoutDuration = 0;
     this._blackoutPhase = null;
+
+    // Mirage event state (Sahara Desert exclusive)
+    this._mirageActive = false;
+    this._miragePhase = null;
+    this._mirageTimer = 0;
+    this._mirageFadeProgress = 0;
+    this._mirageIntensity = 0;
+    this._miragePatterns = {};
+
     this._teleportState = null;
     this._teleportTimer = 0;
     this._teleportPairs = [];
@@ -2022,6 +2020,14 @@ class GameEngine {
     this._firestormWhirls = [];
     this._firestormWhirlTimer = 0;
     this._firestormSkyTint = 0;
+
+    // Mirage event state (Sahara Desert)
+    this._mirageActive = false;
+    this._miragePhase = null; // 'fade_in', 'active', 'fade_out'
+    this._mirageTimer = 0;
+    this._mirageFadeProgress = 0;
+    this._mirageIntensity = 0;
+    this._miragePatterns = {}; // ball.id -> pattern data
 
     // Jungle theme state
     this._jungleGiantTrees = [];
@@ -5717,13 +5723,13 @@ obs._trappedBallId = null;
       { name: 'GRAVITY FLIP', key: 'gravity_flip', duration: 240, description: 'Gravity reverses, sending racers soaring upside down.' },
       { name: '\u{26A1} SPEED SURGE', key: 'speed_surge', duration: 360, description: 'Every racer receives a different random speed multiplier.' },
       { name: '\u{26A1} BLACKOUT', key: 'blackout', duration: 0, description: 'Stadium lights have gone out. Anything can happen...' },
+      { name: '\u{1F32B} MIRAGE', key: 'mirage', duration: 300, description: 'Desert heat creates a powerful mirage, distorting movement and vision!' },
       { name: '\u{26A1} TELEPORTATION', key: 'teleportation', duration: 360, description: 'Ten countries suddenly swapped positions!' },
       { name: '\u{2744} BLIZZARD', key: 'blizzard', duration: 300, description: 'A freezing storm slows every racer.' },
       { name: 'AURORA BOREALIS', key: 'aurora_borealis', duration: 480, description: 'The northern lights dance across the frozen sky.' },
       { name: '\uD83C\uDF0B VOLCANIC ERUPTION', key: 'volcanic_eruption', duration: 480, description: 'The volcano has awakened. The entire crater becomes unstable!' },
       { name: '\uD83D\uDD25 FIRESTORM', key: 'firestorm', duration: 360, description: 'Scorching volcanic winds sweep across the crater!' },
       { name: '\uD83C\uDF2B LAVA SHOWER', key: 'lava_shower', duration: 360, description: 'Molten rocks rain from the volcano above!' },
-      { name: '\uD83C\uDF2A SANDSTORM', key: 'sandstorm', duration: 300, description: 'A fierce sandstorm sweeps across the desert, pushing racers backward!' },
       { name: '\u{1F300} WHIRLPOOL CURRENT', key: 'whirlpool_current', duration: 300, description: 'Powerful whirlpools swirl across the track, pulling racers off course!' },
       { name: '\u{1F4A1} SONAR SHOCKWAVE', key: 'sonar_shockwave', duration: 300, description: 'An underwater sonar pulse sweeps across the ocean, shoving racers off course!' },
       { name: '\u{1F419} JELLYFISH BLOOM', key: 'jellyfish_bloom', duration: 300, description: 'A bloom of glowing jellyfish drifts across the track, stunning racers on contact!' },
@@ -5731,9 +5737,9 @@ obs._trappedBallId = null;
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'jungle' && this.currentThemeKey !== 'ocean' && this.currentThemeKey !== 'desert'))
-      .filter(e => e.key !== 'sandstorm' || this.currentThemeKey === 'desert')
+      .filter(e => e.key !== 'mirage' || this.currentThemeKey === 'desert')
       .filter(e => e.key !== 'volcanic_eruption' || isVolcano)
-      .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'ocean'))
+      .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'ocean' && this.currentThemeKey !== 'desert'))
       .filter(e => e.key !== 'firestorm' || isVolcano)
       .filter(e => e.key !== 'aurora_borealis' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'tropical_rainstorm' || this.currentThemeKey === 'jungle')
@@ -5899,6 +5905,31 @@ obs._trappedBallId = null;
       this._blackoutDuration = 180 + Math.random() * 120;
       this._blackoutPhase = 'active';
       this.eventTimer = this._blackoutDuration + 60;
+    } else if (evt.key === 'mirage') {
+      this._mirageActive = true;
+      this._miragePhase = 'fade_in';
+      this._mirageTimer = 0;
+      this._mirageFadeProgress = 0;
+      this._mirageIntensity = 0;
+      this._miragePatterns = {};
+      this.eventTimer = 300;
+      // Assign movement patterns to each ball
+      this.balls.forEach(ball => {
+        if (ball.finished || ball.eliminated) return;
+        const pattern = Math.floor(Math.random() * 6); // 0-5
+        const phaseOffset = Math.random() * Math.PI * 2;
+        const amplitude = 0.5 + Math.random() * 0.8; // 0.5-1.3
+        const frequency = 0.02 + Math.random() * 0.04; // 0.02-0.06
+        this._miragePatterns[ball.id] = {
+          pattern,
+          phaseOffset,
+          amplitude,
+          frequency,
+          spiralAngle: 0,
+          spiralRadius: 0
+        };
+      });
+    }
     } else if (evt.key === 'teleportation') {
       const activeBalls = this.balls.filter(b => !b.finished && !b.eliminated);
       if (activeBalls.length >= 10) {
@@ -6268,6 +6299,14 @@ obs._trappedBallId = null;
         this._blackoutActive = false;
         this._blackoutPhase = null;
       }
+      if (this.activeEvent.key === 'mirage') {
+        this._mirageActive = false;
+        this._miragePhase = null;
+        this._mirageTimer = 0;
+        this._mirageFadeProgress = 0;
+        this._mirageIntensity = 0;
+        this._miragePatterns = {};
+      }
       if (this.activeEvent.key === 'teleportation') {
         this._teleportState = null;
         this._teleportPairs = [];
@@ -6292,12 +6331,13 @@ obs._trappedBallId = null;
         this._flashFloodActive = false;
         this._flashFloodLerpTimer = 30;
       }
-      if (this.activeEvent.key === 'sandstorm') {
-        this._sandstormActive = false;
-        this._sandstormLerpTimer = 30;
-        this.balls.forEach(ball => {
-          delete ball._sandOrigSpeed;
-        });
+      if (this.activeEvent.key === 'mirage') {
+        this._mirageActive = false;
+        this._miragePhase = null;
+        this._mirageTimer = 0;
+        this._mirageFadeProgress = 0;
+        this._mirageIntensity = 0;
+        this._miragePatterns = {};
       }
       if (this.activeEvent.key === 'tropical_rainstorm') {
         this._rainstormActive = false;
@@ -6324,6 +6364,14 @@ obs._trappedBallId = null;
           ball._firestormBurnActive = false;
           ball._firestormBurnTimer = 0;
         });
+      }
+      if (this.activeEvent.key === 'mirage') {
+        this._mirageActive = false;
+        this._miragePhase = null;
+        this._mirageTimer = 0;
+        this._mirageFadeProgress = 0;
+        this._mirageIntensity = 0;
+        this._miragePatterns = {};
       }
       if (this.activeEvent.key === 'blizzard') {
         this._blizzardActive = false;
@@ -6646,6 +6694,68 @@ obs._trappedBallId = null;
         this._blackoutFadeLevel *= 0.97;
         if (this._blackoutFadeLevel < 0.01) this._blackoutFadeLevel = 0;
       }
+    } else if (this.activeEvent.key === 'mirage') {
+      this._mirageTimer += dt;
+      // Phase management: fade_in (0.5s) -> active (4s) -> fade_out (0.5s)
+      const totalFrames = 300; // 5 seconds at 60fps
+      const fadeFrames = 30; // 0.5 seconds at 60fps
+      
+      if (this._mirageTimer < fadeFrames) {
+        // Fade in
+        this._miragePhase = 'fade_in';
+        this._mirageFadeProgress = this._mirageTimer / fadeFrames;
+      } else if (this._mirageTimer < totalFrames - fadeFrames) {
+        // Active
+        this._miragePhase = 'active';
+        this._mirageFadeProgress = 1;
+      } else if (this._mirageTimer < totalFrames) {
+        // Fade out
+        this._miragePhase = 'fade_out';
+        this._mirageFadeProgress = (totalFrames - this._mirageTimer) / fadeFrames;
+      } else {
+        this._miragePhase = 'done';
+        this._mirageFadeProgress = 0;
+      }
+      
+      // Smooth intensity
+      this._mirageIntensity = this._mirageFadeProgress;
+      
+      // Apply movement patterns to balls
+      this.balls.forEach(ball => {
+        if (ball.finished || ball.eliminated) return;
+        const patternData = this._miragePatterns[ball.id];
+        if (!patternData) return;
+        
+        const { pattern, phaseOffset, amplitude, frequency, spiralAngle: _sa, spiralRadius: _sr } = patternData;
+        const time = this._mirageTimer * 0.1;
+        
+        switch (pattern) {
+          case 1: // Zigzag - smooth left-right oscillation
+            ball.vy += Math.sin(time * frequency + phaseOffset) * amplitude * dt * 0.5;
+            break;
+          case 2: // Circular drift - gentle circular motion
+            const circleAngle = time * frequency + phaseOffset;
+            ball.vx += Math.cos(circleAngle) * amplitude * dt * 0.3;
+            ball.vy += Math.sin(circleAngle) * amplitude * dt * 0.5;
+            break;
+          case 3: // Spiral drift - widening spiral
+            const spiralAngle = time * frequency + phaseOffset;
+            const spiralRadius = Math.min(15, (this._mirageTimer * 0.05) * amplitude);
+            ball.vx += Math.cos(spiralAngle) * spiralRadius * dt * 0.08;
+            ball.vy += Math.sin(spiralAngle) * spiralRadius * dt * 0.08;
+            break;
+          case 4: // Vertical weave - up-down oscillation
+            ball.vy += Math.sin(time * frequency + phaseOffset) * amplitude * dt * 0.6;
+            break;
+          case 5: // Figure eight - smooth figure-eight path
+            const fig8Angle = time * frequency + phaseOffset;
+            ball.vx += Math.sin(fig8Angle) * amplitude * dt * 0.4;
+            ball.vy += Math.sin(fig8Angle * 2) * amplitude * dt * 0.3;
+            break;
+          // case 0: Straight - no modification
+        }
+      });
+      break;
     } else if (this.activeEvent.key === 'teleportation') {
       if (this._teleportState === 'warning') {
         this._teleportTimer -= dt;
@@ -7755,7 +7865,7 @@ obs._trappedBallId = null;
       }
 
       // Reset forward force parameter if gravity flip or sandstorm event ended
-      if (!this.activeEvent || (this.activeEvent.key !== 'gravity_flip' && this.activeEvent.key !== 'sandstorm' && this.activeEvent.key !== 'whirlpool_current' && this.activeEvent.key !== 'sonar_shockwave')) {
+      if (!this.activeEvent || (this.activeEvent.key !== 'gravity_flip' && this.activeEvent.key !== 'mirage' && this.activeEvent.key !== 'whirlpool_current' && this.activeEvent.key !== 'sonar_shockwave')) {
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
 
@@ -9603,8 +9713,75 @@ obs._trappedBallId = null;
     try {
       this.renderDynamicBackground(screenW, screenH);
     } finally {
-      this.ctx.restore();
-    }
+this.ctx.restore();
+      }
+
+      // Mirage visual overlay (Sahara Desert exclusive)
+      if (this._mirageActive && this._mirageIntensity > 0 && this.state === 'racing') {
+        this.ctx.save();
+        const intensity = this._mirageIntensity;
+        
+        // Heat shimmer - subtle horizontal distortion using multiple offset draws
+        const shimmerStrength = intensity * 2;
+        const numPasses = 3;
+        for (let i = 0; i < numPasses; i++) {
+          const offsetY = Math.sin(Date.now() * 0.003 + i * 1.5) * shimmerStrength;
+          const alpha = 0.03 * intensity * (1 - i / numPasses);
+          this.ctx.globalAlpha = alpha;
+          this.ctx.drawImage(this.canvas, 0, offsetY);
+        }
+        
+        // Mild blur effect - draw multiple times with slight offsets
+        if (intensity > 0.5) {
+          const blurStrength = (intensity - 0.5) * 2;
+          for (let i = 0; i < 4; i++) {
+            const blurOffsetX = (Math.random() - 0.5) * blurStrength * 1.5;
+            const blurOffsetY = (Math.random() - 0.5) * blurStrength * 0.5;
+            this.ctx.globalAlpha = 0.05 * intensity;
+            this.ctx.drawImage(this.canvas, blurOffsetX, blurOffsetY);
+          }
+        }
+        
+        // Heat haze - warm color overlay
+        const hazeAlpha = intensity * 0.08;
+        const grad = this.ctx.createRadialGradient(screenW / 2, screenH / 2, 0, screenW / 2, screenH / 2, screenH);
+        grad.addColorStop(0, `rgba(255, 220, 150, ${hazeAlpha * 0.5})`);
+        grad.addColorStop(0.5, `rgba(255, 200, 120, ${hazeAlpha * 0.8})`);
+        grad.addColorStop(1, `rgba(255, 180, 80, ${hazeAlpha})`);
+        this.ctx.globalAlpha = 1;
+        this.ctx.fillStyle = grad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        
+        this.ctx.restore();
+      }
+
+      // Ball heat distortion effects for mirage
+      if (this._mirageActive && this._mirageIntensity > 0 && this.balls) {
+        this.balls.forEach(ball => {
+          if (ball.finished || ball.eliminated) return;
+          const patternData = this._miragePatterns[ball.id];
+          if (!patternData) return;
+          
+          const intensity = this._mirageIntensity;
+          const time = Date.now() * 0.01;
+          
+          // Draw subtle heat shimmer around ball
+          this.ctx.save();
+          const numRings = 2;
+          for (let i = 0; i < numRings; i++) {
+            const ringRadius = ball.radius + 4 + i * 3 + Math.sin(time + ball.id + i) * 1.5;
+            const alpha = 0.04 * intensity * (1 - i / numRings);
+            const grad = this.ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, ringRadius);
+            grad.addColorStop(0, `rgba(255, 200, 100, ${alpha})`);
+            grad.addColorStop(1, `rgba(255, 150, 50, 0)`);
+            this.ctx.fillStyle = grad;
+            this.ctx.beginPath();
+            this.ctx.arc(ball.x, ball.y, ringRadius, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+          this.ctx.restore();
+        });
+      }
 
     // Apply camera shake offset
     // Calculate scaling coordinates based on aspect ratio
@@ -16810,16 +16987,6 @@ this.ctx.restore();
       this._flashFloodDebris = [];
       this._sandstormActive = false;
       this._sandstormStrength = 0;
-      this._sandstormLerpTimer = 0;
-      this._sandstormParticles = [];
-      this._sandstormDebris = [];
-      this._sandstormDustSheets = [];
-      this._sandstormWindStreaks = [];
-      this._sandstormDustClouds = [];
-      this._sandstormGustTimer = 0;
-      this._sandstormGustIntensity = 1;
-      this._sandstormSkyDarkness = 0;
-      this._sandstormSkyTint = 0;
       this._rainstormActive = false;
       this._rainstormSkyDarkness = 0;
       this._rainstormSkyFlash = 0;
@@ -16832,6 +16999,15 @@ this.ctx.restore();
       this._blackoutActive = false;
       this._blackoutFadeLevel = 0;
       this._blackoutPhase = null;
+
+      // Mirage event reset (Sahara Desert exclusive)
+      this._mirageActive = false;
+      this._miragePhase = null;
+      this._mirageTimer = 0;
+      this._mirageFadeProgress = 0;
+      this._mirageIntensity = 0;
+      this._miragePatterns = {};
+
       this._teleportState = null;
       this._teleportPairs = [];
       this._teleportPostPairs = [];
@@ -16906,6 +17082,14 @@ this.ctx.restore();
       this._firestormWhirls = [];
       this._firestormWhirlTimer = 0;
       this._firestormSkyTint = 0;
+
+      // Mirage event reset (Sahara Desert)
+      this._mirageActive = false;
+      this._miragePhase = null;
+      this._mirageTimer = 0;
+      this._mirageFadeProgress = 0;
+      this._mirageIntensity = 0;
+      this._miragePatterns = {};
 
       // Rolling Tumbleweed system (Sahara Desert)
       this._tumbleweeds = [];
@@ -17353,7 +17537,16 @@ this.ctx.restore();
       this._firestormWhirls = [];
       this._firestormWhirlTimer = 0;
       this._firestormSkyTint = 0;
-      this._jungleGiantTrees = [];
+
+      // Mirage event reset (Sahara Desert)
+      this._mirageActive = false;
+      this._miragePhase = null;
+      this._mirageTimer = 0;
+      this._mirageFadeProgress = 0;
+      this._mirageIntensity = 0;
+      this._miragePatterns = {};
+
+      // Jungle theme state
       this._jungleRoots = [];
       this._jungleWaterfalls = [];
       this._jungleSunRays = [];
