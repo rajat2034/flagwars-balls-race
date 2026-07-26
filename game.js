@@ -139,7 +139,7 @@ const EVENT_REGISTRY = [
   { key: 'volcanic_eruption', name: 'Volcanic Eruption', implemented: true },
   { key: 'firestorm', name: 'Firestorm', implemented: true },
   { key: 'lava_shower', name: 'Lava Shower', implemented: true },
-  { key: 'sandstorm', name: 'Sandstorm', implemented: false },
+  { key: 'sandstorm', name: 'Sandstorm', implemented: true },
   { key: 'mirage', name: 'Mirage', implemented: true },
   { key: 'jungle_stampede', name: 'Jungle Stampede', implemented: false },
   { key: 'tropical_rainstorm', name: 'Tropical Rainstorm', implemented: true },
@@ -5733,11 +5733,13 @@ obs._trappedBallId = null;
       { name: '\u{1F300} WHIRLPOOL CURRENT', key: 'whirlpool_current', duration: 300, description: 'Powerful whirlpools swirl across the track, pulling racers off course!' },
       { name: '\u{1F4A1} SONAR SHOCKWAVE', key: 'sonar_shockwave', duration: 300, description: 'An underwater sonar pulse sweeps across the ocean, shoving racers off course!' },
       { name: '\u{1F419} JELLYFISH BLOOM', key: 'jellyfish_bloom', duration: 300, description: 'A bloom of glowing jellyfish drifts across the track, stunning racers on contact!' },
+      { name: '\uD83C\uDF2A SANDSTORM', key: 'sandstorm', duration: 360, description: 'A fierce sandstorm sweeps across the desert, pushing racers backward!' },
     ]
       .filter(e => !enabledEventKeys || enabledEventKeys.has(e.key))
       .filter(e => e.key !== 'blizzard' || this.currentThemeKey === 'snow')
       .filter(e => e.key !== 'gravity_flip' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'jungle' && this.currentThemeKey !== 'ocean' && this.currentThemeKey !== 'desert'))
       .filter(e => e.key !== 'mirage' || this.currentThemeKey === 'desert')
+      .filter(e => e.key !== 'sandstorm' || this.currentThemeKey === 'desert')
       .filter(e => e.key !== 'volcanic_eruption' || isVolcano)
       .filter(e => e.key !== 'blackout' || (this.currentThemeKey !== 'snow' && !isVolcano && this.currentThemeKey !== 'ocean' && this.currentThemeKey !== 'desert'))
       .filter(e => e.key !== 'firestorm' || isVolcano)
@@ -6440,6 +6442,20 @@ obs._trappedBallId = null;
           delete ball._jellyfishStunOrigVy;
           delete ball._jellyfishStunWobble;
         });
+      }
+      if (this.activeEvent.key === 'sandstorm') {
+        this._sandstormActive = false;
+        this._sandstormStrength = 0;
+        this._sandstormLerpTimer = 0;
+        this._sandstormParticles = [];
+        this._sandstormDebris = [];
+        this._sandstormDustSheets = [];
+        this._sandstormWindStreaks = [];
+        this._sandstormDustClouds = [];
+        this._sandstormGustTimer = 0;
+        this._sandstormGustIntensity = 1;
+        this._sandstormSkyDarkness = 0;
+        this._sandstormSkyTint = 0;
       }
       this.activeEvent = null;
       return;
@@ -9826,71 +9842,56 @@ this.ctx.restore();
         this.ctx.save();
         const intensity = this._mirageIntensity;
         const now = Date.now() * 0.002;
-        
-        // 1. Strong heat shimmer - horizontal wavy distortion
-        const shimmerStrength = intensity * 5;
-        const numPasses = 8;
-        for (let i = 0; i < numPasses; i++) {
-          const offsetY = Math.sin(now + i * 1.1) * shimmerStrength;
-          const offsetX = Math.sin(now * 0.6 + i * 0.9) * shimmerStrength * 0.4;
-          const alpha = 0.025 * intensity * (1 - i / numPasses);
-          this.ctx.globalAlpha = alpha;
-          this.ctx.drawImage(this.canvas, offsetX, offsetY);
-        }
-        
-        // 2. Refractive wavy blur
-        if (intensity > 0.2) {
-          const blurStr = Math.min(4, (intensity - 0.2) / 0.8 * 4);
-          for (let i = 0; i < 8; i++) {
-            const bx = (Math.random() - 0.5) * blurStr * 1.8;
-            const by = (Math.random() - 0.5) * blurStr * 0.8;
-            this.ctx.globalAlpha = 0.035 * intensity;
-            this.ctx.drawImage(this.canvas, bx, by);
-          }
-        }
-        
-        // 3. Wavy heat lines (visible refractive distortion bands)
-        this.ctx.globalAlpha = 0.15 * intensity;
-        const waveBase = screenH * 0.15;
-        const waveSpacing = screenH * 0.09;
-        for (let w = 0; w < 10; w++) {
-          const wy = waveBase + w * waveSpacing + Math.sin(now * 1.8 + w * 1.3) * 4;
-          const ww = screenW * (0.25 + 0.5 * Math.sin(now * 0.8 + w * 0.6));
-          this.ctx.fillStyle = `rgba(255, 220, 150, ${0.04 * intensity})`;
-          this.ctx.beginPath();
-          this.ctx.ellipse(screenW / 2, wy, ww / 2, 1.5, 0, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-        
-        // 4. Warm golden/orange atmospheric tint
-        const hazeAlpha = intensity * 0.18;
+
+        // 1. Warm golden/orange atmospheric tint
+        const hazeAlpha = intensity * 0.22;
         const grad = this.ctx.createRadialGradient(screenW / 2, screenH * 0.65, 0, screenW / 2, screenH * 0.65, screenH * 0.8);
         grad.addColorStop(0, `rgba(255, 210, 120, ${hazeAlpha * 0.3})`);
         grad.addColorStop(0.3, `rgba(255, 190, 80, ${hazeAlpha * 0.5})`);
         grad.addColorStop(0.6, `rgba(230, 160, 50, ${hazeAlpha * 0.7})`);
         grad.addColorStop(1, `rgba(200, 120, 30, ${hazeAlpha})`);
-        this.ctx.globalAlpha = 1;
         this.ctx.fillStyle = grad;
         this.ctx.fillRect(0, 0, screenW, screenH);
-        
-        // 5. Horizon shimmer "water" illusion
-        const horizonY = screenH * 0.38;
+
+        // 2. Wavy heat distortion bands
+        for (let w = 0; w < 14; w++) {
+          const wy = screenH * 0.08 + w * (screenH * 0.065) + Math.sin(now * 1.5 + w * 1.1) * 5;
+          const ww = screenW * (0.2 + 0.6 * Math.sin(now * 0.7 + w * 0.5));
+          this.ctx.fillStyle = `rgba(255, 220, 150, ${0.025 * intensity})`;
+          this.ctx.beginPath();
+          this.ctx.ellipse(screenW / 2, wy, ww / 2, 1.5, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+        for (let w = 0; w < 10; w++) {
+          const wy = screenH * 0.12 + w * (screenH * 0.08) + Math.sin(now * 1.8 + w * 1.3 + 0.5) * 4;
+          this.ctx.fillStyle = `rgba(255, 200, 100, ${0.015 * intensity})`;
+          this.ctx.fillRect(0, wy - 1, screenW, 2);
+        }
+
+        // 3. Horizon shimmer (optical water illusion)
+        const horizonY = screenH * 0.4;
         const hPulse = Math.sin(now * 1.3) * 0.3 + 0.5;
-        const hGrad = this.ctx.createLinearGradient(0, horizonY - 15, 0, horizonY + 35);
-        hGrad.addColorStop(0, `rgba(255, 230, 180, 0)`);
-        hGrad.addColorStop(0.3, `rgba(255, 235, 190, ${0.18 * intensity * hPulse})`);
-        hGrad.addColorStop(0.6, `rgba(255, 220, 160, ${0.12 * intensity * hPulse})`);
-        hGrad.addColorStop(1, `rgba(255, 200, 120, 0)`);
-        this.ctx.globalAlpha = 1;
+        const hGrad = this.ctx.createLinearGradient(0, horizonY - 15, 0, horizonY + 30);
+        hGrad.addColorStop(0, 'rgba(255, 230, 180, 0)');
+        hGrad.addColorStop(0.3, `rgba(255, 235, 190, ${0.2 * intensity * hPulse})`);
+        hGrad.addColorStop(0.7, `rgba(255, 220, 160, ${0.15 * intensity * hPulse})`);
+        hGrad.addColorStop(1, 'rgba(255, 200, 120, 0)');
         this.ctx.fillStyle = hGrad;
-        this.ctx.fillRect(0, horizonY - 15, screenW, 50);
-        
-        // 6. Brightness pulse from rising hot air
-        const brightnessPulse = 1 + Math.sin(now * 2.5 + Math.sin(now * 0.7)) * 0.04 * intensity;
-        this.ctx.globalAlpha = 0.06 * intensity * (brightnessPulse - 1) * 10;
-        this.ctx.fillStyle = '#fff5e0';
+        this.ctx.fillRect(0, horizonY - 15, screenW, 45);
+
+        // 4. Screen-edge heat vignette
+        const vigGrad = this.ctx.createRadialGradient(screenW / 2, screenH / 2, screenH * 0.3, screenW / 2, screenH / 2, screenH * 0.85);
+        vigGrad.addColorStop(0, 'rgba(255, 200, 100, 0)');
+        vigGrad.addColorStop(0.5, `rgba(255, 180, 80, ${0.04 * intensity})`);
+        vigGrad.addColorStop(1, `rgba(180, 100, 30, ${0.18 * intensity})`);
+        this.ctx.fillStyle = vigGrad;
         this.ctx.fillRect(0, 0, screenW, screenH);
-        
+
+        // 5. Brightness pulse from hot air
+        const pulse = Math.sin(now * 2.5 + Math.sin(now * 0.7)) * 0.04 * intensity;
+        this.ctx.fillStyle = `rgba(255, 248, 224, ${Math.max(0, pulse * 0.5)})`;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+
         this.ctx.restore();
       }
 
