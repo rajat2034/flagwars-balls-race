@@ -9857,10 +9857,9 @@ this.ctx.restore();
         for (let w = 0; w < 14; w++) {
           const wy = screenH * 0.08 + w * (screenH * 0.065) + Math.sin(now * 1.5 + w * 1.1) * 5;
           const ww = screenW * (0.2 + 0.6 * Math.sin(now * 0.7 + w * 0.5));
+          const wx = (screenW - ww) / 2;
           this.ctx.fillStyle = `rgba(255, 220, 150, ${0.025 * intensity})`;
-          this.ctx.beginPath();
-          this.ctx.ellipse(screenW / 2, wy, ww / 2, 1.5, 0, 0, Math.PI * 2);
-          this.ctx.fill();
+          this.ctx.fillRect(wx, wy - 1, ww, 3);
         }
         for (let w = 0; w < 10; w++) {
           const wy = screenH * 0.12 + w * (screenH * 0.08) + Math.sin(now * 1.8 + w * 1.3 + 0.5) * 4;
