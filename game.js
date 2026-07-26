@@ -6750,28 +6750,51 @@ obs._trappedBallId = null;
               ball.vy += Math.sin(time * state._zFreq + phaseOffset) * amplitude * 2 * dt;
               break;
 
-            case 3: // Whirlpool - reuse Mariana Depths orbit controller, ~35% radius, 2-3 circles
-              if (!state._wpAngle) {
+            case 3: // Whirlpool - reuse exact Mariana Depths orbit math with moving center
+              if (!state._wpInited) {
                 state._wpAngle = phaseOffset;
-                state._wpSpeed = 0.03 + Math.random() * 0.025;
+                state._wpSpeed = 0.04 + Math.random() * 0.03;
                 state._wpDir = Math.random() < 0.5 ? 1 : -1;
-                state._wpR = 20 + Math.random() * 8;
+                state._wpR = 22 + Math.random() * 8;
+                state._wpCenterX = ball.x;
+                state._wpCenterY = ball.y;
+                state._wpInited = true;
               }
+              state._wpCenterX += ball.vx * dt;
+              state._wpCenterY += ball.vy * dt * 0.3;
               state._wpAngle += state._wpSpeed * state._wpDir * dt;
               {
-                const cx = ball.x;
-                const cy = ball.y;
-                const tx = cx + Math.cos(state._wpAngle) * state._wpR;
-                const ty = cy + Math.sin(state._wpAngle) * state._wpR;
-                ball.vx += (tx - ball.x) * 0.05;
-                ball.vy += (ty - ball.y) * 0.08;
+                const tx = state._wpCenterX + Math.cos(state._wpAngle) * state._wpR;
+                const ty = state._wpCenterY + Math.sin(state._wpAngle) * state._wpR;
+                const orbitVx = (tx - ball.x) / dt;
+                const orbitVy = (ty - ball.y) / dt;
+                if (dt > 0 && isFinite(orbitVx) && isFinite(orbitVy)) {
+                  ball.vx = ball.vx * 0.6 + orbitVx * 0.4;
+                  ball.vy = ball.vy * 0.6 + orbitVy * 0.4;
+                }
               }
               break;
 
-            case 4: // Sand Vortex - reuse spiral, ~50% strength, path moves forward
-              if (state._svFreq == null) state._svFreq = 3 + Math.random() * 2;
-              ball.vx += Math.cos(time * state._svFreq + phaseOffset) * amplitude * 2.5 * dt * 0.1;
-              ball.vy += Math.sin(time * state._svFreq * 0.8 + phaseOffset * 0.5) * amplitude * 2.5 * dt * 0.14;
+            case 4: // Sand Vortex - reuse exact Sahara vortex zigzag with continuous cycling
+              if (!state._svInited) {
+                state._svProgress = 0;
+                state._svMaxAmp = 18 + Math.random() * 8;
+                state._svPhase = phaseOffset;
+                state._svCenterX = ball.x;
+                state._svCenterY = ball.y;
+                state._svInited = true;
+              }
+              state._svCenterX += ball.vx * dt;
+              state._svCenterY += ball.vy * dt * 0.2;
+              state._svProgress += dt / 120;
+              if (state._svProgress >= 1) state._svProgress -= 1;
+              {
+                const sp = state._svProgress;
+                const amp = state._svMaxAmp * Math.sin(sp * Math.PI);
+                const osc = Math.sin(sp * 3 * Math.PI * 2 + state._svPhase);
+                const lateralOffset = amp * osc;
+                ball.vy += (lateralOffset - (ball.y - state._svCenterY)) * 0.08;
+              }
               break;
 
             case 5: // Oscillation - up/down sine wave, one cycle per 0.8-1.0s
@@ -6835,7 +6858,7 @@ obs._trappedBallId = null;
             ball.vy *= ratio;
           }
         } catch (e) {
-          patternData.profile = 0;
+          patternData.profile = 2;
         }
       });
     } else if (this.activeEvent.key === 'teleportation') {
@@ -9802,36 +9825,70 @@ this.ctx.restore();
       if (this._mirageActive && this._mirageIntensity > 0 && this.state === 'racing') {
         this.ctx.save();
         const intensity = this._mirageIntensity;
+        const now = Date.now() * 0.002;
         
-        // Heat shimmer - subtle horizontal distortion using multiple offset draws
-        const shimmerStrength = intensity * 2;
-        const numPasses = 3;
+        // 1. Strong heat shimmer - horizontal wavy distortion
+        const shimmerStrength = intensity * 5;
+        const numPasses = 8;
         for (let i = 0; i < numPasses; i++) {
-          const offsetY = Math.sin(Date.now() * 0.003 + i * 1.5) * shimmerStrength;
-          const alpha = 0.03 * intensity * (1 - i / numPasses);
+          const offsetY = Math.sin(now + i * 1.1) * shimmerStrength;
+          const offsetX = Math.sin(now * 0.6 + i * 0.9) * shimmerStrength * 0.4;
+          const alpha = 0.025 * intensity * (1 - i / numPasses);
           this.ctx.globalAlpha = alpha;
-          this.ctx.drawImage(this.canvas, 0, offsetY);
+          this.ctx.drawImage(this.canvas, offsetX, offsetY);
         }
         
-        // Mild blur effect - draw multiple times with slight offsets
-        if (intensity > 0.5) {
-          const blurStrength = (intensity - 0.5) * 2;
-          for (let i = 0; i < 4; i++) {
-            const blurOffsetX = (Math.random() - 0.5) * blurStrength * 1.5;
-            const blurOffsetY = (Math.random() - 0.5) * blurStrength * 0.5;
-            this.ctx.globalAlpha = 0.05 * intensity;
-            this.ctx.drawImage(this.canvas, blurOffsetX, blurOffsetY);
+        // 2. Refractive wavy blur
+        if (intensity > 0.2) {
+          const blurStr = Math.min(4, (intensity - 0.2) / 0.8 * 4);
+          for (let i = 0; i < 8; i++) {
+            const bx = (Math.random() - 0.5) * blurStr * 1.8;
+            const by = (Math.random() - 0.5) * blurStr * 0.8;
+            this.ctx.globalAlpha = 0.035 * intensity;
+            this.ctx.drawImage(this.canvas, bx, by);
           }
         }
         
-        // Heat haze - warm color overlay
-        const hazeAlpha = intensity * 0.08;
-        const grad = this.ctx.createRadialGradient(screenW / 2, screenH / 2, 0, screenW / 2, screenH / 2, screenH);
-        grad.addColorStop(0, `rgba(255, 220, 150, ${hazeAlpha * 0.5})`);
-        grad.addColorStop(0.5, `rgba(255, 200, 120, ${hazeAlpha * 0.8})`);
-        grad.addColorStop(1, `rgba(255, 180, 80, ${hazeAlpha})`);
+        // 3. Wavy heat lines (visible refractive distortion bands)
+        this.ctx.globalAlpha = 0.15 * intensity;
+        const waveBase = screenH * 0.15;
+        const waveSpacing = screenH * 0.09;
+        for (let w = 0; w < 10; w++) {
+          const wy = waveBase + w * waveSpacing + Math.sin(now * 1.8 + w * 1.3) * 4;
+          const ww = screenW * (0.25 + 0.5 * Math.sin(now * 0.8 + w * 0.6));
+          this.ctx.fillStyle = `rgba(255, 220, 150, ${0.04 * intensity})`;
+          this.ctx.beginPath();
+          this.ctx.ellipse(screenW / 2, wy, ww / 2, 1.5, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+        
+        // 4. Warm golden/orange atmospheric tint
+        const hazeAlpha = intensity * 0.18;
+        const grad = this.ctx.createRadialGradient(screenW / 2, screenH * 0.65, 0, screenW / 2, screenH * 0.65, screenH * 0.8);
+        grad.addColorStop(0, `rgba(255, 210, 120, ${hazeAlpha * 0.3})`);
+        grad.addColorStop(0.3, `rgba(255, 190, 80, ${hazeAlpha * 0.5})`);
+        grad.addColorStop(0.6, `rgba(230, 160, 50, ${hazeAlpha * 0.7})`);
+        grad.addColorStop(1, `rgba(200, 120, 30, ${hazeAlpha})`);
         this.ctx.globalAlpha = 1;
         this.ctx.fillStyle = grad;
+        this.ctx.fillRect(0, 0, screenW, screenH);
+        
+        // 5. Horizon shimmer "water" illusion
+        const horizonY = screenH * 0.38;
+        const hPulse = Math.sin(now * 1.3) * 0.3 + 0.5;
+        const hGrad = this.ctx.createLinearGradient(0, horizonY - 15, 0, horizonY + 35);
+        hGrad.addColorStop(0, `rgba(255, 230, 180, 0)`);
+        hGrad.addColorStop(0.3, `rgba(255, 235, 190, ${0.18 * intensity * hPulse})`);
+        hGrad.addColorStop(0.6, `rgba(255, 220, 160, ${0.12 * intensity * hPulse})`);
+        hGrad.addColorStop(1, `rgba(255, 200, 120, 0)`);
+        this.ctx.globalAlpha = 1;
+        this.ctx.fillStyle = hGrad;
+        this.ctx.fillRect(0, horizonY - 15, screenW, 50);
+        
+        // 6. Brightness pulse from rising hot air
+        const brightnessPulse = 1 + Math.sin(now * 2.5 + Math.sin(now * 0.7)) * 0.04 * intensity;
+        this.ctx.globalAlpha = 0.06 * intensity * (brightnessPulse - 1) * 10;
+        this.ctx.fillStyle = '#fff5e0';
         this.ctx.fillRect(0, 0, screenW, screenH);
         
         this.ctx.restore();
@@ -9847,15 +9904,14 @@ this.ctx.restore();
           const intensity = this._mirageIntensity;
           const time = Date.now() * 0.01;
           
-          // Draw subtle heat shimmer around ball
           this.ctx.save();
-          const numRings = 2;
+          const numRings = 4;
           for (let i = 0; i < numRings; i++) {
-            const ringRadius = ball.radius + 4 + i * 3 + Math.sin(time + ball.id + i) * 1.5;
-            const alpha = 0.04 * intensity * (1 - i / numRings);
+            const ringRadius = ball.radius + 3 + i * 4 + Math.sin(time + ball.id * 1.3 + i * 0.7) * 2;
+            const alpha = 0.08 * intensity * (1 - i / numRings);
             const grad = this.ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, ringRadius);
-            grad.addColorStop(0, `rgba(255, 200, 100, ${alpha})`);
-            grad.addColorStop(1, `rgba(255, 150, 50, 0)`);
+            grad.addColorStop(0, `rgba(255, 220, 120, ${alpha})`);
+            grad.addColorStop(1, `rgba(255, 180, 60, 0)`);
             this.ctx.fillStyle = grad;
             this.ctx.beginPath();
             this.ctx.arc(ball.x, ball.y, ringRadius, 0, Math.PI * 2);
