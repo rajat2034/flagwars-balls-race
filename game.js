@@ -5913,22 +5913,22 @@ obs._trappedBallId = null;
       this._mirageIntensity = 0;
       this._miragePatterns = {};
       this.eventTimer = 300;
-      // Assign hypnotic motion profiles to each ball (A-G)
+      // Assign motion profiles to each ball (weighted distribution)
       this.balls.forEach(ball => {
         if (ball.finished || ball.eliminated) return;
-        const profile = Math.floor(Math.random() * 7); // 0-6 (A-G)
+        // Weighted: 20% Normal, 14% Reverse, 14% Zigzag, 14% Whirlpool, 14% Sand Vortex, 8% Oscillation, 8% Gravity, 8% Freeze
+        const roll = Math.floor(Math.random() * 100);
+        const profile = roll < 20 ? 0 : roll < 34 ? 1 : roll < 48 ? 2 : roll < 62 ? 3 : roll < 76 ? 4 : roll < 84 ? 5 : roll < 92 ? 6 : 7;
         const phaseOffset = Math.random() * Math.PI * 2;
-        const amplitude = 0.6 + Math.random() * 0.8; // 0.6-1.4
-        const frequency = 0.015 + Math.random() * 0.035; // 0.015-0.05
-        const reverseTimer = 0.6 + Math.random() * 0.4; // 0.6-1.0s for Profile D
+        const amplitude = 0.6 + Math.random() * 0.8;
+        const frequency = 0.015 + Math.random() * 0.035;
         this._miragePatterns[ball.id] = {
           profile,
           phaseOffset,
           amplitude,
           frequency,
-          reverseTimer,
-          spiralAngle: 0,
-          spiralRadius: 0
+          baseSpeed: Math.hypot(ball.vx, ball.vy) || 3,
+          state: {}
         };
       });
     } else if (evt.key === 'teleportation') {
@@ -6721,80 +6721,121 @@ obs._trappedBallId = null;
       // Smooth intensity
       this._mirageIntensity = this._mirageFadeProgress;
       
-      // Apply hypnotic motion profiles to balls
+      // Apply motion profiles to balls
       this.balls.forEach(ball => {
         if (ball.finished || ball.eliminated) return;
         const patternData = this._miragePatterns[ball.id];
         if (!patternData) return;
-        
-        const { profile, phaseOffset, amplitude, frequency, reverseTimer } = patternData;
+
+        const { profile, phaseOffset, amplitude, baseSpeed, state } = patternData;
         const time = this._mirageTimer * 0.1;
-        
-        switch (profile) {
-          case 0: // Profile A - Zigzag: smooth left-right oscillation
-            ball.vy += Math.sin(time * frequency + phaseOffset) * amplitude * dt * 0.6;
-            break;
-          case 1: // Profile B - Whirlpool Motion (reuse Mariana Depths, ~40% scale)
-            {
-              const angle = time * frequency * 1.2 + phaseOffset;
-              const radius = 12 * amplitude;
-              ball.vx += Math.cos(angle) * radius * dt * 0.25;
-              ball.vy += Math.sin(angle) * radius * dt * 0.4;
-            }
-            break;
-          case 2: // Profile C - Sand Vortex Motion (reuse Sahara Sand Vortex, ~50% scale)
-            {
-              const angle = time * frequency * 1.5 + phaseOffset;
-              const radius = 10 * amplitude;
-              ball.vx += Math.cos(angle) * radius * dt * 0.3;
-              ball.vy += Math.sin(angle) * radius * dt * 0.3;
-              // Add slight spiral expansion
-              ball.vx += Math.cos(angle + Math.PI * 0.5) * radius * 0.2 * dt * 0.15;
-              ball.vy += Math.sin(angle + Math.PI * 0.5) * radius * 0.2 * dt * 0.15;
-            }
-            break;
-          case 3: // Profile D - Reverse Wander
-            {
-              patternData.reverseTimer -= dt;
-              if (patternData.reverseTimer <= 0) {
-                // Apply brief reverse impulse
-                ball.vx -= ball.vx > 0 ? 0.5 : -0.5;
-                ball.vy -= ball.vy > 0 ? 0.3 : -0.3;
-                patternData.reverseTimer = 0.6 + Math.random() * 0.4; // 0.6-1.0s
+
+        try {
+          switch (profile) {
+            case 0: // Normal - no modification
+              break;
+
+            case 1: // Reverse - gentle backward impulse every ~1s
+              if (!state._revTimer) state._revTimer = 60 + Math.random() * 30;
+              state._revTimer -= dt;
+              if (state._revTimer <= 0) {
+                ball.vx -= ball.vx > 0 ? 0.3 : -0.3;
+                ball.vy -= ball.vy > 0 ? 0.2 : -0.2;
+                state._revTimer = 60 + Math.random() * 30;
               }
-            }
-            break;
-          case 4: // Profile E - Floating Motion (reuse Gravity Flip, reduced height)
-            {
-              const floatHeight = 8 * amplitude;
-              const floatSpeed = frequency * 1.8;
-              ball.vy += Math.sin(time * floatSpeed + phaseOffset) * amplitude * dt * 0.8;
-              // Slight forward push to maintain progress
-              ball.vx += Math.abs(Math.cos(time * floatSpeed + phaseOffset)) * 0.1 * dt;
-            }
-            break;
-          case 5: // Profile F - Figure Eight
-            {
-              const fig8Angle = time * frequency + phaseOffset;
-              const radius = 10 * amplitude;
-              ball.vx += Math.sin(fig8Angle) * radius * dt * 0.35;
-              ball.vy += Math.sin(fig8Angle * 2) * radius * dt * 0.25;
-            }
-            break;
-          case 6: // Profile G - Wobble Drift (combine small circular + zigzag + speed variation)
-            {
-              const wobbleAngle = time * frequency * 2 + phaseOffset;
-              const wobbleRadius = 6 * amplitude;
-              ball.vx += Math.cos(wobbleAngle) * wobbleRadius * dt * 0.2;
-              ball.vy += Math.sin(wobbleAngle) * wobbleRadius * dt * 0.3;
-              // Add zigzag on top
-              ball.vy += Math.sin(time * frequency * 0.7 + phaseOffset + Math.PI * 0.3) * amplitude * dt * 0.4;
-              // Slight speed wobble
-              const speedWobble = 1 + Math.sin(time * 0.5 + phaseOffset) * 0.15;
-              ball.vx *= speedWobble;
-            }
-            break;
-            // case 0 (or default): Straight - no modification
+              break;
+
+            case 2: // Zigzag - smooth left-right oscillation
+              if (state._zFreq == null) state._zFreq = 3 + Math.random() * 2;
+              ball.vy += Math.sin(time * state._zFreq + phaseOffset) * amplitude * 2 * dt;
+              break;
+
+            case 3: // Whirlpool - reuse Mariana Depths orbit controller, ~35% radius, 2-3 circles
+              if (!state._wpAngle) {
+                state._wpAngle = phaseOffset;
+                state._wpSpeed = 0.03 + Math.random() * 0.025;
+                state._wpDir = Math.random() < 0.5 ? 1 : -1;
+                state._wpR = 20 + Math.random() * 8;
+              }
+              state._wpAngle += state._wpSpeed * state._wpDir * dt;
+              {
+                const cx = ball.x;
+                const cy = ball.y;
+                const tx = cx + Math.cos(state._wpAngle) * state._wpR;
+                const ty = cy + Math.sin(state._wpAngle) * state._wpR;
+                ball.vx += (tx - ball.x) * 0.05;
+                ball.vy += (ty - ball.y) * 0.08;
+              }
+              break;
+
+            case 4: // Sand Vortex - reuse spiral, ~50% strength, path moves forward
+              if (state._svFreq == null) state._svFreq = 3 + Math.random() * 2;
+              ball.vx += Math.cos(time * state._svFreq + phaseOffset) * amplitude * 2.5 * dt * 0.1;
+              ball.vy += Math.sin(time * state._svFreq * 0.8 + phaseOffset * 0.5) * amplitude * 2.5 * dt * 0.14;
+              break;
+
+            case 5: // Oscillation - up/down sine wave, one cycle per 0.8-1.0s
+              if (state._oFreq == null) state._oFreq = 1.0 + Math.random() * 0.25;
+              if (state._oAmp == null) state._oAmp = 3 + Math.random() * 2;
+              ball.vy += Math.sin(time * state._oFreq + phaseOffset) * state._oAmp * dt;
+              break;
+
+            case 6: // Continuous Gravity - 0.5s cycles, ~30% height
+              if (!state._gravPhase) state._gravPhase = phaseOffset;
+              state._gravPhase += dt * 0.06;
+              {
+                const gravForce = Math.sin(state._gravPhase) * 0.025;
+                ball.vy += gravForce * dt;
+                const gBounds = this.physics ? this.physics.getWallBoundaries(ball.x, this.track) : null;
+                if (gBounds) {
+                  if (ball.y < gBounds.topY + 25) {
+                    ball.y = gBounds.topY + 25;
+                    ball.vy = Math.abs(ball.vy) * 0.3;
+                  }
+                  if (ball.y > gBounds.bottomY - 25) {
+                    ball.y = gBounds.bottomY - 25;
+                    ball.vy = -Math.abs(ball.vy) * 0.3;
+                  }
+                }
+              }
+              break;
+
+            case 7: // Hypnotized Freeze - pause 0.3s every 1.0-1.5s
+              if (!state._hTimer) {
+                state._hTimer = 60 + Math.random() * 30;
+                state._hFrozen = false;
+              }
+              state._hTimer -= dt;
+              if (state._hTimer <= 0) {
+                if (state._hFrozen) {
+                  ball.vx = state._hSavedVx != null ? state._hSavedVx : ball.vx;
+                  ball.vy = state._hSavedVy != null ? state._hSavedVy : ball.vy;
+                  state._hFrozen = false;
+                  state._hTimer = 60 + Math.random() * 30;
+                  state._hSavedVx = null;
+                  state._hSavedVy = null;
+                } else {
+                  state._hSavedVx = ball.vx;
+                  state._hSavedVy = ball.vy;
+                  ball.vx = 0;
+                  ball.vy = 0;
+                  state._hFrozen = true;
+                  state._hTimer = 18;
+                }
+              }
+              break;
+          }
+
+          // Speed cap: never exceed 1.5x base speed
+          const maxSpeed = baseSpeed * 1.5;
+          const speed = Math.hypot(ball.vx, ball.vy);
+          if (speed > maxSpeed && speed > 0) {
+            const ratio = maxSpeed / speed;
+            ball.vx *= ratio;
+            ball.vy *= ratio;
+          }
+        } catch (e) {
+          patternData.profile = 0;
         }
       });
     } else if (this.activeEvent.key === 'teleportation') {
