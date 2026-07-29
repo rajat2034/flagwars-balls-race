@@ -14,10 +14,33 @@ class PhysicsEngine {
     this._isGlacier = false;
     this._isOcean = false;
     this._cameraShakeTrigger = false;
+
+    // Scratch objects to avoid per-frame allocations in collision loops
+    const _s = {};
+    this._s = _s;
+    _s.corners = [{x:0,y:0},{x:0,y:0},{x:0,y:0},{x:0,y:0}];
+    _s.edges = [
+      { p1: _s.corners[0], p2: _s.corners[1] },
+      { p1: _s.corners[1], p2: _s.corners[2] },
+      { p1: _s.corners[2], p2: _s.corners[3] },
+      { p1: _s.corners[3], p2: _s.corners[0] }
+    ];
+    _s.box = { x: 0, y: 0, width: 0, height: 0 };
+    _s.pt1 = { x: 0, y: 0 };
+    _s.pt2 = { x: 0, y: 0 };
+    _s.pt3 = { x: 0, y: 0 };
+    _s.pt4 = { x: 0, y: 0 };
+    _s.firstPt = { x: 0, y: 0 };
+    _s.prevPt = { x: 0, y: 0 };
+    _s.curvePt = { x: 0, y: 0 };
+    _s.cLine = { p1: _s.pt1, p2: _s.pt2 };
+    _s.cLineA = { p1: _s.pt1, p2: _s.pt2 };
+    _s.cLineB = { p1: _s.pt3, p2: _s.pt4 };
   }
 
   update(balls, track, dt = 1) {
     this._timeNowSeconds = (this._timeNowSeconds || 0) + dt / 60;
+    this.ballCollisions = [];
 
     // Reset collision event flags for sound triggering
     balls.forEach(b => {
@@ -46,6 +69,12 @@ class PhysicsEngine {
     if (track && track.obstacles) {
       this.updateAntiJamSystem(balls, track, dt);
     }
+
+    // Pre-compute once per frame (avoids per-ball O(n) allocations)
+    const _nonFinished = balls.filter(b => !b.finished);
+    const _leaderX = _nonFinished.length > 0 ? Math.max(..._nonFinished.map(b => b.x)) : -Infinity;
+    const _slowZones = track ? track.zones.filter(z => z.type === 'slow' || z.type === 'lava_pool' || z.type === 'mud_puddle') : [];
+    const _quicksandPits = track ? track.zones.filter(z => z.type === 'quicksand_pit') : [];
 
     // 1. Apply forward force, damping, and AI assistance
     balls.forEach(ball => {
@@ -264,8 +293,8 @@ class PhysicsEngine {
       });
 
       // Reset zone visit flags (only when outside the respective zones)
-      const slowZones = track.zones.filter(z => z.type === 'slow' || z.type === 'lava_pool' || z.type === 'mud_puddle');
-      const quicksandPits = track.zones.filter(z => z.type === 'quicksand_pit');
+      const slowZones = _slowZones;
+      const quicksandPits = _quicksandPits;
       const wasInMud = ball._wasInMudPuddle;
       const wasInQuicksandPit = ball._wasInQuicksandPit;
       
@@ -378,7 +407,7 @@ class PhysicsEngine {
 
       // Catch-up: trailing balls get passive speed advantage to keep field competitive
       if (ball.z === 0 && balls.length > 1) {
-        const leaderX = Math.max(...balls.filter(b => !b.finished).map(b => b.x));
+        const leaderX = _leaderX;
         const gapToLeader = leaderX - ball.x;
         if (gapToLeader > 80) {
           const catchUpFactor = Math.min(0.35, 0.05 + gapToLeader * 0.0003);
@@ -478,12 +507,10 @@ class PhysicsEngine {
 
       // Process obstacle disabled-by-time in collision loops via a timestamp check
       // (no timer decrement needed here; time is checked during collision)
-      // Add to trail
+// Add to trail (shortened for performance with many balls)
       if (!ball.trail) ball.trail = [];
+      if (ball.trail.length >= 5) ball.trail.shift();
       ball.trail.push({ x: ball.x, y: ball.y, z: ball.z });
-      if (ball.trail.length > 15) {
-        ball.trail.shift();
-      }
     });
 
 
@@ -517,11 +544,17 @@ class PhysicsEngine {
       });
     });
 
+    // Pre-compute kelp patches once per frame
+    const _kelpPatches = track ? track.obstacles.filter(o => o.type === 'floating_kelp') : [];
+
     // 4. Ball vs Moving Obstacles (culled by distance)
+    const _s = this._s;
     balls.forEach(ball => {
       ball._hitLargeObstacle = false;
       if (ball.finished || ball.z > 0 || ball._capturedByVine) return;
       track.obstacles.forEach(obs => {
+        // Quick X-distance culling: skip obstacles far from the ball
+        if (Math.abs(obs.x - ball.x) > 400) return;
         // Skip obstacles temporarily disabled by anti-stuck system (Layer 2: 0.5s)
         if (typeof obs._collisionOffUntil === 'number' && this._timeNowSeconds < obs._collisionOffUntil) return;
         // Backward compatibility: also respect older _disabled flag if present
@@ -533,24 +566,21 @@ class PhysicsEngine {
           const barW = 12;
           const cosA = Math.cos(obs.angle);
           const sinA = Math.sin(obs.angle);
-          // 4 corners of the rotated rectangle
-          const corners = [
-            { x: obs.x + (-barW/2)*cosA - (-halfLen)*sinA, y: obs.y + (-barW/2)*sinA + (-halfLen)*cosA },
-            { x: obs.x + (barW/2)*cosA - (-halfLen)*sinA, y: obs.y + (barW/2)*sinA + (-halfLen)*cosA },
-            { x: obs.x + (barW/2)*cosA - (halfLen)*sinA, y: obs.y + (barW/2)*sinA + (halfLen)*cosA },
-            { x: obs.x + (-barW/2)*cosA - (halfLen)*sinA, y: obs.y + (-barW/2)*sinA + (halfLen)*cosA }
-          ];
-          // Collide with each edge of the rectangle
-          const edgeSegs = [
-            { p1: corners[0], p2: corners[1] },
-            { p1: corners[1], p2: corners[2] },
-            { p1: corners[2], p2: corners[3] },
-            { p1: corners[3], p2: corners[0] }
-          ];
+          // 4 corners of the rotated rectangle (reused scratch objects)
+          const c = _s.corners;
+          c[0].x = obs.x + (-barW/2)*cosA - (-halfLen)*sinA;
+          c[0].y = obs.y + (-barW/2)*sinA + (-halfLen)*cosA;
+          c[1].x = obs.x + (barW/2)*cosA - (-halfLen)*sinA;
+          c[1].y = obs.y + (barW/2)*sinA + (-halfLen)*cosA;
+          c[2].x = obs.x + (barW/2)*cosA - (halfLen)*sinA;
+          c[2].y = obs.y + (barW/2)*sinA + (halfLen)*cosA;
+          c[3].x = obs.x + (-barW/2)*cosA - (halfLen)*sinA;
+          c[3].y = obs.y + (-barW/2)*sinA + (halfLen)*cosA;
+          // edges already reference corners via constructor
           let spinnerHit = false;
-          for (let e = 0; e < edgeSegs.length; e++) {
+          for (let e = 0; e < 4; e++) {
             const prevVx = ball.vx, prevVy = ball.vy;
-            this.resolveBallLineCollision(ball, edgeSegs[e]);
+            this.resolveBallLineCollision(ball, _s.edges[e]);
             if (Math.hypot(ball.vx - prevVx, ball.vy - prevVy) > 0.3) spinnerHit = true;
           }
           if (spinnerHit) ball._hitSpinnerThisFrame = true;
@@ -573,30 +603,27 @@ class PhysicsEngine {
           }
           // Additional rotating pin collision (existing logic, kept for smooth tangent flow)
           obs.pins.forEach(pin => {
-            const mover = {
-              x: pin.x, y: pin.y,
-              radius: pin.radius + 2,
-              vx: pin.vx * 0.3, vy: pin.vy * 0.3
-            };
-            const dx = ball.x - mover.x;
-            const dy = ball.y - mover.y;
+            const dx = ball.x - pin.x;
+            const dy = ball.y - pin.y;
             const dist = Math.hypot(dx, dy);
-            const minDist = ball.radius + mover.radius;
+            const minDist = ball.radius + pin.radius + 2;
             if (dist < minDist && dist > 0) {
               const overlap = minDist - dist;
               const nx = dx / dist;
               const ny = dy / dist;
               ball.x += nx * overlap;
               ball.y += ny * overlap;
-              const rvx = mover.vx - ball.vx;
-              const rvy = mover.vy - ball.vy;
+              const _mvx = pin.vx * 0.3;
+              const _mvy = pin.vy * 0.3;
+              const rvx = _mvx - ball.vx;
+              const rvy = _mvy - ball.vy;
               const velAlongNormal = rvx * nx + rvy * ny;
               if (velAlongNormal < 0) {
                 const j = -(1 + ball.restitution) * velAlongNormal;
                 ball.vx += j * nx * 0.8;
                 ball.vy += j * ny * 0.8;
-                ball.vx += mover.vx * 0.3;
-                ball.vy += mover.vy * 0.3;
+                ball.vx += _mvx * 0.3;
+                ball.vy += _mvy * 0.3;
               }
               // Redirect ball along spinner tangent (smooth flow, not a trap)
               const tx = -ny;
@@ -610,12 +637,13 @@ class PhysicsEngine {
           const halfGap = (obs.currentGap != null ? obs.currentGap : 100) / 2;
           const halfW = obs.width / 2;
           const midY = obs.y;
-          // Top gate half — centred on obs.x, flush against gap (matches rendering box)
-          const topBox = { x: obs.x - halfW, y: midY - halfGap - obs.height, width: obs.width, height: obs.height };
-          this.resolveBallBoxCollision(ball, topBox);
-          // Bottom gate half — centred on obs.x, flush against gap (matches rendering box)
-          const botBox = { x: obs.x - halfW, y: midY + halfGap, width: obs.width, height: obs.height };
-          this.resolveBallBoxCollision(ball, botBox);
+          // Top gate half — centred on obs.x, flush against gap (reused scratch box)
+          const b = _s.box;
+          b.x = obs.x - halfW; b.y = midY - halfGap - obs.height; b.width = obs.width; b.height = obs.height;
+          this.resolveBallBoxCollision(ball, b);
+          // Bottom gate half — centred on obs.x, flush against gap (reused scratch box)
+          b.x = obs.x - halfW; b.y = midY + halfGap;
+          this.resolveBallBoxCollision(ball, b);
           ball._hitBarrierThisFrame = true;
         } else if (obs.type === 'flap') {
           // Flap is a rotating/hinged blocker. Approximate it as a rotated line segment.
@@ -629,19 +657,21 @@ class PhysicsEngine {
           const halfLen = Math.max(plateW, plateH) / 2;
           const ang = obs.angle || 0;
 
-          const p1 = { x: obs.x - Math.cos(ang) * halfLen, y: obs.y - Math.sin(ang) * halfLen };
-          const p2 = { x: obs.x + Math.cos(ang) * halfLen, y: obs.y + Math.sin(ang) * halfLen };
+          _s.pt1.x = obs.x - Math.cos(ang) * halfLen;
+          _s.pt1.y = obs.y - Math.sin(ang) * halfLen;
+          _s.pt2.x = obs.x + Math.cos(ang) * halfLen;
+          _s.pt2.y = obs.y + Math.sin(ang) * halfLen;
 
-          const abx = p2.x - p1.x;
-          const aby = p2.y - p1.y;
-          const acx = ball.x - p1.x;
-          const acy = ball.y - p1.y;
+          const abx = _s.pt2.x - _s.pt1.x;
+          const aby = _s.pt2.y - _s.pt1.y;
+          const acx = ball.x - _s.pt1.x;
+          const acy = ball.y - _s.pt1.y;
           const abLenSq = abx * abx + aby * aby;
           if (abLenSq !== 0) {
             let t = (acx * abx + acy * aby) / abLenSq;
             t = Math.max(0, Math.min(1, t));
-            const cpx = p1.x + t * abx;
-            const cpy = p1.y + t * aby;
+            const cpx = _s.pt1.x + t * abx;
+            const cpy = _s.pt1.y + t * aby;
             const ddx = ball.x - cpx;
             const ddy = ball.y - cpy;
             const dist = Math.hypot(ddx, ddy);
@@ -803,13 +833,16 @@ class PhysicsEngine {
           const count = 8;
           const cosA = Math.cos(rot);
           const sinA = Math.sin(rot);
-          const rotPt = (lx, ly) => ({ x: obs.x + lx * cosA - ly * sinA, y: obs.y + lx * sinA + ly * cosA });
           for (let i = 0; i < count; i++) {
             const a1 = -Math.PI * 0.5 + (i / count) * Math.PI;
             const a2 = -Math.PI * 0.5 + ((i + 1) / count) * Math.PI;
-            const p1 = rotPt(R * Math.cos(a1), R * Math.sin(a1));
-            const p2 = rotPt(R * Math.cos(a2), R * Math.sin(a2));
-            this.resolveBallLineCollision(ball, { p1, p2 });
+            const c1 = R * Math.cos(a1), s1 = R * Math.sin(a1);
+            const c2 = R * Math.cos(a2), s2 = R * Math.sin(a2);
+            _s.pt1.x = obs.x + c1 * cosA - s1 * sinA;
+            _s.pt1.y = obs.y + c1 * sinA + s1 * cosA;
+            _s.pt2.x = obs.x + c2 * cosA - s2 * sinA;
+            _s.pt2.y = obs.y + c2 * sinA + s2 * cosA;
+            this.resolveBallLineCollision(ball, _s.cLine);
           }
           // Tangential push from spin (only within bumper influence zone)
           if (!ball.finished && ball.z === 0) {
@@ -832,16 +865,13 @@ class PhysicsEngine {
           const wallThick = 6;
           const topY = obs.y - halfW;
           const botY = obs.y + halfW;
-          // Top wall: thick rectangle
-          this.resolveBallBoxCollision(ball, {
-            x: obs.x, y: topY - wallThick / 2,
-            width: obs.length, height: wallThick
-          });
+          // Top wall: thick rectangle (reused scratch box)
+          const b = _s.box;
+          b.x = obs.x; b.y = topY - wallThick / 2; b.width = obs.length; b.height = wallThick;
+          this.resolveBallBoxCollision(ball, b);
           // Bottom wall: thick rectangle
-          this.resolveBallBoxCollision(ball, {
-            x: obs.x, y: botY - wallThick / 2,
-            width: obs.length, height: wallThick
-          });
+          b.y = botY - wallThick / 2;
+          this.resolveBallBoxCollision(ball, b);
         } else if (obs.type === 'hammer') {
           ball._hitLargeObstacle = true;
           ball._hitHammerThisFrame = true;
@@ -995,8 +1025,9 @@ class PhysicsEngine {
           let boxY = obs.y - boxSize / 2;
           if (obs._isHorizontal) boxX += offset;
           else boxY += offset;
-          const box = { x: boxX, y: boxY, width: boxSize, height: boxSize };
-          this.resolveBallBoxCollision(ball, box);
+          const b = _s.box;
+          b.x = boxX; b.y = boxY; b.width = boxSize; b.height = boxSize;
+          this.resolveBallBoxCollision(ball, b);
           ball._hitObstacleThisFrame = true;
         } else if (obs.type === 'floating_kelp') {
           // Floating Kelp: 0.6x speed on first contact per ball (slow-zone style)
@@ -1152,8 +1183,7 @@ if (dist > 0.001) {
         }
         // Reset kelp flag if ball is outside all kelp patches
         if (ball._wasInKelp) {
-          const kelpPatches = track.obstacles.filter(o => o.type === 'floating_kelp');
-          const inAnyKelp = kelpPatches.some(k => {
+          const inAnyKelp = _kelpPatches.some(k => {
             const kR = k.radius || 24;
             return Math.hypot(ball.x - k.x, ball.y - k.y) < ball.radius + kR;
           });
@@ -1277,6 +1307,10 @@ if (dist > 0.001) {
       const rvy = b2.vy - b1.vy;
       const velAlongNormal = rvx * nx + rvy * ny;
       if (velAlongNormal < 0) {
+        const relVel = Math.hypot(rvx, rvy);
+        if (!this.ballCollisions) this.ballCollisions = [];
+        this.ballCollisions.push({ b1, b2, relVel });
+
         const e = Math.min(b1.restitution, b2.restitution);
         let j = -(1 + e) * velAlongNormal;
         j /= (1 / m1) + (1 / m2);

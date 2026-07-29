@@ -171,11 +171,28 @@ function getThemeColors(themeKey) {
   };
 }
 
-// Web Audio API Synthesizer ??? countdown + winner sounds only
+// // Web Audio API Synthesizer — game sounds + collision audio from files
 class SoundSynth {
   constructor() {
     this.ctx = null;
     this.enabled = true;
+    // Audio buffers for the four sound effect files
+    this._sfxBuffers = {};
+    this._sfxLoaded = false;
+    this._sfxLoading = false;
+    // Per-event cooldowns (ms) to prevent overlapping/spamming
+    this._sfxCooldowns = {
+      ballToBall: 0,
+      ballToWall: 0,
+      ballToObstacle: 0,
+      winner: 0
+    };
+    this._sfxCooldownDurations = {
+      ballToBall: 120,    // 120ms between ball-to-ball sounds
+      ballToWall: 100,    // 100ms between wall collision sounds
+      ballToObstacle: 100, // 100ms between obstacle collision sounds
+      winner: 2000         // 2s between winner sounds (prevents double-play)
+    };
   }
   init() {
     if (!this.ctx) {
@@ -184,6 +201,100 @@ class SoundSynth {
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+    if (!this._sfxLoaded && !this._sfxLoading) {
+      this._loadSoundEffects();
+    }
+  }
+
+  async _loadSoundEffects() {
+    if (this._sfxLoading || this._sfxLoaded) return;
+    this._sfxLoading = true;
+
+    const sfxFiles = {
+      ballToBall: 'sounds/ball_to_ball_collision.mp3',
+      ballToWall: 'sounds/ball_to_wall_collision.wav',
+      ballToObstacle: 'sounds/ball_to_obstacle_collision.mp3',
+      winner: 'sounds/winner.mp3'
+    };
+
+    for (const [key, path] of Object.entries(sfxFiles)) {
+      try {
+        const resp = await fetch(path);
+        if (resp.ok) {
+          const arrayBuf = await resp.arrayBuffer();
+          this._sfxBuffers[key] = await this.ctx.decodeAudioData(arrayBuf);
+        } else {
+          console.warn(`[SoundSynth] Could not load ${path}: ${resp.status}`);
+        }
+      } catch (e) {
+        console.warn(`[SoundSynth] Error loading ${path}:`, e);
+      }
+    }
+    this._sfxLoaded = true;
+    this._sfxLoading = false;
+  }
+
+  // Play a loaded audio buffer with optional volume control
+  _playSfxBuffer(key, volume = 0.5) {
+    if (!this.enabled || !this.ctx || !this._sfxBuffers[key]) return;
+    // Cooldown check
+    const now = performance.now();
+    if (now < this._sfxCooldowns[key]) return;
+    this._sfxCooldowns[key] = now + (this._sfxCooldownDurations[key] || 100);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = this._sfxBuffers[key];
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+    source.connect(gain);
+    gain.connect(this.ctx.destination);
+    source.start(0);
+  }
+
+  isPositionVisible(x, y, margin = 150) {
+    if (x === undefined || x === null) return true;
+    if (!this.engine || !this.engine.canvas) return true;
+    const zoom = this.engine.cameraZoom || 1.0;
+    const viewWidth = (this.engine.canvas.width || 1280) / zoom;
+    const camLeft = (this.engine.cameraX || 0) - margin;
+    const camRight = (this.engine.cameraX || 0) + viewWidth + margin;
+    return (x >= camLeft && x <= camRight);
+  }
+
+  // Ball-to-ball collision sound (spatial)
+  playBallToBall(x, y) {
+    if (!this.enabled) return;
+    if (x !== undefined && !this.isPositionVisible(x, y)) return;
+    this.init();
+    this._playSfxBuffer('ballToBall', 0.35);
+  }
+
+  // Ball-to-wall collision sound (spatial)
+  playBallToWall(x, y) {
+    if (!this.enabled) return;
+    if (x !== undefined && !this.isPositionVisible(x, y)) return;
+    this.init();
+    this._playSfxBuffer('ballToWall', 0.4);
+  }
+
+  // Ball-to-obstacle collision sound (spatial)
+  playBallToObstacle(x, y) {
+    if (!this.enabled) return;
+    if (x !== undefined && !this.isPositionVisible(x, y)) return;
+    this.init();
+    this._playSfxBuffer('ballToObstacle', 0.4);
+  }
+
+  // Winner / finish sound (non-spatial, plays globally)
+  playWinner() {
+    if (!this.enabled) return;
+    this.init();
+    this._playSfxBuffer('winner', 0.6);
+  }
+
+  // Keep legacy playBallCollision for backward compat (no-op)
+  playBallCollision(relVel, b1, b2) {
+    return;
   }
   playFinish() {
     if (!this.enabled) return;
@@ -236,8 +347,9 @@ class SoundSynth {
     osc.start();
     osc.stop(this.ctx.currentTime + 0.3);
   }
-  playIceWhoosh() {
+  playIceWhoosh(x, y) {
     if (!this.enabled) return;
+    if (x !== undefined && !this.isPositionVisible(x, y)) return;
     this.init();
     const ctx = this.ctx;
     const now = ctx.currentTime;
@@ -262,8 +374,9 @@ class SoundSynth {
     noise.start(now);
     noise.stop(now + 0.15);
   }
-  playIceCrack() {
+  playIceCrack(x, y) {
     if (!this.enabled) return;
+    if (x !== undefined && !this.isPositionVisible(x, y)) return;
     this.init();
     const ctx = this.ctx;
     const now = ctx.currentTime;
@@ -326,8 +439,9 @@ class SoundSynth {
     this._blizzardWindNoise = null;
     this._blizzardWindGain = null;
   }
-  playBlizzardCrack() {
+  playBlizzardCrack(x, y) {
     if (!this.enabled) return;
+    if (x !== undefined && !this.isPositionVisible(x, y)) return;
     this.init();
     const ctx = this.ctx;
     const now = ctx.currentTime;
@@ -1876,6 +1990,7 @@ class GameEngine {
     // Engine Subsystems
     this.physics = new PhysicsEngine();
     this.sounds = new SoundSynth();
+    this.sounds.engine = this;
 
     // Core Game Data
     this.countryDatabase = [];
@@ -1892,6 +2007,7 @@ class GameEngine {
     this.isPaused = false;
     this.simSpeed = 1.0; // 1x, 1.5x, 2x
     this.slowMoTimer = 0; // slow motion countdown after winner crosses
+    this._slowMoTriggered = false;
     this.raceLength = 100000; // ~3-4 min race
     this.obstacleDensity = 'high'; // low, medium, high
 
@@ -6983,7 +7099,8 @@ obs._trappedBallId = null;
       // Random ice crack sounds
       this._blizzardCrackTimer -= dt;
       if (this._blizzardCrackTimer <= 0) {
-        this.sounds.playBlizzardCrack();
+        const camCenterX = (this.cameraX || 0) + (this.canvas ? this.canvas.width / (2 * (this.cameraZoom || 1)) : 500);
+        this.sounds.playBlizzardCrack(camCenterX);
         this._blizzardCrackTimer = 120 + Math.random() * 60;
       }
     } else if (this.activeEvent.key === 'firestorm') {
@@ -7974,6 +8091,37 @@ obs._trappedBallId = null;
       // Step physics
       this.physics.update(this.balls, this.track, dt);
 
+      // --- Collision sound effects (from sounds/ folder) ---
+      // Play sounds based on collision flags set by physics engine
+      const _now = performance.now();
+      for (const ball of this.balls) {
+        if (ball.finished || ball.eliminated) continue;
+        if (!ball._soundCooldown) ball._soundCooldown = {};
+
+        // Ball-to-ball collision (min 150ms between same ball)
+        if (ball._hitBallThisFrame && _now - (ball._soundCooldown.ball || 0) > 150) {
+          this.sounds.playBallToBall(ball.x, ball.y);
+          ball._soundCooldown.ball = _now;
+        }
+
+        // Ball-to-wall collision (min 80ms)
+        if (ball._hitWallThisFrame && _now - (ball._soundCooldown.wall || 0) > 80) {
+          this.sounds.playBallToWall(ball.x, ball.y);
+          ball._soundCooldown.wall = _now;
+        }
+
+        // Ball-to-obstacle collision (min 80ms, covers all obstacle types)
+        if ((ball._hitPegThisFrame || ball._hitBarrierThisFrame ||
+             ball._hitSpinnerThisFrame || ball._hitMeteorThisFrame ||
+             ball._hitSweepArmThisFrame || ball._hitPunchFistThisFrame ||
+             ball._hitHammerThisFrame || ball._hitCBumperThisFrame ||
+             ball._hitCollapsingPillarThisFrame) &&
+            _now - (ball._soundCooldown.obstacle || 0) > 80) {
+          this.sounds.playBallToObstacle(ball.x, ball.y);
+          ball._soundCooldown.obstacle = _now;
+        }
+      }
+
       // Camera shake trigger from physics (e.g. Sea Mine explosion)
       if (this.physics._cameraShakeTrigger) {
         this._cameraShakeIntensity = 8;
@@ -8336,10 +8484,10 @@ obs._trappedBallId = null;
 
           // Sound effects
           if (ball._enteredSlowThisFrame && this.currentThemeKey === 'snow') {
-            this.sounds.playIceWhoosh();
+            this.sounds.playIceWhoosh(ball.x, ball.y);
           }
           if (ball._exitedSlowThisFrame && this.currentThemeKey === 'snow') {
-            this.sounds.playIceCrack();
+            this.sounds.playIceCrack(ball.x, ball.y);
           }
           
           // Mud Puddle entry/exit effects (Amazon Canopy)
@@ -8975,8 +9123,22 @@ obs._trappedBallId = null;
         }
       });
 
-      // Resolve finishes
+// Resolve finishes
       const finishDetectX = this.track ? this.track.finishLineX : (this.track ? this.track.length - 400 : 0);
+
+      // Trigger slow-mo 50ms before winner crosses finish
+      if (this.slowMoTimer === 0 && !this._slowMoTriggered && this.state === 'racing') {
+        this.balls.forEach(ball => {
+          if (!ball.finished && !ball.eliminated) {
+            const speed = Math.abs(ball.vx) || 5;
+            if (ball.x >= finishDetectX - speed * 3 && ball.x < finishDetectX) {
+              this.slowMoTimer = 60;
+              this._slowMoTriggered = true;
+            }
+          }
+        });
+      }
+
       this.balls.forEach(ball => {
         if (!ball.finished && ball.x >= finishDetectX) {
           ball.finished = true;
@@ -9006,9 +9168,9 @@ obs._trappedBallId = null;
             this._winnerFlashBall = ball;
             this._winnerFlashStart = performance.now();
             this.triggerConfettiExplosion(ball.x, ball.y);
-            this.slowMoTimer = 60;
+            if (!this._slowMoTriggered) this.slowMoTimer = 60;
             this.selectedBallId = ball.id;
-            this.sounds.playFinish();
+            this.sounds.playWinner();
           }
 
           // Confetti explosion at finish coordinates
@@ -9463,17 +9625,24 @@ obs._trappedBallId = null;
       }
     });
 
-    // Remove expired particles
-    this.particles = this.particles.filter(p => p.alpha > 0 && (p.life === undefined || p.life > 0));
-    // Hard cap: discard oldest particles if over limit
-    if (this.particles.length > 500) {
-      this.particles = this.particles.slice(this.particles.length - 500);
-    }
+      // Remove expired particles (in-place compaction to avoid array allocation)
+      let _pw = 0;
+      for (let _pr = 0; _pr < this.particles.length; _pr++) {
+        const _pp = this.particles[_pr];
+        if (_pp.alpha > 0 && (_pp.life === undefined || _pp.life > 0)) {
+          this.particles[_pw++] = _pp;
+        }
+      }
+      this.particles.length = _pw;
+      // Hard cap: discard oldest particles if over limit
+      if (this.particles.length > 200) {
+        this.particles.splice(0, this.particles.length - 200);
+      }
 
     // 2. Generate new weather/ambient particles based on map theme
     if (!this.track) return;
 
-    const count = this.currentTheme.particleType === 'star' || this.currentTheme.particleType === 'cosmic' ? 0.6 : 0.4;
+    const count = this.currentTheme.particleType === 'star' || this.currentTheme.particleType === 'cosmic' ? 0.3 : 0.2;
     if (Math.random() < count * dt) {
       const pType = this.currentTheme.particleType;
       const col = this.currentTheme.particleColor;
@@ -13959,6 +14128,20 @@ this.ctx.restore();
       const finishLineX = this.track ? (this.track.finishLineX || this.track.length - 400) : 0;
       let collectorIdx = 0;
 
+      // Country name visibility cycle: 5s visible, 20s hidden (repeats every 25s)
+      const hlCycle = this.raceTimer % 25;
+      let nameHighlightAlpha = 0;
+      if (hlCycle < 5) {
+        const t = hlCycle;
+        if (t < 0.5) {
+          nameHighlightAlpha = t / 0.5;
+        } else if (t < 4.5) {
+          nameHighlightAlpha = 1.0;
+        } else {
+          nameHighlightAlpha = (5 - t) / 0.5;
+        }
+      }
+
       this.balls.forEach(ball => {
         const bX = ball.x - camX;
 
@@ -14005,18 +14188,15 @@ this.ctx.restore();
 
         const renderRadius = ball.radius * (1 + ball.z * 0.05);
 
-        // 1) Draw speed trail (premium visual glow)
-        if (ball.trail && ball.trail.length > 1) {
+        // 1) Draw speed trail (simplified, lightweight)
+        if (ball.trail && ball.trail.length > 1 && ball._trailSkipCounter % 2 === 0) {
+          ball._trailSkipCounter = (ball._trailSkipCounter || 0) + 1;
           this.ctx.save();
-          this.ctx.lineWidth = ball.radius * 0.9;
+          this.ctx.globalAlpha = 0.12;
+          this.ctx.lineWidth = ball.radius * 0.6;
+          this.ctx.strokeStyle = `rgba(${ball.primaryColorRGB}, 0.15)`;
           this.ctx.lineCap = 'round';
           this.ctx.lineJoin = 'round';
-
-          const trailGrad = this.ctx.createLinearGradient(ball.trail[0].x - camX, ball.trail[0].y, bX, ball.y);
-          trailGrad.addColorStop(0, `rgba(${ball.primaryColorRGB}, 0.0)`);
-          trailGrad.addColorStop(1, `rgba(${ball.primaryColorRGB}, 0.35)`);
-          this.ctx.strokeStyle = trailGrad;
-
           this.ctx.beginPath();
           this.ctx.moveTo(ball.trail[0].x - camX, ball.trail[0].y);
           for (let k = 1; k < ball.trail.length; k++) {
@@ -14024,6 +14204,8 @@ this.ctx.restore();
           }
           this.ctx.stroke();
           this.ctx.restore();
+        } else if (ball.trail && ball.trail.length > 1) {
+          ball._trailSkipCounter = (ball._trailSkipCounter || 0) + 1;
         }
 
         // 3) Flag ball body ??? redesigned with professional lighting
@@ -14244,7 +14426,7 @@ this.ctx.restore();
           const crystalTime = Date.now() * 0.002;
           this.ctx.strokeStyle = 'rgba(180, 230, 255, 0.7)';
           this.ctx.lineWidth = 2;
-          for (let ci = 0; ci < 8; ci++) {
+          for (let ci = 0; ci < 4; ci++) {
             const ca = crystalTime + ci * Math.PI / 4;
             const cx = bX + Math.cos(ca) * renderRadius;
             const cy = ball.y + Math.sin(ca) * renderRadius;
@@ -14256,7 +14438,7 @@ this.ctx.restore();
             this.ctx.stroke();
           }
           this.ctx.fillStyle = 'rgba(200, 240, 255, 0.55)';
-          for (let pi = 0; pi < 6; pi++) {
+          for (let pi = 0; pi < 3; pi++) {
             const px = bX + Math.sin(crystalTime * 2 + pi * 2) * renderRadius * 0.5;
             const py = ball.y + Math.cos(crystalTime * 3 + pi * 3) * renderRadius * 0.5;
             this.ctx.beginPath();
@@ -14280,8 +14462,8 @@ this.ctx.restore();
           const crystalTime = Date.now() * 0.002;
           this.ctx.strokeStyle = 'rgba(200, 240, 255, 0.6)';
           this.ctx.lineWidth = 1.5;
-          for (let ci = 0; ci < 6; ci++) {
-            const ca = crystalTime + ci * Math.PI / 3;
+          for (let ci = 0; ci < 4; ci++) {
+            const ca = crystalTime + ci * Math.PI / 4;
             const cx = bX + Math.cos(ca) * renderRadius * 0.8;
             const cy = ball.y + Math.sin(ca) * renderRadius * 0.8;
             this.ctx.beginPath();
@@ -14292,7 +14474,7 @@ this.ctx.restore();
             this.ctx.stroke();
           }
           this.ctx.fillStyle = 'rgba(220, 245, 255, 0.5)';
-          for (let pi = 0; pi < 4; pi++) {
+          for (let pi = 0; pi < 3; pi++) {
             const px = bX + Math.sin(crystalTime * 2 + pi * 2.5) * renderRadius * 0.6;
             const py = ball.y + Math.cos(crystalTime * 3 + pi * 3.1) * renderRadius * 0.6;
             this.ctx.beginPath();
@@ -14317,8 +14499,8 @@ this.ctx.restore();
           const crystalTime = Date.now() * 0.002;
           this.ctx.strokeStyle = 'rgba(200, 240, 255, 0.5)';
           this.ctx.lineWidth = 1.5;
-          for (let ci = 0; ci < 6; ci++) {
-            const ca = crystalTime + ci * Math.PI / 3;
+          for (let ci = 0; ci < 4; ci++) {
+            const ca = crystalTime + ci * Math.PI / 4;
             const cx = bX + Math.cos(ca) * renderRadius * 0.75;
             const cy = ball.y + Math.sin(ca) * renderRadius * 0.75;
             this.ctx.beginPath();
@@ -14329,7 +14511,7 @@ this.ctx.restore();
             this.ctx.stroke();
           }
           // Snow trail particles behind the ball
-          for (let pi = 0; pi < 3; pi++) {
+          for (let pi = 0; pi < 2; pi++) {
             const tOff = pi * 0.3;
             const px = bX - ball.vx * (3 + tOff * 5);
             const py = ball.y - ball.vy * (3 + tOff * 5);
@@ -14385,7 +14567,7 @@ this.ctx.restore();
           // Heat shimmer distortion rings
           this.ctx.strokeStyle = `rgba(255, 180, 60, ${0.3 * burnIntensity})`;
           this.ctx.lineWidth = 2;
-          for (let si = 0; si < 4; si++) {
+          for (let si = 0; si < 2; si++) {
             const shimmerPhase = time * 12 + si * 1.5;
             this.ctx.beginPath();
             for (let a = 0; a <= Math.PI * 2; a += Math.PI / 8) {
@@ -14399,8 +14581,8 @@ this.ctx.restore();
             this.ctx.stroke();
           }
           
-          // Rising ember trail (more particles, better physics)
-          const trailCount = 6;
+          // Rising ember trail (reduced for performance)
+          const trailCount = 3;
           for (let ti = 0; ti < trailCount; ti++) {
             const tAge = ti / trailCount;
             const px = bX - ball.vx * (3 + tAge * 10);
@@ -14419,8 +14601,8 @@ this.ctx.restore();
           }
           
           // Frequent tiny sparks flying off
-          if (Math.random() < 0.15) {
-            const sparkCount = 1 + Math.floor(Math.random() * 2);
+          if (Math.random() < 0.08) {
+            const sparkCount = 1 + Math.floor(Math.random() * 1);
             for (let sc = 0; sc < sparkCount; sc++) {
               const sx = bX + (Math.random() - 0.5) * renderRadius * 1.8;
               const sy = ball.y + (Math.random() - 0.5) * renderRadius * 1.8;
@@ -14496,7 +14678,7 @@ this.ctx.restore();
           // Heat shimmer distortion rings
           this.ctx.strokeStyle = `rgba(255, 180, 60, ${0.3 * burnIntensity})`;
           this.ctx.lineWidth = 2;
-          for (let si = 0; si < 4; si++) {
+          for (let si = 0; si < 2; si++) {
             const shimmerPhase = time * 12 + si * 1.5;
             this.ctx.beginPath();
             for (let a = 0; a <= Math.PI * 2; a += Math.PI / 8) {
@@ -14510,8 +14692,8 @@ this.ctx.restore();
             this.ctx.stroke();
           }
           
-          // Rising ember trail (more particles, better physics)
-          const trailCount = 6;
+          // Rising ember trail (reduced for performance)
+          const trailCount = 3;
           for (let ti = 0; ti < trailCount; ti++) {
             const tAge = ti / trailCount;
             const px = bX - ball.vx * (3 + tAge * 10);
@@ -14530,8 +14712,8 @@ this.ctx.restore();
           }
           
           // Frequent tiny sparks flying off
-          if (Math.random() < 0.15) {
-            const sparkCount = 1 + Math.floor(Math.random() * 2);
+          if (Math.random() < 0.08) {
+            const sparkCount = 1 + Math.floor(Math.random() * 1);
             for (let sc = 0; sc < sparkCount; sc++) {
               const sx = bX + (Math.random() - 0.5) * renderRadius * 1.8;
               const sy = ball.y + (Math.random() - 0.5) * renderRadius * 1.8;
@@ -14605,7 +14787,7 @@ this.ctx.restore();
           this.ctx.fill();
 
           // Rising embers
-          const trailCount = 4;
+          const trailCount = 2;
           for (let ti = 0; ti < trailCount; ti++) {
             const tAge = ti / trailCount;
             const px = bX - ball.vx * (2 + tAge * 8);
@@ -14668,13 +14850,11 @@ this.ctx.restore();
           this.ctx.restore();
         }
 
-        // 4) Country label (with auto text contrast)
-        this.ctx.save();
-        const tColors = getThemeColors(this.currentThemeKey);
-        this.ctx.font = 'bold 9px Montserrat, sans-serif';
-        this.ctx.textAlign = 'center';
-
+        // 4) Country label (with visibility cycle)
         if (ball.eliminated) {
+          this.ctx.save();
+          this.ctx.font = 'bold 9px Montserrat, sans-serif';
+          this.ctx.textAlign = 'center';
           this.ctx.fillStyle = '#e74c3c';
           this.ctx.shadowColor = '#000000';
           this.ctx.shadowBlur = 4;
@@ -14682,29 +14862,31 @@ this.ctx.restore();
           this.ctx.strokeStyle = '#000000';
           this.ctx.strokeText('ELIMINATED', bX, ball.y + renderRadius + 11);
           this.ctx.fillText('ELIMINATED', bX, ball.y + renderRadius + 11);
-        } else {
+          this.ctx.restore();
+        } else if (nameHighlightAlpha > 0) {
           let labelName = ball.name;
           if (labelName.length > 12) labelName = labelName.substring(0, 10) + '..';
           const displayLabel = `${ball.rank}. ${labelName}`;
+          const nameColor = MAP_THEMES[this.currentThemeKey]?.isDark ? '#ffffff' : '#1a1a2e';
+          this.ctx.save();
+          this.ctx.globalAlpha = nameHighlightAlpha;
+          this.ctx.font = 'bold 9px Montserrat, sans-serif';
+          this.ctx.textAlign = 'center';
           if (ball.isCustom) {
             this.ctx.fillStyle = '#FFD700';
             this.ctx.shadowColor = '#FFD700';
-            this.ctx.shadowBlur = 6;
-            this.ctx.lineWidth = 2.5;
-            this.ctx.strokeStyle = '#000000';
-            this.ctx.strokeText(displayLabel, bX, ball.y + renderRadius + 11);
-          } else {
-            this.ctx.fillStyle = tColors.primary;
-            this.ctx.shadowColor = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'rgba(255,255,255,0.5)';
             this.ctx.shadowBlur = 4;
-            this.ctx.lineWidth = 2.5;
-            this.ctx.strokeStyle = this.currentThemeKey && MAP_THEMES[this.currentThemeKey].isDark ? '#000000' : 'transparent';
-            this.ctx.strokeText(displayLabel, bX, ball.y + renderRadius + 11);
+          } else {
+            this.ctx.fillStyle = nameColor;
+            this.ctx.shadowColor = MAP_THEMES[this.currentThemeKey]?.isDark ? '#000000' : 'rgba(255,255,255,0.6)';
+            this.ctx.shadowBlur = 3;
           }
+          this.ctx.lineWidth = 1.5;
+          this.ctx.strokeStyle = MAP_THEMES[this.currentThemeKey]?.isDark ? '#000000' : 'transparent';
+          this.ctx.strokeText(displayLabel, bX, ball.y + renderRadius + 11);
           this.ctx.fillText(displayLabel, bX, ball.y + renderRadius + 11);
+          this.ctx.restore();
         }
-
-        this.ctx.restore();
 
         // 5) Top-3 colored ring (position indicator)
         if (ball.rank <= 3 && !ball.finished) {
@@ -16436,6 +16618,150 @@ this.ctx.restore();
         this.ctx.restore();
       }
 
+      // A0ad. Volcanic Eruption overlay (Magma Crater global event)
+      if (this._volcanicEruptionActive && this.state === 'racing') {
+        const fade = this._volcanicEruptionFadeProgress || 1;
+        const darkness = this._volcanicEruptionSkyDarkness || 0;
+
+        // 1. Sky darkening (warm dark overlay)
+        if (darkness > 0.005) {
+          this.ctx.save();
+          const darkGrad = this.ctx.createRadialGradient(
+            screenW / 2, screenH * 0.3, screenH * 0.1,
+            screenW / 2, screenH * 0.3, screenH * 1.0
+          );
+          darkGrad.addColorStop(0, `rgba(60, 30, 15, ${darkness * 0.5})`);
+          darkGrad.addColorStop(0.5, `rgba(40, 20, 10, ${darkness * 0.7})`);
+          darkGrad.addColorStop(1, `rgba(15, 8, 5, ${darkness})`);
+          this.ctx.fillStyle = darkGrad;
+          this.ctx.fillRect(0, 0, screenW, screenH);
+          this.ctx.restore();
+        }
+
+        // 2. Glow from volcano (bottom center)
+        const glow = this._volcanicEruptionGlowIntensity || 0;
+        if (glow > 0.005) {
+          this.ctx.save();
+          const glowGrad = this.ctx.createRadialGradient(
+            screenW / 2, screenH * 0.88, 0,
+            screenW / 2, screenH * 0.88, screenH * 0.65
+          );
+          glowGrad.addColorStop(0, `rgba(255, 120, 30, ${glow * 0.35})`);
+          glowGrad.addColorStop(0.25, `rgba(255, 80, 15, ${glow * 0.18})`);
+          glowGrad.addColorStop(0.5, `rgba(200, 50, 10, ${glow * 0.07})`);
+          glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          this.ctx.fillStyle = glowGrad;
+          this.ctx.fillRect(0, 0, screenW, screenH);
+          this.ctx.restore();
+        }
+
+        // 3. Screen flash
+        if (this._volcanicEruptionScreenFlash > 0.01) {
+          this.ctx.save();
+          this.ctx.fillStyle = `rgba(255, 200, 120, ${this._volcanicEruptionScreenFlash * 0.35})`;
+          this.ctx.fillRect(0, 0, screenW, screenH);
+          this.ctx.restore();
+        }
+
+        // 4. Smoke particles (large dark billowing clouds)
+        for (const p of this._volcanicEruptionSmokeParticles) {
+          const alpha = p.alpha * fade;
+          if (alpha <= 0.005) continue;
+          const px = p.x * screenW;
+          const py = p.y * screenH;
+          this.ctx.save();
+          const grad = this.ctx.createRadialGradient(px, py, 0, px, py, p.size);
+          grad.addColorStop(0, `rgba(25, 18, 14, ${alpha * 0.6})`);
+          grad.addColorStop(0.6, `rgba(40, 30, 24, ${alpha * 0.25})`);
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          this.ctx.fillStyle = grad;
+          this.ctx.beginPath();
+          this.ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.restore();
+        }
+
+        // 5. Fountain particles (lava fountains shooting up)
+        for (const p of this._volcanicEruptionFountainParticles) {
+          const alpha = p.alpha * fade;
+          if (alpha <= 0.005) continue;
+          const px = p.x * screenW;
+          const py = p.y * screenH;
+          this.ctx.save();
+          this.ctx.globalAlpha = alpha;
+          this.ctx.shadowColor = p.color;
+          this.ctx.shadowBlur = p.size * 2.5;
+          this.ctx.fillStyle = p.color;
+          this.ctx.beginPath();
+          this.ctx.arc(px, py, p.size * 0.5, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.restore();
+        }
+
+        // 6. Ember particles (small glowing sparks)
+        for (const p of this._volcanicEruptionEmberParticles) {
+          const alpha = p.alpha * fade;
+          if (alpha <= 0.005) continue;
+          const px = p.x * screenW;
+          const py = p.y * screenH;
+          this.ctx.save();
+          this.ctx.globalAlpha = alpha;
+          this.ctx.fillStyle = p.color;
+          this.ctx.shadowColor = p.color;
+          this.ctx.shadowBlur = p.size * 3;
+          this.ctx.beginPath();
+          this.ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.restore();
+        }
+
+        // 7. Ash particles (drifting across screen)
+        for (const p of this._volcanicEruptionAshParticles) {
+          const alpha = p.alpha * fade;
+          if (alpha <= 0.002) continue;
+          const px = p.x * screenW;
+          const py = p.y * screenH;
+          this.ctx.save();
+          this.ctx.globalAlpha = alpha;
+          this.ctx.fillStyle = p.color;
+          this.ctx.beginPath();
+          this.ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.restore();
+        }
+
+        // 8. Volcanic bombs (glowing molten projectiles)
+        for (const bomb of this._volcanicEruptionBombs) {
+          if (bomb.alpha <= 0.01) continue;
+          const bx = bomb.x * screenW;
+          const by = bomb.y * screenH;
+          this.ctx.save();
+
+          // Outer glow
+          const bombGrad = this.ctx.createRadialGradient(bx, by, 0, bx, by, bomb.glow * 2);
+          bombGrad.addColorStop(0, `rgba(255, 180, 60, ${bomb.alpha * 0.4})`);
+          bombGrad.addColorStop(0.3, `rgba(255, 100, 20, ${bomb.alpha * 0.15})`);
+          bombGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          this.ctx.fillStyle = bombGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bx, by, bomb.glow * 2, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Molten core
+          const coreGrad = this.ctx.createRadialGradient(bx - 1, by - 1, 0, bx, by, bomb.size * 0.5);
+          coreGrad.addColorStop(0, `rgba(255, 220, 100, ${bomb.alpha})`);
+          coreGrad.addColorStop(0.4, `rgba(255, 140, 40, ${bomb.alpha * 0.9})`);
+          coreGrad.addColorStop(0.8, `rgba(200, 80, 20, ${bomb.alpha * 0.6})`);
+          coreGrad.addColorStop(1, `rgba(100, 50, 20, ${bomb.alpha * 0.3})`);
+          this.ctx.fillStyle = coreGrad;
+          this.ctx.beginPath();
+          this.ctx.arc(bx, by, bomb.size * 0.45, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          this.ctx.restore();
+        }
+      }
+
       // Tropical Rainstorm — dark overcast sky
       if ((this._rainstormActive || this._rainstormLerpTimer > 0) && this._rainstormSkyDarkness > 0.01 && this.state === 'racing') {
         this.ctx.save();
@@ -17246,6 +17572,7 @@ this.ctx.restore();
       this.raceDirector.startRace(this.raceLength);
       this.broadcastDirector.reset();
       this.storyEngine.reset();
+      this._slowMoTriggered = false;
 
       this._eventToggle = false;
 
@@ -17569,6 +17896,68 @@ this.ctx.restore();
       this.broadcastDirector.reset();
       this.storyEngine.reset();
       this.raceDirector.stop();
+      // Defense-in-depth: clear event/theme state before re-entering startRace
+      this.sounds.stopBlizzardWind();
+      this.sounds.stopAuroraAmbient();
+      this._blizzardActive = false;
+      this._blizzardSnowParticles = [];
+      this._blizzardFogParticles = [];
+      this._blizzardCrackTimer = 0;
+      this._auroraActive = false;
+      this._auroraStars = [];
+      this._auroraFadePhase = null;
+      this._auroraFadeProgress = 0;
+      this._auroraArcticParticles = [];
+      this._auroraSnowGusts = [];
+      this._auroraBackgroundFog = [];
+      this._auroraSceneBrightness = 1.0;
+      this._volcanoEruptionActive = false;
+      this._volcanoEruptionParticles = [];
+      this._volcanoAshParticles = [];
+      this._volcanoEmberParticles = [];
+      this._volcanoSmokeColumns = [];
+      this._volcanicEruptionActive = false;
+      this._volcanicEruptionBombs = [];
+      this._volcanicEruptionAshParticles = [];
+      this._volcanicEruptionSmokeParticles = [];
+      this._volcanicEruptionEmberParticles = [];
+      this._volcanicEruptionFountainParticles = [];
+      this._firestormActive = false;
+      this._firestormEmbers = [];
+      this._firestormAsh = [];
+      this._firestormWindStreaks = [];
+      this._firestormSparks = [];
+      this._firestormLargeClouds = [];
+      this._firestormWhirls = [];
+      this._mirageActive = false;
+      this._miragePatterns = {};
+      this._tumbleweeds = [];
+      this._tumbleweedPool = [];
+      this._tumbleweedSpawnCount = 0;
+      this._jungleGiantTrees = [];
+      this._jungleRoots = [];
+      this._jungleWaterfalls = [];
+      this._jungleSunRays = [];
+      this._jungleBirds = [];
+      this._jungleButterflies = [];
+      this._jungleMonkeys = [];
+      this._jungleDragonflies = [];
+      this._jungleLeaves = [];
+      this._jungleMistParticles = [];
+      this._jungleFlowers = [];
+      this._jungleWildlife = [];
+      this._jungleFireflies = [];
+      this._jungleAmbientParticles = [];
+      this._jungleRiver = [];
+      this._jungleCrossVines = [];
+      this._slowMoTriggered = false;
+      this._sustainedLeaderCode = null;
+      this._sustainedLeaderStartTime = 0;
+      this._sustainedLeaderBannerShown = false;
+      this._sustainedLeaderLastBannerTime = 0;
+      this._eventToggle = false;
+      this.physics.obstacleZoneTracker = {};
+      this.physics.reliefActive = false;
       // Now safe to restart ??? preserve current loadout so settings persist
       this.startRace(this._loadout);
     }

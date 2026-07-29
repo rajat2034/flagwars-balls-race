@@ -663,6 +663,37 @@ class AppController {
     this.updateSelectedCountText();
   }
 
+  // Curated top ~80 most recognizable countries across all continents
+  selectTop80Countries() {
+    this.clearCountriesSelection();
+    const codes = [
+      // North America (8)
+      "us","ca","mx","cu","do","jm","cr","pa",
+      // South America (10)
+      "br","ar","co","cl","pe","uy","py","ec","bo","ve",
+      // Europe (24)
+      "gb","ie","fr","de","es","pt","it","nl","be","ch",
+      "at","pl","cz","hu","ro","gr","se","no","dk","fi",
+      "ua","hr","rs","tr",
+      // Asia (21)
+      "cn","in","jp","kr","kp","id","my","sg","th","vn",
+      "ph","pk","bd","lk","np","sa","ae","qa","ir","iq","il",
+      // Africa (14)
+      "eg","dz","ma","tn","ly","ng","gh","ke","et","tz",
+      "ug","za","zw","ao",
+      // Oceania (5)
+      "au","nz","pg","fj","ws"
+    ];
+    codes.forEach(code => {
+      const c = this.countries.find(c => c.code === code);
+      if (!c) return;
+      this.engine.selectedCountries.push(c);
+      const itemNode = document.getElementById(`item-${code}`);
+      if (itemNode) itemNode.classList.add('selected');
+    });
+    this.updateSelectedCountText();
+  }
+
   selectMap(themeKey) {
     this.selectedMapKey = themeKey;
 
