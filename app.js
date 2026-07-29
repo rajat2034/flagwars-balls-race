@@ -18,6 +18,10 @@ class AppController {
     this._loadout = { obstacles: [], obstacleFreqs: {}, events: [], eventFreqs: {}, density: 80, eventIntensity: 'high' };
     this.STORAGE_LOADOUT_KEY = 'flag_rally_loadout';
     this.STORAGE_PRESETS_KEY = 'flag_rally_loadout_presets';
+
+    // Continuous simulation
+    this.continuousSimulation = true;
+    this.championship = null;
   }
 
   init() {
@@ -612,6 +616,21 @@ class AppController {
     document.getElementById(id).classList.toggle('hidden');
   }
 
+  _setActivePresetButton(activeId) {
+    const ids = ['btn-fifa-preset', 'btn-preset-all', 'btn-preset-r16', 'btn-preset-r32', 'btn-preset-top80', 'btn-preset-clear'];
+    ids.forEach(id => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-secondary');
+    });
+    const active = document.getElementById(activeId);
+    if (active) {
+      active.classList.add('btn-primary');
+      active.classList.remove('btn-secondary');
+    }
+  }
+
   // Action presets
   loadPresetFIFA() {
     this.clearCountriesSelection();
@@ -628,6 +647,7 @@ class AppController {
     });
 
     this.updateSelectedCountText();
+    this._setActivePresetButton('btn-fifa-preset');
   }
 
   selectCountriesAll() {
@@ -638,6 +658,7 @@ class AppController {
       if (itemNode) itemNode.classList.add('selected');
     });
     this.updateSelectedCountText();
+    this._setActivePresetButton('btn-preset-all');
   }
 
   clearCountriesSelection() {
@@ -647,6 +668,7 @@ class AppController {
       items[i].classList.remove('selected');
     }
     this.updateSelectedCountText();
+    this._setActivePresetButton('btn-preset-clear');
   }
 
   selectCountriesRandom(num) {
@@ -661,6 +683,7 @@ class AppController {
       if (itemNode) itemNode.classList.add('selected');
     }
     this.updateSelectedCountText();
+    this._setActivePresetButton(num === 16 ? 'btn-preset-r16' : 'btn-preset-r32');
   }
 
   // Curated top ~80 most recognizable countries across all continents
@@ -692,6 +715,7 @@ class AppController {
       if (itemNode) itemNode.classList.add('selected');
     });
     this.updateSelectedCountText();
+    this._setActivePresetButton('btn-preset-top80');
   }
 
   selectMap(themeKey) {
@@ -720,6 +744,9 @@ class AppController {
   showSetup(modeKey) {
     this.selectedMode = modeKey;
     this.engine.gameMode = modeKey;
+
+    // Reset championship standings when returning to setup
+    this.resetChampionship();
 
     // Hide main menu, show setup
     document.getElementById('main-menu').classList.add('hidden');
@@ -769,6 +796,7 @@ class AppController {
     document.getElementById('setup-menu').classList.add('hidden');
     document.getElementById('main-menu').classList.remove('hidden');
     this.engine.stopRace();
+    this.resetChampionship();
   }
 
   // Create custom marble ball properties
@@ -840,6 +868,111 @@ class AppController {
     this.toggleCountrySelection(code);
   }
 
+  onContinuousSimChange(checked) {
+    this.continuousSimulation = checked;
+    if (!checked) {
+      this.resetChampionship();
+    }
+  }
+
+  // Championship standings tracking
+  initChampionship() {
+    this.championship = { wins: {}, top5: [], previousRanks: {} };
+  }
+
+  resetChampionship() {
+    this.championship = null;
+    const el = document.getElementById('championship-standings');
+    if (el) el.classList.add('hidden');
+  }
+
+  updateChampionship(code, name) {
+    if (!this.championship) this.initChampionship();
+
+    this.championship.wins[code] = (this.championship.wins[code] || 0) + 1;
+    this._recalcChampionship();
+    this.renderChampionship();
+  }
+
+  _recalcChampionship() {
+    const entries = Object.entries(this.championship.wins)
+      .map(([c, w]) => {
+        const country = this.countries.find(ct => ct.code === c);
+        return { code: c, name: country ? country.name : c, wins: w };
+      })
+      .sort((a, b) => b.wins - a.wins)
+      .slice(0, 5);
+
+    this.championship.top5 = entries;
+  }
+
+  renderChampionship() {
+    if (!this.championship) return;
+    const container = document.getElementById('cs-list');
+    const top5 = this.championship.top5;
+
+    if (top5.length === 0) {
+      container.innerHTML = '<div class="cs-empty">Awaiting first results...</div>';
+      return;
+    }
+
+    const existingMap = {};
+    for (let i = 0; i < container.children.length; i++) {
+      const child = container.children[i];
+      if (child.dataset && child.dataset.code) {
+        existingMap[child.dataset.code] = child;
+      }
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    top5.forEach((entry, i) => {
+      let row = existingMap[entry.code];
+      if (row) {
+        delete existingMap[entry.code];
+        row.querySelector('.cs-rank').textContent = `${i + 1}.`;
+        row.querySelector('.cs-name').textContent = entry.name;
+        row.querySelector('.cs-wins').textContent = entry.wins;
+      } else {
+        row = document.createElement('div');
+        row.className = 'cs-row';
+        row.dataset.code = entry.code;
+        row.innerHTML = `
+          <span class="cs-rank">${i + 1}.</span>
+          <img class="cs-flag" src="https://flagcdn.com/w40/${entry.code}.png" onerror="this.style.display='none'">
+          <span class="cs-name">${entry.name}</span>
+          <span class="cs-wins">${entry.wins}</span>
+        `;
+        row.style.opacity = '0';
+        requestAnimationFrame(() => {
+          row.style.transition = 'opacity 0.3s ease';
+          row.style.opacity = '1';
+        });
+      }
+
+      const prevRank = this.championship.previousRanks[entry.code];
+      if (prevRank !== undefined && i < prevRank) {
+        row.classList.remove('cs-row-up');
+        void row.offsetWidth;
+        row.classList.add('cs-row-up');
+      }
+
+      fragment.appendChild(row);
+    });
+
+    for (const code in existingMap) {
+      existingMap[code].remove();
+    }
+
+    container.innerHTML = '';
+    container.appendChild(fragment);
+
+    this.championship.previousRanks = {};
+    top5.forEach((entry, i) => {
+      this.championship.previousRanks[entry.code] = i;
+    });
+  }
+
   // Simulation controls bindings
   startRace() {
     // Race length from mode
@@ -849,6 +982,22 @@ class AppController {
       const isWorldCup = this.engine.gameMode === 'world_cup' || this.engine.gameMode === 'world_cup_2026';
       this.engine.raceLength = isWorldCup ? 80000 : 65000;
     }
+
+    // Initialize championship standings for this session
+    if (this.continuousSimulation) {
+      if (!this.championship) this.initChampionship();
+      document.getElementById('championship-standings').classList.remove('hidden');
+      this.renderChampionship();
+    }
+
+    // Set race-complete callback for championship tracking
+    this.engine._onRaceComplete = () => {
+      if (!this.continuousSimulation) return;
+      const winner = this.engine.leaderboard && this.engine.leaderboard[0];
+      if (winner) {
+        this.updateChampionship(winner.code, winner.name);
+      }
+    };
 
     // Loadout + density scaling + event intensity are passed via this._loadout
     this.engine.startRace(this._loadout);

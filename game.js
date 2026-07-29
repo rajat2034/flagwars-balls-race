@@ -7928,7 +7928,26 @@ obs._trappedBallId = null;
   // Setup race balls from selected countries
   setupRaceBalls() {
     this.balls = [];
+    const total = this.selectedCountries.length;
+    const radius = 15;
+    const hSpacing = radius * 2.08;
+    const vSpacing = radius * 2.04;
+
+    // Dynamic packing: rows based on grid aspect ratio ~2:1
+    const aspectRatio = 2;
+    const estGridWidth = Math.sqrt(total * aspectRatio);
+    let numRows = Math.max(1, Math.ceil(total / Math.ceil(estGridWidth)));
+    numRows = Math.max(2, Math.min(numRows, 12));
+
+    const perRow = Math.ceil(total / numRows);
+    const gridWidth = (perRow - 1) * hSpacing;
+    const gridHeight = (numRows - 1) * vSpacing;
+    const startX = Math.max(50, 70 - gridWidth / 2 + hSpacing / 2);
+    const startY = 300 - gridHeight / 2;
+
     this.selectedCountries.forEach((country, idx) => {
+      const row = Math.floor(idx / perRow);
+      const col = idx % perRow;
       const ball = {
         id: idx,
         code: country.code,
@@ -7940,8 +7959,8 @@ obs._trappedBallId = null;
         isStrongFootball: !!country.isStrongFootball,
         color: ['#e74c3c','#3498db','#ffd700','#2ecc71','#9b59b6','#f39c12'][idx % 6],
         primaryColorRGB: ['200,60,60','50,120,220','220,180,50','46,204,113','155,89,182','243,156,18'][idx % 6],
-        x: 50 + idx * 4,
-        y: 300 + (idx % 2 === 0 ? -15 : 15),
+        x: startX + col * hSpacing,
+        y: startY + row * vSpacing,
         vx: 0,
         vy: 0,
         vz: 0,
@@ -10126,7 +10145,7 @@ this.ctx.restore();
       this.track.zones.forEach(zone => {
         // Draw offset relative to camera (scroll on X axis)
         const zX = zone.x - camX;
-        const zoneCullBuffer = Math.max(400, 500 / this.userZoomMultiplier);
+        const zoneCullBuffer = Math.max(1500, 2000 / Math.max(this.userZoomMultiplier, 0.1));
         if (zX + zone.width < -zoneCullBuffer || zX > screenW / zoom + zoneCullBuffer) return; // offscreen cull
 
         if (zone.type === 'boost') {
@@ -11036,7 +11055,7 @@ this.ctx.restore();
       // Draw Static Pegs (Bumpers) ??? white, shiny, glossy
       this.track.pegs.forEach(peg => {
         const pegX = peg.x - camX;
-        const pegCullBuffer = Math.max(200, 300 / this.userZoomMultiplier);
+        const pegCullBuffer = Math.max(1500, 2000 / Math.max(this.userZoomMultiplier, 0.1));
         if (pegX + peg.radius < -pegCullBuffer || pegX - peg.radius > screenW / zoom + pegCullBuffer) return;
 
         this.ctx.save();
@@ -11132,7 +11151,7 @@ this.ctx.restore();
       this.ctx.save();
       // Fill track surface (connects top and bottom boundaries)
       if (this.track.topPoints.length > 1) {
-        const cullBuf = 600;
+        const cullBuf = 1200;
         const virtRight = screenW / zoom;
         // Use only visible wall points to build a filled polygon
         const visibleTop = [];
@@ -11142,6 +11161,21 @@ this.ctx.restore();
           if (wx > -cullBuf && wx < virtRight + cullBuf) {
             visibleTop.push({ x: wx, y: this.track.topPoints[i].y });
             visibleBot.push({ x: wx, y: this.track.bottomPoints[i].y });
+          }
+        }
+        // Add filler points at viewport edges to ensure polygon covers entire visible area
+        if (visibleTop.length > 1) {
+          const leftEdgeX = visibleTop[0].x;
+          const rightEdgeX = visibleTop[visibleTop.length - 1].x;
+          const canvasLeftEdge = -this.trackOffset / zoom - 20;
+          const canvasRightEdge = (screenW - this.trackOffset) / zoom + 20;
+          if (leftEdgeX > canvasLeftEdge) {
+            visibleTop.unshift({ x: canvasLeftEdge, y: visibleTop[0].y });
+            visibleBot.unshift({ x: canvasLeftEdge, y: visibleBot[0].y });
+          }
+          if (rightEdgeX < canvasRightEdge) {
+            visibleTop.push({ x: canvasRightEdge, y: visibleTop[visibleTop.length - 1].y });
+            visibleBot.push({ x: canvasRightEdge, y: visibleBot[visibleTop.length - 1].y });
           }
         }
         if (visibleTop.length > 1) {
@@ -11747,7 +11781,7 @@ this.ctx.restore();
 
       this.track.obstacles.forEach(obs => {
         const obsX = obs.x - camX;
-        const obsCullBuffer = Math.max(300, 400 / this.userZoomMultiplier);
+        const obsCullBuffer = Math.max(600, 800 / Math.max(this.userZoomMultiplier, 0.1));
         if (obsX + 200 < -obsCullBuffer || obsX - 200 > screenW / zoom + obsCullBuffer) return;
 
         // Soft ground shadow under obstacles for snow theme readability
@@ -12991,7 +13025,7 @@ this.ctx.restore();
           if (obs.type !== 'sea_urchin_field') return;
           const ux = obs.x - camX;
           const r = obs.radius || 35;
-          const cullBuf = 300;
+          const cullBuf = 1200;
           if (ux + r < -cullBuf || ux - r > screenW / zoom + cullBuf) return;
 
           const swayPhase = obs._swayPhase || 0;
@@ -13063,7 +13097,7 @@ this.ctx.restore();
           if (obs.type !== 'floating_kelp') return;
           const kx = obs.x - camX;
           const r = obs.radius || 28;
-          const cullBuf = 300;
+          const cullBuf = 1200;
           if (kx + r * 2 < -cullBuf || kx - r * 2 > screenW / zoom + cullBuf) return;
 
           const bp = obs._bubblePhase || 0;
@@ -13858,7 +13892,7 @@ this.ctx.restore();
         const now = performance.now() * 0.001;
         this._jellyfishList.forEach(j => {
           const jx = j.x - camX;
-          const cullBuf = 300;
+          const cullBuf = 1200;
           if (jx + j.radius * 3 < -cullBuf || jx - j.radius * 3 > screenW / zoom + cullBuf) return;
 
           const bob = Math.sin(now * 1.2 + j.phase) * 3;
@@ -14184,7 +14218,7 @@ this.ctx.restore();
         }
 
         // Cull only when fully outside viewport (must match obstacle buffer)
-        if (bX + ball.radius < -400 || bX - ball.radius > screenW / zoom + 400) return;
+        if (bX + ball.radius < -800 || bX - ball.radius > screenW / zoom + 800) return;
 
         const renderRadius = ball.radius * (1 + ball.z * 0.05);
 
@@ -14939,7 +14973,7 @@ this.ctx.restore();
           if (!v1Active && !v2Active) return;
           
           const obsX = obs.x - camX;
-          const obsCullBuffer = Math.max(300, 400 / this.userZoomMultiplier);
+          const obsCullBuffer = Math.max(600, 800 / Math.max(this.userZoomMultiplier, 0.1));
           if (obsX + 200 < -obsCullBuffer || obsX - 200 > screenW / zoom + obsCullBuffer) return;
           
           const time = Date.now() * 0.001;
@@ -15963,7 +15997,7 @@ ctx.restore();
       for (const obj of this._spaceObjects) {
         const vx = (obj.x - camX) * obj.parallax;
         const vy = obj.yOffset;
-        if (vx < -400 || vx > 800) continue;
+        if (vx < -800 || vx > 1600) continue;
         ctx.save();
         obj.rotation = (obj.rotation || 0) + (obj.rotSpeed || 0);
         const rot = obj.rotation || 0;
@@ -17816,6 +17850,11 @@ this.ctx.restore();
 
         document.getElementById('winner-screen').classList.remove('hidden');
       }
+
+      // Fire race-complete callback (used by championship standings, continuous simulation, etc.)
+      if (typeof this._onRaceComplete === 'function') {
+        try { this._onRaceComplete(); } catch (e) { console.warn('_onRaceComplete error:', e); }
+      }
     }
 
     pauseRace() {
@@ -17896,6 +17935,7 @@ this.ctx.restore();
       this.broadcastDirector.reset();
       this.storyEngine.reset();
       this.raceDirector.stop();
+      this._onRaceComplete = null;
       // Defense-in-depth: clear event/theme state before re-entering startRace
       this.sounds.stopBlizzardWind();
       this.sounds.stopAuroraAmbient();
@@ -17981,6 +18021,7 @@ this.ctx.restore();
       this.isRunning = false;
       this.state = 'menu';
       this.raceDirector.stop();
+      this._onRaceComplete = null;
       this.broadcastDirector.reset();
       this.storyEngine.reset();
 

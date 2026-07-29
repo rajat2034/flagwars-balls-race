@@ -657,22 +657,69 @@ canvas.force-vertical {
   box-shadow: 0 10px 30px rgba(0,0,0,0.6);
 }
 
-/* Timer card at top-center — broadcast-style */
-#hud-timer-card.top-center-hud {
+/* Top info row: three panels centered as a group around the logo */
+.top-info-row {
   position: absolute;
   top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  height: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+.top-info-row > * {
+  pointer-events: auto;
+}
+#hud-timer-card {
+  position: absolute;
+  right: 50%;
+  margin-right: 192px;
   text-align: center;
-  padding: 0.35rem 1.4rem;
+  padding: 0.3rem 1rem;
   background: rgba(0,0,0,0.55);
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 20px;
+  border-radius: 16px;
   backdrop-filter: blur(4px);
+  white-space: nowrap;
+  min-width: 90px;
+}
+#hud-logo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Racing Sans One', 'Outfit', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 400;
+  color: #fff;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  text-shadow: 0 0 10px rgba(0,0,0,0.7), 0 2px 4px rgba(0,0,0,0.5), 0 0 30px rgba(255,215,0,0.15);
+  line-height: 1;
+}
+#hud-map-card {
+  position: absolute;
+  left: 50%;
+  margin-left: 192px;
+  text-align: center;
+  padding: 0.3rem 1rem;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+  min-width: 100px;
 }
 #hud-timer {
   font-variant-numeric: tabular-nums;
   letter-spacing: 1px;
+}
+.hud-value-map {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: var(--font-title);
+  color: var(--accent-gold);
 }
 
 .top-right-hud {
@@ -1014,8 +1061,19 @@ canvas.force-vertical {
     right: 10px;
     padding: 0.4rem 0.7rem;
   }
-  #hud-timer-card.top-center-hud {
-    top: 65px;
+  #hud-logo {
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+  }
+  #hud-timer-card {
+    margin-right: 80px;
+    padding: 0.2rem 0.6rem;
+    min-width: 60px;
+  }
+  #hud-map-card {
+    margin-left: 80px;
+    padding: 0.2rem 0.6rem;
+    min-width: 70px;
   }
   .left-center-hud {
     left: 10px;
@@ -1051,13 +1109,16 @@ canvas.force-vertical {
   padding: 0.3rem;
 }
 
-/* Country dropdown selector */
-.hud-country-select {
+/* Bottom left stack: Auto Follow Leader + Top 3 Podium */
+.bottom-left-stack {
   position: absolute;
-  bottom: 70px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   z-index: 10;
+  pointer-events: auto;
 }
 
 .country-dropdown-select {
@@ -1073,119 +1134,63 @@ canvas.force-vertical {
   cursor: pointer;
   backdrop-filter: blur(8px);
 }
-
 .country-dropdown-select:focus {
   outline: none;
   border-color: var(--pitch-green);
   box-shadow: 0 0 8px rgba(102, 252, 241, 0.25);
 }
-
 .country-dropdown-select option {
   background: #1a1d2e;
   color: white;
   padding: 4px;
 }
-
-/* Pan indicator */
-.pan-indicator {
-  position: absolute;
-  bottom: 120px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(102, 252, 241, 0.15);
-  border: 1px solid var(--pitch-green);
-  border-radius: 6px;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.7rem;
-  color: var(--pitch-green);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.pan-indicator.active {
-  opacity: 1;
-}
-
-/* Bottom center positioning for podium */
-.bottom-center-hud {
-  position: absolute;
-  bottom: 15px;
-  left: 50%;
-  transform: translateX(-50%);
+.bottom-left-stack .country-dropdown-select {
+  min-width: 180px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.75rem;
 }
 
 .podium-panel {
-  padding: 0.35rem 1rem;
+  padding: 0.3rem 0.8rem;
   border-radius: 10px;
-  text-align: center;
+  text-align: left;
   box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  pointer-events: none;
 }
 
 .podium-list {
   display: flex;
-  gap: 1rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .podium-entry {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.78rem;
+  gap: 0.3rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: #ffffff;
 }
 
 .podium-rank {
   font-weight: 900;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--pitch-green);
+  width: 18px;
+  text-align: center;
 }
 
 .podium-flag-icon {
-  width: 16px;
-  height: 11px;
+  width: 14px;
+  height: 10px;
   border-radius: 2px;
   object-fit: cover;
 }
 
-/* Race Director Event Feed — broadcast timeline, bottom-left */
-.rd-feed {
-  position: fixed;
-  bottom: 100px;
-  left: 15px;
-  width: 320px;
-  max-width: calc(100vw - 300px);
-  max-height: calc(100vh - 280px);
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-  z-index: 200;
-  pointer-events: none;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-.rd-feed-header {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.5);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  padding: 8px 14px 5px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  flex-shrink: 0;
-}
-.rd-feed-list {
-  padding: 3px 0;
-  overflow: hidden;
-  max-height: 210px; /* ~6 entries */
-  flex: none;
+/* Hide Match Events / RD Feed */
+.rd-feed, .rd-feed-header, .rd-feed-list, #hud-race-director-feed {
+  display: none !important;
 }
 
 /* Individual event entry — slides in from right */
@@ -1487,4 +1492,114 @@ canvas.force-vertical {
   align-items: center;
   gap: 0.25rem;
   flex: 1;
+}
+
+/* Checkbox row for sidebar toggles */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-white);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.2rem 0;
+}
+.checkbox-row input[type="checkbox"] {
+  accent-color: var(--pitch-green);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.checkbox-row:hover {
+  color: #fff;
+}
+
+/* Championship Standings overlay (Continuous Simulation) */
+.championship-overlay {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 5px 12px;
+  pointer-events: none;
+  min-width: 200px;
+  text-align: center;
+}
+.cs-header {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 2px;
+}
+.cs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cs-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.6rem;
+  padding: 1px 3px;
+  border-radius: 3px;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.cs-rank {
+  width: 14px;
+  text-align: right;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+  font-size: 0.55rem;
+}
+.cs-flag {
+  width: 12px;
+  height: 8px;
+  border-radius: 1px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.cs-name {
+  flex: 1;
+  text-align: left;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6rem;
+}
+.cs-wins {
+  font-weight: 700;
+  color: var(--accent-gold);
+  font-size: 0.6rem;
+  flex-shrink: 0;
+  min-width: 12px;
+  text-align: right;
+}
+.cs-row-up {
+  animation: cs-glow 1s ease-out;
+}
+@keyframes cs-glow {
+  0% { background: rgba(255, 215, 0, 0.1); box-shadow: inset 0 0 6px rgba(255, 215, 0, 0.12); }
+  100% { background: transparent; box-shadow: none; }
+}
+.cs-empty {
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 3px 0;
 }

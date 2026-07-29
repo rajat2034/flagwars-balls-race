@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flag Rally World Cup - Interactive Simulation Game</title>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=Outfit:wght@400;700;900&family=Racing+Sans+One&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -109,11 +109,11 @@
             <!-- Quick selectors -->
             <div class="quick-selectors flex gap-2 flex-wrap mt-2 mb-3">
               <button onclick="app.loadPresetFIFA()" class="btn btn-small btn-primary" id="btn-fifa-preset">Load World Cup (48 Teams)</button>
-              <button onclick="app.selectCountriesAll()" class="btn btn-small btn-secondary">Select All</button>
-              <button onclick="app.selectCountriesRandom(16)" class="btn btn-small btn-secondary">Random 16</button>
-              <button onclick="app.selectCountriesRandom(32)" class="btn btn-small btn-secondary">Random 32</button>
-              <button onclick="app.selectTop80Countries()" class="btn btn-small btn-secondary">Top 80 Countries</button>
-              <button onclick="app.clearCountriesSelection()" class="btn btn-small btn-tertiary">Clear All</button>
+              <button onclick="app.selectCountriesAll()" class="btn btn-small btn-secondary" id="btn-preset-all">Select All</button>
+              <button onclick="app.selectCountriesRandom(16)" class="btn btn-small btn-secondary" id="btn-preset-r16">Random 16</button>
+              <button onclick="app.selectCountriesRandom(32)" class="btn btn-small btn-secondary" id="btn-preset-r32">Random 32</button>
+              <button onclick="app.selectTop80Countries()" class="btn btn-small btn-secondary" id="btn-preset-top80">Top 80 Countries</button>
+              <button onclick="app.clearCountriesSelection()" class="btn btn-small btn-tertiary" id="btn-preset-clear">Clear All</button>
               <button onclick="app.togglePanel('custom-country-creator')" class="btn btn-small btn-secondary bg-purple-glow">＋ Create Custom Ball</button>
             </div>
 
@@ -219,6 +219,15 @@
               <option value="high">High — Frequent</option>
               <option value="chaos">Chaos — Non-stop</option>
             </select>
+          </div>
+
+          <!-- CONTINUOUS SIMULATION -->
+          <div class="sidebar-section">
+            <h3 class="section-title" style="font-size:0.8rem;">Simulation Mode</h3>
+            <label class="checkbox-row">
+              <input type="checkbox" id="continuous-sim" checked onchange="app.onContinuousSimChange(this.checked)">
+              <span>☑ Continuous Simulation</span>
+            </label>
           </div>
 
           <!-- RESTORE DEFAULTS -->
@@ -391,10 +400,17 @@
 
     <!-- 5. RACE HUD OVERLAYS (Shown when racing) -->
     <div id="race-hud" class="hud-layer hidden">
-      <!-- Top Center: Race Timer -->
-      <div id="hud-timer-card" class="hud-card top-center-hud font-outfit">
-        <div class="hud-label">RACE TIME</div>
-        <div id="hud-timer" class="hud-value">0.0s</div>
+      <!-- Top Info Row: Timer left, Logo center, Map right -->
+      <div class="top-info-row">
+        <div id="hud-timer-card" class="hud-card font-outfit">
+          <div class="hud-label">RACE TIME</div>
+          <div id="hud-timer" class="hud-value">0.0s</div>
+        </div>
+        <div id="hud-logo" class="hud-logo font-title">FLAG WARS</div>
+        <div id="hud-map-card" class="hud-card font-outfit">
+          <div class="hud-label">MAP</div>
+          <div id="hud-map-name" class="hud-value-map">-</div>
+        </div>
       </div>
 
       <!-- Top Left: Live Leaderboard list -->
@@ -405,10 +421,15 @@
         </div>
       </div>
 
-      <!-- Bottom Center: Top 3 podium -->
-      <div id="hud-podium" class="bottom-center-hud glass-panel podium-panel">
-        <div id="hud-podium-list" class="podium-list">
-          <!-- Dynamically filled with top 3 names -->
+      <!-- Bottom Left Stack: Auto Follow Leader + Top 3 Podium -->
+      <div class="bottom-left-stack">
+        <select id="hud-camera-select" class="country-dropdown-select" onchange="app.onCameraSelectChange()">
+          <option value="leader">🎯 Auto-Follow Leader</option>
+        </select>
+        <div id="hud-podium" class="glass-panel podium-panel">
+          <div id="hud-podium-list" class="podium-list">
+            <!-- Dynamically filled with top 3 names -->
+          </div>
         </div>
       </div>
 
@@ -428,19 +449,6 @@
             <button onclick="app.engine.zoomOut()" class="btn btn-icon-xxs btn-secondary">−</button>
           </div>
         </div>
-      </div>
-
-      <!-- Bottom Center: Country Camera Selector -->
-      <div class="hud-country-select">
-        <select id="hud-camera-select" class="country-dropdown-select" onchange="app.onCameraSelectChange()">
-          <option value="leader">🎯 Auto-Follow Leader</option>
-        </select>
-      </div>
-
-      <!-- Bottom Right: Race Director Event Feed (replaces old Match Events) -->
-      <div id="hud-race-director-feed" class="rd-feed">
-        <div class="rd-feed-header">📢 MATCH EVENTS</div>
-        <div id="rd-feed-list" class="rd-feed-list"></div>
       </div>
     </div>
 
@@ -489,6 +497,12 @@
 
   <!-- Race Transition Overlay -->
   <div id="race-transition" style="position:fixed;inset:0;z-index:100;pointer-events:none;background:#000;opacity:0;transition:opacity 0.6s cubic-bezier(0.16,1,0.3,1);"></div>
+
+  <!-- Championship Standings (Continuous Simulation) -->
+  <div id="championship-standings" class="championship-overlay hidden">
+    <div class="cs-header">Championship Standings</div>
+    <div id="cs-list" class="cs-list"></div>
+  </div>
 
   <!-- Script Modules linking -->
   <script src="countries.js"></script>
