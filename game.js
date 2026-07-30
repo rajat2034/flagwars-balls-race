@@ -657,17 +657,13 @@ class GlobalEventBanner {
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    const titleFont = 'bold 30px Montserrat, sans-serif';
-    const descFont = '14px Montserrat, sans-serif';
+    const titleFont = 'bold 22px Montserrat, sans-serif';
 
     ctx.font = titleFont;
     const titleWidth = ctx.measureText(this.current.eventName).width;
-    ctx.font = descFont;
-    const descWidth = ctx.measureText(this.current.description).width;
 
-    const maxTextWidth = Math.max(titleWidth, descWidth);
-    const bannerW = Math.max(400, maxTextWidth + 80);
-    const bannerH = 90;
+    const bannerW = Math.max(280, titleWidth + 60);
+    const bannerH = 56;
     const by = screenH * 0.72 - bannerH / 2;
 
     ctx.translate(screenW / 2, by + bannerH / 2);
@@ -689,20 +685,14 @@ class GlobalEventBanner {
     ctx.roundRect(-bannerW / 2 - 3, -bannerH / 2 - 3, bannerW + 6, bannerH + 6, 31);
     ctx.stroke();
 
-    // Event name (large, bold) ??? always on dark pill, use white
+    // Event name (bold, centered) — always on dark pill, use white
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(255, 200, 0, 0.3)';
     ctx.shadowBlur = 12;
     ctx.fillStyle = '#ffffff';
     ctx.font = titleFont;
-    ctx.fillText(this.current.eventName, 0, -18);
-
-    // Description (smaller, below)
-    ctx.shadowBlur = 6;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.font = descFont;
-    ctx.fillText(this.current.description, 0, 20);
+    ctx.fillText(this.current.eventName, 0, 0);
 
     ctx.restore();
   }
@@ -17400,14 +17390,19 @@ this.ctx.restore();
         this.eventBanner.render(this.ctx, screenW, screenH);
       }
 
-      // E. Top-Middle Event Capsule ??? prominent active event display below timer
+      // E. Top-Middle Event Capsule ??? prominent active event display below timer with description
       if ((this.state === 'racing' || this.state === 'finished') && !this._championOverlayShown) {
         if (this.activeEvent) {
           this.ctx.save();
           const eventText = this.activeEvent.name;
-          const textWidth = this.ctx.measureText(eventText).width;
-          const capsuleW = Math.max(420, textWidth + 80);
-          const capsuleH = 56;
+          const eventDesc = this.activeEvent.description || '';
+          this.ctx.font = 'bold 22px Montserrat, sans-serif';
+          const titleWidth = this.ctx.measureText(eventText).width;
+          this.ctx.font = '13px Montserrat, sans-serif';
+          const descWidth = this.ctx.measureText(eventDesc).width;
+          const maxTextWidth = Math.max(titleWidth, descWidth);
+          const capsuleW = Math.max(300, maxTextWidth + 60);
+          const capsuleH = 76;
           const cx = screenW / 2;
           const cy = screenH * 0.10;
           const pulse = 0.6 + 0.4 * Math.sin(this.raceTimer * 4);
@@ -17437,14 +17432,20 @@ this.ctx.restore();
           this.ctx.roundRect(cx - capsuleW / 2, cy - capsuleH / 2, capsuleW, capsuleH, 28);
           this.ctx.stroke();
 
-          // Text with glow
+          // Event name with glow
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           this.ctx.fillStyle = '#ffd700';
           this.ctx.font = 'bold 22px Montserrat, sans-serif';
           this.ctx.shadowColor = 'rgba(255, 200, 0, 0.6)';
           this.ctx.shadowBlur = 12;
-          this.ctx.fillText(eventText, cx, cy);
+          this.ctx.fillText(eventText, cx, cy - 14);
+
+          // Description text below
+          this.ctx.shadowBlur = 6;
+          this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+          this.ctx.font = '13px Montserrat, sans-serif';
+          this.ctx.fillText(eventDesc, cx, cy + 18);
 
           this.ctx.restore();
         }
