@@ -2185,6 +2185,19 @@ class GameEngine {
     this._eventIntensityCfg = { base: 20, variation: 3, maxEvents: 18 };
     this.leaderboard = [];
     this.lastKnockoutCycle = 0;
+    this._eliminationState = null;
+    this._eliminationDissolveParticles = [];
+    this._eliminationTextItem = null;
+    this.knockoutInterval = 20;
+    this.knockoutBallsPerCycle = 1;
+    this._eliminationFreeze = false;
+    this._eliminationSequence = null;
+    this._eliminationQueue = [];
+    this._cameraAnim = null;
+    this._eliminationCameraMemory = null;
+    this._dispersionParticlesGlobal = [];
+    this._dispersionTextItem = null;
+    this._eliminationHiddenBallId = null;
 
     // Image pattern cache for country flags
     this.flagCache = {};
@@ -2466,10 +2479,12 @@ class GameEngine {
       track.walls.push({ p1: track.bottomPoints[i], p2: track.bottomPoints[i + 1] });
     }
 
-    // Finish line zone - always visible at end of track
-    const finishX = length - 670;
-    track.zones.push({ type: 'finish', x: finishX, y: 0, width: 120, height: 700 });
-    track.finishLineX = finishX;
+    // Finish line zone - skipped in knockout mode
+    const finishX = this.gameMode !== 'knockout' ? length - 670 : length - 400;
+    if (this.gameMode !== 'knockout') {
+      track.zones.push({ type: 'finish', x: finishX, y: 0, width: 120, height: 700 });
+      track.finishLineX = finishX;
+    }
 
     // Filter ZONE_CONFIG, COMBINATIONS, TEMPLATES by enabled obstacle set
     const _filterTypes = (typesArr) => typesArr.filter(t => enabledSet.has(t));
@@ -5555,9 +5570,9 @@ obs._trappedBallId = null;
             obs._stateTimer = 0;
             obs._eruptionBubbles = [];
             obs._eruptionSmoke = [];
-          }
-        }
-}
+      }
+    }
+  }
       });
     }
 
@@ -7981,6 +7996,11 @@ obs._trappedBallId = null;
     // Clamp delta to avoid massive teleports on lag spikes
     delta = Math.min(delta, 3.0);
 
+    // Process elimination sequence during freeze (runs even when isPaused=true)
+    if (this.gameMode === 'knockout' && this._eliminationSequence) {
+      this._processEliminationSequence(delta);
+    }
+
     if (!this.isPaused) {
       let effectiveSpeed = this.simSpeed;
       // Slow motion when winner crosses
@@ -9132,26 +9152,27 @@ obs._trappedBallId = null;
         }
       });
 
-// Resolve finishes
-      const finishDetectX = this.track ? this.track.finishLineX : (this.track ? this.track.length - 400 : 0);
+// Resolve finishes — skip in knockout mode (no finish line)
+      if (this.gameMode !== 'knockout') {
+        const finishDetectX = this.track ? this.track.finishLineX : (this.track ? this.track.length - 400 : 0);
 
-      // Trigger slow-mo 50ms before winner crosses finish
-      if (this.slowMoTimer === 0 && !this._slowMoTriggered && this.state === 'racing') {
-        this.balls.forEach(ball => {
-          if (!ball.finished && !ball.eliminated) {
-            const speed = Math.abs(ball.vx) || 5;
-            if (ball.x >= finishDetectX - speed * 3 && ball.x < finishDetectX) {
-              this.slowMoTimer = 60;
-              this._slowMoTriggered = true;
+        // Trigger slow-mo 50ms before winner crosses finish
+        if (this.slowMoTimer === 0 && !this._slowMoTriggered && this.state === 'racing') {
+          this.balls.forEach(ball => {
+            if (!ball.finished && !ball.eliminated) {
+              const speed = Math.abs(ball.vx) || 5;
+              if (ball.x >= finishDetectX - speed * 3 && ball.x < finishDetectX) {
+                this.slowMoTimer = 60;
+                this._slowMoTriggered = true;
+              }
             }
-          }
-        });
-      }
+          });
+        }
 
-      this.balls.forEach(ball => {
-        if (!ball.finished && ball.x >= finishDetectX) {
-          ball.finished = true;
-          ball.finishTime = this.raceTimer;
+        this.balls.forEach(ball => {
+          if (!ball.finished && ball.x >= finishDetectX) {
+            ball.finished = true;
+            ball.finishTime = this.raceTimer;
           this.sounds.playFinish();
 
           // Finish line celebration confetti
@@ -9189,17 +9210,20 @@ obs._trappedBallId = null;
           console.log(`[FINISH] ${ball.name} crossed the line at ${ball.finishTime.toFixed(2)}s`);
         }
       });
+      }
 
       // Handle Knockout Mode special rules:
-      // Last-place ball is eliminated every 10 seconds.
-      if (this.gameMode === 'knockout') {
-        const checkCycle = 10; // 10 seconds
-        const currentCycle = Math.floor(this.raceTimer / checkCycle);
+      // Last-place ball(s) eliminated at configurable intervals.
+      // When elimination is in progress (frozen), the sequence processor
+      // runs in tick() outside isPaused — nothing to do here.
+      if (this.gameMode === 'knockout' && !this._eliminationSequence) {
+        const interval = this.knockoutInterval || 20;
+        const currentCycle = Math.floor(this.raceTimer / interval);
         if (!this.lastKnockoutCycle) this.lastKnockoutCycle = 0;
 
         if (currentCycle > this.lastKnockoutCycle) {
           this.lastKnockoutCycle = currentCycle;
-          this.eliminateLastPlaceBall();
+          this._beginKnockoutCycle();
         }
       }
 
@@ -9307,28 +9331,27 @@ obs._trappedBallId = null;
       this.eventBanner.update();
       this.raceDirector.update(dt);
 
-      // Check end game criteria — end when top 3 have finished
-      const finishedBalls = this.balls.filter(b => b.finished);
-      if (finishedBalls.length >= 3 || (this.gameMode === 'knockout' && this.balls.filter(b => !b.finished).length === 1)) {
-        if (this.gameMode === 'knockout' && finishedBalls.length < 3) {
-          const lastStanding = this.balls.filter(b => !b.finished)[0];
-          if (lastStanding) {
-            lastStanding.finished = true;
-            lastStanding.finishTime = this.raceTimer;
-            this.triggerConfettiExplosion(lastStanding.x, lastStanding.y);
-          }
+      // Check end game criteria
+      if (this.gameMode === 'knockout') {
+        const alive = this.balls.filter(b => !b.finished);
+        if (alive.length === 1) {
+          alive[0].finished = true;
+          alive[0].finishTime = this.raceTimer;
+          this.triggerConfettiExplosion(alive[0].x, alive[0].y);
+          this.endRace();
         }
-
-        // Mark all unfinished balls as DNF (did not finish)
-        this.balls.forEach(b => {
-          if (!b.finished) {
-            b.finished = true;
-            b.finishTime = this.raceTimer + 999;
-            b.eliminated = true;
-          }
-        });
-
-        this.endRace();
+      } else {
+        const finishedBalls = this.balls.filter(b => b.finished);
+        if (finishedBalls.length >= 3) {
+          this.balls.forEach(b => {
+            if (!b.finished) {
+              b.finished = true;
+              b.finishTime = this.raceTimer + 999;
+              b.eliminated = true;
+            }
+          });
+          this.endRace();
+        }
       }
     }
 
@@ -9347,45 +9370,259 @@ obs._trappedBallId = null;
     this.updateWinnerVisuals(dt);
   }
 
-  eliminateLastPlaceBall() {
-    // Get all balls that haven't finished and are not yet marked as 'eliminated'
-    const activeBalls = this.balls.filter(b => !b.finished && !b.eliminated);
-    if (activeBalls.length > 1) {
-      // Sort ascending by position: smallest x is trailing (behind everyone else)
-      activeBalls.sort((a, b) => a.x - b.x);
-      const target = activeBalls[0];
-      target.eliminated = true;
-      target.finished = true; // treated as finished/dead
-      target.finishTime = 999.99; // DNF
+  // ── Knockout Mode: begin a new elimination cycle ──────────────
+  _beginKnockoutCycle() {
+    const active = this.balls.filter(b => !b.finished && !b.eliminated);
+    if (active.length <= 1) return;
 
-      // Dramatic elimination burst
-      for (let p = 0; p < 25; p++) {
-        const a = Math.random() * Math.PI * 2;
-        const spd = 1 + Math.random() * 5;
-        this.particles.push({
-          type: 'spark',
-          x: target.x + (Math.random() - 0.5) * 10,
-          y: target.y + (Math.random() - 0.5) * 10,
-          vx: Math.cos(a) * spd,
-          vy: Math.sin(a) * spd,
-          color: Math.random() < 0.5 ? '#e74c3c' : '#ff6b35',
-          alpha: 1,
-          size: Math.random() * 4 + 2
-        });
-      }
-      // Screen shake text
-      this.particles.push({
-        type: 'text',
-        x: target.x,
-        y: target.y - 20,
-        text: 'ELIMINATED!',
-        color: '#e74c3c',
-        alpha: 1,
-        size: 20
-      });
+    // Sort by current position (last place = smallest x)
+    active.sort((a, b) => a.x - b.x);
 
-      console.log(`[KNOCKOUT] ${target.name} eliminated!`);
+    // Determine how many to eliminate this cycle
+    const perCycle = Math.min(this.knockoutBallsPerCycle || 1, active.length - 1);
+
+    // Build queue (eliminate from last place upward)
+    const queue = [];
+    for (let i = 0; i < perCycle; i++) {
+      queue.push(active[i]);
     }
+
+    // Save camera memory for later restore
+    this._eliminationCameraMemory = {
+      selectedBallId: this.selectedBallId,
+      cameraX: this.cameraX,
+      cameraZoom: this.cameraZoom,
+      leaderBallId: this.selectedBallId === 'leader' ? this._findLeader()?.id : this.selectedBallId
+    };
+
+    // Initialise elimination sequence state machine
+    this._eliminationSequence = {
+      phase: 'camera_to_target',
+      phaseStartTime: performance.now(),
+      queue: queue,
+      currentIndex: -1,
+      target: null,  // set when moving to next target
+    };
+
+    // Freeze the race
+    this.isPaused = true;
+
+    // Move to first target
+    this._eliminationNextTarget();
+  }
+
+  _eliminationNextTarget() {
+    const seq = this._eliminationSequence;
+    if (!seq) return;
+    const nextIndex = seq.currentIndex + 1;
+
+    if (nextIndex >= seq.queue.length) {
+      // All targets processed – camera back to leader
+      seq.phase = 'camera_back';
+      seq.phaseStartTime = performance.now();
+      const mem = this._eliminationCameraMemory;
+      const restoreX = mem.cameraX;
+      // Animate back to where the camera was before freeze
+      this._startCameraAnimation(restoreX, 800);
+      return;
+    }
+
+    seq.currentIndex = nextIndex;
+    seq.target = seq.queue[nextIndex];
+    seq.phase = 'camera_to_target';
+    seq.phaseStartTime = performance.now();
+
+    // Calculate ideal camera X to centre this ball on screen
+    const targetX = seq.target.x - this.canvas.width / (2 * this.cameraZoom);
+
+    this._startCameraAnimation(targetX, 700);
+  }
+
+  // ── Smooth cinematic camera swipe (ease-in-out cubic) ─────────
+  _startCameraAnimation(targetX, durationMs) {
+    this._cameraAnim = {
+      fromX: this.cameraX,
+      toX: targetX,
+      startTime: performance.now(),
+      duration: durationMs
+    };
+  }
+
+  _updateCameraAnim() {
+    const anim = this._cameraAnim;
+    if (!anim) return false;
+    const elapsed = performance.now() - anim.startTime;
+    let t = Math.min(elapsed / anim.duration, 1);
+    // ease-in-out cubic
+    const easeVal = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    this.cameraX = anim.fromX + (anim.toX - anim.fromX) * easeVal;
+
+    if (t >= 1) {
+      this.cameraX = anim.toX;
+      this._cameraAnim = null;
+      return true; // animation finished
+    }
+    return false; // still animating
+  }
+
+  // ── Main elimination sequence state machine ─────────────────────
+  _processEliminationSequence(dt) {
+    const seq = this._eliminationSequence;
+    if (!seq) return;
+
+    const now = performance.now();
+    const elapsed = now - seq.phaseStartTime;
+
+    switch (seq.phase) {
+
+      // ── Phase: Camera moving to target ball ──
+      case 'camera_to_target': {
+        const done = this._updateCameraAnim();
+        if (done) {
+          seq.phase = 'pause_before';
+          seq.phaseStartTime = now;
+        }
+        break;
+      }
+
+      // ── Phase: Pause 0.5s so viewer recognises the ball ──
+      case 'pause_before': {
+        if (elapsed > 500) {
+          // Start dispersion
+          seq.phase = 'disperse';
+          seq.phaseStartTime = now;
+          this._spawnDispersionParticles(seq.target);
+        }
+        break;
+      }
+
+      // ── Phase: Ball disperses into glowing particles (0.8s) ──
+      case 'disperse': {
+        if (elapsed < 10) {
+          this._eliminationHiddenBallId = seq.target.id;
+        }
+        this._updateDispersionParticles();
+        if (elapsed > 800) {
+          // Mark ball as eliminated
+          seq.target.eliminated = true;
+          seq.target.finished = true;
+          seq.target.finishTime = 999.99;
+          this._eliminationHiddenBallId = null;
+
+          // Show text
+          seq.phase = 'text';
+          seq.phaseStartTime = now;
+          this._dispersionTextItem = {
+            text: seq.target.name.toUpperCase() + ' ELIMINATED!',
+            code: seq.target.code,
+            startTime: now,
+          };
+          this.triggerConfettiExplosion(seq.target.x, seq.target.y);
+        }
+        break;
+      }
+
+      // ── Phase: "[Country] ELIMINATED" text (1s) ──
+      case 'text': {
+        if (elapsed > 1000) {
+          seq.phase = 'pause_after';
+          seq.phaseStartTime = now;
+        }
+        break;
+      }
+
+      // ── Phase: Wait 0.5s before next ball ──
+      case 'pause_after': {
+        if (elapsed > 500) {
+          // Clear text and move to next target
+          this._dispersionTextItem = null;
+          this._eliminationNextTarget();
+        }
+        break;
+      }
+
+      // ── Phase: Camera sweeping back to leader position ──
+      case 'camera_back': {
+        const done = this._updateCameraAnim();
+        if (done) {
+          seq.phase = 'done';
+          seq.phaseStartTime = now;
+        }
+        break;
+      }
+
+      // ── Phase: Resume race ──
+      case 'done': {
+        // Restore camera memory
+        const mem = this._eliminationCameraMemory;
+        if (mem) {
+          this.selectedBallId = mem.selectedBallId === 'leader' ? 'leader' : (mem.leaderBallId || 'leader');
+          this.cameraX = mem.cameraX;
+          this.cameraZoom = mem.cameraZoom;
+        } else {
+          this.selectedBallId = 'leader';
+        }
+
+        // Clean up
+        this._eliminationSequence = null;
+        this._eliminationCameraMemory = null;
+        this._cameraAnim = null;
+        this._dispersionParticlesGlobal = [];
+        this._dispersionTextItem = null;
+        this._eliminationHiddenBallId = null;
+
+        // Unfreeze
+        this.isPaused = false;
+
+        console.log('[KNOCKOUT] Elimination cycle complete, race resumed');
+        break;
+      }
+    }
+  }
+
+  // ── Spawn hundreds of glowing dispersion particles ──────────
+  _spawnDispersionParticles(target) {
+    this._dispersionParticlesGlobal = [];
+    const count = 200;
+    const colors = ['#ffd700', '#ff6b35', '#e74c3c', '#ffaa00', '#ffffff', '#ff4500', '#ff1493'];
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.5 + Math.random() * 5;
+      const dist = (Math.random() - 0.5) * 15;
+      this._dispersionParticlesGlobal.push({
+        x: target.x + dist,
+        y: target.y + (Math.random() - 0.5) * 15,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        alpha: 0.8 + Math.random() * 0.2,
+        size: 1.5 + Math.random() * 4,
+        life: 40 + Math.floor(Math.random() * 25),
+        maxLife: 65
+      });
+    }
+  }
+
+  _updateDispersionParticles() {
+    const arr = this._dispersionParticlesGlobal;
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const p = arr[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.04;
+      p.vx *= 0.98;
+      p.life--;
+      p.alpha = Math.max(0, p.life / p.maxLife);
+      if (p.life <= 0) {
+        arr.splice(i, 1);
+      }
+    }
+  }
+
+  _findLeader() {
+    const active = this.balls.filter(b => !b.finished && !b.eliminated);
+    if (active.length === 0) return null;
+    return active.reduce((a, b) => a.x > b.x ? a : b);
   }
 
   calculateLiveLeaderboard() {
@@ -14177,6 +14414,9 @@ this.ctx.restore();
       }
 
       this.balls.forEach(ball => {
+        // Skip balls hidden during elimination dispersion
+        if (this._eliminationHiddenBallId === ball.id) return;
+
         const bX = ball.x - camX;
 
         if (ball.finished) {
@@ -17342,6 +17582,53 @@ this.ctx.restore();
         this.ctx.restore();
       });
 
+      // Knockout elimination dispersion particles (glowing burst)
+      for (const p of this._dispersionParticlesGlobal) {
+        this.ctx.save();
+        this.ctx.globalAlpha = p.alpha;
+        this.ctx.fillStyle = p.color;
+        this.ctx.shadowColor = p.color;
+        this.ctx.shadowBlur = 12;
+        this.ctx.beginPath();
+        this.ctx.arc(p.x - (this.cameraX || 0), p.y, p.size, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+      }
+
+      // Knockout elimination text
+      if (this._dispersionTextItem) {
+        const item = this._dispersionTextItem;
+        const textElapsed = performance.now() - item.startTime;
+        let texAlpha = 1;
+        let texScale = 1;
+        if (textElapsed < 200) {
+          const t = textElapsed / 200;
+          texAlpha = t;
+          texScale = 0.6 + t * 0.4;
+        } else if (textElapsed < 800) {
+          texAlpha = 1;
+          texScale = 1;
+        } else if (textElapsed < 1000) {
+          const t = (textElapsed - 800) / 200;
+          texAlpha = 1 - t;
+          texScale = 1 + t * 0.1;
+        }
+        if (texAlpha > 0) {
+          this.ctx.save();
+          this.ctx.globalAlpha = texAlpha;
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.font = 'bold 42px Montserrat, sans-serif';
+          this.ctx.shadowColor = 'rgba(231, 76, 60, 0.7)';
+          this.ctx.shadowBlur = 24;
+          this.ctx.fillStyle = '#e74c3c';
+          this.ctx.translate(screenW / 2, screenH * 0.35);
+          this.ctx.scale(texScale, texScale);
+          this.ctx.fillText(item.text, 0, 0);
+          this.ctx.restore();
+        }
+      }
+
       // F. Winner Flash ??? shown for 2 seconds before champion overlay activates
       if (this._winnerFlashActive && this._winnerFlashBall) {
         this.ctx.save();
@@ -17639,6 +17926,17 @@ this.ctx.restore();
       this.isPaused = false;
       this.lastTime = 0;
       this.lastKnockoutCycle = 0;
+      this._eliminationState = null;
+      this._eliminationDissolveParticles = [];
+      this._eliminationTextItem = null;
+      this._eliminationFreeze = false;
+      this._eliminationSequence = null;
+      this._eliminationQueue = [];
+      this._cameraAnim = null;
+      this._eliminationCameraMemory = null;
+      this._dispersionParticlesGlobal = [];
+      this._dispersionTextItem = null;
+      this._eliminationHiddenBallId = null;
 
       // Always default camera focus to current leader (auto-switch on overtakes)
       this.selectedBallId = 'leader';
@@ -17947,6 +18245,19 @@ this.ctx.restore();
       this.storyEngine.reset();
       this.raceDirector.stop();
       this._onRaceComplete = null;
+      // Knockout elimination state cleanup
+      this.lastKnockoutCycle = 0;
+      this._eliminationState = null;
+      this._eliminationDissolveParticles = [];
+      this._eliminationTextItem = null;
+      this._eliminationFreeze = false;
+      this._eliminationSequence = null;
+      this._eliminationQueue = [];
+      this._cameraAnim = null;
+      this._eliminationCameraMemory = null;
+      this._dispersionParticlesGlobal = [];
+      this._dispersionTextItem = null;
+      this._eliminationHiddenBallId = null;
       // Defense-in-depth: clear event/theme state before re-entering startRace
       this.sounds.stopBlizzardWind();
       this.sounds.stopAuroraAmbient();

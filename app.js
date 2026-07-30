@@ -766,6 +766,7 @@ class AppController {
     const badgeNotice = document.getElementById('mode-badge-rule');
     const ruleText = document.getElementById('mode-rule-text');
     const customSec = document.getElementById('custom-settings-sec');
+    const knockoutSec = document.getElementById('knockout-settings-sec');
     const fifaBtn = document.getElementById('btn-fifa-preset');
 
     // Set custom text descriptions
@@ -774,6 +775,7 @@ class AppController {
       ruleText.innerText = "ONLY in World Cup Mode, top football nations receive moderately higher stats.";
       badgeNotice.classList.remove('hidden');
       customSec.classList.add('hidden');
+      knockoutSec.classList.add('hidden');
       fifaBtn.classList.remove('hidden');
 
       // Auto force load World Cup Preset nations if not loaded
@@ -784,18 +786,21 @@ class AppController {
       titleNode.innerText = "Grand Prix Mode Setup";
       badgeNotice.classList.add('hidden');
       customSec.classList.add('hidden');
+      knockoutSec.classList.add('hidden');
       fifaBtn.classList.add('hidden');
     } else if (modeKey === 'knockout') {
       titleNode.innerText = "Knockout Setup";
-      ruleText.innerText = "Knockout Rule: Every 10 seconds, the nation in last place is eliminated!";
+      ruleText.innerText = "Knockout Rule: The last-place ball is eliminated at regular intervals.";
       badgeNotice.classList.remove('hidden');
       customSec.classList.add('hidden');
+      knockoutSec.classList.remove('hidden');
       fifaBtn.classList.add('hidden');
     } else {
       // custom mode
       titleNode.innerText = "Custom Mode Setup";
       badgeNotice.classList.add('hidden');
       customSec.classList.remove('hidden');
+      knockoutSec.classList.add('hidden');
       fifaBtn.classList.add('hidden');
     }
   }
@@ -1073,6 +1078,13 @@ class AppController {
     };
 
     // Loadout + density scaling + event intensity are passed via this._loadout
+    // Knockout settings
+    if (this.engine.gameMode === 'knockout') {
+      const intervalEl = document.getElementById('knockout-interval');
+      const perCycleEl = document.getElementById('knockout-per-cycle');
+      this.engine.knockoutInterval = parseInt(intervalEl ? intervalEl.value : 20);
+      this.engine.knockoutBallsPerCycle = parseInt(perCycleEl ? perCycleEl.value : 1);
+    }
     this.engine.startRace(this._loadout);
   }
 

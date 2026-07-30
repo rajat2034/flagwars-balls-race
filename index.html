@@ -185,6 +185,32 @@
             </div>
           </div>
 
+          <!-- Knockout Mode Rules -->
+          <div id="knockout-settings-sec" class="setup-section mb-6 hidden">
+            <h3 class="section-title">Knockout Rules</h3>
+            <div class="flex flex-col gap-3 mt-3">
+              <div class="setting-row">
+                <label for="knockout-interval">Elimination Interval</label>
+                <select id="knockout-interval">
+                  <option value="10">10 seconds</option>
+                  <option value="20" selected>20 seconds</option>
+                  <option value="30">30 seconds</option>
+                  <option value="45">45 seconds</option>
+                  <option value="60">60 seconds</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label for="knockout-per-cycle">Balls Eliminated Per Cycle</label>
+                <select id="knockout-per-cycle">
+                  <option value="1" selected>1 ball per cycle</option>
+                  <option value="2">2 balls per cycle</option>
+                  <option value="3">3 balls per cycle</option>
+                  <option value="5">5 balls per cycle</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <!-- Right: Live Summary + Global Controls -->
