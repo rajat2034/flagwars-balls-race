@@ -9317,16 +9317,26 @@ obs._trappedBallId = null;
       this.eventBanner.update();
       this.raceDirector.update(dt);
 
-      // Check end game criteria
-      const activeUnfinished = this.balls.filter(b => !b.finished);
-      if (activeUnfinished.length === 0 || (this.gameMode === 'knockout' && this.balls.filter(b => !b.finished).length === 1)) {
-        // If knockout mode, mark remaining ball as winner!
-        if (this.gameMode === 'knockout' && activeUnfinished.length === 1) {
-          const lastStanding = activeUnfinished[0];
-          lastStanding.finished = true;
-          lastStanding.finishTime = this.raceTimer;
-          this.triggerConfettiExplosion(lastStanding.x, lastStanding.y);
+      // Check end game criteria — end when top 3 have finished
+      const finishedBalls = this.balls.filter(b => b.finished);
+      if (finishedBalls.length >= 3 || (this.gameMode === 'knockout' && this.balls.filter(b => !b.finished).length === 1)) {
+        if (this.gameMode === 'knockout' && finishedBalls.length < 3) {
+          const lastStanding = this.balls.filter(b => !b.finished)[0];
+          if (lastStanding) {
+            lastStanding.finished = true;
+            lastStanding.finishTime = this.raceTimer;
+            this.triggerConfettiExplosion(lastStanding.x, lastStanding.y);
+          }
         }
+
+        // Mark all unfinished balls as DNF (did not finish)
+        this.balls.forEach(b => {
+          if (!b.finished) {
+            b.finished = true;
+            b.finishTime = this.raceTimer + 999;
+            b.eliminated = true;
+          }
+        });
 
         this.endRace();
       }

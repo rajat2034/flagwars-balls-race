@@ -1603,3 +1603,38 @@ canvas.force-vertical {
   color: rgba(255, 255, 255, 0.3);
   padding: 3px 0;
 }
+
+/* Continuous Simulation Countdown Overlay */
+.continuous-countdown-overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 95;
+  text-align: center;
+  pointer-events: none;
+}
+.countdown-text {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
+}
+.countdown-number {
+  font-family: 'Racing Sans One', 'Montserrat', sans-serif;
+  font-size: 4.5rem;
+  font-weight: 900;
+  color: #ffd700;
+  text-shadow: 0 0 30px rgba(255, 215, 0, 0.5), 0 0 60px rgba(255, 215, 0, 0.2), 0 4px 15px rgba(0, 0, 0, 0.7);
+  line-height: 1;
+  animation: countdown-pulse 1s ease-in-out;
+}
+@keyframes countdown-pulse {
+  0% { opacity: 0; transform: scale(1.6); }
+  20% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.85); }
+}

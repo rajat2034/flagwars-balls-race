@@ -22,6 +22,8 @@ class AppController {
     // Continuous simulation
     this.continuousSimulation = true;
     this.championship = null;
+    this.previousMapKey = null;
+    this._continuousCountdownTimer = null;
   }
 
   init() {
@@ -742,6 +744,13 @@ class AppController {
   }
 
   showSetup(modeKey) {
+    // Clean up any running continuous simulation countdown
+    if (this._continuousCountdownTimer) {
+      clearInterval(this._continuousCountdownTimer);
+      this._continuousCountdownTimer = null;
+      document.getElementById('continuous-countdown').classList.add('hidden');
+    }
+
     this.selectedMode = modeKey;
     this.engine.gameMode = modeKey;
 
@@ -792,6 +801,11 @@ class AppController {
   }
 
   showMainMenu() {
+    if (this._continuousCountdownTimer) {
+      clearInterval(this._continuousCountdownTimer);
+      this._continuousCountdownTimer = null;
+      document.getElementById('continuous-countdown').classList.add('hidden');
+    }
     // Hide panels
     document.getElementById('setup-menu').classList.add('hidden');
     document.getElementById('main-menu').classList.remove('hidden');
@@ -973,6 +987,64 @@ class AppController {
     });
   }
 
+  // ─── Continuous Simulation Helpers ───────────────────────
+
+  _pickRandomMap(excludeKey) {
+    const keys = Object.keys(MAP_THEMES);
+    const available = keys.filter(k => k !== excludeKey);
+    return available[Math.floor(Math.random() * available.length)];
+  }
+
+  _changeMapOnly(mapKey) {
+    this.selectedMapKey = mapKey;
+    this.engine.currentThemeKey = mapKey;
+    this.engine.currentTheme = MAP_THEMES[mapKey];
+  }
+
+  _startContinuousCountdown() {
+    const overlay = document.getElementById('continuous-countdown');
+    const numberEl = document.getElementById('countdown-number');
+    let count = 5;
+
+    overlay.classList.remove('hidden');
+    numberEl.textContent = count;
+
+    if (this._continuousCountdownTimer) {
+      clearInterval(this._continuousCountdownTimer);
+    }
+
+    this._continuousCountdownTimer = setInterval(() => {
+      count--;
+      if (count >= 1) {
+        numberEl.textContent = count;
+        numberEl.style.animation = 'none';
+        void numberEl.offsetWidth;
+        numberEl.style.animation = 'countdown-pulse 1s ease-in-out';
+      } else {
+        clearInterval(this._continuousCountdownTimer);
+        this._continuousCountdownTimer = null;
+        overlay.classList.add('hidden');
+
+        const nextMap = this._pickRandomMap(this.engine.currentThemeKey);
+        this._changeMapOnly(nextMap);
+
+        document.getElementById('winner-screen').classList.add('hidden');
+        document.getElementById('wc-champion-screen').classList.add('hidden');
+
+        this.engine.resetRace();
+
+        this.engine._onRaceComplete = () => {
+          if (!this.continuousSimulation) return;
+          const winner = this.engine.leaderboard && this.engine.leaderboard[0];
+          if (winner) {
+            this.updateChampionship(winner.code, winner.name);
+          }
+          this._startContinuousCountdown();
+        };
+      }
+    }, 1000);
+  }
+
   // Simulation controls bindings
   startRace() {
     // Race length from mode
@@ -990,13 +1062,14 @@ class AppController {
       this.renderChampionship();
     }
 
-    // Set race-complete callback for championship tracking
+    // Set race-complete callback for continuous simulation
     this.engine._onRaceComplete = () => {
       if (!this.continuousSimulation) return;
       const winner = this.engine.leaderboard && this.engine.leaderboard[0];
       if (winner) {
         this.updateChampionship(winner.code, winner.name);
       }
+      this._startContinuousCountdown();
     };
 
     // Loadout + density scaling + event intensity are passed via this._loadout
@@ -1024,10 +1097,20 @@ class AppController {
   }
 
   resetRace() {
+    if (this._continuousCountdownTimer) {
+      clearInterval(this._continuousCountdownTimer);
+      this._continuousCountdownTimer = null;
+      document.getElementById('continuous-countdown').classList.add('hidden');
+    }
     this.engine.resetRace();
   }
 
   exitRace() {
+    if (this._continuousCountdownTimer) {
+      clearInterval(this._continuousCountdownTimer);
+      this._continuousCountdownTimer = null;
+      document.getElementById('continuous-countdown').classList.add('hidden');
+    }
     this.engine.stopRace();
     this.showSetup(this.selectedMode);
   }
