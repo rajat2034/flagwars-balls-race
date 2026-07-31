@@ -43,8 +43,8 @@ class AppController {
     // 3. Render country grid checklist
     this.renderCountriesGrid();
 
-    // 4. Default Preset (World Cup 48 nations initially selected)
-    this.loadPresetFIFA();
+    // 4. Default Preset (Top 80 Countries initially selected)
+    this.selectTop80Countries();
 
     // 5. Initial Map Highlight
     this.selectMap(this.selectedMapKey);
@@ -777,11 +777,6 @@ class AppController {
       customSec.classList.add('hidden');
       knockoutSec.classList.add('hidden');
       fifaBtn.classList.remove('hidden');
-
-      // Auto force load World Cup Preset nations if not loaded
-      if (this.engine.selectedCountries.length !== 48) {
-        this.loadPresetFIFA();
-      }
     } else if (modeKey === 'grand_prix') {
       titleNode.innerText = "Grand Prix Mode Setup";
       badgeNotice.classList.add('hidden');
@@ -802,6 +797,11 @@ class AppController {
       customSec.classList.remove('hidden');
       knockoutSec.classList.add('hidden');
       fifaBtn.classList.add('hidden');
+    }
+
+    // Default country preset is Top 80 Countries for all preset-based game modes
+    if (modeKey === 'world_cup' || modeKey === 'grand_prix' || modeKey === 'knockout') {
+      this.selectTop80Countries();
     }
   }
 

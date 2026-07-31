@@ -283,7 +283,8 @@ class PhysicsEngine {
           } else if (zone.type === 'shortcutExit' && ball._inShortcut) {
             ball._inShortcut = false;
             const dist = ball._shortcutDist || 100;
-            ball.x = Math.min(ball.x + dist, track.length - 500);
+            // Knockout Mode tracks are endless: do not clamp to the track end
+            ball.x = track.finishLineX != null ? Math.min(ball.x + dist, track.length - 500) : (ball.x + dist);
             ball.vx += 1.2;
             ball._shortcutCooldown = 30;
             ball.z = 1;

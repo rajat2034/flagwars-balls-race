@@ -1316,7 +1316,8 @@ class BroadcastDirector {
     this._manualOverride = false;
 
     // --- FINISH MODE (highest priority, can override any locked shot) ---
-    const nearFinish = balls.some(b => !b.finished && !b.eliminated && b.x > track.length - 100);
+    // Knockout Mode is endless: no finish-line broadcast shot
+    const nearFinish = gameMode !== 'knockout' && balls.some(b => !b.finished && !b.eliminated && b.x > track.length - 100);
     if (nearFinish) {
       if (this._state !== BroadcastDirector.STATE.FINISH_MODE) {
         this._transitionTo(BroadcastDirector.STATE.FINISH_MODE);
@@ -2198,6 +2199,7 @@ class GameEngine {
     this._dispersionParticlesGlobal = [];
     this._dispersionTextItem = null;
     this._eliminationHiddenBallId = null;
+    this._eliminationCountdown = null;
 
     // Image pattern cache for country flags
     this.flagCache = {};
@@ -3768,6 +3770,15 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         generateSparseSegment(track, segStart, segEnd);
       }
     }
+
+    // Keep reusable segment-generation closures for seamless endless-track extension
+    // in Knockout Mode (see _updateEndlessKnockoutTrack). The closures capture the
+    // shared `track` object, so appending to its arrays from later calls stays in sync.
+    this._endlessTrackGen = {
+      generateSegmentObstacles,
+      validateSegment,
+      generateSparseSegment
+    };
     
     // Ensure minimum counts: at least 30 of each major type per race (only enabled types)
     const MIN_COUNT = 30;
@@ -8074,6 +8085,8 @@ obs._trappedBallId = null;
 
   updateSimulation(dt) {
     if (this.state === 'racing') {
+      // Knockout Mode: keep the track extending endlessly and recycle what's left behind
+      this._updateEndlessKnockoutTrack();
       this.physics._tumbleweeds = null;
       // Tumbleweed management: move, wall clamp, despawn (pre-physics so collision is integrated)
       if (this.currentThemeKey === 'desert' && this._enabledSet && this._enabledSet.has('rolling_tumbleweed') && this.balls && this.track && this.raceTimer > 30 && this.balls.some(b => !b.finished && !b.eliminated)) {
@@ -9223,7 +9236,31 @@ obs._trappedBallId = null;
 
         if (currentCycle > this.lastKnockoutCycle) {
           this.lastKnockoutCycle = currentCycle;
+          this._eliminationCountdown = null;
           this._beginKnockoutCycle();
+        } else {
+          // "Elimination In X" countdown during the final 5 seconds before the next cycle.
+          // Gameplay continues normally; the elimination freezes the race only once the
+          // countdown reaches 0.
+          const nextCycleTime = (this.lastKnockoutCycle + 1) * interval;
+          const remaining = nextCycleTime - this.raceTimer;
+          if (remaining > 0 && remaining <= 5.1) {
+            const value = Math.min(5, Math.max(1, Math.ceil(remaining)));
+            if (!this._eliminationCountdown) {
+              this._eliminationCountdown = {
+                value,
+                startTime: performance.now(),
+                scaleAnimStart: performance.now(),
+                lastTick: performance.now()
+              };
+            } else if (this._eliminationCountdown.value !== value) {
+              this._eliminationCountdown.value = value;
+              this._eliminationCountdown.scaleAnimStart = performance.now();
+              this._eliminationCountdown.lastTick = performance.now();
+            }
+          } else {
+            this._eliminationCountdown = null;
+          }
         }
       }
 
@@ -9370,6 +9407,119 @@ obs._trappedBallId = null;
     this.updateWinnerVisuals(dt);
   }
 
+  // ── Knockout Mode: endless-track extension & recycling ────────
+  _updateEndlessKnockoutTrack() {
+    if (this.gameMode !== 'knockout' || this.state !== 'racing' || !this.track) return;
+    const track = this.track;
+    const active = this.balls.filter(b => !b.finished && !b.eliminated);
+    if (active.length === 0) return;
+
+    let maxX = 0;
+    let minX = Infinity;
+    for (const b of active) {
+      if (b.x > maxX) maxX = b.x;
+      if (b.x < minX) minX = b.x;
+    }
+
+    if (maxX > track.length - 15000) {
+      this._extendKnockoutTrack();
+    }
+    if (minX > 4000) {
+      this._recycleKnockoutTrack(minX - 3000);
+    }
+
+    // Space theme: keep the parallax background populated as the camera advances
+    if (this.currentThemeKey === 'space' && this._spaceObjects) {
+      const behindX = this.cameraX - 800;
+      for (const obj of this._spaceObjects) {
+        if (obj.x < behindX) {
+          obj.x = track.length + 400 + Math.random() * 900;
+          obj.phase = Math.random() * 100;
+          obj.rotation = Math.random() * Math.PI * 2;
+        }
+      }
+    }
+  }
+
+  // Seamlessly append a new obstacle-populated segment past the current track end
+  _extendKnockoutTrack() {
+    const track = this.track;
+    const gen = this._endlessTrackGen;
+    if (!track || !gen) return;
+
+    const n0 = track.centerPoints.length;
+    if (n0 < 2) return;
+
+    const seamX = track.topPoints[n0 - 1].x;
+    const SEG_LEN = 12000;
+    const segStart = seamX;
+    const segEnd = seamX + SEG_LEN;
+
+    // Append points using the same absolute-x curve functions as the base track,
+    // so the seam is invisible (no duplicate seam point, width continues smoothly)
+    let currentWidth = track.bottomPoints[n0 - 1].y - track.topPoints[n0 - 1].y;
+    const baseWidth = 250;
+    const numSteps = Math.ceil(SEG_LEN / 30);
+    for (let i = 1; i <= numSteps; i++) {
+      const x = seamX + i * 30;
+      const curveY = Math.sin(x * 0.0008) * 80
+        + Math.sin(x * 0.002) * 50
+        + Math.sin(x * 0.005) * 25;
+      const centerY = 300 + curveY;
+      const sectionPhase = Math.sin(x * 0.0005);
+      let targetWidth = baseWidth + sectionPhase * 80;
+      if (Math.abs(Math.sin(x * 0.0015)) > 0.82) targetWidth = baseWidth * 0.70;
+      if (Math.abs(Math.sin(x * 0.0006)) > 0.90) targetWidth = baseWidth * 0.60;
+      if (Math.abs(Math.sin(x * 0.001 + 1)) > 0.85) targetWidth = baseWidth * 1.4;
+      currentWidth += (targetWidth - currentWidth) * 0.05;
+      track.centerPoints.push({ x, y: centerY });
+      track.topPoints.push({ x, y: centerY - currentWidth / 2 });
+      track.bottomPoints.push({ x, y: centerY + currentWidth / 2 });
+    }
+
+    // Bridge wall segments across the seam
+    for (let i = n0 - 1; i < track.topPoints.length - 1; i++) {
+      track.walls.push({ p1: track.topPoints[i], p2: track.topPoints[i + 1] });
+      track.walls.push({ p1: track.bottomPoints[i], p2: track.bottomPoints[i + 1] });
+    }
+
+    // Populate obstacles/zones for the new range (retry validation + sparse fallback)
+    const clearRange = () => {
+      track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
+      track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
+      if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
+    };
+
+    let retries = 0;
+    let valid = false;
+    while (retries < 10 && !valid) {
+      clearRange();
+      gen.generateSegmentObstacles(segStart, segEnd);
+      if (gen.validateSegment(segStart, segEnd) === 0) {
+        valid = true;
+      } else {
+        retries++;
+      }
+    }
+    if (!valid) {
+      clearRange();
+      gen.generateSparseSegment(track, segStart, segEnd);
+    }
+
+    track.length = segEnd;
+  }
+
+  // Drop walls/obstacles/zones/pegs far behind the trailing ball to keep memory bounded.
+  // Track points are kept (getWallBoundaries indexes them by absolute x / 30).
+  _recycleKnockoutTrack(recycleX) {
+    const track = this.track;
+    if (!track) return;
+    if (track.obstacles) track.obstacles = track.obstacles.filter(o => o.x >= recycleX);
+    if (track.zones) track.zones = track.zones.filter(z => (z.x + (z.width || 0)) >= recycleX || z.type === 'finish');
+    if (track.pegs) track.pegs = track.pegs.filter(p => p.x >= recycleX);
+    if (track.walls) track.walls = track.walls.filter(w => (w.p2 ? w.p2.x : w.p1.x) >= recycleX);
+  }
+
   // ── Knockout Mode: begin a new elimination cycle ──────────────
   _beginKnockoutCycle() {
     const active = this.balls.filter(b => !b.finished && !b.eliminated);
@@ -9432,8 +9582,10 @@ obs._trappedBallId = null;
     seq.phase = 'camera_to_target';
     seq.phaseStartTime = performance.now();
 
-    // Calculate ideal camera X to centre this ball on screen
-    const targetX = seq.target.x - this.canvas.width / (2 * this.cameraZoom);
+    // Calculate ideal camera X to centre this ball on the actual screen centre
+    // (accounting for trackOffset so the ball sits at the true screen centre)
+    const trackOff = this.trackOffset || 0;
+    const targetX = seq.target.x - (this.canvas.width / 2 - trackOff) / this.cameraZoom;
 
     this._startCameraAnimation(targetX, 700);
   }
@@ -9488,9 +9640,11 @@ obs._trappedBallId = null;
       // ── Phase: Pause 0.5s so viewer recognises the ball ──
       case 'pause_before': {
         if (elapsed > 500) {
-          // Start dispersion
+          // Start dispersion. Hide the ball on this exact frame so there is never
+          // an intact ball visible underneath the particle effect.
           seq.phase = 'disperse';
           seq.phaseStartTime = now;
+          this._eliminationHiddenBallId = seq.target.id;
           this._spawnDispersionParticles(seq.target);
         }
         break;
@@ -9498,9 +9652,6 @@ obs._trappedBallId = null;
 
       // ── Phase: Ball disperses into glowing particles (0.8s) ──
       case 'disperse': {
-        if (elapsed < 10) {
-          this._eliminationHiddenBallId = seq.target.id;
-        }
         this._updateDispersionParticles();
         if (elapsed > 800) {
           // Mark ball as eliminated
@@ -9525,6 +9676,9 @@ obs._trappedBallId = null;
       // ── Phase: "[Country] ELIMINATED" text (1s) ──
       case 'text': {
         if (elapsed > 1000) {
+          // Clear the text before the pause so it never re-renders at full
+          // opacity during pause_after (which caused a double flash).
+          this._dispersionTextItem = null;
           seq.phase = 'pause_after';
           seq.phaseStartTime = now;
         }
@@ -9534,8 +9688,6 @@ obs._trappedBallId = null;
       // ── Phase: Wait 0.5s before next ball ──
       case 'pause_after': {
         if (elapsed > 500) {
-          // Clear text and move to next target
-          this._dispersionTextItem = null;
           this._eliminationNextTarget();
         }
         break;
@@ -9701,8 +9853,12 @@ obs._trappedBallId = null;
     window.addEventListener('mousemove', (e) => {
       if (this.isPanning) {
         const dx = (this.panStartX - e.clientX) / this.cameraZoom;
-        const maxCamX = this.track ? Math.max(0, this.track.length - this.canvas.width / this.cameraZoom) : 0;
-        this.cameraX = Math.max(0, Math.min(maxCamX, this.panStartCamX + dx));
+        if (this.gameMode === 'knockout') {
+          this.cameraX = Math.max(0, this.panStartCamX + dx);
+        } else {
+          const maxCamX = this.track ? Math.max(0, this.track.length - this.canvas.width / this.cameraZoom) : 0;
+          this.cameraX = Math.max(0, Math.min(maxCamX, this.panStartCamX + dx));
+        }
         // Temporarily disable auto-follow while panning
         this.panningOverride = true;
       }
@@ -9825,8 +9981,13 @@ obs._trappedBallId = null;
       }
     }
 
-    const maxCamX = this.track ? Math.max(0, this.track.length - this.canvas.width / this.cameraZoom) : 0;
-    targetX = Math.max(0, Math.min(targetX, maxCamX));
+    // Knockout Mode is endless: never clamp the camera to the end of the track
+    if (this.gameMode !== 'knockout') {
+      const maxCamX = this.track ? Math.max(0, this.track.length - this.canvas.width / this.cameraZoom) : 0;
+      targetX = Math.max(0, Math.min(targetX, maxCamX));
+    } else {
+      targetX = Math.max(0, targetX);
+    }
 
     // Smooth camera follow ??? frame-rate independent lerp for buttery motion
     const lerpFactor = 1 - Math.pow(1 - 0.06, dt);
@@ -14417,6 +14578,9 @@ this.ctx.restore();
         // Skip balls hidden during elimination dispersion
         if (this._eliminationHiddenBallId === ball.id) return;
 
+        // Eliminated balls are removed completely in knockout mode
+        if (ball.eliminated && this.gameMode === 'knockout') return;
+
         const bX = ball.x - camX;
 
         if (ball.finished) {
@@ -15405,6 +15569,20 @@ this.ctx.restore();
 
         this.ctx.restore();
       });
+
+      // Knockout elimination dispersion particles (glowing burst)
+      // Drawn in world space so the effect originates from the eliminated ball itself
+      for (const p of this._dispersionParticlesGlobal) {
+        this.ctx.save();
+        this.ctx.globalAlpha = p.alpha;
+        this.ctx.fillStyle = p.color;
+        this.ctx.shadowColor = p.color;
+        this.ctx.shadowBlur = 12;
+        this.ctx.beginPath();
+        this.ctx.arc(p.x - camX, p.y, p.size, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+      }
 
       // Director Mode teleport flash on balls
       if (this._directorFlashBalls.length > 0) {
@@ -17582,19 +17760,6 @@ this.ctx.restore();
         this.ctx.restore();
       });
 
-      // Knockout elimination dispersion particles (glowing burst)
-      for (const p of this._dispersionParticlesGlobal) {
-        this.ctx.save();
-        this.ctx.globalAlpha = p.alpha;
-        this.ctx.fillStyle = p.color;
-        this.ctx.shadowColor = p.color;
-        this.ctx.shadowBlur = 12;
-        this.ctx.beginPath();
-        this.ctx.arc(p.x - (this.cameraX || 0), p.y, p.size, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.restore();
-      }
-
       // Knockout elimination text
       if (this._dispersionTextItem) {
         const item = this._dispersionTextItem;
@@ -17625,6 +17790,72 @@ this.ctx.restore();
           this.ctx.translate(screenW / 2, screenH * 0.35);
           this.ctx.scale(texScale, texScale);
           this.ctx.fillText(item.text, 0, 0);
+          this.ctx.restore();
+        }
+      }
+
+      // Knockout "Elimination In X" countdown (broadcast-style, centered & compact)
+      if (this._eliminationCountdown && this.state === 'racing') {
+        const cd = this._eliminationCountdown;
+        const now = performance.now();
+
+        // Overall fade in (~250ms) and a fade out during the tail of the final second
+        let cdAlpha = Math.min(1, (now - cd.startTime) / 250);
+        if (cd.value === 1) {
+          const sinceLastTick = now - cd.lastTick;
+          if (sinceLastTick > 700) {
+            cdAlpha = Math.min(cdAlpha, Math.max(0, 1 - (sinceLastTick - 700) / 300));
+          }
+        }
+
+        if (cdAlpha > 0) {
+          // Subtle scale pop as each number appears
+          const scaleT = (now - cd.scaleAnimStart) / 200;
+          const numScale = 1 + Math.max(0, 1 - scaleT) * 0.06;
+
+          const cx = screenW / 2;
+          const cy = screenH * 0.32;
+          const pillW = 210;
+          const pillH = 112;
+
+          this.ctx.save();
+          this.ctx.globalAlpha = cdAlpha;
+          this.ctx.translate(cx, cy);
+
+          // Background pill
+          this.ctx.shadowColor = 'rgba(255, 200, 0, 0.4)';
+          this.ctx.shadowBlur = 22;
+          this.ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
+          this.ctx.beginPath();
+          this.ctx.roundRect(-pillW / 2, -pillH / 2, pillW, pillH, 24);
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+
+          // Glow ring
+          this.ctx.strokeStyle = 'rgba(255, 200, 0, 0.35)';
+          this.ctx.lineWidth = 2;
+          this.ctx.beginPath();
+          this.ctx.roundRect(-pillW / 2 - 3, -pillH / 2 - 3, pillW + 6, pillH + 6, 27);
+          this.ctx.stroke();
+
+          // Label
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.font = 'bold 15px Montserrat, sans-serif';
+          this.ctx.fillStyle = 'rgba(255, 215, 150, 0.95)';
+          this.ctx.shadowColor = 'rgba(255, 200, 0, 0.3)';
+          this.ctx.shadowBlur = 8;
+          this.ctx.fillText('ELIMINATION IN', 0, -27);
+
+          // Number
+          this.ctx.shadowColor = 'rgba(255, 100, 60, 0.8)';
+          this.ctx.shadowBlur = 20;
+          this.ctx.fillStyle = '#ff6b35';
+          this.ctx.font = 'bold 52px Outfit, Montserrat, sans-serif';
+          this.ctx.scale(numScale, numScale);
+          this.ctx.fillText(String(cd.value), 0, 20);
+
+          this.ctx.shadowBlur = 0;
           this.ctx.restore();
         }
       }
@@ -17937,6 +18168,7 @@ this.ctx.restore();
       this._dispersionParticlesGlobal = [];
       this._dispersionTextItem = null;
       this._eliminationHiddenBallId = null;
+      this._eliminationCountdown = null;
 
       // Always default camera focus to current leader (auto-switch on overtakes)
       this.selectedBallId = 'leader';
@@ -18258,6 +18490,7 @@ this.ctx.restore();
       this._dispersionParticlesGlobal = [];
       this._dispersionTextItem = null;
       this._eliminationHiddenBallId = null;
+      this._eliminationCountdown = null;
       // Defense-in-depth: clear event/theme state before re-entering startRace
       this.sounds.stopBlizzardWind();
       this.sounds.stopAuroraAmbient();
