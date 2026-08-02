@@ -1972,6 +1972,9 @@ const STORY_COLORS = {
   recordRun: '#d500f9',
 };
 
+// How much closer the PiP elimination camera is compared to the main camera.
+const PIP_ZOOM_FACTOR = 1.35;
+
 class GameEngine {
 
   constructor(canvas) {
@@ -2008,6 +2011,20 @@ class GameEngine {
     this.userZoomMultiplier = 1.0;
     this.trackOffset = 0;
     this._dynamicZoom = 1.0;
+
+    // PiP Elimination Camera (Knockout Mode only) — single reusable camera.
+    this._pipActive = false;
+    this._pipRenderMode = false;
+    this._pipCanvas = null;
+    this._pipCtx = null;
+    this._pipWindow = null;
+    this._pipLabel = null;
+    this._pipCameraX = -1;   // sentinel: snap to target on first activation
+    this._pipPos = null;     // last dragged position {left, top} (session memory)
+    this._pipDefaultPos = null;
+    this._pipDragging = false;
+    this._pipDragOffsetX = 0;
+    this._pipDragOffsetY = 0;
 
 // Particles
     this.particles = [];
@@ -2253,6 +2270,7 @@ class GameEngine {
     this.preloadTumbleweedImage();
     this.startBackgroundLoop();
     this.setupClickToFocus();
+    this._setupPipUI();
   }
 
   preloadFootballImage() {
@@ -2341,6 +2359,121 @@ class GameEngine {
   resizeCanvas() {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
+    this._sizePipCanvas();
+  }
+
+  // ── PiP Elimination Camera (Knockout Mode) ─────────────────────
+  // A single reusable secondary camera created once and kept alive.
+  // It is only enabled during the 5-second elimination countdown and
+  // tracks the current last-place country.
+
+  _setupPipUI() {
+    if (this._pipCanvas) return;
+    const win = document.getElementById('pip-window');
+    const cv = document.getElementById('pip-canvas');
+    if (!win || !cv) return;
+    this._pipWindow = win;
+    this._pipCanvas = cv;
+    this._pipCtx = cv.getContext('2d');
+    this._pipLabel = document.getElementById('pip-label');
+
+    this._sizePipCanvas();
+    this._applyPipPos();
+
+    // Record the CSS default so the window returns to it on a fresh session.
+    const rect = win.getBoundingClientRect();
+    this._pipDefaultPos = { left: rect.left, top: rect.top };
+    if (!this._pipPos) this._pipPos = { left: rect.left, top: rect.top };
+
+    // Draggable window (only the PiP moves; gameplay continues untouched).
+    win.addEventListener('pointerdown', (e) => this._pipDragStart(e));
+    window.addEventListener('pointermove', (e) => this._pipDragMove(e));
+    window.addEventListener('pointerup', () => this._pipDragEnd());
+    window.addEventListener('pointercancel', () => this._pipDragEnd());
+
+    this._applyPipVisibility();
+  }
+
+  _sizePipCanvas() {
+    if (!this._pipWindow || !this._pipCanvas) return;
+    const w = this._pipWindow.clientWidth || Math.round(window.innerWidth * 0.20);
+    const h = this._pipWindow.clientHeight || Math.round((w * 9) / 16);
+    if (this._pipCanvas.width !== w || this._pipCanvas.height !== h) {
+      this._pipCanvas.width = w;
+      this._pipCanvas.height = h;
+    }
+  }
+
+  _applyPipPos() {
+    if (!this._pipWindow || !this._pipPos) return;
+    this._pipWindow.style.left = this._pipPos.left + 'px';
+    this._pipWindow.style.top = this._pipPos.top + 'px';
+  }
+
+  _applyPipVisibility() {
+    if (!this._pipWindow) return;
+    if (this._pipActive) {
+      this._pipWindow.classList.remove('pip-hidden');
+      this._pipWindow.setAttribute('aria-hidden', 'false');
+    } else {
+      this._pipWindow.classList.add('pip-hidden');
+      this._pipWindow.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  _setPipActive(active) {
+    if (this.gameMode !== 'knockout') {
+      this._pipActive = false;
+      this._applyPipVisibility();
+      return;
+    }
+    if (active) {
+      // Nothing to showcase once fewer than two countries remain.
+      const racers = (this.balls || []).filter(b => !b.finished && !b.eliminated);
+      if (racers.length < 2) active = false;
+    }
+    if (this._pipActive === active) return;
+    this._pipActive = active;
+    if (active) {
+      // Reset camera sentinel so the first frame snaps to the last-place country.
+      this._pipCameraX = -1;
+      this._applyPipPos();
+      this._sizePipCanvas();
+    }
+    this._applyPipVisibility();
+  }
+
+  _pipDragStart(e) {
+    if (!this._pipWindow) return;
+    this._pipDragging = true;
+    this._pipWindow.classList.add('dragging');
+    const rect = this._pipWindow.getBoundingClientRect();
+    this._pipDragOffsetX = e.clientX - rect.left;
+    this._pipDragOffsetY = e.clientY - rect.top;
+    try { if (e.pointerId !== undefined) this._pipWindow.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  }
+
+  _pipDragMove(e) {
+    if (!this._pipDragging || !this._pipWindow) return;
+    const rect = this._pipWindow.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    const left = Math.max(8, Math.min(e.clientX - this._pipDragOffsetX, window.innerWidth - w - 8));
+    const top = Math.max(8, Math.min(e.clientY - this._pipDragOffsetY, window.innerHeight - h - 8));
+    this._pipWindow.style.left = left + 'px';
+    this._pipWindow.style.top = top + 'px';
+    e.preventDefault();
+  }
+
+  _pipDragEnd() {
+    if (!this._pipDragging) return;
+    this._pipDragging = false;
+    if (this._pipWindow) {
+      this._pipWindow.classList.remove('dragging');
+      const rect = this._pipWindow.getBoundingClientRect();
+      this._pipPos = { left: rect.left, top: rect.top };
+    }
   }
 
   // Generates procedurally built tracks, barriers, and hazards
@@ -2402,6 +2535,7 @@ class GameEngine {
       bottomPoints: [],
       centerPoints: []
     };
+    this._trackBaseLength = length;
 
     let densityVal = 0.35;
     if (densityStr === 'low') densityVal = 0.25;
@@ -8080,6 +8214,9 @@ obs._trappedBallId = null;
     // Render Frame
     this.render();
 
+    // Knockout PiP elimination camera (renders into its own canvas, only when active)
+    this.renderPip(delta);
+
     this._rafId = requestAnimationFrame((t) => this.tick(t));
   }
 
@@ -9237,6 +9374,8 @@ obs._trappedBallId = null;
         if (currentCycle > this.lastKnockoutCycle) {
           this.lastKnockoutCycle = currentCycle;
           this._eliminationCountdown = null;
+          // PiP disappears as soon as the main elimination camera takes over.
+          this._setPipActive(false);
           this._beginKnockoutCycle();
         } else {
           // "Elimination In X" countdown during the final 5 seconds before the next cycle.
@@ -9253,6 +9392,8 @@ obs._trappedBallId = null;
                 scaleAnimStart: performance.now(),
                 lastTick: performance.now()
               };
+              // PiP appears at exactly the same moment the countdown appears.
+              this._setPipActive(true);
             } else if (this._eliminationCountdown.value !== value) {
               this._eliminationCountdown.value = value;
               this._eliminationCountdown.scaleAnimStart = performance.now();
@@ -9260,6 +9401,7 @@ obs._trappedBallId = null;
             }
           } else {
             this._eliminationCountdown = null;
+            this._setPipActive(false);
           }
         }
       }
@@ -9452,7 +9594,13 @@ obs._trappedBallId = null;
 
     const seamX = track.topPoints[n0 - 1].x;
     const SEG_LEN = 12000;
-    const segStart = seamX;
+    // On the very first extension, also fill the obstacle-free tail the shared
+    // base generator leaves before its (unused) finish position, so the endless
+    // Knockout track has no empty stretch where the World Cup finish line would be.
+    const isFirstExt = (this._knockoutExtCount || 0) === 0;
+    const segStart = isFirstExt
+      ? Math.min(seamX, Math.max(0, (this._trackBaseLength || seamX) - 1400))
+      : seamX;
     const segEnd = seamX + SEG_LEN;
 
     // Append points using the same absolute-x curve functions as the base track,
@@ -9483,28 +9631,57 @@ obs._trappedBallId = null;
       track.walls.push({ p1: track.bottomPoints[i], p2: track.bottomPoints[i + 1] });
     }
 
-    // Populate obstacles/zones for the new range (retry validation + sparse fallback)
+    // Populate obstacles/zones for the new range.
+    // Strict zero-error validation fails almost every retry on extended geometry
+    // (oversized sweep_arm/hammer bounding boxes, minor wall overhangs, boost pads
+    // firing into obstacles), so keep the lowest-error generated layout instead of
+    // falling back to a sparse pad-only segment.
     const clearRange = () => {
       track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
       track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
       if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
     };
 
-    let retries = 0;
+    let best = null;
     let valid = false;
-    while (retries < 10 && !valid) {
-      clearRange();
-      gen.generateSegmentObstacles(segStart, segEnd);
-      if (gen.validateSegment(segStart, segEnd) === 0) {
-        valid = true;
-      } else {
-        retries++;
+    for (let attempt = 0; attempt < 12 && !valid; attempt++) {
+      try {
+        clearRange();
+        gen.generateSegmentObstacles(segStart, segEnd);
+        const errs = gen.validateSegment(segStart, segEnd);
+        const obsN = track.obstacles.filter(o => o.x >= segStart && o.x < segEnd).length;
+        if (errs === 0 && obsN > 0) {
+          valid = true;
+        } else {
+          const counts = {
+            obs: obsN,
+            zones: track.zones.filter(z => z.x >= segStart && z.x < segEnd).length
+          };
+          if (!best || errs < best.errors || (errs === best.errors && counts.obs > best.counts.obs)) {
+            best = {
+              errors: errs,
+              counts,
+              obstacles: track.obstacles.filter(o => o.x >= segStart && o.x < segEnd),
+              zones: track.zones.filter(z => z.x >= segStart && z.x < segEnd),
+              pegs: track.pegs ? track.pegs.filter(p => p.x >= segStart && p.x < segEnd) : []
+            };
+          }
+        }
+      } catch (e) {
+        if (typeof console !== 'undefined' && console.warn) console.warn('[Knockout] segment generation error:', e && e.message);
       }
     }
     if (!valid) {
       clearRange();
-      gen.generateSparseSegment(track, segStart, segEnd);
+      if (best && best.counts.obs > 0) {
+        track.obstacles.push(...best.obstacles);
+        track.zones.push(...best.zones);
+        if (track.pegs) track.pegs.push(...best.pegs);
+      } else {
+        gen.generateSparseSegment(track, segStart, segEnd);
+      }
     }
+    this._knockoutExtCount = (this._knockoutExtCount || 0) + 1;
 
     track.length = segEnd;
   }
@@ -15641,6 +15818,10 @@ this.ctx.restore();
 
       } finally { this.ctx.restore(); }
 
+      // PiP render mode: stop after the world, skip all screen-space overlays.
+      // Used by the Knockout elimination PiP to render into its own canvas.
+      if (this._pipRenderMode) return;
+
       // Full screen UI overlays (canvas overlay space)
       // Wrapped in save/restore with try/finally to absorb any unbalanced ctx saves
       this.ctx.save();
@@ -17970,6 +18151,84 @@ this.ctx.restore();
       }
     }
 
+    // ── PiP Elimination Camera render (Knockout Mode) ─────────────
+    // Renders the world into the reusable PiP canvas, following the current
+    // last-place country with a slightly closer zoom. Runs every frame while
+    // the PiP is active (i.e. during the 5s elimination countdown).
+    renderPip(delta) {
+      if (!this._pipActive || !this._pipCanvas || !this._pipCtx) return;
+      if (this.gameMode !== 'knockout' || this.state !== 'racing') return;
+      if (!this.track || !this.balls || this.balls.length === 0) return;
+
+      const active = this.balls.filter(b => !b.finished && !b.eliminated);
+      if (active.length < 2) return;
+
+      // Last place = lowest x among active racers.
+      let target = active[0];
+      for (let i = 1; i < active.length; i++) {
+        if (active[i].x < target.x) target = active[i];
+      }
+
+      const pipW = this._pipCanvas.width;
+      const pipH = this._pipCanvas.height;
+      if (pipW < 2 || pipH < 2) return;
+
+      // Same zoom math as render(), plus a slightly closer factor for the PiP.
+      let baseZoom, trackOff;
+      if (pipW / pipH > 1.2) {
+        baseZoom = pipH / 800;
+        trackOff = (pipW - 500 * baseZoom) / 2;
+      } else {
+        baseZoom = pipW / 500;
+        trackOff = 0;
+      }
+      const dynZoom = this._dynamicZoom || 1.0;
+      const userZoom = this.userZoomMultiplier || 1.0;
+      const pipZoom = baseZoom * userZoom * PIP_ZOOM_FACTOR * dynZoom;
+
+      // Center the target ball on the PiP canvas.
+      const targetCamX = target.x - (pipW / 2 - trackOff) / pipZoom;
+
+      // Smooth, shake-free camera follow. Snap once on activation.
+      if (this._pipCameraX < 0) {
+        this._pipCameraX = targetCamX;
+      } else {
+        const lerp = 1 - Math.pow(1 - 0.05, delta);
+        this._pipCameraX += (targetCamX - this._pipCameraX) * lerp;
+      }
+
+      // Broadcast label identifying the tracked country.
+      if (this._pipLabel && this._pipLabel.textContent !== target.name.toUpperCase()) {
+        this._pipLabel.textContent = target.name.toUpperCase();
+      }
+
+      // Reuse the full world renderer by temporarily retargeting the engine to
+      // the PiP canvas, then restore everything immediately after.
+      const savedCanvas = this.canvas;
+      const savedCtx = this.ctx;
+      const savedCamX = this.cameraX;
+      const savedZoom = this.cameraZoom;
+      const savedTrackOff = this.trackOffset;
+      const savedUserZoom = this.userZoomMultiplier;
+
+      this.canvas = this._pipCanvas;
+      this.ctx = this._pipCtx;
+      this.cameraX = this._pipCameraX;
+      this.userZoomMultiplier = userZoom * PIP_ZOOM_FACTOR;
+      this._pipRenderMode = true;
+      try {
+        this.render();
+      } finally {
+        this._pipRenderMode = false;
+        this.canvas = savedCanvas;
+        this.ctx = savedCtx;
+        this.cameraX = savedCamX;
+        this.cameraZoom = savedZoom;
+        this.trackOffset = savedTrackOff;
+        this.userZoomMultiplier = savedUserZoom;
+      }
+    }
+
     // Prepares data and starts countdown
     startRace(loadout) {
       if (this.selectedCountries.length === 0) {
@@ -18157,6 +18416,7 @@ this.ctx.restore();
       this.isPaused = false;
       this.lastTime = 0;
       this.lastKnockoutCycle = 0;
+      this._knockoutExtCount = 0;
       this._eliminationState = null;
       this._eliminationDissolveParticles = [];
       this._eliminationTextItem = null;
@@ -18169,6 +18429,7 @@ this.ctx.restore();
       this._dispersionTextItem = null;
       this._eliminationHiddenBallId = null;
       this._eliminationCountdown = null;
+      this._setPipActive(false);
 
       // Always default camera focus to current leader (auto-switch on overtakes)
       this.selectedBallId = 'leader';
@@ -18332,6 +18593,7 @@ this.ctx.restore();
     endRace() {
       this.state = 'finished';
       this.isPaused = false;
+      this._setPipActive(false);
 
       // Stop Race Director
       this.raceDirector.stop();
@@ -18491,6 +18753,7 @@ this.ctx.restore();
       this._dispersionTextItem = null;
       this._eliminationHiddenBallId = null;
       this._eliminationCountdown = null;
+      this._setPipActive(false);
       // Defense-in-depth: clear event/theme state before re-entering startRace
       this.sounds.stopBlizzardWind();
       this.sounds.stopAuroraAmbient();
@@ -18575,6 +18838,7 @@ this.ctx.restore();
       if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
       this.isRunning = false;
       this.state = 'menu';
+      this._setPipActive(false);
       this.raceDirector.stop();
       this._onRaceComplete = null;
       this.broadcastDirector.reset();
