@@ -2019,6 +2019,7 @@ class GameEngine {
     this._pipCtx = null;
     this._pipWindow = null;
     this._pipLabel = null;
+    this._pipCountryLabel = null;
     this._pipCameraX = -1;   // sentinel: snap to target on first activation
     this._pipPos = null;     // last dragged position {left, top} (session memory)
     this._pipDefaultPos = null;
@@ -2376,6 +2377,7 @@ class GameEngine {
     this._pipCanvas = cv;
     this._pipCtx = cv.getContext('2d');
     this._pipLabel = document.getElementById('pip-label');
+    this._pipCountryLabel = document.getElementById('pip-country-label');
 
     this._sizePipCanvas();
     this._applyPipPos();
@@ -3183,6 +3185,75 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       return errors;
     };
 
+    // ── Shared portal-pair placement (spawn-safe, lane-varied, capped) ─────
+    // Budget: up to 10 portal pairs per 4:30 of gameplay. Base race length
+    // 100000 units ~ "3-4 min", so 100000 units ≈ 210s and 4:30 = 270s
+    // => one 4:30 window ≈ 100000 * (270/210) ≈ 128,571 units.
+    const PORTAL_PAIR_WINDOW_UNITS = 128571;
+    const PORTAL_PAIR_BUDGET = 10;
+    // Returns the exit x to advance to (exitX + 50) on success, or null on failure.
+    const tryPlacePortalPair = (entryX, bounds, segEnd) => {
+      const portalSize = 50;
+      // Density cap: 10 pairs per 4:30 window, +10 per additional 4:30 window
+      // (Knockout extends the track, so the budget grows with track length)
+      const effLen = Math.max(track.length || 0, segEnd);
+      const windows = Math.floor(effLen / PORTAL_PAIR_WINDOW_UNITS) + 1;
+      const maxPairs = Math.max(1, PORTAL_PAIR_BUDGET * windows);
+      const livePairs = track.zones.filter(z => z.type === 'portal').length / 2;
+      if (livePairs >= maxPairs) return null;
+
+      // Pick entry lane: upper / lower / center (weighted away from centerline)
+      const laneRoll = Math.random();
+      const entryY = laneRoll < 0.40
+        ? bounds.topY + portalSize / 2 + 10
+        : laneRoll < 0.80
+          ? bounds.bottomY - portalSize / 2 - 10
+          : (bounds.topY + bounds.bottomY) / 2;
+
+      // Exit must be >=250 px (>=250 m) ahead of entry (validators require >=200),
+      // inside segment bounds
+      const distAhead = Math.max(300, 700 + Math.random() * 400);
+      const x2 = Math.min(entryX + distAhead, segEnd - 100);
+      const bounds2 = getBounds(x2);
+      if (!bounds2 || x2 < entryX + 250) return null;
+
+      // Exit lane: prefer the opposite lane (upper <-> lower) for variety
+      const top2 = bounds2.topY + portalSize / 2 + 10;
+      const bottom2 = bounds2.bottomY - portalSize / 2 - 10;
+      const entryIsTop = laneRoll < 0.40;
+      const entryIsBottom = laneRoll >= 0.40 && laneRoll < 0.80;
+      const exitY = clampY(
+        entryIsTop ? bottom2 : entryIsBottom ? top2 : (Math.random() < 0.5 ? top2 : bottom2),
+        bounds2, portalSize / 2 + 10
+      );
+
+      // Spawn safety: neither portal may overlap an existing obstacle/zone/peg.
+      // Other portals are checked too (diagnostics require exits >=100 px from
+      // any portal), so a same-pair overlap is impossible here (zones are only
+      // pushed to track.zones after both checks pass).
+      const entryZone = { type: 'portal', x: entryX - portalSize / 2, y: entryY - portalSize / 2, width: portalSize, height: portalSize, radius: portalSize / 2 };
+      const exitZone = { type: 'portal', x: x2 - portalSize / 2, y: exitY - portalSize / 2, width: portalSize, height: portalSize, radius: portalSize / 2 };
+      const isBlocked = (zone) => {
+        const bb = getBB(zone);
+        for (const o of track.obstacles) if (boxesOverlap(bb, getBB(o), 15)) return true;
+        for (const z of track.zones) {
+          if (z.type === 'finish') continue;
+          const buf = z.type === 'portal' ? 100 : 15;
+          if (boxesOverlap(bb, getBB(z), buf)) return true;
+        }
+        if (track.pegs) for (const p of track.pegs) if (boxesOverlap(bb, getBB(p), 10)) return true;
+        return false;
+      };
+      if (isBlocked(entryZone) || isBlocked(exitZone)) return null;
+
+      const pairId = Math.random().toString(36).slice(2);
+      entryZone.pairId = pairId;
+      exitZone.pairId = pairId;
+      track.zones.push(entryZone);
+      track.zones.push(exitZone);
+      return x2 + 150;
+    };
+
     // Helper: generates standard structured layout inside a segment
     const generateSegmentObstacles = (segStart, segEnd) => {
       let x = segStart + 50 + Math.random() * 50;
@@ -3259,7 +3330,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           if (_hammerCorridorRemaining > 0) continue;
         }
 
-        const t = x / length;
+        const t = (x % length) / length;
 
         // Determine current pacing zone
         const currentZone = ZONE_CONFIG.find(z => t >= z.start && t < z.end) || ZONE_CONFIG[ZONE_CONFIG.length - 1];
@@ -3433,27 +3504,12 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             punchX: x, punchY: centerY
           });
         } else if (type === 'portal') {
-          const pairId = Math.random().toString(36).slice(2);
-          const distAhead = 750 + Math.random() * 350;
-          const portalSize = 50;
-          const p1Y = clampY(centerY + (Math.random() - 0.5) * 30, bounds, portalSize / 2 + 8);
-          
-          // Exit portal ??? must be placeable for the pair to exist
-          const x2 = Math.min(x + distAhead, segEnd - 100);
-          const bounds2 = getBounds(x2);
-          if (bounds2 && x2 > x + 250) {
-            const p2Y = clampY((bounds2.topY + bounds2.bottomY) / 2, bounds2, portalSize / 2 + 10);
-            // Both portals confirmed ??? push entry then exit
-            track.zones.push({
-              type: 'portal', x: x - portalSize / 2, y: p1Y - portalSize / 2,
-              width: portalSize, height: portalSize, pairId, radius: portalSize / 2
-            });
-            track.zones.push({
-              type: 'portal', x: x2 - portalSize / 2, y: p2Y - portalSize / 2,
-              width: portalSize, height: portalSize, pairId, radius: portalSize / 2
-            });
-            // Skip spacing offset forward
-            x = x2 + 50;
+          const adv = tryPlacePortalPair(x, bounds, segEnd);
+          if (adv) {
+            x = adv;
+          } else {
+            x += 200;
+            continue;
           }
         } else if (type === 'launch') {
           const padW = 50;
@@ -4053,21 +4109,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             width: 50, height: 20
           });
         } else if (ut === 'portal') {
-          const portalSize = 50;
-          const p2x = Math.min(tryX + 800 + Math.random() * 300, finishX - 100);
-          const b2 = getBounds(p2x);
-          if (!b2 || p2x <= tryX + 250) continue;
-          const pairId = Math.random().toString(36).slice(2);
-          track.zones.push({
-            type: 'portal', x: tryX - portalSize / 2,
-            y: clampY(cY, b, portalSize / 2 + 8) - portalSize / 2,
-            width: portalSize, height: portalSize, pairId, radius: portalSize / 2
-          });
-          track.zones.push({
-            type: 'portal', x: p2x - portalSize / 2,
-            y: clampY((b2.topY + b2.bottomY) / 2, b2, portalSize / 2 + 10) - portalSize / 2,
-            width: portalSize, height: portalSize, pairId, radius: portalSize / 2
-          });
+          if (tryPlacePortalPair(tryX, b, finishX) == null) continue;
         } else if (ut === 'ice_cannon') {
           track.obstacles.push({
             type: 'ice_cannon', x: tryX, y: clampY(cY, b, 35),
@@ -4144,6 +4186,24 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       }
       if (_removeObs.size > 0) track.obstacles = track.obstacles.filter((_, i) => !_removeObs.has(i));
       if (_removeZone.size > 0) track.zones = track.zones.filter((_, i) => !_removeZone.has(i) || track.zones[i].type === 'finish');
+      // Pegs overlap zones/obstacles can trip the portal exit-overlap validator,
+      // so drop any peg that collides with a zone or obstacle
+      if (track.pegs) {
+        const _removePeg = new Set();
+        for (let i = 0; i < track.pegs.length; i++) {
+          const bbP = getBB(track.pegs[i]);
+          for (const z of track.zones) {
+            if (z.type === 'finish') continue;
+            if (boxesOverlap(bbP, getBB(z), 15)) { _removePeg.add(i); break; }
+          }
+          if (!_removePeg.has(i)) {
+            for (const o of track.obstacles) {
+              if (boxesOverlap(bbP, getBB(o), 15)) { _removePeg.add(i); break; }
+            }
+          }
+        }
+        if (_removePeg.size > 0) track.pegs = track.pegs.filter((_, i) => !_removePeg.has(i));
+      }
     }
 
     // Remove orphan portal zones (no matching pair ??? entry whose exit couldn't be placed)
@@ -4183,6 +4243,13 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         for (const _o of track.obstacles) {
           if (_o.type === 'icicle') continue;
           if (Math.abs(_o.x - _ix) < 100) { _overlap = true; break; }
+        }
+        if (!_overlap) {
+          // Keep icicles clear of portal exits/entries (portal exits must not
+          // spawn inside or next to another element per the validator)
+          for (const _z of track.zones) {
+            if (_z.type === 'portal' && Math.abs((_z.x + _z.width / 2) - _ix) < 100) { _overlap = true; break; }
+          }
         }
         if (_overlap) continue;
         const _wallY = _onTop ? _ib.topY : _ib.bottomY;
@@ -9722,13 +9789,20 @@ obs._trappedBallId = null;
       leaderBallId: this.selectedBallId === 'leader' ? this._findLeader()?.id : this.selectedBallId
     };
 
-    // Initialise elimination sequence state machine
+    // Initialise elimination sequence state machine.
+    // Adaptive timing: single-ball eliminations keep the full cinematic timing;
+    // larger batches run faster (2x for 2-3 balls, 3x for 4+).
+    let timeScale = 1;
+    if (queue.length >= 2 && queue.length <= 3) timeScale = 2;
+    else if (queue.length >= 4) timeScale = 3;
+
     this._eliminationSequence = {
       phase: 'camera_to_target',
       phaseStartTime: performance.now(),
       queue: queue,
       currentIndex: -1,
       target: null,  // set when moving to next target
+      timeScale: timeScale, // speed multiplier for multi-ball eliminations
     };
 
     // Freeze the race
@@ -9749,8 +9823,8 @@ obs._trappedBallId = null;
       seq.phaseStartTime = performance.now();
       const mem = this._eliminationCameraMemory;
       const restoreX = mem.cameraX;
-      // Animate back to where the camera was before freeze
-      this._startCameraAnimation(restoreX, 800);
+      // Animate back to where the camera was before freeze (scaled for multi-ball).
+      this._startCameraAnimation(restoreX, 800 / seq.timeScale);
       return;
     }
 
@@ -9764,7 +9838,7 @@ obs._trappedBallId = null;
     const trackOff = this.trackOffset || 0;
     const targetX = seq.target.x - (this.canvas.width / 2 - trackOff) / this.cameraZoom;
 
-    this._startCameraAnimation(targetX, 700);
+    this._startCameraAnimation(targetX, 700 / seq.timeScale);
   }
 
   // ── Smooth cinematic camera swipe (ease-in-out cubic) ─────────
@@ -9816,7 +9890,7 @@ obs._trappedBallId = null;
 
       // ── Phase: Pause 0.5s so viewer recognises the ball ──
       case 'pause_before': {
-        if (elapsed > 500) {
+        if (elapsed > 500 / seq.timeScale) {
           // Start dispersion. Hide the ball on this exact frame so there is never
           // an intact ball visible underneath the particle effect.
           seq.phase = 'disperse';
@@ -9852,7 +9926,7 @@ obs._trappedBallId = null;
 
       // ── Phase: "[Country] ELIMINATED" text (1s) ──
       case 'text': {
-        if (elapsed > 1000) {
+        if (elapsed > 1000 / seq.timeScale) {
           // Clear the text before the pause so it never re-renders at full
           // opacity during pause_after (which caused a double flash).
           this._dispersionTextItem = null;
@@ -9864,7 +9938,7 @@ obs._trappedBallId = null;
 
       // ── Phase: Wait 0.5s before next ball ──
       case 'pause_after': {
-        if (elapsed > 500) {
+        if (elapsed > 500 / seq.timeScale) {
           this._eliminationNextTarget();
         }
         break;
@@ -11552,17 +11626,17 @@ this.ctx.restore();
             }
             this.ctx.stroke();
           }
-          // Direction arrow ??? shows whether paired portal is ahead (???) or behind (???)
+          // Direction arrow: shows whether paired portal is ahead (→) or behind (←)
           const pairPortal = this.track.zones.find(z => z !== zone && z.type === 'portal' && z.pairId === zone.pairId);
           if (pairPortal) {
-            const arrow = pairPortal.x > zone.x ? '???' : '???';
+            const arrow = pairPortal.x > zone.x ? '→' : '←';
             this.ctx.fillStyle = this.currentThemeKey === 'jungle' ? '#1C3D24' : 'rgba(200,160,255,0.75)';
-            this.ctx.strokeStyle = this.currentThemeKey === 'jungle' ? '#E5EBD9' : 'transparent';
-            this.ctx.lineWidth = this.currentThemeKey === 'jungle' ? 3 : 0;
-            this.ctx.font = this.currentThemeKey === 'jungle' ? 'bold 22px Montserrat, sans-serif' : 'bold 20px Montserrat, sans-serif';
+            this.ctx.strokeStyle = this.currentThemeKey === 'jungle' ? '#E5EBD9' : 'rgba(20,10,30,0.85)';
+            this.ctx.lineWidth = this.currentThemeKey === 'jungle' ? 3 : 4;
+            this.ctx.font = 'bold 24px Montserrat, sans-serif';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
-            if (this.currentThemeKey === 'jungle') this.ctx.strokeText(arrow, cx, cy + pr + 16);
+            this.ctx.strokeText(arrow, cx, cy + pr + 16);
             this.ctx.fillText(arrow, cx, cy + pr + 16);
           }
           this.ctx.restore();
@@ -18197,9 +18271,13 @@ this.ctx.restore();
         this._pipCameraX += (targetCamX - this._pipCameraX) * lerp;
       }
 
-      // Broadcast label identifying the tracked country.
-      if (this._pipLabel && this._pipLabel.textContent !== target.name.toUpperCase()) {
-        this._pipLabel.textContent = target.name.toUpperCase();
+      // Broadcast title for the PiP window. Always "LAST BALL POV" while visible.
+      if (this._pipLabel && this._pipLabel.textContent !== 'LAST BALL POV') {
+        this._pipLabel.textContent = 'LAST BALL POV';
+      }
+      // Country name of the tracked ball (shown along the bottom of the PiP).
+      if (this._pipCountryLabel && this._pipCountryLabel.textContent !== target.name.toUpperCase()) {
+        this._pipCountryLabel.textContent = target.name.toUpperCase();
       }
 
       // Reuse the full world renderer by temporarily retargeting the engine to
