@@ -93,6 +93,10 @@
                 <div class="map-thumb space-thumb"></div>
                 <span>Nebula Cosmos</span>
               </div>
+              <div onclick="app.selectMap('ultimate_arena')" class="map-card na-arena-card hidden" id="map-ultimate_arena">
+                <div class="map-thumb arena-thumb"><span class="arena-star">✦</span></div>
+                <span>Ultimate Arena</span>
+              </div>
             </div>
             <div class="flex gap-2 mt-2">
               <button onclick="app.randomizeMap()" class="btn btn-small btn-secondary flex-1">Random Map</button>
@@ -115,6 +119,16 @@
               <button onclick="app.selectTop80Countries()" class="btn btn-small btn-secondary" id="btn-preset-top80">Top 80 Countries</button>
               <button onclick="app.clearCountriesSelection()" class="btn btn-small btn-tertiary" id="btn-preset-clear">Clear All</button>
               <button onclick="app.togglePanel('custom-country-creator')" class="btn btn-small btn-secondary bg-purple-glow">＋ Create Custom Ball</button>
+            </div>
+
+            <!-- Continent Presets -->
+            <div class="continent-selectors flex gap-2 flex-wrap mt-2 mb-3">
+              <button onclick="app.selectContinent('asia')" class="btn btn-small btn-secondary" id="btn-preset-asia">Asia</button>
+              <button onclick="app.selectContinent('europe')" class="btn btn-small btn-secondary" id="btn-preset-europe">Europe</button>
+              <button onclick="app.selectContinent('africa')" class="btn btn-small btn-secondary" id="btn-preset-africa">Africa</button>
+              <button onclick="app.selectContinent('north_america')" class="btn btn-small btn-secondary" id="btn-preset-north_america">North America</button>
+              <button onclick="app.selectContinent('south_america')" class="btn btn-small btn-secondary" id="btn-preset-south_america">South America</button>
+              <button onclick="app.selectContinent('oceania')" class="btn btn-small btn-secondary" id="btn-preset-oceania">Oceania</button>
             </div>
 
             <!-- Search database -->
@@ -193,7 +207,8 @@
                 <label for="knockout-interval">Elimination Interval</label>
                 <select id="knockout-interval">
                   <option value="10">10 seconds</option>
-                  <option value="20" selected>20 seconds</option>
+                  <option value="15" selected>15 seconds</option>
+                  <option value="20">20 seconds</option>
                   <option value="30">30 seconds</option>
                   <option value="45">45 seconds</option>
                   <option value="60">60 seconds</option>
@@ -206,6 +221,16 @@
                   <option value="2">2 balls per cycle</option>
                   <option value="3">3 balls per cycle</option>
                   <option value="5">5 balls per cycle</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label for="world-change-interval">World Change Interval</label>
+                <select id="world-change-interval">
+                  <option value="60">60 seconds</option>
+                  <option value="90" selected>90 seconds</option>
+                  <option value="120">120 seconds</option>
+                  <option value="180">180 seconds</option>
+                  <option value="240">240 seconds</option>
                 </select>
               </div>
             </div>
@@ -476,6 +501,14 @@
           </div>
         </div>
       </div>
+
+      <!-- Bottom Right: Last Eliminated Countries Panel (Knockout Mode) -->
+      <div id="hud-last-eliminated" class="bottom-right-hud glass-panel hidden">
+        <h3 class="hud-list-title text-glow">LAST ELIMINATED</h3>
+        <div id="hud-last-eliminated-list" class="last-eliminated-list">
+          <!-- Dynamically filled with last 5 eliminated countries -->
+        </div>
+      </div>
     </div>
 
     <!-- PiP Elimination Camera (Knockout Mode only) -->
@@ -541,6 +574,14 @@
   <div id="continuous-countdown" class="continuous-countdown-overlay hidden">
     <div class="countdown-text">Next Race Starting In...</div>
     <div id="countdown-number" class="countdown-number">5</div>
+  </div>
+
+  <!-- Ultimate Arena World Shift Countdown Overlay -->
+  <div id="world-transition-overlay" class="world-transition-overlay hidden">
+    <div class="world-transition-text">WORLD SHIFT</div>
+    <div class="world-transition-sub">NEXT MAP</div>
+    <div id="world-transition-target" class="world-transition-target">AMAZON CANOPY</div>
+    <div id="world-transition-number" class="world-transition-number">10</div>
   </div>
 
   <!-- Script Modules linking -->

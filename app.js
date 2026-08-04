@@ -134,14 +134,23 @@ class AppController {
   // ─── Loadout System (Phase 2) ───────────────────────────
 
   _buildDefaultLoadout(themeKey) {
-    const obs = OBSTACLE_REGISTRY
-      .filter(o => o.category === 'core' || o.map === themeKey)
+    // Ultimate Arena cycles every world, so enable every obstacle type.
+    const isArena = themeKey === 'ultimate_arena';
+    const obs = (isArena
+      ? OBSTACLE_REGISTRY
+      : OBSTACLE_REGISTRY.filter(o => o.category === 'core' || o.map === themeKey))
       .map(o => o.type);
     const evts = EVENT_REGISTRY.filter(e => e.implemented).map(e => e.key);
     const obstacleFreqs = {};
     OBSTACLE_REGISTRY.forEach(o => { obstacleFreqs[o.type] = 3; });
     const eventFreqs = {};
     EVENT_REGISTRY.forEach(e => { eventFreqs[e.key] = 3; });
+    // The Ultimate Arena inherits the obstacle density already selected in the setup
+    // menu; it must never silently reset to the default. Preserve the current density
+    // instead of overwriting it, so it never changes unless the player changes it.
+    if (isArena && this._loadout && typeof this._loadout.density === 'number') {
+      return { obstacles: obs, obstacleFreqs, events: evts, eventFreqs, density: this._loadout.density, eventIntensity: this._loadout.eventIntensity };
+    }
     return { obstacles: obs, obstacleFreqs, events: evts, eventFreqs, density: 80, eventIntensity: 'high' };
   }
 
@@ -314,7 +323,7 @@ class AppController {
     const container = document.getElementById('loadout-summary');
     if (!container) return;
     const theme = MAP_THEMES[this.selectedMapKey];
-    const mapName = theme ? theme.name : this.selectedMapKey;
+    const mapName = theme ? theme.name : (this.selectedMapKey === 'ultimate_arena' ? 'Ultimate Arena' : this.selectedMapKey);
     const presetName = this._getActivePresetName();
     container.innerHTML = `
       <div class="summary-row"><span class="summary-label">Map</span><span class="summary-value gold">${mapName}</span></div>
@@ -619,7 +628,7 @@ class AppController {
   }
 
   _setActivePresetButton(activeId) {
-    const ids = ['btn-fifa-preset', 'btn-preset-all', 'btn-preset-r16', 'btn-preset-r32', 'btn-preset-top80', 'btn-preset-clear'];
+    const ids = ['btn-fifa-preset', 'btn-preset-all', 'btn-preset-r16', 'btn-preset-r32', 'btn-preset-top80', 'btn-preset-clear', 'btn-preset-asia', 'btn-preset-europe', 'btn-preset-africa', 'btn-preset-north_america', 'btn-preset-south_america', 'btn-preset-oceania'];
     ids.forEach(id => {
       const btn = document.getElementById(id);
       if (!btn) return;
@@ -720,6 +729,47 @@ class AppController {
     this._setActivePresetButton('btn-preset-top80');
   }
 
+  // Continent country code mappings (based on the full country database)
+  _getContinentCodes() {
+    return {
+      asia: [
+        "af","am","ae","az","bd","bh","bn","bt","cn","cy","ge","id","il","in","iq","ir","jo","jp","kg","kh","kp","kr","kw","kz","la","lb","lk","mm","mn","mv","my","np","om","ph","pk","qa","sa","sg","sy","th","tj","tl","tm","tr","uz","vn","ye"
+      ],
+      europe: [
+        "al","at","ba","be","bg","by","ch","cz","de","dk","ee","es","fi","fr","gb","gb-eng","gb-sct","gb-wls","ge","gr","hr","hu","ie","is","it","li","lt","lu","lv","mc","md","me","mk","mt","nl","no","pl","pt","ro","rs","ru","se","si","sk","sm","tr","ua"
+      ],
+      africa: [
+        "ao","bf","bi","bj","bw","cd","cf","cg","ci","cm","cv","dj","dz","eg","er","et","ga","gh","gm","gn","gq","gw","ke","km","lr","ls","ly","ma","mg","ml","mr","mu","mw","mz","na","ne","ng","rw","sc","sd","sl","sn","so","ss","st","sz","td","tg","tn","tz","ug","za","zm","zw"
+      ],
+      north_america: [
+        "ag","bs","bz","ca","cr","cu","dm","do","gt","hn","ht","jm","mx","ni","pa","sv","tt","us"
+      ],
+      south_america: [
+        "ar","bo","br","cl","co","ec","gy","pe","py","sr","uy","ve"
+      ],
+      oceania: [
+        "au","fj","fm","ki","mh","nr","nz","pg","pw","sb","tv","vu","ws"
+      ]
+    };
+  }
+
+  // Select all countries from a specific continent
+  selectContinent(continentKey) {
+    this.clearCountriesSelection();
+    const continentCodes = this._getContinentCodes()[continentKey];
+    if (!continentCodes) return;
+    
+    continentCodes.forEach(code => {
+      const c = this.countries.find(c => c.code === code);
+      if (!c) return;
+      this.engine.selectedCountries.push(c);
+      const itemNode = document.getElementById(`item-${code}`);
+      if (itemNode) itemNode.classList.add('selected');
+    });
+    this.updateSelectedCountText();
+    this._setActivePresetButton(`btn-preset-${continentKey}`);
+  }
+
   selectMap(themeKey) {
     this.selectedMapKey = themeKey;
 
@@ -730,8 +780,18 @@ class AppController {
     }
 
     document.getElementById(`map-${themeKey}`).classList.add('active');
-    this.engine.currentThemeKey = themeKey;
-    this.engine.currentTheme = MAP_THEMES[themeKey];
+
+    // The Ultimate Arena is an orchestrator, not a renderable theme. It has no
+    // entry in MAP_THEMES; the World Shift director resolves real worlds at race time.
+    if (themeKey === 'ultimate_arena') {
+      this.engine._ultimateArenaSelected = true;
+      this.engine.currentThemeKey = 'desert'; // safe placeholder until race start
+      this.engine.currentTheme = MAP_THEMES.desert;
+    } else {
+      this.engine._ultimateArenaSelected = false;
+      this.engine.currentThemeKey = themeKey;
+      this.engine.currentTheme = MAP_THEMES[themeKey];
+    }
 
     // Auto-set loadout to this map's default preset
     this.restoreMapDefaults();
@@ -768,6 +828,18 @@ class AppController {
     const customSec = document.getElementById('custom-settings-sec');
     const knockoutSec = document.getElementById('knockout-settings-sec');
     const fifaBtn = document.getElementById('btn-fifa-preset');
+    const arenaCard = document.getElementById('map-ultimate_arena');
+
+    // The Ultimate Arena map is exclusive to Knockout Mode.
+    if (arenaCard) {
+      if (modeKey === 'knockout') arenaCard.classList.remove('hidden');
+      else arenaCard.classList.add('hidden');
+    }
+
+    // If the arena was selected but we left Knockout Mode, fall back to a normal map.
+    if (modeKey !== 'knockout' && this.selectedMapKey === 'ultimate_arena') {
+      this.selectMap('desert');
+    }
 
     // Set custom text descriptions
     if (modeKey === 'world_cup') {
@@ -1082,8 +1154,10 @@ class AppController {
     if (this.engine.gameMode === 'knockout') {
       const intervalEl = document.getElementById('knockout-interval');
       const perCycleEl = document.getElementById('knockout-per-cycle');
+      const worldChangeEl = document.getElementById('world-change-interval');
       this.engine.knockoutInterval = parseInt(intervalEl ? intervalEl.value : 20);
       this.engine.knockoutBallsPerCycle = parseInt(perCycleEl ? perCycleEl.value : 1);
+      this.engine.worldChangeInterval = parseInt(worldChangeEl ? worldChangeEl.value : 90);
     }
     this.engine.startRace(this._loadout);
   }

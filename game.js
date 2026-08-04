@@ -2219,6 +2219,36 @@ class GameEngine {
     this._eliminationHiddenBallId = null;
     this._eliminationCountdown = null;
 
+    // ── Knockout Broadcast UI State ───────────────────────────────────────
+    // Last 5 eliminated countries for the broadcast panel (newest first)
+    this._lastEliminated = [];
+    // Timer for "Countries Remaining" announcement
+    this._countriesRemainingTimer = 0;
+    this._countriesRemainingMessage = null;
+
+    // ── Knockout Ranking State ───────────────────────────────────────────
+    // Immutable: number of competitors at race start
+    this._initialCompetitorCount = 0;
+    // Mutable: brand-new competitors manually spawned during race
+    this._extraSpawnedCompetitors = 0;
+    // Immutable after each elimination: total eliminations completed
+    this._eliminationCount = 0;
+
+    // ── Ultimate Arena (Knockout-only World Shift Map Director) ──
+    this.worldChangeInterval = 90;          // seconds each world stays active (60/90/120/180/240)
+    this._ultimateArena = false;            // true when the arena is the active map
+    this._arenaWorlds = ['desert', 'snow', 'jungle', 'volcano', 'ocean', 'space'];
+    this._arenaWorld = null;                // currently active world key
+    this._arenaNextShiftAt = 0;             // raceTimer threshold to start a World Shift countdown
+    this._arenaShift = null;                // active countdown state { value, start, shown, target }
+    this._arenaPending = false;             // shift deferred until the elimination cinematic ends
+    this._worldLockdown = false;            // suppress new events/eliminations/obstacles during countdown
+    this._shiftFX = null;                   // { snapshot, start, duration } distortion+fade during shift
+    this._shiftSnapshot = null;             // offscreen canvas holding the pre-shift frame
+    this._obstacleFreqWeights = null;       // mutable obstacle frequencies for world switching
+    this._obstacleDensityPct = 80;          // setup obstacle density (20-100%), re-applied per world
+    this._knockoutTimerOffset = 0;          // resets knockout elimination timer to zero after a shift
+
     // Image pattern cache for country flags
     this.flagCache = {};
 
@@ -2478,8 +2508,11 @@ class GameEngine {
     }
   }
 
-  // Generates procedurally built tracks, barriers, and hazards
-  generateProceduralTrack(themeKey, length, densityStr, enabledObstacles, obstacleFreqs, densityPct) {
+  // Generates procedurally built tracks, barriers, and hazards.
+  // When `reuseTrack` is provided (Ultimate Arena world shift), the existing endless
+  // track's geometry is preserved and only its obstacle layer is rebuilt for the new
+  // theme, exactly as if that map had just been launched from the setup menu.
+  generateProceduralTrack(themeKey, length, densityStr, enabledObstacles, obstacleFreqs, densityPct, reuseTrack) {
     const theme = MAP_THEMES[themeKey];
     this.currentThemeKey = themeKey;
     this.currentTheme = theme;
@@ -2511,6 +2544,9 @@ class GameEngine {
         freqWeights[o.type] = w;
       });
     }
+    // Expose the mutable frequency table to the endless-segment closures so the
+    // Ultimate Arena world director can swap it when the active world changes.
+    this._obstacleFreqWeights = freqWeights;
 
     // Magma Crater: significantly boost Lava Pool spawn rate to match Boost Pad count
     if (themeKey === 'volcano' && freqWeights.lava_pool) {
@@ -2527,22 +2563,33 @@ class GameEngine {
       if (freqWeights.floating_kelp) freqWeights.floating_kelp = 20;
     }
 
-    const track = {
-      length: length,
-      walls: [],
-      pegs: [],
-      zones: [],
-      obstacles: [],
-      topPoints: [],
-      bottomPoints: [],
-      centerPoints: []
-    };
-    this._trackBaseLength = length;
+    let track;
+    if (reuseTrack) {
+      // Reuse the live endless track's geometry; only the obstacle layer changes.
+      track = reuseTrack;
+      track.obstacles = [];
+      track.zones = [];
+      track.pegs = [];
+      track.length = length;
+    } else {
+      track = {
+        length: length,
+        walls: [],
+        pegs: [],
+        zones: [],
+        obstacles: [],
+        topPoints: [],
+        bottomPoints: [],
+        centerPoints: []
+      };
+      this._trackBaseLength = length;
+    }
 
     let densityVal = 0.35;
     if (densityStr === 'low') densityVal = 0.25;
     if (densityStr === 'high') densityVal = 0.75;
 
+    if (!reuseTrack) {
     // Generate center line with multi-directional sections
     const numSteps = Math.ceil(length / 30);
     let baseWidth = 250;
@@ -2616,6 +2663,7 @@ class GameEngine {
       track.walls.push({ p1: track.topPoints[i], p2: track.topPoints[i + 1] });
       track.walls.push({ p1: track.bottomPoints[i], p2: track.bottomPoints[i + 1] });
     }
+    }
 
     // Finish line zone - skipped in knockout mode
     const finishX = this.gameMode !== 'knockout' ? length - 670 : length - 400;
@@ -2625,8 +2673,8 @@ class GameEngine {
     }
 
     // Filter ZONE_CONFIG, COMBINATIONS, TEMPLATES by enabled obstacle set
-    const _filterTypes = (typesArr) => typesArr.filter(t => enabledSet.has(t));
-    const _allEnabled = (typesArr) => typesArr.every(t => enabledSet.has(t));
+    const _filterTypes = (typesArr) => typesArr.filter(t => this._enabledSet.has(t));
+    const _allEnabled = (typesArr) => typesArr.every(t => this._enabledSet.has(t));
 
     // Zone-based obstacle placement
     const getBounds = (x) => this.physics.getWallBoundaries(x, track);
@@ -2666,13 +2714,13 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
     // Zone-based pacing configuration (t = x / length) ??? higher density, intentional rhythm
     const ZONE_CONFIG = [
       { start: 0.00, end: 0.20, density: 0.50,
-        types: _filterTypes(['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit']) },
+        types: ['boost', 'spinner', 'barrier', 'peg', 'c_bumper', 'hammer', 'punchfist', 'sweep_arm', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit'] },
       { start: 0.20, end: 0.60, density: 0.50,
-        types: _filterTypes(['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit']) },
+        types: ['spinner', 'sweep_arm', 'barrier', 'hammer', 'punchfist', 'c_bumper', 'boost', 'portal', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit'] },
       { start: 0.60, end: 0.85, density: 0.50,
-        types: _filterTypes(['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit']) },
+        types: ['portal', 'launch', 'barrier', 'boost', 'sweep_arm', 'spinner', 'hammer', 'punchfist', 'ice_cannon', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit'] },
       { start: 0.85, end: 1.00, density: 0.50,
-        types: _filterTypes(['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit']) }
+        types: ['boost', 'barrier', 'hammer', 'sweep_arm', 'peg', 'punchfist', 'spinner', 'lava_pool', 'lava_geyser', 'bubble_trap', 'sea_mine', 'sea_urchin_field', 'floating_kelp', 'sand_vortex', 'quicksand_pit'] }
     ];
 
     // Weighted obstacle combinations for memorable race moments
@@ -2744,7 +2792,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       { weight: 2, types: ['spinner', 'floating_kelp'], gap: 50 },
       { weight: 1, types: ['floating_kelp', 'bubble_trap'], gap: 60 },
       { weight: 1, types: ['sea_mine', 'floating_kelp'], gap: 60 },
-    ].filter(c => _allEnabled(c.types));
+    ];
 
     // 3-obstacle templates that shuffle per race for variety
     const TEMPLATES = [
@@ -2792,7 +2840,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       ['floating_kelp', 'boost', 'spinner'],
       ['bubble_trap', 'floating_kelp', 'boost'],
       ['sea_mine', 'floating_kelp', 'hammer'],
-    ].filter(t => _allEnabled(t));
+    ];
     // Shuffle templates once per race
     const shuffledTemplates = TEMPLATES.map(t => [...t]).sort(() => Math.random() - 0.5);
     let templateIndex = 0;
@@ -3267,7 +3315,8 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
 
       // Density slider (20-100%): higher = more obstacles, tighter spacing
       // multiplier: 1.8 at 20% ??? 0.5 at 100% (3.6x range)
-      const pct = densityPct || 80;
+      // Read the live setup density so World Shifts never change obstacle density.
+      const pct = this._obstacleDensityPct || densityPct || 80;
       const densityMult = 1.8 - (pct / 100) * 1.3;
       // Cap to avoid division by zero / negative
       let densityFactor = Math.max(0.35, densityMult);
@@ -3285,8 +3334,8 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         ['boost', ['slow', 'boost']],
         ['slow', ['boost', 'slow']]
       ].forEach(([key, vals]) => {
-        if (enabledSet.has(key)) {
-          const filtered = vals.filter(v => enabledSet.has(v));
+        if (this._enabledSet.has(key)) {
+          const filtered = vals.filter(v => this._enabledSet.has(v));
           if (filtered.length) FORBIDDEN_NEXT[key] = filtered;
         }
       });
@@ -3334,7 +3383,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
 
         // Determine current pacing zone
         const currentZone = ZONE_CONFIG.find(z => t >= z.start && t < z.end) || ZONE_CONFIG[ZONE_CONFIG.length - 1];
-        let allowedTypes = currentZone.types;
+        let allowedTypes = currentZone.types.filter(tt => this._enabledSet.has(tt));
         const zoneDensity = currentZone.density;
 
         // Cluster/gap alternation: if in a gap, skip ahead until gap ends
@@ -3368,7 +3417,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           }
 
           // Weighted random selection based on obstacle frequency
-          const weights = filtered.map(t => freqWeights[t] || 5);
+          const weights = filtered.map(t => (this._obstacleFreqWeights && this._obstacleFreqWeights[t]) || 5);
           const totalW = weights.reduce((a, b) => a + b, 0);
           let rw = Math.random() * totalW;
           type = filtered[filtered.length - 1];
@@ -3461,9 +3510,9 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           // Magma Crater: Lava Pool (replaces Slow Ramp)
           const slowClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - x) < 400);
           if (slowClose) { x += 200; continue; }
-          const w = themeKey === 'jungle' ? 135 : 60;
-          const h = themeKey === 'jungle' ? 101 : 45;
-          const zoneType = themeKey === 'jungle' ? 'mud_puddle || lava_pool' : 'slow';
+          const w = this.currentThemeKey === 'jungle' ? 135 : 60;
+          const h = this.currentThemeKey === 'jungle' ? 101 : 45;
+          const zoneType = this.currentThemeKey === 'jungle' ? 'mud_puddle || lava_pool' : 'slow';
           track.zones.push({
             type: zoneType, x: x - w / 2,
             y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
@@ -3475,7 +3524,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             if (slowClose) { x += 200; continue; }
             const w = 60;
             const h = 45;
-            const isDesert = themeKey === 'desert';
+            const isDesert = this.currentThemeKey === 'desert';
             const zoneType = isDesert ? 'quicksand_pit' : 'slow';
             const qw = isDesert ? 72 + Math.random() * 32 : w; // 30% larger: 72-104
             const qh = isDesert ? 72 + Math.random() * 32 : h; // 30% larger
@@ -3813,7 +3862,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           consecutiveClusters++;
           if (templateIndex < shuffledTemplates.length && Math.random() < 0.4) {
             const template = shuffledTemplates[templateIndex];
-            if (template[0] === lastPlacedType && currentZone.types.includes(template[1]) && currentZone.types.includes(template[2])) {
+            if (template[0] === lastPlacedType && allowedTypes.includes(template[1]) && allowedTypes.includes(template[2])) {
               comboNextType = template[1];
               comboNextType2 = template[2];
               x = Math.max(xBeforeAdvance + 80, xBeforeAdvance + 100);
@@ -3826,7 +3875,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             const compatible = COMBINATIONS.filter(c =>
               c.types[0] === lastPlacedType &&
               !usedCombos.includes(c) &&
-              currentZone.types.includes(c.types[1])
+              allowedTypes.includes(c.types[1])
             );
             if (compatible.length > 0) {
               const totalWeight = compatible.reduce((s, c) => s + c.weight, 0);
@@ -3881,7 +3930,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
                 const icY = (ib.topY + ib.bottomY) / 2;
                 const iAvail = ib.bottomY - ib.topY;
                 // Only use enabled obstacles for gap filling
-                const fb = ['boost', 'spinner', 'barrier'].filter(t => enabledSet.has(t));
+                const fb = ['boost', 'spinner', 'barrier'].filter(t => this._enabledSet.has(t));
                 if (fb.length === 0) continue;
                 const ft = fb[Math.floor(Math.random() * fb.length)];
                 if (ft === 'boost') {
@@ -4216,246 +4265,11 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
     // Generate decorative celestial objects for space theme
     this._initSpaceObjects(track);
 
-    // Generate Retractable Wall Icicles for Glacier Summit
-    if (enabledSet.has('icicle')) {
-      const _numIcicles = 120 + Math.floor(Math.random() * 41);
-      const _ballR = 15;
-      const _baseLen = _ballR * 3;
-      const _baseW = _ballR * 1.2;
-      const _snapFrames = 6;
-      const _cycleConfigs = [
-        { outDur: 60, inDur: 60 },
-        { outDur: 120, inDur: 120 },
-        { outDur: 180, inDur: 180 }
-      ];
-      for (let _ii = 0; _ii < _numIcicles; _ii++) {
-        const _ix = 200 + Math.random() * (finishX - 400);
-        if (Math.abs(_ix - finishX) < 600) continue;
-        const _ib = this.physics.getWallBoundaries(_ix, track);
-        if (!_ib || _ib.bottomY - _ib.topY < 120) continue;
-        const _onTop = Math.random() < 0.5;
-        const _len = _baseLen * (0.85 + Math.random() * 0.3);
-        const _bw = _baseW * (0.85 + Math.random() * 0.3);
-        const _cfg = _cycleConfigs[Math.floor(Math.random() * 3)];
-        const _totalFrames = _cfg.outDur + _cfg.inDur;
-        const _phase = Math.floor(Math.random() * _totalFrames);
-        let _overlap = false;
-        for (const _o of track.obstacles) {
-          if (_o.type === 'icicle') continue;
-          if (Math.abs(_o.x - _ix) < 100) { _overlap = true; break; }
-        }
-        if (!_overlap) {
-          // Keep icicles clear of portal exits/entries (portal exits must not
-          // spawn inside or next to another element per the validator)
-          for (const _z of track.zones) {
-            if (_z.type === 'portal' && Math.abs((_z.x + _z.width / 2) - _ix) < 100) { _overlap = true; break; }
-          }
-        }
-        if (_overlap) continue;
-        const _wallY = _onTop ? _ib.topY : _ib.bottomY;
-        track.obstacles.push({
-          type: 'icicle', x: _ix,
-          y: _wallY,
-          length: _len, baseWidth: _bw,
-          wallSide: _onTop ? 'top' : 'bottom',
-          _outDur: _cfg.outDur, _inDur: _cfg.inDur,
-          _snapFrames: _snapFrames,
-          _totalFrames: _totalFrames,
-          _phaseOffset: _phase,
-          _timer: _phase,
-          _irregularity: (Math.random() - 0.5) * 3
-        });
-      }
-    }
-
-    // Generate Carnivorous Vines for Amazon Canopy
-    if (enabledSet.has('carnivorous_vine') && themeKey === 'jungle') {
-      const _numVines = 30 + Math.floor(Math.random() * 11); // 30-40 vines
-      const _minSpacing = 350; // Minimum spacing between vines
-      const _restrictedZones = [
-        { start: 0, end: 1500 }, // Start area
-        { start: finishX - 1500, end: finishX } // Finish area
-      ];
-      const _existingPositions = [];
-
-      for (let _vi = 0; _vi < _numVines; _vi++) {
-        let _attempts = 0;
-        let _placed = false;
-        
-        while (_attempts < 50 && !_placed) {
-          _attempts++;
-          const _vx = 1500 + Math.random() * (finishX - 3000);
-          
-          // Check restricted zones
-          let _inRestricted = false;
-          for (const _rz of _restrictedZones) {
-            if (_vx >= _rz.start && _vx <= _rz.end) { _inRestricted = true; break; }
-          }
-          if (_inRestricted) continue;
-          
-          // Check spacing from other vines
-          let _tooClose = false;
-          for (const _ep of _existingPositions) {
-            if (Math.abs(_vx - _ep) < _minSpacing) { _tooClose = true; break; }
-          }
-          if (_tooClose) continue;
-          
-          // Check spacing from other obstacles
-          let _obstacleConflict = false;
-          for (const _o of track.obstacles) {
-            if (Math.abs(_o.x - _vx) < _minSpacing) { _obstacleConflict = true; break; }
-          }
-          if (_obstacleConflict) continue;
-          
-          // Check zones (boost, portal, etc.)
-          let _zoneConflict = false;
-          for (const _z of track.zones) {
-            if (_z.type !== 'finish' && Math.abs((_z.x + _z.width / 2) - _vx) < _minSpacing) {
-              _zoneConflict = true; break;
-            }
-          }
-          if (_zoneConflict) continue;
-          
-          const _vb = this.physics.getWallBoundaries(_vx, track);
-          if (!_vb || _vb.bottomY - _vb.topY < 100) continue;
-          
-          const _onTop = Math.random() < 0.5;
-          const _wallY = _onTop ? _vb.topY : _vb.bottomY;
-          const _length = 75; // ~2.5x ball diameter (fixed)
-          const _baseWidth = 8 + Math.random() * 6; // 8-14px base width
-          const _curvature = (Math.random() - 0.5) * 1.5; // slight curve
-          const _leafCount = 6 + Math.floor(Math.random() * 8); // 6-13 leaves
-          const _thornCount = 3 + Math.floor(Math.random() * 5); // 3-7 thorns
-          const _swayPhase = Math.random() * Math.PI * 2;
-          const _swaySpeed = 0.3 + Math.random() * 0.3; // 0.3-0.6 rad/s
-          const _breathPhase = Math.random() * Math.PI * 2;
-          
-          _existingPositions.push(_vx);
-          
-          track.obstacles.push({
-            type: 'carnivorous_vine',
-            x: _vx,
-            y: _wallY,
-            wallSide: _onTop ? 'top' : 'bottom',
-            length: _length,
-            baseWidth: _baseWidth,
-            curvature: _curvature,
-            leafCount: _leafCount,
-            thornCount: _thornCount,
-            swayPhase: _swayPhase,
-            swaySpeed: _swaySpeed,
-            breathPhase: _breathPhase,
-            // Capture state
-            captureState: 'idle', // idle, capturing, capturing_hold, releasing
-            captureTimer: 0,
-            captureBallId: null,
-            captureProgress: 0,
-            wrapSegments: [],
-            // Visual
-            leafOffsets: Array(_leafCount).fill(0).map(() => Math.random() * Math.PI * 2),
-            thornOffsets: Array(_thornCount).fill(0).map(() => Math.random() * Math.PI * 2),
-            particles: [],
-            // Capture history - prevents infinite retrigger
-            capturedBallIds: new Set()
-          });
-        }
-      }
-    }
-
-    // Generate Collapsing Rock Pillars for Magma Crater
-    if (enabledSet.has('collapsing_pillar')) {
-      const numPillars = 12 + Math.floor(Math.random() * 5); // 12-16
-      let lastSide = 'bottom';
-      let lastX = -1000;
-      let pillarPositions = [];
-
-      // Scan from start to finish collecting valid placement candidates
-      for (let px = 400; px < finishX - 600; px += 80) {
-        if (Math.abs(px - finishX) < 800) continue;
-        const pb = this.physics.getWallBoundaries(px, track);
-        if (!pb || pb.bottomY - pb.topY < 160) continue;
-
-        // Check overlap with existing obstacles and zones
-        let overlap = false;
-        for (const _o of track.obstacles) {
-          if (Math.abs(_o.x - px) < 120) { overlap = true; break; }
-        }
-        if (overlap) continue;
-        for (const _z of track.zones) {
-          if (_z.type === 'finish') continue;
-          if (Math.abs(_z.x + _z.width / 2 - px) < 120) { overlap = true; break; }
-        }
-        if (overlap) continue;
-        if (track.pegs) {
-          for (const _p of track.pegs) {
-            if (Math.abs(_p.x - px) < 80) { overlap = true; break; }
-          }
-        }
-        if (overlap) continue;
-
-        pillarPositions.push({ x: px, bounds: pb });
-      }
-
-      // Select positions with alternating sides, avoiding direct opposites
-      let selected = [];
-      let lastSelectedSide = null;
-      for (let i = 0; i < pillarPositions.length && selected.length < numPillars; i++) {
-        const pos = pillarPositions[i];
-        const side = (selected.length % 2 === 0) ? 'top' : 'bottom';
-
-        // Avoid placing directly opposite another pillar
-        let opposite = false;
-        for (const s of selected) {
-          if (Math.abs(s.x - pos.x) < 60 && s.side !== side) {
-            opposite = true;
-            break;
-          }
-        }
-        if (opposite) continue;
-
-        // Ensure minimum spacing
-        let tooClose = false;
-        for (const s of selected) {
-          if (Math.abs(s.x - pos.x) < 200) {
-            tooClose = true;
-            break;
-          }
-        }
-        if (tooClose) continue;
-
-        const wallY = side === 'top' ? pos.bounds.topY - 5 : pos.bounds.bottomY + 5;
-        selected.push({ x: pos.x, y: wallY, side: side });
-      }
-
-      // Create pillar obstacles
-      for (const sp of selected) {
-        const pillarHeight = 65 + Math.random() * 25;
-        const pillarWidth = 18 + Math.random() * 7;
-        const wallSide = sp.side;
-        track.obstacles.push({
-          type: 'collapsing_pillar',
-          x: sp.x,
-          y: sp.y,
-          _wallSide: wallSide,
-          _state: 'standing',
-          _stateTimer: 0,
-          _standingDuration: 480 + Math.floor(Math.random() * 420),
-          _warningDuration: 60,
-          _fallenDuration: 240 + Math.floor(Math.random() * 60),
-          _disappearDuration: 30,
-          _pillarHeight: pillarHeight,
-          _pillarWidth: pillarWidth,
-          _fallenWidth: 55 + Math.random() * 20,
-          _fallenHeight: 28 + Math.random() * 8,
-          _seed: Math.random() * 1000,
-          _shakePhase: Math.random() * Math.PI * 2,
-          _fallDirection: wallSide === 'top' ? 1 : -1,
-          _fallProgress: 0,
-          _crumbleProgress: 0,
-          _dustOverlay: null
-        });
-      }
-    }
+    // Generate exclusive baked obstacles (icicles / vines / pillars) for the
+    // active world. Reused verbatim both at normal map startup (below) and by the
+    // Ultimate Arena World Director on every World Shift (_applyWorld) so the new
+    // map's signature obstacles always initialize exactly as a direct setup launch.
+    this._bakeExclusiveObstacles(track, finishX, enabledSet, themeKey);
 
     this.track = track;
   }
@@ -6037,6 +5851,8 @@ obs._trappedBallId = null;
 // Trigger alternate race events (football shower, gravity flip, speed surge, blackout, teleportation)
   triggerRandomEvent() {
     if (this.activeEvent) return;
+    // World Shift Lockdown: no new events may begin during the countdown.
+    if (this._worldLockdown) return;
 
     // Filter events by loadout if set, otherwise use all implemented events
     const enabledEventKeys = this._loadout && this._loadout.events
@@ -8213,6 +8029,9 @@ obs._trappedBallId = null;
       this._processEliminationSequence(delta);
     }
 
+    // Ultimate Arena: World Shift director (countdown + lockdown + shifts).
+    this._updateWorldDirector();
+
     if (!this.isPaused) {
       let effectiveSpeed = this.simSpeed;
       // Slow motion when winner crosses
@@ -8232,7 +8051,7 @@ obs._trappedBallId = null;
 
         // Event scheduling ??? uses config computed once in startRace()
         const evtCfg = this._eventIntensityCfg || { base: 20, variation: 3, maxEvents: 18 };
-        if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime) {
+        if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime && !this._worldLockdown) {
           this.triggerRandomEvent();
           // Next event: base interval ?? random variation
           const offset = (Math.random() - 0.5) * 2 * evtCfg.variation;
@@ -8250,9 +8069,14 @@ obs._trappedBallId = null;
         const _ws = performance.now();
         try {
           this.updateSimulation(dt);
+          // Stuck-ball recovery: quietly nudge any ball that has been stuck for
+          // seconds without affecting normal gameplay.
+          this._recoverStuckBalls(dt);
         } catch (e) {
           console.warn('[Watchdog] Physics crash caught:', e.message);
         }
+        // Update "Countries Remaining" announcement timer
+        this._updateCountriesRemainingTimer(dt);
         const _elapsed = performance.now() - _ws;
         if (_elapsed > 100) {
           console.warn('[Watchdog] Frame took ' + _elapsed.toFixed(1) + 'ms, forcing render-only');
@@ -8281,6 +8105,9 @@ obs._trappedBallId = null;
     // Render Frame
     this.render();
 
+    // Ultimate Arena: distortion + crossfade as the world shifts (main canvas only).
+    this._drawShiftFX();
+
     // Knockout PiP elimination camera (renders into its own canvas, only when active)
     this.renderPip(delta);
 
@@ -8293,7 +8120,8 @@ obs._trappedBallId = null;
       this._updateEndlessKnockoutTrack();
       this.physics._tumbleweeds = null;
       // Tumbleweed management: move, wall clamp, despawn (pre-physics so collision is integrated)
-      if (this.currentThemeKey === 'desert' && this._enabledSet && this._enabledSet.has('rolling_tumbleweed') && this.balls && this.track && this.raceTimer > 30 && this.balls.some(b => !b.finished && !b.eliminated)) {
+      // Lockdown: no new obstacle waves may spawn during a World Shift countdown.
+      if (this.currentThemeKey === 'desert' && this._enabledSet && this._enabledSet.has('rolling_tumbleweed') && this.balls && this.track && this.raceTimer > 30 && this.balls.some(b => !b.finished && !b.eliminated) && !this._worldLockdown) {
         const tumbleR = 24;
         const expectedCount = Math.floor((this.raceTimer - 30) / 15) + 1;
         while (this._tumbleweedSpawnCount < expectedCount) {
@@ -9433,9 +9261,12 @@ obs._trappedBallId = null;
       // Last-place ball(s) eliminated at configurable intervals.
       // When elimination is in progress (frozen), the sequence processor
       // runs in tick() outside isPaused — nothing to do here.
-      if (this.gameMode === 'knockout' && !this._eliminationSequence) {
+      if (this.gameMode === 'knockout' && !this._eliminationSequence && !this._worldLockdown) {
         const interval = this.knockoutInterval || 20;
-        const currentCycle = Math.floor(this.raceTimer / interval);
+        // Elimination timer is measured from _knockoutTimerOffset so a World Shift
+        // restarts it from zero: the next elimination is exactly `interval` later.
+        const effTimer = this.raceTimer - (this._knockoutTimerOffset || 0);
+        const currentCycle = Math.floor(effTimer / interval);
         if (!this.lastKnockoutCycle) this.lastKnockoutCycle = 0;
 
         if (currentCycle > this.lastKnockoutCycle) {
@@ -9448,7 +9279,7 @@ obs._trappedBallId = null;
           // "Elimination In X" countdown during the final 5 seconds before the next cycle.
           // Gameplay continues normally; the elimination freezes the race only once the
           // countdown reaches 0.
-          const nextCycleTime = (this.lastKnockoutCycle + 1) * interval;
+          const nextCycleTime = (this._knockoutTimerOffset || 0) + (this.lastKnockoutCycle + 1) * interval;
           const remaining = nextCycleTime - this.raceTimer;
           if (remaining > 0 && remaining <= 5.1) {
             const value = Math.min(5, Math.max(1, Math.ceil(remaining)));
@@ -9466,7 +9297,7 @@ obs._trappedBallId = null;
               this._eliminationCountdown.scaleAnimStart = performance.now();
               this._eliminationCountdown.lastTick = performance.now();
             }
-          } else {
+} else {
             this._eliminationCountdown = null;
             this._setPipActive(false);
           }
@@ -9833,12 +9664,96 @@ obs._trappedBallId = null;
     seq.phase = 'camera_to_target';
     seq.phaseStartTime = performance.now();
 
+    // Before the camera focuses the target, make sure the ball is fully visible:
+    // finish any pending portal / teleport transition and end every temporary
+    // capture state so the elimination always plays out on a real, visible ball.
+    this._settleBallForElimination(seq.target);
+
     // Calculate ideal camera X to centre this ball on the actual screen centre
     // (accounting for trackOffset so the ball sits at the true screen centre)
     const trackOff = this.trackOffset || 0;
     const targetX = seq.target.x - (this.canvas.width / 2 - trackOff) / this.cameraZoom;
 
     this._startCameraAnimation(targetX, 700 / seq.timeScale);
+  }
+
+// Ends any in-progress transition on the ball that is about to be eliminated so
+  // the elimination cinematic always shows a fully-visible ball disappearing.
+  _settleBallForElimination(ball) {
+    if (!ball || !this.track) return;
+
+    // 1) Finish an in-flight portal transition: if the ball currently overlaps a
+    //    portal entry that hasn't fired yet, complete the teleport now so the ball
+    //    is at its final (exit) position instead of mid-transition.
+    if (this.track.zones) {
+      const zone = this.track.zones.find(z => z.type === 'portal' &&
+        ball.x >= z.x - ball.radius && ball.x <= z.x + z.width + ball.radius &&
+        ball.y >= z.y - ball.radius && ball.y <= z.y + z.height + ball.radius);
+      if (zone) {
+        const pair = this.track.zones.find(z => z !== zone && z.type === 'portal' && z.pairId === zone.pairId);
+        if (pair) {
+          ball.x = pair.x + pair.width / 2;
+          ball.y = pair.y + pair.height / 2;
+        }
+      }
+    }
+
+    // 2) End every temporary capture/effect on the ball (vine, bubble, whirlpool,
+    //    vortex, jellyfish, ice, fire, etc.). Position/velocity/momentum stay as-is
+    //    except for the completed portal teleport above — this is not a respawn.
+    this.resetTemporaryEffects(ball);
+  }
+
+  // Stuck-ball recovery: if a ball makes essentially no forward progress for
+  // several seconds while active, apply the smallest possible correction so it
+  // never remains permanently stuck. Only triggers for genuine stuck states.
+  _recoverStuckBalls(dt) {
+    if (this.state !== 'racing' || this._worldLockdown || this._eliminationSequence) return;
+    const racing = this.balls.filter(b => !b.finished && !b.eliminated);
+    for (const ball of racing) {
+      // Skip if already in a recovery cooldown
+      if (ball._stuckCooldown > 0) {
+        ball._stuckCooldown -= dt;
+        continue;
+      }
+      // Skip balls that are currently captured/frozen (they have a reason to be slow)
+      if (ball._frozen || ball._vineCaptured || ball._bubbleTrapped || ball._whirlpoolCaptured || ball._vortexCaptured || ball._jellyfishStunned) {
+        continue;
+      }
+      const speed = Math.hypot(ball.vx, ball.vy);
+      // If speed is extremely low for a sustained period, treat as potentially stuck
+      if (speed < 0.15) {
+        ball._stuckTimer = (ball._stuckTimer || 0) + dt;
+        ball._stuckRefX = ball._stuckRefX ?? ball.x;
+        ball._stuckRefY = ball._stuckRefY ?? ball.y;
+      } else {
+        // Made meaningful progress - reset
+        ball._stuckTimer = 0;
+        ball._stuckRefX = ball.x;
+        ball._stuckRefY = ball.y;
+        continue;
+      }
+      // If stuck for > 2.5s and moved less than 20px, apply a tiny recovery nudge
+      if (ball._stuckTimer > 2.5 && Math.hypot(ball.x - ball._stuckRefX, ball.y - ball._stuckRefY) < 20) {
+        // Small forward impulse + tiny lateral random + slight separation from walls
+        ball.vx += 0.3;
+        ball.vy += (Math.random() - 0.5) * 0.2;
+        // Small collision separation toward track center
+        if (this.track) {
+          const bounds = this.physics.getWallBoundaries(ball.x, this.track);
+          if (bounds) {
+            const centerY = (bounds.topY + bounds.bottomY) / 2;
+            const dy = centerY - ball.y;
+            ball.vy += dy * 0.001;
+          }
+        }
+        // Set recovery cooldown to avoid repeated nudges
+        ball._stuckCooldown = 5; // 5s cooldown
+        ball._stuckTimer = 0;
+        ball._stuckRefX = ball.x;
+        ball._stuckRefY = ball.y;
+      }
+    }
   }
 
   // ── Smooth cinematic camera swipe (ease-in-out cubic) ─────────
@@ -9911,6 +9826,9 @@ obs._trappedBallId = null;
           seq.target.finishTime = 999.99;
           this._eliminationHiddenBallId = null;
 
+          // Add to "Last Eliminated" panel
+          this._addToLastEliminated(seq.target);
+
           // Show text
           seq.phase = 'text';
           seq.phaseStartTime = now;
@@ -9977,15 +9895,138 @@ obs._trappedBallId = null;
         // Unfreeze
         this.isPaused = false;
 
+        // Show "Countries Remaining" announcement after the full elimination cycle
+        this._showCountriesRemaining();
+
         console.log('[KNOCKOUT] Elimination cycle complete, race resumed');
         break;
       }
     }
   }
 
+  // ── Knockout Broadcast UI Helpers ───────────────────────────────────────
+  // Add an eliminated country to the "Last Eliminated" broadcast panel
+  _addToLastEliminated(ball) {
+    if (!this._lastEliminated) this._lastEliminated = [];
+
+    // Increment elimination counter (this elimination has completed)
+    this._eliminationCount++;
+
+    // Calculate eliminated position using the correct formula:
+    // eliminatedPosition = initialCompetitorCount + extraSpawnedCompetitors - eliminationCount + 1
+    const eliminatedPosition = (this._initialCompetitorCount || 0) + (this._extraSpawnedCompetitors || 0) - this._eliminationCount + 1;
+
+    // Insert at the top (newest first)
+    this._lastEliminated.unshift({
+      code: ball.code,
+      name: ball.name,
+      position: eliminatedPosition
+    });
+    // Keep only last 5
+    if (this._lastEliminated.length > 5) this._lastEliminated.pop();
+    // Update the DOM panel
+    this._updateLastEliminatedPanel();
+  }
+
+  // Update the "Last Eliminated" panel in the HUD
+  _updateLastEliminatedPanel() {
+    if (!this._lastEliminated) return;
+    const list = document.getElementById('hud-last-eliminated-list');
+    const container = document.getElementById('hud-last-eliminated');
+    if (!list || !container) return;
+
+    // Show panel if we have entries
+    if (this._lastEliminated.length > 0) {
+      container.classList.remove('hidden');
+    } else {
+      container.classList.add('hidden');
+      return;
+    }
+
+    // Update each row (reuse existing DOM elements where possible)
+    const existingRows = list.querySelectorAll('.last-eliminated-entry');
+    this._lastEliminated.forEach((entry, idx) => {
+      let row = existingRows[idx];
+      const isNew = !row;
+      if (isNew) {
+        row = document.createElement('div');
+        row.className = 'last-eliminated-entry le-entering';
+        list.appendChild(row);
+      } else {
+        // Remove old state classes
+        row.classList.remove('le-entering', 'le-exiting');
+        // Add shifting class for smooth movement
+        row.classList.add('le-shifting');
+      }
+
+      // Get flag URL
+      const flagUrl = `https://flagcdn.com/w20/${entry.code}.png`;
+
+      // Determine ordinal suffix
+      const pos = entry.position;
+      const suffix = (pos % 10 === 1 && pos !== 11) ? 'st' :
+                     (pos % 10 === 2 && pos !== 12) ? 'nd' :
+                     (pos % 10 === 3 && pos !== 13) ? 'rd' : 'th';
+
+      row.innerHTML = `
+        <span class="last-eliminated-rank">${entry.position}${suffix}</span>
+        <img class="last-eliminated-flag" src="${flagUrl}" alt="${entry.name}" onerror="this.style.display='none'">
+        <span class="last-eliminated-name">${entry.name}</span>
+      `;
+
+      // For new entries, remove entering class after animation
+      if (isNew) {
+        setTimeout(() => row.classList.remove('le-entering'), 350);
+      }
+    });
+
+    // Remove excess rows (more than 5)
+    let excess = existingRows.length - this._lastEliminated.length;
+    let oldIndex = existingRows.length - 1;
+    while (excess-- > 0) {
+      const oldRow = existingRows[oldIndex--];
+      if (oldRow) {
+        oldRow.classList.add('le-exiting');
+        setTimeout(() => oldRow.remove(), 250);
+      }
+    }
+  }
+
+  // Clear the last eliminated panel (called at start of new knockout round)
+  _clearLastEliminatedPanel() {
+    this._lastEliminated = [];
+    const list = document.getElementById('hud-last-eliminated-list');
+    const container = document.getElementById('hud-last-eliminated');
+    if (list) list.innerHTML = '';
+    if (container) container.classList.add('hidden');
+  }
+
+  // Show "Countries Remaining" announcement after elimination cycle
+  _showCountriesRemaining() {
+    // Calculate remaining countries using the correct formula:
+    // countriesRemaining = initialCompetitorCount + extraSpawnedCompetitors - eliminationCount
+    const count = (this._initialCompetitorCount || 0) + (this._extraSpawnedCompetitors || 0) - (this._eliminationCount || 0);
+    const message = `${count} ${count === 1 ? 'Country' : 'Countries'} Remaining`;
+    this._countriesRemainingMessage = message;
+    this._countriesRemainingTimer = 1500; // 1.5 seconds display time
+    // Show via animated centered banner (fade in, small zoom, fade out, ~1.5s)
+    this.eventBanner.show(message, 1500);
+    // Show via commentary system (broadcast style)
+    this.commentary.add(message, 'info');
+  }
+
+  // Update countries remaining timer (called from tick)
+  _updateCountriesRemainingTimer(dt) {
+    if (this._countriesRemainingTimer > 0) {
+      this._countriesRemainingTimer -= dt * 16.666; // dt is in 60fps frames, convert to ms
+      if (this._countriesRemainingTimer <= 0) {
+        this._countriesRemainingMessage = null;
+      }
+    }
+  }
+
   // ── Spawn hundreds of glowing dispersion particles ──────────
   _spawnDispersionParticles(target) {
-    this._dispersionParticlesGlobal = [];
     const count = 200;
     const colors = ['#ffd700', '#ff6b35', '#e74c3c', '#ffaa00', '#ffffff', '#ff4500', '#ff1493'];
     for (let i = 0; i < count; i++) {
@@ -14897,6 +14938,30 @@ this.ctx.restore();
           ball._trailSkipCounter = (ball._trailSkipCounter || 0) + 1;
         }
 
+        // 2) Draw temporary boost trail (triggered only by Boost Pads)
+        if (ball._boostTrailTimer > 0 && ball.trail && ball.trail.length > 1) {
+          // Boost trail is ~50% shorter (max 3 points vs 5 for regular trail)
+          const boostTrailLength = Math.min(3, ball.trail.length);
+          const fadeRatio = ball._boostTrailTimer / 150; // 0 to 1 fade
+          this.ctx.save();
+          this.ctx.globalAlpha = 0.35 * fadeRatio;
+          this.ctx.lineWidth = ball.radius * 0.7;
+          // Bright cyan-green boost glow
+          this.ctx.strokeStyle = `rgba(0, 255, 180, ${0.8 * fadeRatio})`;
+          this.ctx.lineCap = 'round';
+          this.ctx.lineJoin = 'round';
+          this.ctx.beginPath();
+          this.ctx.moveTo(ball.trail[0].x - camX, ball.trail[0].y);
+          // Only render the most recent points for shorter trail
+          for (let k = 1; k < boostTrailLength; k++) {
+            const pointAlpha = 1 - (k / boostTrailLength) * 0.7;
+            this.ctx.globalAlpha = 0.35 * fadeRatio * pointAlpha;
+            this.ctx.lineTo(ball.trail[k].x - camX, ball.trail[k].y);
+          }
+          this.ctx.stroke();
+          this.ctx.restore();
+        }
+
         // 3) Flag ball body ??? redesigned with professional lighting
         this.ctx.save();
 
@@ -16889,6 +16954,12 @@ ctx.restore();
       this.balls.push(ball);
       this.calculateLiveLeaderboard();
 
+      // Manual spawn during race: count as an extra competitor for ranking formulas
+      // Only increment in Knockout mode when a truly new competitor is added
+      if (this.gameMode === 'knockout') {
+        this._extraSpawnedCompetitors = (this._extraSpawnedCompetitors || 0) + 1;
+      }
+
       // Ensure flag is preloaded
       if (this.flagCache && !this.flagCache[code]) {
         const img = new Image();
@@ -18307,6 +18378,663 @@ this.ctx.restore();
       }
     }
 
+    // Bakes the active world's exclusive ambient obstacles exactly as a direct map
+    // launch from the setup screen does: retractable icicles (snow), carnivorous
+    // vines (jungle), and collapsing rock pillars (volcano). Called from normal
+    // track generation AND from the Ultimate Arena World Director on every World
+    // Shift so the newly activated map always gets its complete obstacle set.
+    // (Space objects are handled separately via _initSpaceObjects.)
+    _bakeExclusiveObstacles(track, finishX, enabledSet, themeKey) {
+      if (!track) return;
+      const es = enabledSet || this._enabledSet || new Set();
+      const tk = themeKey || this.currentThemeKey;
+
+      // Generate Retractable Wall Icicles for Glacier Summit
+      if (es.has('icicle')) {
+        const _numIcicles = 120 + Math.floor(Math.random() * 41);
+        const _ballR = 15;
+        const _baseLen = _ballR * 3;
+        const _baseW = _ballR * 1.2;
+        const _snapFrames = 6;
+        const _cycleConfigs = [
+          { outDur: 60, inDur: 60 },
+          { outDur: 120, inDur: 120 },
+          { outDur: 180, inDur: 180 }
+        ];
+        for (let _ii = 0; _ii < _numIcicles; _ii++) {
+          const _ix = 200 + Math.random() * (finishX - 400);
+          if (Math.abs(_ix - finishX) < 600) continue;
+          const _ib = this.physics.getWallBoundaries(_ix, track);
+          if (!_ib || _ib.bottomY - _ib.topY < 120) continue;
+          const _onTop = Math.random() < 0.5;
+          const _len = _baseLen * (0.85 + Math.random() * 0.3);
+          const _bw = _baseW * (0.85 + Math.random() * 0.3);
+          const _cfg = _cycleConfigs[Math.floor(Math.random() * 3)];
+          const _totalFrames = _cfg.outDur + _cfg.inDur;
+          const _phase = Math.floor(Math.random() * _totalFrames);
+          let _overlap = false;
+          for (const _o of track.obstacles) {
+            if (_o.type === 'icicle') continue;
+            if (Math.abs(_o.x - _ix) < 100) { _overlap = true; break; }
+          }
+          if (!_overlap) {
+            for (const _z of track.zones) {
+              if (_z.type === 'portal' && Math.abs((_z.x + _z.width / 2) - _ix) < 100) { _overlap = true; break; }
+            }
+          }
+          if (_overlap) continue;
+          const _wallY = _onTop ? _ib.topY : _ib.bottomY;
+          track.obstacles.push({
+            type: 'icicle', x: _ix,
+            y: _wallY,
+            length: _len, baseWidth: _bw,
+            wallSide: _onTop ? 'top' : 'bottom',
+            _outDur: _cfg.outDur, _inDur: _cfg.inDur,
+            _snapFrames: _snapFrames,
+            _totalFrames: _totalFrames,
+            _phaseOffset: _phase,
+            _timer: _phase,
+            _irregularity: (Math.random() - 0.5) * 3
+          });
+        }
+      }
+
+      // Generate Carnivorous Vines for Amazon Canopy
+      if (es.has('carnivorous_vine') && tk === 'jungle') {
+        const _numVines = 30 + Math.floor(Math.random() * 11);
+        const _minSpacing = 350;
+        const _restrictedZones = [
+          { start: 0, end: 1500 },
+          { start: finishX - 1500, end: finishX }
+        ];
+        const _existingPositions = [];
+
+        for (let _vi = 0; _vi < _numVines; _vi++) {
+          let _attempts = 0;
+          let _placed = false;
+          while (_attempts < 50 && !_placed) {
+            _attempts++;
+            const _vx = 1500 + Math.random() * (finishX - 3000);
+            let _inRestricted = false;
+            for (const _rz of _restrictedZones) {
+              if (_vx >= _rz.start && _vx <= _rz.end) { _inRestricted = true; break; }
+            }
+            if (_inRestricted) continue;
+            let _tooClose = false;
+            for (const _ep of _existingPositions) {
+              if (Math.abs(_vx - _ep) < _minSpacing) { _tooClose = true; break; }
+            }
+            if (_tooClose) continue;
+            let _obstacleConflict = false;
+            for (const _o of track.obstacles) {
+              if (Math.abs(_o.x - _vx) < _minSpacing) { _obstacleConflict = true; break; }
+            }
+            if (_obstacleConflict) continue;
+            let _zoneConflict = false;
+            for (const _z of track.zones) {
+              if (_z.type !== 'finish' && Math.abs((_z.x + _z.width / 2) - _vx) < _minSpacing) {
+                _zoneConflict = true; break;
+              }
+            }
+            if (_zoneConflict) continue;
+            const _vb = this.physics.getWallBoundaries(_vx, track);
+            if (!_vb || _vb.bottomY - _vb.topY < 100) continue;
+            const _onTop = Math.random() < 0.5;
+            const _wallY = _onTop ? _vb.topY : _vb.bottomY;
+            const _length = 75;
+            const _baseWidth = 8 + Math.random() * 6;
+            const _curvature = (Math.random() - 0.5) * 1.5;
+            const _leafCount = 6 + Math.floor(Math.random() * 8);
+            const _thornCount = 3 + Math.floor(Math.random() * 5);
+            const _swayPhase = Math.random() * Math.PI * 2;
+            const _swaySpeed = 0.3 + Math.random() * 0.3;
+            const _breathPhase = Math.random() * Math.PI * 2;
+            _existingPositions.push(_vx);
+            track.obstacles.push({
+              type: 'carnivorous_vine',
+              x: _vx, y: _wallY,
+              wallSide: _onTop ? 'top' : 'bottom',
+              length: _length, baseWidth: _baseWidth,
+              curvature: _curvature,
+              leafCount: _leafCount, thornCount: _thornCount,
+              swayPhase: _swayPhase, swaySpeed: _swaySpeed, breathPhase: _breathPhase,
+              captureState: 'idle', captureTimer: 0, captureBallId: null, captureProgress: 0, wrapSegments: [],
+              leafOffsets: Array(_leafCount).fill(0).map(() => Math.random() * Math.PI * 2),
+              thornOffsets: Array(_thornCount).fill(0).map(() => Math.random() * Math.PI * 2),
+              particles: [],
+              capturedBallIds: new Set()
+            });
+          }
+        }
+      }
+
+      // Generate Collapsing Rock Pillars for Magma Crater
+      if (es.has('collapsing_pillar')) {
+        const numPillars = 12 + Math.floor(Math.random() * 5);
+        const pillarPositions = [];
+        for (let px = 400; px < finishX - 600; px += 80) {
+          if (Math.abs(px - finishX) < 800) continue;
+          const pb = this.physics.getWallBoundaries(px, track);
+          if (!pb || pb.bottomY - pb.topY < 160) continue;
+          let overlap = false;
+          for (const _o of track.obstacles) {
+            if (Math.abs(_o.x - px) < 120) { overlap = true; break; }
+          }
+          if (overlap) continue;
+          for (const _z of track.zones) {
+            if (_z.type === 'finish') continue;
+            if (Math.abs(_z.x + _z.width / 2 - px) < 120) { overlap = true; break; }
+          }
+          if (overlap) continue;
+          if (track.pegs) {
+            for (const _p of track.pegs) {
+              if (Math.abs(_p.x - px) < 80) { overlap = true; break; }
+            }
+          }
+          if (overlap) continue;
+          pillarPositions.push({ x: px, bounds: pb });
+        }
+        const selected = [];
+        for (let i = 0; i < pillarPositions.length && selected.length < numPillars; i++) {
+          const pos = pillarPositions[i];
+          const side = (selected.length % 2 === 0) ? 'top' : 'bottom';
+          let opposite = false;
+          for (const s of selected) {
+            if (Math.abs(s.x - pos.x) < 60 && s.side !== side) { opposite = true; break; }
+          }
+          if (opposite) continue;
+          let tooClose = false;
+          for (const s of selected) {
+            if (Math.abs(s.x - pos.x) < 200) { tooClose = true; break; }
+          }
+          if (tooClose) continue;
+          const wallY = side === 'top' ? pos.bounds.topY - 5 : pos.bounds.bottomY + 5;
+          selected.push({ x: pos.x, y: wallY, side: side });
+        }
+        for (const sp of selected) {
+          const pillarHeight = 65 + Math.random() * 25;
+          const pillarWidth = 18 + Math.random() * 7;
+          const wallSide = sp.side;
+          track.obstacles.push({
+            type: 'collapsing_pillar', x: sp.x, y: sp.y,
+            _wallSide: wallSide, _state: 'standing', _stateTimer: 0,
+            _standingDuration: 480 + Math.floor(Math.random() * 420),
+            _warningDuration: 60,
+            _fallenDuration: 240 + Math.floor(Math.random() * 60),
+            _disappearDuration: 30,
+            _pillarHeight: pillarHeight, _pillarWidth: pillarWidth,
+            _fallenWidth: 55 + Math.random() * 20, _fallenHeight: 28 + Math.random() * 8,
+            _seed: Math.random() * 1000, _shakePhase: Math.random() * Math.PI * 2,
+            _fallDirection: wallSide === 'top' ? 1 : -1,
+            _fallProgress: 0, _crumbleProgress: 0, _dustOverlay: null
+          });
+        }
+      }
+    }
+
+    // ── Ultimate Arena World Shift Map Director (Knockout Mode only) ──
+    // One complete existing world is active at a time. On the configured interval
+    // it runs an exactly-10s "World Shift" countdown (with a Lockdown that suppresses
+    // new gameplay systems), then unloads the previous world entirely and activates
+    // the next. The race, camera, and track are never restarted.
+    _isUltimateArenaActive() {
+      return this.gameMode === 'knockout' && this._ultimateArena === true;
+    }
+
+    // Re-targets the engine to the given world. This is the ONLY place that decides
+    // the active world's theme, lighting, atmosphere, obstacles, events, and track
+    // decoration. Passing prevKey removes every leftover obstacle from the old world.
+    _applyWorld(key, prevKey) {
+      const theme = MAP_THEMES[key];
+      if (!theme) return;
+      this.currentThemeKey = key;
+      this.currentTheme = theme;
+      this.physics._isGlacier = key === 'snow';
+      this.physics._isOcean = key === 'ocean';
+      this.physics.forwardForce = theme.forwardForce * 0.65;
+
+      // Tear down the previous world's entire obstacle system (endless scheduler,
+      // queues, weighted random, exclusive controllers, and the track's tactical
+      // layer) plus its decorations/atmosphere/event, so nothing ever coexists.
+      this._destroyObstacleSystem();
+      if (prevKey) this._removePreviousWorldObstacles(prevKey);
+      this._clearWorldDecorations();
+
+      // Always inherit the exact obstacle density selected in the setup menu and
+      // never let it drift across World Shifts. The spawner re-reads this value so
+      // the newly activated map behaves as if started normally from setup.
+      const setupDensity = (this._loadout && this._loadout.density) || this._obstacleDensityPct || 80;
+      this._obstacleDensityPct = setupDensity;
+
+      // Regenerate the incoming world's obstacle layer onto the existing track using
+      // the SAME procedural generator a direct setup-menu launch would run. This
+      // rebuilds the map's enabled set, frequency weights, ZONE_CONFIG/combos/
+      // templates (including its signature exclusives), baked hidden hazards, and
+      // space objects. Ultimate Arena never schedules obstacles itself; it only
+      // activates the next map's real gameplay, exactly as if launched directly.
+      const len = (this.track && this.track.length) || this.raceLength || 100000;
+      const freqs = (this._loadout && this._loadout.obstacleFreqs) || null;
+      this.generateProceduralTrack(key, len, this.obstacleDensity || 'medium', null, freqs, setupDensity, this.track || undefined);
+
+      // The rebuilt layer is generated across the full live track. During a mid-race
+      // World Shift the balls are already positioned somewhere on it, so clear any
+      // obstacle/zone/peg that landed in the same area as a still-racing ball to avoid
+      // insta-collisions that a fresh grid launch would never create.
+      if (this.track && this.balls) {
+        const clear = new Set(['carnivorous_vine', 'carnivorous_plant', 'rolling_log', 'swinging_vine',
+          'icicle', 'collapsing_pillar', 'whirlpool', 'gravity_well', 'meteor_gate', 'flame_jet']);
+        const guards = this.balls.filter(b => !b.finished);
+        if (guards.length) {
+          const guardedX = guards.map(b => b.x || 0);
+          const left = Math.min(...guardedX) - 260;
+          const right = Math.max(...guardedX) + 260;
+          this.track.obstacles = this.track.obstacles.filter(o => o.x < left || o.x > right || !clear.has(o.type));
+          this.track.zones = this.track.zones.filter(z => z.x < left || z.x > right);
+          if (this.track.pegs) this.track.pegs = this.track.pegs.filter(p => p.x < left || p.x > right);
+        }
+      }
+
+      try { this._initDecorationsForTheme(); } catch (e) { /* ignore */ }
+    }
+
+    // Deletes baked track obstacles/zones/pegs that belong to the previous world so
+    // no obstacle themes ever coexist.
+    _removePreviousWorldObstacles(prevKey) {
+      const types = new Set(OBSTACLE_REGISTRY.filter(o => o.map === prevKey).map(o => o.type));
+      if (!this.track) return;
+      this.track.obstacles = this.track.obstacles.filter(o => !types.has(o.type));
+      if (this.track.zones) this.track.zones = this.track.zones.filter(z => !types.has(z.type));
+      if (this.track.pegs) this.track.pegs = this.track.pegs.filter(p => !types.has(p.type));
+    }
+
+    // Fully tears down the active world's obstacle machinery so only the incoming
+    // map's freshly-generated layer exists. The arena owns no scheduler of its own;
+    // each map runs its real generator, so removing these queues/weights ensures the
+    // old world's spawner state never leaks into the next world.
+    _destroyObstacleSystem() {
+      this._endlessTrackGen = null;
+      this._obstacleFreqWeights = null;
+      this._obstacleDensityPct = (this._loadout && this._loadout.density) || this._obstacleDensityPct || 80;
+      if (this.track) {
+        this.track.obstacles = [];
+        this.track.zones = [];
+        this.track.pegs = [];
+      }
+    }
+
+    // ── Single cleanup authority for temporary gameplay effects ─────────────
+    // This is the ONLY place that removes a ball's temporary state (fire, ice,
+    // teleport visuals, mirage, gravity, tornado/whirlpool/vortex, captures,
+    // buffs/debuffs, particles, animations, icons, text). A World Shift is NOT a
+    // respawn: position, velocity, momentum, direction, country, ID, ranking,
+    // elimination state, and leaderboard are NEVER touched here.
+    resetTemporaryEffects(ball) {
+      if (!ball) return;
+
+      // Carnivorous vine capture / sway
+      if (ball._vineCaptured) {
+        ball._vineCaptured = false;
+        ball._capturedByVine = false;
+      }
+      delete ball._vineVoid;
+      delete ball._vineCaptureVx;
+      delete ball._vineCaptureVy;
+      delete ball._vineCaptureX;
+      delete ball._vineCaptureY;
+
+      // Bubble trap capture
+      if (ball._bubbleTrapped) {
+        ball._bubbleTrapped = false;
+        ball._bubbleTrapRef = null;
+      }
+      delete ball._bubbleTrapStartVx;
+      delete ball._bubbleTrapStartVy;
+
+      // Ice / freeze (status, timers, overlay, speed clamp)
+      delete ball._frozen;
+      delete ball._frozenTimer;
+      delete ball._frozenSpeedMult;
+      delete ball._origVx;
+      delete ball._origVy;
+
+      // Glacier ice-ramp freeze
+      delete ball._iceRampFrozen;
+      delete ball._iceRampFreezeTimer;
+      delete ball._iceRampExitSpeed;
+
+      // Blizzard slow cap
+      delete ball._blizzardCapSpeed;
+
+      // Firestorm burn
+      delete ball._firestormOriginalSpeed;
+      delete ball._firestormActiveSlow;
+      delete ball._firestormBurnActive;
+      delete ball._firestormBurnTimer;
+
+      // Flash-flood slow
+      delete ball._floodOrigSpeed;
+
+      // Sandstorm slow
+      delete ball._sandOrigSpeed;
+
+      // Whirlpool-current event capture
+      if (ball._whirlpoolCaptured) {
+        ball._whirlpoolCaptured = false;
+        ball._whirlpoolRef = null;
+      }
+      delete ball._whirlpoolOrbitR;
+      delete ball._whirlpoolOrbitAngle;
+
+      // Jellyfish stun (state only — never touches velocity/momentum)
+      if (ball._jellyfishStunned) {
+        ball._jellyfishStunned = false;
+      }
+      delete ball._jellyfishStunTimer;
+      delete ball._jellyfishStunOrigVx;
+      delete ball._jellyfishStunOrigVy;
+      delete ball._jellyfishStunWobble;
+
+      // Gravity-well vortex capture
+      if (ball._vortexCaptured) {
+        ball._vortexCaptured = false;
+        ball._vortexRef = null;
+      }
+      delete ball._vortexTimer;
+      delete ball._vortexMaxAmp;
+      delete ball._vortexPhase;
+      delete ball._vortexEntryY;
+      delete ball._vortexExitY;
+
+      // Lava-pool burn
+      delete ball._lavaBurnActive;
+      delete ball._lavaBurnTimer;
+      delete ball._lavaBurnExitSpeed;
+      delete ball._wasInLavaPool;
+
+      // Lava-geyser burn
+      delete ball._geyserBurnActive;
+      delete ball._geyserBurnTimer;
+      delete ball._geyserBurnExitSpeed;
+
+      // Football-shower burn
+      delete ball._showerBurnActive;
+      delete ball._showerBurnTimer;
+      delete ball._showerBurnExitSpeed;
+
+      // Quicksand pit phase / recovery
+      delete ball._qsPhase;
+      delete ball._qsTimer;
+      delete ball._qsOriginalSpeed;
+      delete ball._qsOriginalVx;
+      delete ball._qsOriginalVy;
+      delete ball._qsRecovering;
+      delete ball._qsRecoverTimer;
+      delete ball._qsBurstEmitted;
+      delete ball._qsInPitThisFrame;
+      delete ball._qsEscapeBurst;
+      delete ball._qsEscapeAngle;
+      delete ball._qsEscapeSpeed;
+
+      // Mud puddle slow
+      delete ball._mudOriginalSpeed;
+      delete ball._mudOriginalVx;
+      delete ball._mudOriginalVy;
+      delete ball._wasInMudPuddle;
+
+      // Slow-zone tracking
+      delete ball._wasInSlow;
+      delete ball._wasInKelp;
+      delete ball._wasInLavaPool;
+
+      // Boost / spinner / per-frame interaction flags
+      delete ball._wasInBoost;
+      delete ball._inBoost;
+      delete ball._enteredBoostThisFrame;
+      delete ball._disableBoost;
+      delete ball._usedPortalThisFrame;
+      delete ball._hitHammerThisFrame;
+      delete ball._hitPunchFistThisFrame;
+      delete ball._hitSpinnerThisFrame;
+      delete ball._hitSweepArmThisFrame;
+      delete ball._hitGeyserThisFrame;
+      delete ball._hitCollapsingPillarThisFrame;
+      delete ball._hitMeteorThisFrame;
+      delete ball._hitCBumperThisFrame;
+      delete ball._enteredSlowThisFrame;
+      delete ball._exitedSlowThisFrame;
+      delete ball._enteredMudPuddleThisFrame;
+
+      // Portal / launch / shortcut cooldowns (transient movement controls)
+      delete ball._portalCooldown;
+      delete ball._launchCooldown;
+      delete ball._shortcutCooldown;
+      delete ball._shortcutDist;
+      // Portal loop protection per-ball memory (never survives a shift)
+      delete ball._lastPortalPairId;
+      delete ball._portalLoopCount;
+      delete ball._portalDisabledPairId;
+
+      // Misc transient effects
+      delete ball._soundCooldown;
+      delete ball._cameraShakeTrigger;
+      delete ball._trailSkipCounter;
+
+      // Teleport event: this ball's swap references + floating "Country A ↔ Country B"
+      if (this._teleportPairs) {
+        this._teleportPairs = this._teleportPairs.filter(p => p.ball1 !== ball && p.ball2 !== ball);
+      }
+      if (this._teleportPostPairs) {
+        this._teleportPostPairs = this._teleportPostPairs.filter(p => p.ball !== ball);
+      }
+
+      // Mirage per-ball pattern
+      if (this._miragePatterns && this._miragePatterns[ball.id]) {
+        delete this._miragePatterns[ball.id];
+      }
+    }
+
+    // Runs the single cleanup authority over every still-active ball (batch form
+    // used immediately before a World Shift so no temporary effect survives).
+    resetAllTemporaryEffects() {
+      if (!this.balls) return;
+      for (const ball of this.balls) {
+        if (!ball.finished && !ball.eliminated) this.resetTemporaryEffects(ball);
+      }
+      // Teleport event UI / state is entirely temporary
+      if (this._teleportState !== undefined) this._teleportState = null;
+      if (this._teleportTimer !== undefined) this._teleportTimer = 0;
+      if (this._whiteFlashAlpha !== undefined) this._whiteFlashAlpha = 0;
+    }
+
+    // Clears per-world transient decoration/atmosphere/ambient systems so nothing
+    // from the previous world bleeds into the new one.
+    _clearWorldDecorations() {
+      this._jungleGiantTrees = []; this._jungleRoots = []; this._jungleWaterfalls = [];
+      this._jungleSunRays = []; this._jungleBirds = []; this._jungleButterflies = [];
+      this._jungleMonkeys = []; this._jungleDragonflies = []; this._jungleLeaves = [];
+      this._jungleMistParticles = []; this._jungleFlowers = []; this._jungleWildlife = [];
+      this._jungleFireflies = []; this._jungleAmbientParticles = []; this._jungleRiver = [];
+      this._jungleCrossVines = [];
+      this._spaceObjects = [];
+      this._tumbleweeds = []; this._tumbleweedPool = []; this._tumbleweedSpawnCount = 0;
+
+      if (this._blizzardActive) { this._blizzardActive = false; if (this.sounds.stopBlizzardWind) this.sounds.stopBlizzardWind(); }
+      if (this._auroraActive) { this._auroraActive = false; if (this.sounds.stopAuroraAmbient) this.sounds.stopAuroraAmbient(); }
+      if (this._rainstormActive) this._rainstormActive = false;
+      if (this._flashFloodActive) this._flashFloodActive = false;
+      if (this._lavaShowerActive) this._lavaShowerActive = false;
+      if (this._sandstormActive) this._sandstormActive = false;
+      if (this._mirageActive) this._mirageActive = false;
+      if (this._jellyfishBloomActive) this._jellyfishBloomActive = false;
+      // Cancel the running event so only the new world's event pool governs from now on.
+      this.activeEvent = null;
+      this.eventTimer = 0;
+    }
+
+    _setupUltimateArena() {
+      this._ultimateArena = true;
+      this._arenaShift = null;
+      this._arenaPending = false;
+      this._worldLockdown = false;
+      this._shiftFX = null;
+      this._shiftSnapshot = null;
+      this._setShiftOverlay(false);
+      // Random starting world; the race is one continuous simulation from here.
+      this._arenaWorld = this._arenaWorlds[Math.floor(Math.random() * this._arenaWorlds.length)];
+      this._applyWorld(this._arenaWorld);
+      this._arenaNextShiftAt = this.raceTimer + (this.worldChangeInterval || 90);
+    }
+
+    // Begins the 10s World Shift countdown and enters Lockdown.
+    _startWorldShift() {
+      const pool = this._arenaWorlds.filter(k => k !== this._arenaWorld);
+      if (pool.length === 0) return;
+      const target = pool[Math.floor(Math.random() * pool.length)];
+      this._arenaShift = { value: 10, start: performance.now(), shown: -1, target };
+      this._worldLockdown = true;
+      // Enter World Shift Lock: pause the visible elimination countdown/PiP so no
+      // elimination or its warning is shown during the safe period. Existing gameplay,
+      // balls, camera, and obstacles continue normally.
+      this._eliminationCountdown = null;
+      this._setPipActive(false);
+      this._eliminationQueue = [];
+      const tname = (MAP_THEMES[target] && MAP_THEMES[target].name || target).toUpperCase();
+      const targetEl = document.getElementById('world-transition-target');
+      if (targetEl) targetEl.textContent = tname;
+      this._setShiftOverlay(true);
+    }
+
+    // Executes one synchronized World Shift (old world unloaded, new world loaded).
+    _doWorldShift() {
+      const prev = this._arenaWorld;
+      const next = this._arenaShift && this._arenaShift.target
+        ? this._arenaShift.target
+        : this._arenaWorlds.filter(k => k !== prev)[0];
+      if (!next) { this._arenaShift = null; this._setShiftOverlay(false); this._worldLockdown = false; return; }
+
+      // 1) Pause running gameplay systems before touching anything.
+      //    Elimination timers/countdown are already suppressed by _worldLockdown
+      //    (set at countdown start); stop the active event's timer here so no new
+      //    event phase fires mid-transition.
+      this.eventTimer = 0;
+
+      // 2) Clean every temporary effect from the previous map on all active balls.
+      //    This is the single cleanup authority; a World Shift is never a respawn,
+      //    so position/velocity/momentum/ranking/elimination state are untouched.
+      this.resetAllTemporaryEffects();
+
+      // Snapshot the old world frame for the distortion+fade cue.
+      this._captureShiftSnapshot();
+
+      // 3) Unload the previous map completely, then load the new map completely.
+      //    _applyWorld tears down the old obstacle system + decorations and starts
+      //    the new map's real obstacle system via generateProceduralTrack.
+      this._applyWorld(next, prev);
+      this._arenaWorld = next;
+      this._worldLockdown = false;
+      this._shiftFX = { snapshot: this._shiftSnapshot, start: performance.now(), duration: 1500 };
+      this._arenaShift = null;
+      this._arenaPending = false;
+      this._setShiftOverlay(false);
+      // HUD map name updates automatically via currentTheme.
+      this._arenaNextShiftAt = this.raceTimer + (this.worldChangeInterval || 90);
+
+      // 4) Restart the new map's systems from zero.
+      //    Elimination timer restarts from zero so the next elimination is exactly
+      //    one full interval later (never the remaining pre-shift time).
+      this._knockoutTimerOffset = this.raceTimer;
+      this.lastKnockoutCycle = 0;
+      this._eliminationCountdown = null;
+      this._setPipActive(false);
+      // Event timer restarts from zero so the next event fires after the normal
+      // configured interval instead of immediately after the shift.
+      const evtCfg = this._eventIntensityCfg || { base: 20, variation: 3, maxEvents: 18 };
+      this._nextEventRaceTime = this.raceTimer + evtCfg.base;
+    }
+
+    // Copy the current main-canvas frame to an offscreen snapshot (old world).
+    _captureShiftSnapshot() {
+      this._shiftSnapshot = null;
+      try {
+        const w = this.canvas.width, h = this.canvas.height;
+        if (!w || !h) return;
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(this.canvas, 0, 0);
+        this._shiftSnapshot = c;
+      } catch (e) { this._shiftSnapshot = null; }
+    }
+
+    // ~1.5s distortion (heat-wave ripple) + fade revealing the new world.
+    _drawShiftFX() {
+      if (!this._shiftFX || !this._shiftFX.snapshot) return;
+      const t = Math.min((performance.now() - this._shiftFX.start) / (this._shiftFX.duration || 1500), 1);
+      if (t >= 1) { this._shiftFX = null; this._shiftSnapshot = null; return; }
+      const c = this.ctx, snap = this._shiftFX.snapshot;
+      const W = this.canvas.width, H = this.canvas.height;
+      if (!W || !H) return;
+      const fade = Math.max(0, 1 - t);
+      c.save();
+      c.globalAlpha = Math.min(1, fade);
+      // Subtle heat-wave / space-time ripple: horizontally warp layered strips.
+      const strips = 40, sw = W / strips;
+      const amp = 18 * (1 - t) + 3;
+      const wave = performance.now() * 0.02;
+      for (let i = 0; i < strips; i++) {
+        const ox = Math.sin(wave + i * 0.55) * amp;
+        c.drawImage(snap, i * sw, 0, sw, H, i * sw + ox, 0, sw, H);
+      }
+      c.restore();
+      // Brief expanding ripple ring from the centre for a "reality warping" cue.
+      c.save();
+      c.globalAlpha = Math.max(0, 0.5 * fade);
+      c.strokeStyle = 'rgba(200,180,255,0.9)';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.arc(W / 2, H / 2, (W * 0.7) * this._easeOutCubic(t), 0, Math.PI * 2);
+      c.stroke();
+      c.restore();
+    }
+
+    _easeOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
+
+    _updateWorldDirector() {
+      if (!this._isUltimateArenaActive()) return;
+      if (this.state !== 'racing') return;
+
+      // A shift may have been deferred until the elimination cinematic finished.
+      if (this._arenaPending && !this._eliminationSequence) {
+        this._doWorldShift();
+      }
+      if (!this._arenaShift) {
+        if (this.raceTimer >= this._arenaNextShiftAt) this._startWorldShift();
+        return;
+      }
+      // Countdown uses the wall clock so the race (and raceTimer) keeps running.
+      const remaining = 10 - (performance.now() - this._arenaShift.start) / 1000;
+      const value = Math.max(0, Math.ceil(remaining));
+      if (value !== this._arenaShift.shown) {
+        this._arenaShift.shown = value;
+        this._setShiftCountdown(value);
+      }
+      if (remaining <= 0) {
+        if (this._eliminationSequence) this._arenaPending = true; // shift once elimination ends
+        else this._doWorldShift();
+      }
+    }
+
+    _setShiftOverlay(show) {
+      const ov = document.getElementById('world-transition-overlay');
+      if (!ov) return;
+      if (show) ov.classList.remove('hidden');
+      else ov.classList.add('hidden');
+    }
+
+    _setShiftCountdown(value) {
+      const num = document.getElementById('world-transition-number');
+      if (num) num.textContent = value;
+    }
+
     // Prepares data and starts countdown
     startRace(loadout) {
       if (this.selectedCountries.length === 0) {
@@ -18509,14 +19237,40 @@ this.ctx.restore();
       this._eliminationCountdown = null;
       this._setPipActive(false);
 
+      // Clear knockout broadcast UI for new round
+      this._clearLastEliminatedPanel();
+
+      // Ultimate Arena: reset the director state and pick the starting world BEFORE
+      // track generation (so the arena tracks a real world from the very first frame).
+      this._ultimateArena = false;
+      this._arenaShift = null;
+      this._arenaPending = false;
+      this._worldLockdown = false;
+      this._shiftFX = null;
+      this._shiftSnapshot = null;
+      this._setShiftOverlay(false);
+      this._worldLockdown = false;
+      this._knockoutTimerOffset = 0;
+      if (this._loadout) this._obstacleDensityPct = this._loadout.density || this._obstacleDensityPct || 80;
+      if (this.gameMode === 'knockout' && this._ultimateArenaSelected) {
+        this._setupUltimateArena();
+      }
+
       // Always default camera focus to current leader (auto-switch on overtakes)
       this.selectedBallId = 'leader';
 
       // Procedural generation (respect loadout: obstacles, frequencies, density)
-      const enabledObs = this._loadout ? this._loadout.obstacles : null;
+      // Ultimate Arena: generate the starting world's signature set only (the loadout
+      // enables every registry type, which must never be mixed into one track).
+      const enabledObs = this._ultimateArena ? null : (this._loadout ? this._loadout.obstacles : null);
       const obsFreqs = this._loadout ? this._loadout.obstacleFreqs : null;
       const densityPct = this._loadout ? this._loadout.density : 80;
-      this.generateProceduralTrack(this.currentThemeKey, this.raceLength, this.obstacleDensity, enabledObs, obsFreqs, densityPct);
+      // Ultimate Arena already generated the starting world's track via _applyWorld
+      // (_setupUltimateArena above), so skip the standalone build to avoid a second,
+      // conflicting obstacle layer being generated on top of the active world's.
+      if (!this._ultimateArena) {
+        this.generateProceduralTrack(this.currentThemeKey, this.raceLength, this.obstacleDensity, enabledObs, obsFreqs, densityPct);
+      }
 
 
       // Balls layout
@@ -18542,6 +19296,13 @@ this.ctx.restore();
         if (this.countdownSeconds < 0) {
           clearInterval(this.countdownTimer);
           this.state = 'racing';
+
+          // Initialize Knockout ranking state at race start (after countdown)
+          if (this.gameMode === 'knockout') {
+            this._initialCompetitorCount = this.balls.length;
+            this._extraSpawnedCompetitors = 0;
+            this._eliminationCount = 0;
+          }
 
           // Fire start physics bump to start moving
           this.balls.forEach(ball => {
@@ -18672,6 +19433,7 @@ this.ctx.restore();
       this.state = 'finished';
       this.isPaused = false;
       this._setPipActive(false);
+      this._setShiftOverlay(false);
 
       // Stop Race Director
       this.raceDirector.stop();

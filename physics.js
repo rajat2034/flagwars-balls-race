@@ -133,11 +133,43 @@ class PhysicsEngine {
           const dx = ball.x - cx;
           const dy = ball.y - cy;
           if (dx * dx + dy * dy < ball.radius * ball.radius && !ball._portalCooldown) {
+            // ── Portal Loop Protection ────────────────────────────────────────
+            // Re-enable a previously disabled pair once the ball has travelled a
+            // reasonable distance away from where it looped, restoring normal portals.
+            if (ball._portalDisabledPairId === zone.pairId) {
+              const distFromDisable = Math.hypot(ball.x - (ball._portalDisabledX ?? ball.x),
+                                                 ball.y - (ball._portalDisabledY ?? ball.y));
+              if (distFromDisable > 1200) {
+                ball._portalDisabledPairId = null;
+                delete ball._portalDisabledX;
+                delete ball._portalDisabledY;
+              }
+            }
+
+            // Count consecutive uses of the same portal pair.
+            if (ball._portalLastPairId === zone.pairId) {
+              ball._portalLoopCount = (ball._portalLoopCount || 0) + 1;
+            } else {
+              ball._portalLastPairId = zone.pairId;
+              ball._portalLoopCount = 0;
+            }
+
             const pair = track.zones.find(z => z !== zone && z.type === 'portal' && z.pairId === zone.pairId);
-            if (pair) {
+            // If this pair is currently disabled for this ball, let the ball race on by.
+            const disabled = ball._portalDisabledPairId === zone.pairId;
+            // Double entry (> 0 consecutive re-entry) of the SAME pair in a row is an
+            // infinite-loop indicator: temporarily disable the pair so the ball exits
+            // the loop and keeps racing. A single legit double-back entry (rec count 1)
+            // is still allowed; only a runaway repeat (>1) is blocked.
+            if (!disabled && pair && ball._portalLoopCount > 1) {
+              ball._portalDisabledPairId = zone.pairId;
+              ball._portalDisabledX = ball.x;
+              ball._portalDisabledY = ball.y;
+            }
+            if (!disabled && pair) {
               ball.x = pair.x + pair.width / 2;
               ball.y = pair.y + pair.height / 2;
-              ball._portalCooldown = 30;
+              ball._portalCooldown = 120; // 2s at 60fps (dt decrements ~349)
               ball._usedPortalThisFrame = true;
             }
           }
@@ -158,6 +190,8 @@ class PhysicsEngine {
               ball.vx *= boostMult;
               ball.vy *= boostMult;
               ball._wasInBoost = true;
+              // Activate temporary boost trail effect (2.5s at 60fps = 150 frames)
+              ball._boostTrailTimer = 150;
             }
           } else if (zone.type === 'slow' || zone.type === 'sand' || zone.type === 'lava_pool' || zone.type === 'mud_puddle') {
             if (ball.z === 0 && !ball._wasInSlow && (zone.type === 'slow' || zone.type === 'lava_pool' || zone.type === 'mud_puddle')) {
@@ -512,6 +546,8 @@ class PhysicsEngine {
       if (!ball.trail) ball.trail = [];
       if (ball.trail.length >= 5) ball.trail.shift();
       ball.trail.push({ x: ball.x, y: ball.y, z: ball.z });
+      // Decrement temporary boost trail timer
+      if (ball._boostTrailTimer > 0) ball._boostTrailTimer--;
     });
 
 
