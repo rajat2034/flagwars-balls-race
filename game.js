@@ -2222,6 +2222,8 @@ class GameEngine {
     // ── Knockout Broadcast UI State ───────────────────────────────────────
     // Last 5 eliminated countries for the broadcast panel (newest first)
     this._lastEliminated = [];
+    // Full elimination history (oldest first) used for final rankings
+    this._eliminationHistory = [];
     // Timer for "Countries Remaining" announcement
     this._countriesRemainingTimer = 0;
     this._countriesRemainingMessage = null;
@@ -9924,6 +9926,14 @@ obs._trappedBallId = null;
     });
     // Keep only last 5
     if (this._lastEliminated.length > 5) this._lastEliminated.pop();
+    // Full elimination history (oldest first) — the source of truth for final rankings
+    if (!this._eliminationHistory) this._eliminationHistory = [];
+    this._eliminationHistory.push({
+      code: ball.code,
+      name: ball.name,
+      ballId: ball.id,
+      position: eliminatedPosition
+    });
     // Update the DOM panel
     this._updateLastEliminatedPanel();
   }
@@ -9995,6 +10005,7 @@ obs._trappedBallId = null;
   // Clear the last eliminated panel (called at start of new knockout round)
   _clearLastEliminatedPanel() {
     this._lastEliminated = [];
+    this._eliminationHistory = [];
     const list = document.getElementById('hud-last-eliminated-list');
     const container = document.getElementById('hud-last-eliminated');
     if (list) list.innerHTML = '';
@@ -18110,11 +18121,14 @@ this.ctx.restore();
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           this.ctx.font = 'bold 42px Montserrat, sans-serif';
-          this.ctx.shadowColor = 'rgba(231, 76, 60, 0.7)';
-          this.ctx.shadowBlur = 24;
-          this.ctx.fillStyle = '#e74c3c';
+          this.ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+          this.ctx.shadowBlur = 14;
+          this.ctx.fillStyle = '#ffd700';
+          this.ctx.strokeStyle = 'rgba(20, 12, 0, 0.85)';
+          this.ctx.lineWidth = 2;
           this.ctx.translate(screenW / 2, screenH * 0.35);
           this.ctx.scale(texScale, texScale);
+          this.ctx.strokeText(item.text, 0, 0);
           this.ctx.fillText(item.text, 0, 0);
           this.ctx.restore();
         }
@@ -18141,8 +18155,8 @@ this.ctx.restore();
 
           const cx = screenW / 2;
           const cy = screenH * 0.32;
-          const pillW = 210;
-          const pillH = 112;
+          const pillW = 230;
+          const pillH = 130;
 
           this.ctx.save();
           this.ctx.globalAlpha = cdAlpha;
@@ -18171,15 +18185,25 @@ this.ctx.restore();
           this.ctx.fillStyle = 'rgba(255, 215, 150, 0.95)';
           this.ctx.shadowColor = 'rgba(255, 200, 0, 0.3)';
           this.ctx.shadowBlur = 8;
-          this.ctx.fillText('ELIMINATION IN', 0, -27);
+          this.ctx.fillText('ELIMINATION IN', 0, -34);
 
-          // Number
+          // Number (wrapped so its scale-pop does not distort the label below)
+          this.ctx.save();
           this.ctx.shadowColor = 'rgba(255, 100, 60, 0.8)';
           this.ctx.shadowBlur = 20;
           this.ctx.fillStyle = '#ff6b35';
           this.ctx.font = 'bold 52px Outfit, Montserrat, sans-serif';
           this.ctx.scale(numScale, numScale);
-          this.ctx.fillText(String(cd.value), 0, 20);
+          this.ctx.fillText(String(cd.value), 0, 12);
+          this.ctx.restore();
+
+          // Balls Left (current remaining count, gold, smaller, centered)
+          const liveCount = this.balls.filter(b => !b.finished && !b.eliminated).length;
+          this.ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
+          this.ctx.shadowBlur = 10;
+          this.ctx.fillStyle = '#ffd700';
+          this.ctx.font = 'bold 16px Montserrat, sans-serif';
+          this.ctx.fillText(`${liveCount} BALLS LEFT`, 0, 48);
 
           this.ctx.shadowBlur = 0;
           this.ctx.restore();
@@ -19302,6 +19326,7 @@ this.ctx.restore();
             this._initialCompetitorCount = this.balls.length;
             this._extraSpawnedCompetitors = 0;
             this._eliminationCount = 0;
+            this._eliminationHistory = [];
           }
 
           // Fire start physics bump to start moving
@@ -19443,6 +19468,28 @@ this.ctx.restore();
 
       // Sort leaderboard final
       this.calculateLiveLeaderboard();
+
+      // Knockout final ranking: rank strictly by elimination order.
+      // Winner = last surviving ball, then the most recently eliminated ball is 2nd,
+      // the second-most-recently eliminated is 3rd, and so on. Never derived from the
+      // capped Last-5 panel or from ball-id/race-position ordering.
+      if (this.gameMode === 'knockout') {
+        const survivor = this.balls.find(b => b.finished && !b.eliminated) || this.leaderboard[0];
+        const ranked = [];
+        if (survivor) {
+          survivor.rank = 1;
+          ranked.push(survivor);
+        }
+        const history = this._eliminationHistory || [];
+        for (let i = history.length - 1; i >= 0; i--) {
+          const ball = this.balls.find(b => b.id === history[i].ballId);
+          if (ball) {
+            ball.rank = ranked.length + 1;
+            ranked.push(ball);
+          }
+        }
+        this.leaderboard = ranked;
+      }
 
       // Hide HUD, trigger Winner Screens
       document.getElementById('race-hud').classList.add('hidden');
