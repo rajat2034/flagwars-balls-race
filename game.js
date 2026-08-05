@@ -2249,6 +2249,7 @@ class GameEngine {
     this._shiftSnapshot = null;             // offscreen canvas holding the pre-shift frame
     this._obstacleFreqWeights = null;       // mutable obstacle frequencies for world switching
     this._obstacleDensityPct = 80;          // setup obstacle density (20-100%), re-applied per world
+    this._obstaclePlan = null;              // section-budget obstacle plan built once per map
     this._knockoutTimerOffset = 0;          // resets knockout elimination timer to zero after a shift
 
     // Image pattern cache for country flags
@@ -3304,134 +3305,36 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       return x2 + 150;
     };
 
-    // Helper: generates standard structured layout inside a segment
+    // Helper: materializes the pre-planned obstacle slots that fall inside the
+    // segment range. Positions and types come from this._obstaclePlan (built once
+    // per map / world shift), so gameplay simply follows the plan. Each planned
+    // slot is turned into a concrete obstacle with the exact same placement logic
+    // as before; slots that can't be placed safely are skipped.
     const generateSegmentObstacles = (segStart, segEnd) => {
-      let x = segStart + 50 + Math.random() * 50;
+      const plan = this._obstaclePlan;
+      if (!plan || !plan.slots || plan.slots.length === 0) return;
+
       let lastPlacedType = null;
-      let secondLastPlacedType = null;
-      let thirdLastPlacedType = null;
-      let recoveryRemaining = 0;
-      let clusterRemaining = 0;
-      let gapUntil = x;
-      const segObstaclePositions = [];
-
-      // Density slider (20-100%): higher = more obstacles, tighter spacing
-      // multiplier: 1.8 at 20% ??? 0.5 at 100% (3.6x range)
-      // Read the live setup density so World Shifts never change obstacle density.
-      const pct = this._obstacleDensityPct || densityPct || 80;
-      const densityMult = 1.8 - (pct / 100) * 1.3;
-      // Cap to avoid division by zero / negative
-      let densityFactor = Math.max(0.35, densityMult);
-
-      const MAJOR_OBSTACLES = _filterTypes(['hammer', 'spinner', 'c_bumper', 'portal', 'punchfist', 'sweep_arm', 'barrier']);
-
-      const FORBIDDEN_NEXT = {};
-      [
-        ['hammer', ['portal', 'hammer']],
-        ['portal', ['hammer', 'punchfist', 'spinner', 'portal']],
-        ['spinner', ['hammer', 'portal']],
-        ['punchfist', ['hammer', 'portal']],
-        ['sweep_arm', ['hammer', 'portal']],
-        ['barrier', ['portal', 'hammer']],
-        ['boost', ['slow', 'boost']],
-        ['slow', ['boost', 'slow']]
-      ].forEach(([key, vals]) => {
-        if (this._enabledSet.has(key)) {
-          const filtered = vals.filter(v => this._enabledSet.has(v));
-          if (filtered.length) FORBIDDEN_NEXT[key] = filtered;
-        }
-      });
-
-      let comboNextType = null;
-      let comboNextType2 = null;
-      let consecutiveClusters = 0;
       let _lastPunchHigh = false;
       let _lastHammerTop = false;
-      let _hammerCorridorRemaining = 0;
-      let _hammerCorridorsUsed = 0;
-      const MAX_HAMMER_CORRIDORS = 1 + Math.floor(Math.random() * 3);
 
-      let _safety = 0;
-      while (x < segEnd - 150) {
-        if (++_safety > 500) { console.log('INFINITE LOOP in generateSegmentObstacles'); break; }
-        let forceSafe = recoveryRemaining > 0;
+      const slots = [];
+      for (let i = 0; i < plan.slots.length; i++) {
+        const s = plan.slots[i];
+        if (s.x >= segStart && s.x < segEnd) slots.push(s);
+        else if (s.x >= segEnd) break;
+      }
 
-        // Hammer corridor mode: place alternating hammers directly
-        if (_hammerCorridorRemaining > 0) {
-          const cBounds = getBounds(x);
-          if (!cBounds) { x += 200; continue; }
-          const cAvail = cBounds.bottomY - cBounds.topY;
-          if (cAvail < 160) { _hammerCorridorRemaining = 0; x += 200; continue; }
-          const cArmLen = Math.min(70 + Math.random() * 20, cAvail * 0.45);
-          const cHeadRad = 22 + Math.random() * 6;
-          const cTop = !_lastHammerTop;
-          _lastHammerTop = cTop;
-          const cPY = cTop ? cBounds.topY + 8 : cBounds.bottomY - 8;
-          const cAngle = Math.random() * Math.PI * 2;
-          track.obstacles.push({
-            type: 'hammer', x, y: cPY, armLength: cArmLen, headRadius: cHeadRad,
-            angle: cAngle, speed: 0.160 + Math.random() * 0.040,
-            direction: Math.random() < 0.5 ? 1 : -1, pivotTop: cTop,
-            headX: x + Math.cos(cAngle) * cArmLen,
-            headY: cPY + Math.sin(cAngle) * cArmLen
-          });
-          segObstaclePositions.push(x);
-          _hammerCorridorRemaining--;
-          x += 140 + Math.random() * 30;
-          if (_hammerCorridorRemaining > 0) continue;
-        }
-
-        const t = (x % length) / length;
-
-        // Determine current pacing zone
-        const currentZone = ZONE_CONFIG.find(z => t >= z.start && t < z.end) || ZONE_CONFIG[ZONE_CONFIG.length - 1];
-        let allowedTypes = currentZone.types.filter(tt => this._enabledSet.has(tt));
-        const zoneDensity = currentZone.density;
-
-        // Cluster/gap alternation: if in a gap, skip ahead until gap ends
-        if (gapUntil > x && !comboNextType) {
-          x += Math.min(gapUntil - x, 200);
-          if (x < gapUntil) continue;
-        }
-
-        // Combo sequence: if a combo partner is queued, force it
-        let type;
-        if (comboNextType) {
-          type = comboNextType;
-          comboNextType = comboNextType2;
-          comboNextType2 = null;
-        } else {
-          // No 3 identical obstacles in a row
-          let filtered = allowedTypes.filter(t => t !== lastPlacedType || t !== secondLastPlacedType || t !== thirdLastPlacedType);
-          if (filtered.length === 0) filtered = allowedTypes.filter(t => t !== lastPlacedType);
-
-          // Forbidden sequence prevention
-          if (lastPlacedType && FORBIDDEN_NEXT[lastPlacedType]) {
-            filtered = filtered.filter(t => !FORBIDDEN_NEXT[lastPlacedType].includes(t));
-            if (filtered.length === 0) filtered = allowedTypes.filter(t => t !== lastPlacedType);
-          }
-
-          // Forced safe types during recovery period
-          if (forceSafe) {
-            const safeTypes = filtered.filter(t => !MAJOR_OBSTACLES.includes(t));
-            if (safeTypes.length > 0) filtered = safeTypes;
-            recoveryRemaining -= 1;
-          }
-
-          // Weighted random selection based on obstacle frequency
-          const weights = filtered.map(t => (this._obstacleFreqWeights && this._obstacleFreqWeights[t]) || 5);
-          const totalW = weights.reduce((a, b) => a + b, 0);
-          let rw = Math.random() * totalW;
-          type = filtered[filtered.length - 1];
-          for (let wi = 0; wi < filtered.length; wi++) {
-            if (rw < weights[wi]) { type = filtered[wi]; break; }
-            rw -= weights[wi];
-          }
-        }
+      for (let si = 0; si < slots.length; si++) {
+        // Plan slots are spaced budget-fairly; jitter each within its band so
+        // segment regeneration attempts can find a wall/obstacle-safe offset.
+        const bx = slots[si].x;
+        const band = slots[si].band || 60;
+        const x = Math.min(segEnd - 150, Math.max(segStart, bx + (Math.random() - 0.5) * band));
+        const type = slots[si].type;
 
         const bounds = getBounds(x);
         if (!bounds) {
-          x += 200;
           continue;
         }
 
@@ -3441,7 +3344,6 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
 
         // Skip hammer & punchfist in narrow track sections
         if ((type === 'hammer' || type === 'punchfist') && availH < 160) {
-          x += 200;
           continue;
         }
 
@@ -3453,20 +3355,13 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         }
         if (nearRestricted) {
           if (type === 'peg' || type === 'barrier' || type === 'spinner' || type === 'hammer' || type === 'punchfist' || type === 'sweep_arm' || type === 'c_bumper') {
-            x += 80;
             continue;
           }
         }
 
-        // Start Alternating Hammer Corridor?
-        if (_hammerCorridorsUsed < MAX_HAMMER_CORRIDORS && type === 'hammer' && !forceSafe && t >= 0.20 && t < 0.85 && segEnd - x > 700 && Math.random() < 0.18) {
-          _hammerCorridorRemaining = 5 + Math.floor(Math.random() * 4);
-          _hammerCorridorsUsed++;
-        }
-
-        const cfg = SPACING_CONFIG[type] || { min: 150, preferred: 200, recovery: 0, safeLanding: 0 };
         const _prevObsLen = track.obstacles.length;
         const _prevZoneLen = track.zones.length;
+        const _prevPegLen = track.pegs ? track.pegs.length : 0;
 
         // 1. Position details & dynamic sizing based on available lane height
         if (type === 'c_bumper') {
@@ -3500,7 +3395,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           }
         } else if (type === 'boost') {
           const boostClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle' || z.type === 'lava_pool') && Math.abs(z.x + z.width / 2 - x) < 400);
-          if (boostClose) { x += 200; continue; }
+          if (boostClose) { continue; }
           const w = 75;
           const h = 45;
           track.zones.push({
@@ -3511,7 +3406,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         } else if (type === 'lava_pool') {
           // Magma Crater: Lava Pool (replaces Slow Ramp)
           const slowClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - x) < 400);
-          if (slowClose) { x += 200; continue; }
+          if (slowClose) { continue; }
           const w = this.currentThemeKey === 'jungle' ? 135 : 60;
           const h = this.currentThemeKey === 'jungle' ? 101 : 45;
           const zoneType = this.currentThemeKey === 'jungle' ? 'mud_puddle || lava_pool' : 'slow';
@@ -3523,7 +3418,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         } else if (type === 'slow') {
           // Standard Slow Ramp (non-volcano maps only), replaced by Quicksand Pit on Sahara Desert
           const slowClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - x) < 400);
-            if (slowClose) { x += 200; continue; }
+            if (slowClose) { continue; }
             const w = 60;
             const h = 45;
             const isDesert = this.currentThemeKey === 'desert';
@@ -3555,13 +3450,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             punchX: x, punchY: centerY
           });
         } else if (type === 'portal') {
-          const adv = tryPlacePortalPair(x, bounds, segEnd);
-          if (adv) {
-            x = adv;
-          } else {
-            x += 200;
-            continue;
-          }
+          tryPlacePortalPair(x, bounds, segEnd);
         } else if (type === 'launch') {
           const padW = 50;
           track.zones.push({
@@ -3805,15 +3694,8 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           });
         }
 
-        // Track last 3 types to prevent triplicates
-        thirdLastPlacedType = secondLastPlacedType;
-        secondLastPlacedType = lastPlacedType;
-        lastPlacedType = type;
-
-        if (clusterRemaining > 0) clusterRemaining--;
-        segObstaclePositions.push(x);
-
-        // Overlap prevention: check new elements against ALL existing obstacle/zone BBs
+        // Overlap prevention: check new elements against ALL existing obstacle/zone BBs.
+        // A planned slot that can't be placed safely is simply skipped.
         let _overlap = false;
         for (let _oi = _prevObsLen; _oi < track.obstacles.length && !_overlap; _oi++) {
           const _newBB = getBB(track.obstacles[_oi]);
@@ -3840,114 +3722,11 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         if (_overlap) {
           while (track.obstacles.length > _prevObsLen) track.obstacles.pop();
           while (track.zones.length > _prevZoneLen) track.zones.pop();
-          lastPlacedType = secondLastPlacedType;
-          secondLastPlacedType = thirdLastPlacedType;
+          if (track.pegs) while (track.pegs.length > _prevPegLen) track.pegs.pop();
           continue;
         }
 
-        const isDifficult = MAJOR_OBSTACLES.includes(type);
-        let nextSpacing = cfg.preferred;
-        if (type === 'boost' || isDifficult) nextSpacing += cfg.recovery;
-        if (type === 'boost') nextSpacing += 120;
-        if (type === 'portal') nextSpacing += cfg.safeLanding;
-
-        const xBeforeAdvance = x;
-
-        // Dynamic density: variable spacing creates organic feel
-        const variability = 0.75 + Math.random() * 0.25;
-        const normalAdvance = Math.max(cfg.min, nextSpacing * densityFactor * zoneDensity * variability);
-        x += normalAdvance;
-
-        // Attempt to start a combo or template (clusters of 2-3)
-        const clusterComboChance = consecutiveClusters >= 2 ? 0.40 : 0.75;
-        if (!comboNextType && !forceSafe && comboCount < MAX_COMBOS && lastPlacedType && Math.random() < clusterComboChance) {
-          consecutiveClusters++;
-          if (templateIndex < shuffledTemplates.length && Math.random() < 0.4) {
-            const template = shuffledTemplates[templateIndex];
-            if (template[0] === lastPlacedType && allowedTypes.includes(template[1]) && allowedTypes.includes(template[2])) {
-              comboNextType = template[1];
-              comboNextType2 = template[2];
-              x = Math.max(xBeforeAdvance + 80, xBeforeAdvance + 100);
-              comboCount++;
-              templateIndex++;
-              clusterRemaining = 2;
-            }
-          }
-          if (!comboNextType) {
-            const compatible = COMBINATIONS.filter(c =>
-              c.types[0] === lastPlacedType &&
-              !usedCombos.includes(c) &&
-              allowedTypes.includes(c.types[1])
-            );
-            if (compatible.length > 0) {
-              const totalWeight = compatible.reduce((s, c) => s + c.weight, 0);
-              let roll = Math.random() * totalWeight;
-              for (const combo of compatible) {
-                roll -= combo.weight;
-                if (roll <= 0) {
-                  comboNextType = combo.types[1];
-                  x = Math.max(xBeforeAdvance + 80, xBeforeAdvance + combo.gap * 2);
-                  usedCombos.push(combo);
-                  comboCount++;
-                  clusterRemaining = 1;
-                  break;
-                }
-              }
-            }
-          }
-          // If no compatible combo found, revert the consecutive counter
-          if (!comboNextType) consecutiveClusters--;
-        }
-
-        // If not in a combo and cluster done, schedule next gap
-        if (!comboNextType && clusterRemaining <= 0) {
-          const gapLen = consecutiveClusters > 0
-            ? 120 + Math.random() * 160
-            : 80 + Math.random() * 100;
-          consecutiveClusters = 0;
-          lastPlacedType = null;
-          secondLastPlacedType = null;
-          thirdLastPlacedType = null;
-          gapUntil = x + gapLen;
-        }
-
-        if (isDifficult) {
-          recoveryRemaining = Math.max(recoveryRemaining, 3);
-        } else {
-          recoveryRemaining = Math.max(0, recoveryRemaining - 1);
-        }
-      }
-
-      // Dead-space validation: fill excessive gaps based on density
-      // Higher density = lower threshold (fill even moderate gaps)
-      const maxGap = Math.round(1100 - (pct / 100) * 900); // e.g. 1100px at 20%, 200px at 100%
-      if (segObstaclePositions.length > 1) {
-        for (let i = 1; i < segObstaclePositions.length; i++) {
-          const gap = segObstaclePositions[i] - segObstaclePositions[i - 1];
-          if (gap > maxGap) {
-            const insX = segObstaclePositions[i - 1] + gap / 2;
-            if (insX < segEnd - 150) {
-              const ib = getBounds(insX);
-              if (ib) {
-                const icY = (ib.topY + ib.bottomY) / 2;
-                const iAvail = ib.bottomY - ib.topY;
-                // Only use enabled obstacles for gap filling
-                const fb = ['boost', 'spinner', 'barrier'].filter(t => this._enabledSet.has(t));
-                if (fb.length === 0) continue;
-                const ft = fb[Math.floor(Math.random() * fb.length)];
-                if (ft === 'boost') {
-                  const bClose = track.zones.some(z => (z.type === 'slow' || z.type === 'lava_pool' || z.type === 'quicksand_pit') && Math.abs(z.x + z.width / 2 - insX) < 400);
-                  if (bClose) continue;
-                  track.zones.push({ type: 'boost', x: insX - 37, y: clampY(icY - 22, ib, 27), width: 75, height: 45, force: 0.20 });
-                } else if (ft === 'spinner') {
-                  track.obstacles.push({ type: 'spinner', x: insX, y: clampY(icY, ib, 40), length: Math.min(80, iAvail * 0.4), angle: 0, speed: 0.04, pins: [] });
-                } else if (ft === 'barrier') {
-                  track.obstacles.push({ type: 'barrier', x: insX, y: icY, width: 18, height: Math.min(80, iAvail * 0.5), isVertical: true, gapMin: 0, gapMax: iAvail * 0.5, state: 'opening', stateTimer: 0, openDuration: 100, closeDuration: 100, currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: ib.topY, bottomY: ib.bottomY });
-                }
-              }
-            }
-          }
-        }
+        lastPlacedType = type;
       }
     };
 
@@ -3974,7 +3753,29 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       }
     };
 
-    // Segment partition and loop (leave last 1000px before finish obstacle-free)
+    // ── Build the section-budget obstacle plan for this map ────────────────
+    // The plan is generated once here (and rebuilt on World Shift / Knockout
+    // extension), then every segment simply materializes the planned slots that
+    // fall inside its range. This replaces the old random-walk spawner so the
+    // whole race stays consistently populated from start to finish.
+    // Density resolution: an explicit setup % wins, then the setup-saved %, then
+    // the legacy density string (low/medium/high) so the diagnostics suite and
+    // any caller that only passes a density string still get a meaningful plan.
+    let planPct = (densityPct != null && !isNaN(densityPct))
+      ? Math.max(20, Math.min(100, densityPct))
+      : (this._obstacleDensityPct != null && !isNaN(this._obstacleDensityPct))
+        ? Math.max(20, Math.min(100, this._obstacleDensityPct))
+        : (densityStr === 'low' ? 25 : densityStr === 'medium' ? 50 : densityStr === 'high' ? 75 : 80);
+    this._obstaclePlan = this._buildObstaclePlan(
+      enabledSet, freqWeights, planPct,
+      800, finishX - 1000, null
+    );
+
+    // Segment partition and loop (leave last 1000px before finish obstacle-free).
+    // The plan fixes the type sequence and per-section budget; each segment
+    // materializes its planned slots with a small position jitter and is validated.
+    // A few regeneration attempts (new jitter each time) keep the same layout but
+    // find a wall-safe offset; only a persistent failure falls back to sparse.
     const numSegments = 10;
     const segmentWidth = (finishX - 1800) / numSegments;
 
@@ -3982,33 +3783,44 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       const segStart = 800 + s * segmentWidth;
       const segEnd = segStart + segmentWidth;
 
-      let retries = 0;
-      let valid = false;
-
-      while (retries < 10 && !valid) {
+      let best = null;
+      let bestErrors = Infinity;
+      for (let attempt = 0; attempt < 6; attempt++) {
         // Clear old items inside this segment range
         track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
         track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
         if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
 
-        // Generate segment contents
+        // Generate segment contents from the plan
         generateSegmentObstacles(segStart, segEnd);
 
         // Run validation pass
         const errors = validateSegment(segStart, segEnd);
-        if (errors === 0) {
-          valid = true;
-        } else {
-          retries++;
+        if (errors === 0) { best = null; break; }
+
+        if (errors < bestErrors) {
+          bestErrors = errors;
+          best = {
+            obstacles: track.obstacles.filter(o => o.x >= segStart && o.x < segEnd),
+            zones: track.zones.filter(z => z.x >= segStart && z.x < segEnd),
+            pegs: track.pegs ? track.pegs.filter(p => p.x >= segStart && p.x < segEnd) : []
+          };
         }
       }
 
-      // If segment keeps failing, fall back to safe spacing sparse layout
-      if (!valid) {
+      // If no attempt hit zero errors, restore the lowest-error layout; only when
+      // that produced nothing at all fall back to the safe sparse layout.
+      if (best) {
         track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
         track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
         if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
-        generateSparseSegment(track, segStart, segEnd);
+        if (best.obstacles.length > 0 || best.zones.length > 0) {
+          track.obstacles.push(...best.obstacles);
+          track.zones.push(...best.zones);
+          if (track.pegs) track.pegs.push(...best.pegs);
+        } else {
+          generateSparseSegment(track, segStart, segEnd);
+        }
       }
     }
 
@@ -4021,165 +3833,9 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       generateSparseSegment
     };
     
-    // Ensure minimum counts: at least 30 of each major type per race (only enabled types)
-    const MIN_COUNT = 30;
-    const TYPE_COUNTS = {};
-    ['hammer', 'spinner', 'barrier', 'sweep_arm', 'punchfist',
-     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon', 'mud_puddle', 'lava_geyser', 'sand_vortex', 'quicksand_pit']
-      .filter(t => enabledSet.has(t))
-      .forEach(t => { TYPE_COUNTS[t] = 0; });
-    track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
-    track.zones.forEach(z => { if (z.type !== 'finish' && TYPE_COUNTS[z.type] !== undefined) TYPE_COUNTS[z.type]++; });
-    const underTypes = Object.keys(TYPE_COUNTS).filter(t => TYPE_COUNTS[t] < MIN_COUNT);
-    const _isRestricted = (px) => {
-      if (Math.abs(px - finishX) < 1000) return true;
-      for (const _r of track.obstacles) {
-        if (_r.type === 'barrier' && Math.abs(px - _r.x) < 100) return true;
-        if (_r.type === 'c_bumper' && Math.abs(px - _r.x) < (_r.radius || 55) + 50) return true;
-      }
-      return false;
-    };
-    for (const ut of underTypes) {
-      const needed = MIN_COUNT - TYPE_COUNTS[ut];
-      for (let n = 0; n < needed; n++) {
-        let tryX = 800 + Math.random() * (finishX - 1800);
-        let _attempts = 0;
-        while (_isRestricted(tryX) && _attempts < 20) { tryX = 800 + Math.random() * (finishX - 1800); _attempts++; }
-        if (_attempts >= 20) continue;
-        const b = getBounds(tryX);
-        if (!b) continue;
-        const cY = (b.topY + b.bottomY) / 2;
-        const aH = b.bottomY - b.topY;
-        if (ut === 'hammer') {
-          const topPivot = Math.random() < 0.5;
-          const startAngle = Math.random() * Math.PI * 2;
-          const armLen = 60 + Math.random() * 30;
-          track.obstacles.push({
-            type: 'hammer', x: tryX, y: topPivot ? b.topY + 8 : b.bottomY - 8,
-            armLength: armLen, headRadius: 22 + Math.random() * 6,
-            angle: startAngle, speed: 0.140 + Math.random() * 0.060,
-            direction: Math.random() < 0.5 ? 1 : -1, pivotTop: topPivot,
-            headX: tryX + Math.cos(startAngle) * armLen,
-            headY: (topPivot ? b.topY + 8 : b.bottomY - 8) + Math.sin(startAngle) * armLen
-          });
-        } else if (ut === 'spinner') {
-          track.obstacles.push({
-            type: 'spinner', x: tryX, y: clampY(cY, b, 45),
-            length: Math.min(80, aH * 0.5), angle: 0, speed: 0.04 + Math.random() * 0.03, pins: []
-          });
-        } else if (ut === 'barrier') {
-          track.obstacles.push({
-            type: 'barrier', x: tryX, y: cY, width: 18, height: Math.min(80, aH * 0.5),
-            isVertical: true, gapMin: 0, gapMax: aH * 0.5,
-            state: 'opening', stateTimer: 0,
-            openDuration: 20, closeDuration: 15,
-            currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: b.topY, bottomY: b.bottomY
-          });
-        } else if (ut === 'sweep_arm') {
-          track.obstacles.push({
-            type: 'sweep_arm', x: tryX, y: clampY(cY, b, 20),
-            length: 80 + Math.random() * 30, angle: 0,
-            speed: 0.030, physicsSpeed: 0.090 + Math.random() * 0.035,
-            direction: Math.random() < 0.5 ? 1 : -1,
-            _isJungle: themeKey === 'jungle'
-          });
-        } else if (ut === 'punchfist') {
-          const pAngle = Math.random() * Math.PI * 2;
-          track.obstacles.push({
-            type: 'punchfist', x: tryX, y: clampY(cY, b, 35),
-            angle: pAngle, extendDist: 100,
-            punchRadius: 30, state: 'retracted', stateTimer: 0,
-            extendSpeed: 12, retractSpeed: 6,
-            holdDuration: 8, waitDuration: 15,
-            punchX: tryX, punchY: cY
-          });
-        } else if (ut === 'c_bumper') {
-          track.obstacles.push({
-            type: 'c_bumper', x: tryX, y: clampY(cY, b, 35),
-            radius: Math.min(55, aH * 0.35), thickness: 8,
-            rotation: 0, spinSpeed: 0.04
-          });
-
-        } else if (ut === 'boost') {
-          const tooClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle' || z.type === 'lava_pool' || z.type === 'quicksand_pit') && Math.abs(z.x + z.width / 2 - tryX) < 400);
-          if (tooClose) continue;
-          track.zones.push({
-            type: 'boost', x: tryX - 37, y: clampY(cY - 22, b, 27),
-            width: 75, height: 45, force: 0.20
-          });
-        } else if (ut === 'lava_pool') {
-          // Magma Crater: Lava Pool (replaces Slow Ramp)
-          const tooClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - tryX) < 400);
-          if (tooClose) continue;
-          track.zones.push({
-            type: 'lava_pool', x: tryX - 35, y: clampY(cY - 25, b, 25),
-            width: 70, height: 50
-          });
-        } else if (ut === 'lava_geyser') {
-          // Magma Crater: Lava Geyser (exclusive to volcano)
-          track.obstacles.push({
-            type: 'lava_geyser', x: tryX, y: clampY(cY, b, 40),
-            crackWidth: 25 + Math.random() * 10,
-            crackHeight: 60 + Math.random() * 20,
-            eruptionHeight: 150 + Math.random() * 80,
-            // Cycle timing
-            _state: 'hidden', // 'hidden' | 'warning' | 'erupting'
-            _stateTimer: 0,
-            _cycleTimer: 0,
-            _cycleDuration: (180 + Math.floor(Math.random() * 180)) * (60 / 60), // 3-6 seconds at 60fps
-            _warningDuration: 30, // 0.5 seconds at 60fps
-            _eruptionDuration: 60, // 1 second at 60fps
-            // Visual
-            _warningGlow: 0,
-            _eruptionParticles: []
-          });
-        } else if (ut === 'quicksand_pit') {
-          // Sahara Desert: Quicksand Pit (replaces Slow Ramp) - 30% larger
-          const qw = 72 + Math.random() * 32;
-          const qh = 72 + Math.random() * 32;
-          track.zones.push({
-            type: 'quicksand_pit', x: tryX - qw / 2, y: clampY(cY - qh / 2, b, qh / 2 + 5),
-            width: qw, height: qh
-          });
-
-        } else if (ut === 'slow') {
-          // Standard Slow Ramp (non-volcano maps only)
-          const tooClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - tryX) < 400);
-          if (tooClose) continue;
-          const zoneType = themeKey === 'jungle' ? 'mud_puddle' : 'slow';
-          const w = themeKey === 'jungle' ? 135 : 60;
-          const h = themeKey === 'jungle' ? 101 : 45;
-          track.zones.push({
-            type: zoneType, x: tryX - w / 2, y: clampY(cY - h / 2, b, h / 2 + 5),
-            width: w, height: h
-          });
-
-        } else if (ut === 'launch') {
-          track.zones.push({
-            type: 'launch', x: tryX - 25, y: b.bottomY - 20,
-            width: 50, height: 20
-          });
-        } else if (ut === 'portal') {
-          if (tryPlacePortalPair(tryX, b, finishX) == null) continue;
-        } else if (ut === 'ice_cannon') {
-          track.obstacles.push({
-            type: 'ice_cannon', x: tryX, y: clampY(cY, b, 35),
-            cannonHeight: 50, barrelLength: 40,
-            _lastFireTime: Math.floor(Math.random() * 120), _fireInterval: 120,
-            _projectiles: [], _splashEffects: []
-          });
-        } else if (ut === 'sand_vortex') {
-          const r = 55 + Math.random() * 25;
-          const h = 80 + Math.random() * 40;
-          track.obstacles.push({
-            type: 'sand_vortex', x: tryX, y: clampY(cY, b, h * 0.5 + 10),
-            radius: r,
-            height: h,
-            _affectedBalls: new Set()
-          });
-        }
-      }
-    }
+    // Minimum-count enforcement removed: the section-budget plan (this._obstaclePlan)
+    // already distributes every enabled type evenly across the playable track, so
+    // random re-cluttering is no longer needed.
 
     // Remove obstacles/pegs in restricted zones (near finish, barrier gaps, rotating circles)
     {
@@ -4271,9 +3927,258 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
     // active world. Reused verbatim both at normal map startup (below) and by the
     // Ultimate Arena World Director on every World Shift (_applyWorld) so the new
     // map's signature obstacles always initialize exactly as a direct setup launch.
-    this._bakeExclusiveObstacles(track, finishX, enabledSet, themeKey);
+    const densityPctForBake = planPct;
+    this._bakeExclusiveObstacles(track, finishX, enabledSet, themeKey, densityPctForBake);
 
     this.track = track;
+  }
+
+  // ── Section-budget obstacle planner ──────────────────────────────────────
+  // Replaces the old "roll a random type, advance by a random timer" walk with a
+  // single plan generated once per map. The playable length is split into equal
+  // sections; every section receives an obstacle budget so no stretch ever feels
+  // empty. Exclusive (signature) obstacles are spread evenly across the whole
+  // length with a minimum spacing so no map type ever clusters near the start or
+  // disappears mid-race. The setup density slider (20-100%) is the single source
+  // of truth: it picks what fraction of the 100%-density planned slots actually
+  // materialize, and it scales every category (basic, exclusive, moving and
+  // stationary) identically. The plan is generated once at race start / world
+  // shift; gameplay simply follows it (see generateSegmentObstacles).
+
+  // Resolves which placement branches are eligible for the current map/loadout.
+  // Branch names match the placement switch inside generateSegmentObstacles; the
+  // 'slow' branch covers slow / quicksand-pit / mud-puddle zones (the placement
+  // switch picks the concrete zone type from the active theme).
+  _planBranches(enabledSet, freqWeights) {
+    const w = (k) => (freqWeights && freqWeights[k] != null) ? freqWeights[k] : 5;
+    const branches = [];
+    const add = (branch, keys, exclusive) => {
+      const present = keys.filter(k => enabledSet.has(k));
+      if (present.length === 0) return;
+      let weight = 0;
+      for (const k of present) weight = Math.max(weight, w(k));
+      branches.push({ branch, weight, exclusive });
+    };
+    add('boost', ['boost'], false);
+    add('slow', ['slow', 'quicksand_pit', 'mud_puddle'], false);
+    add('spinner', ['spinner'], false);
+    add('punchfist', ['punchfist'], false);
+    add('barrier', ['barrier'], false);
+    add('hammer', ['hammer'], false);
+    add('sweep_arm', ['sweep_arm'], false);
+    add('c_bumper', ['c_bumper'], false);
+    add('launch', ['launch'], false);
+    add('peg', ['peg'], false);
+    add('portal', ['portal'], false);
+    // Exclusive signature branches handled by the placement switch (each belongs
+    // to exactly one map, so it can only ever be enabled for that map's theme).
+    add('ice_cannon', ['ice_cannon'], true);
+    add('lava_pool', ['lava_pool'], true);
+    add('lava_geyser', ['lava_geyser'], true);
+    add('bubble_trap', ['bubble_trap'], true);
+    add('hydrothermal_vent', ['hydrothermal_vent'], true);
+    add('sea_mine', ['sea_mine'], true);
+    add('sea_urchin_field', ['sea_urchin_field'], true);
+    add('floating_kelp', ['floating_kelp'], true);
+    add('sand_vortex', ['sand_vortex'], true);
+    return branches;
+  }
+
+  // Builds a planned slot list covering [playableStart, playableEnd].
+  // When prevPlan is passed (Knockout track extension), exclusive spacing memory
+  // carries over so min-spacing holds across extensions.
+  _buildObstaclePlan(enabledSet, freqWeights, pct, playableStart, playableEnd, prevPlan) {
+    const plan = {
+      pct,
+      playableStart,
+      playableEnd,
+      slots: [],
+      lastExclusiveX: {}
+    };
+    const clampX = (x) => Math.min(Math.max(x, playableStart), playableEnd);
+    if (prevPlan) {
+      for (const k in prevPlan.lastExclusiveX) plan.lastExclusiveX[k] = prevPlan.lastExclusiveX[k];
+    }
+    const L = playableEnd - playableStart;
+    if (L <= 50) return plan;
+
+    const branches = this._planBranches(enabledSet, freqWeights);
+    if (branches.length === 0) return plan;
+
+    // Total planned slots at 100% density (one slot every ~280px), then the
+    // density slider picks the actual fraction. 20% => 20% of the plan, 100% =>
+    // every planned slot.
+    const totalSlots100 = Math.max(2, Math.round(L / 280));
+    const targetSlots = Math.max(1, Math.round(totalSlots100 * (pct / 100)));
+
+    const exclusiveBranches = branches.filter(b => b.exclusive);
+    const generalBranches = branches.filter(b => !b.exclusive);
+
+    // ---- Fair per-family spawn budget ----
+    // Every obstacle family (basic AND exclusive) receives its own equal share of
+    // the 100%-density slot budget. Signature (exclusive) obstacles therefore get
+    // the same presence as basic families instead of being starved to a handful
+    // per race. The density slider scales every family identically: 20% => fewer
+    // of everything, 100% => the maximum budget for everything.
+    const numFamilies = Math.max(1, generalBranches.length + exclusiveBranches.length);
+    const perFamily100 = totalSlots100 / numFamilies;
+    const perFamilyPct = Math.max(1, Math.round(perFamily100 * (pct / 100)));
+
+    const exclusives = [];
+    for (const eb of exclusiveBranches) {
+      exclusives.push({ type: eb.branch, count: perFamilyPct });
+    }
+    let exclusiveSlotCount = exclusives.reduce((a, e) => a + e.count, 0);
+    let generalSlots = Math.max(0, targetSlots - exclusiveSlotCount);
+
+    // At very low density the exclusive floor must never exceed the total budget.
+    if (exclusiveSlotCount > targetSlots) {
+      const scale = targetSlots / exclusiveSlotCount;
+      let total = 0;
+      for (const ex of exclusives) {
+        ex.count = Math.max(1, Math.round(ex.count * scale));
+        total += ex.count;
+      }
+      while (total > targetSlots) {
+        const big = exclusives.reduce((a, b) => (a.count >= b.count ? a : b), exclusives[0]);
+        if (big.count <= 1) break;
+        big.count--;
+        total--;
+      }
+      exclusiveSlotCount = total;
+      generalSlots = 0;
+    }
+
+    // ---- Portal slots: capped by the existing portal budget, spread evenly ----
+    const portalPositions = [];
+    if (branches.some(b => b.branch === 'portal')) {
+      const windows = Math.max(1, Math.floor(playableEnd / 128571) + 1);
+      const maxPairs = Math.max(1, 10 * windows);
+      const portals = Math.min(maxPairs, Math.max(1, Math.round(maxPairs * (pct / 100))));
+      const step = L / portals;
+      for (let i = 0; i < portals; i++) {
+        const x = clampX(playableStart + step * (i + 0.5) + (Math.random() - 0.5) * step * 0.25);
+        portalPositions.push(x);
+        plan.slots.push({ x, type: 'portal', exclusive: false, band: Math.max(80, step * 0.5) });
+      }
+    }
+    // A portal entry leads to an exit up to ~1100px ahead; keep other slots out of
+    // that corridor so exits never collide with nearby obstacles.
+    const inPortalCorridor = (x) => {
+      for (const px of portalPositions) {
+        if (x > px && x < px + 1400) return true;
+      }
+      return false;
+    };
+
+    // ---- Exclusive slot positions (avoid portal corridors) ----
+    // Min gap only guards against same-type clustering; it must stay well below
+    // the per-family step so the (now denser) exclusive budget spreads evenly.
+    const MIN_EXCLUSIVE_GAP = 1200;
+    for (const ex of exclusives) {
+      let last = plan.lastExclusiveX[ex.type];
+      const step = L / ex.count;
+      for (let i = 0; i < ex.count; i++) {
+        let x = playableStart + step * (i + 0.5) + (Math.random() - 0.5) * step * 0.3;
+        if (inPortalCorridor(x)) x = playableStart + step * (i + 0.5);
+        if (inPortalCorridor(x)) x = clampX(x + 1400);
+        x = clampX(x);
+        if (last != null && x - last < MIN_EXCLUSIVE_GAP) {
+          x = last + MIN_EXCLUSIVE_GAP + Math.random() * 400;
+          if (x > playableEnd) x = playableStart + Math.random() * 400;
+        }
+        plan.slots.push({ x, type: ex.type, exclusive: true, band: Math.max(120, step * 0.5) });
+        plan.lastExclusiveX[ex.type] = x;
+        last = x;
+      }
+    }
+
+    // ---- General slots: per-section budget (equal sections, even coverage) ----
+    const numSections = Math.max(6, Math.min(30, Math.round(L / 5000)));
+    const sectionLen = L / numSections;
+    const perSection = Math.floor(generalSlots / numSections);
+    const rem = generalSlots - perSection * numSections;
+
+    const FORBIDDEN_NEXT = {};
+    [
+      ['hammer', ['portal', 'hammer']],
+      ['portal', ['hammer', 'punchfist', 'spinner', 'portal']],
+      ['spinner', ['hammer', 'portal']],
+      ['punchfist', ['hammer', 'portal']],
+      ['sweep_arm', ['hammer', 'portal']],
+      ['barrier', ['portal', 'hammer']],
+      ['boost', ['slow', 'boost']],
+      ['slow', ['boost', 'slow']]
+    ].forEach(([key, vals]) => {
+      const hasKey = enabledSet.has(key) ||
+        (key === 'slow' && (enabledSet.has('quicksand_pit') || enabledSet.has('mud_puddle')));
+      if (!hasKey) return;
+      const filtered = vals.filter(v => v === 'slow'
+        ? (enabledSet.has('slow') || enabledSet.has('quicksand_pit') || enabledSet.has('mud_puddle'))
+        : enabledSet.has(v));
+      if (filtered.length) FORBIDDEN_NEXT[key] = filtered;
+    });
+
+    let last = null;
+    let secondLast = null;
+    for (let s = 0; s < numSections; s++) {
+      const budget = perSection + (s < rem ? 1 : 0);
+      if (budget <= 0) continue;
+      const secStart = playableStart + s * sectionLen;
+      let placed = 0;
+      for (let b = 0; b < budget; b++) {
+        // Section-budget distribution: jittered evenly within the section so the
+        // slot stays inside its own section (never drifts into a neighbour's).
+        let x = secStart + ((placed + 0.5) / budget) * sectionLen + (Math.random() - 0.5) * (sectionLen / budget) * 0.55;
+        x = clampX(x);
+        if (inPortalCorridor(x)) {
+          x = clampX(x + 1400);
+          if (inPortalCorridor(x)) continue;
+        }
+        // Variety: never 3+ identical in a row, honour forbidden pairs, weighted pick.
+        let candidates = generalBranches;
+        let filtered = candidates.filter(t => !(last === t.branch && secondLast === t.branch));
+        if (filtered.length === 0) filtered = candidates;
+        if (last && FORBIDDEN_NEXT[last]) {
+          const f2 = filtered.filter(t => !FORBIDDEN_NEXT[last].includes(t.branch));
+          if (f2.length) filtered = f2;
+        }
+        if (filtered.length === 0) filtered = candidates;
+        let totalW = filtered.reduce((a, t) => a + t.weight, 0);
+        let r = Math.random() * totalW;
+        let chosen = filtered[filtered.length - 1];
+        for (const t of filtered) {
+          if (r <= 0) break;
+          r -= t.weight;
+          chosen = t;
+        }
+        plan.slots.push({ x, type: chosen.branch, exclusive: false, band: Math.max(80, (sectionLen / budget) * 0.5) });
+        secondLast = last;
+        last = chosen.branch;
+        placed++;
+      }
+    }
+
+    plan.slots.sort((a, b) => a.x - b.x);
+    return plan;
+  }
+
+  // Extends the active plan to cover [planEnd, newEnd] for the endless Knockout
+  // track. The extension reuses the same planner so exclusives stay evenly spread
+  // (min-spacing carried over) and the density slider stays the single source of
+  // truth for the new stretch too.
+  _extendObstaclePlan(newEnd) {
+    const plan = this._obstaclePlan;
+    if (!plan || newEnd <= plan.playableEnd) return;
+    const enabledSet = this._enabledSet || new Set();
+    const extra = this._buildObstaclePlan(
+      enabledSet, this._obstacleFreqWeights || null, plan.pct,
+      plan.playableEnd, newEnd, plan
+    );
+    plan.slots.push(...extra.slots);
+    plan.slots.sort((a, b) => a.x - b.x);
+    plan.playableEnd = newEnd;
+    for (const k in extra.lastExclusiveX) plan.lastExclusiveX[k] = extra.lastExclusiveX[k];
   }
 
   // Update dynamic obstacles (punchfist, hammer, barrier, spinner, sweep_arm, meteor cleanup)
@@ -9536,6 +9441,7 @@ obs._trappedBallId = null;
     // (oversized sweep_arm/hammer bounding boxes, minor wall overhangs, boost pads
     // firing into obstacles), so keep the lowest-error generated layout instead of
     // falling back to a sparse pad-only segment.
+    if (this._obstaclePlan) this._extendObstaclePlan(segEnd);
     const clearRange = () => {
       track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
       track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
@@ -18408,14 +18314,16 @@ this.ctx.restore();
     // track generation AND from the Ultimate Arena World Director on every World
     // Shift so the newly activated map always gets its complete obstacle set.
     // (Space objects are handled separately via _initSpaceObjects.)
-    _bakeExclusiveObstacles(track, finishX, enabledSet, themeKey) {
+    _bakeExclusiveObstacles(track, finishX, enabledSet, themeKey, densityPct) {
       if (!track) return;
       const es = enabledSet || this._enabledSet || new Set();
       const tk = themeKey || this.currentThemeKey;
+      const bakeDensity = (densityPct == null || isNaN(densityPct)) ? 80 : Math.max(20, Math.min(100, densityPct));
+      const _scaleCount = (base) => Math.max(1, Math.round(base * (bakeDensity / 100)));
 
       // Generate Retractable Wall Icicles for Glacier Summit
       if (es.has('icicle')) {
-        const _numIcicles = 120 + Math.floor(Math.random() * 41);
+        const _numIcicles = _scaleCount(120 + Math.floor(Math.random() * 41));
         const _ballR = 15;
         const _baseLen = _ballR * 3;
         const _baseW = _ballR * 1.2;
@@ -18465,7 +18373,7 @@ this.ctx.restore();
 
       // Generate Carnivorous Vines for Amazon Canopy
       if (es.has('carnivorous_vine') && tk === 'jungle') {
-        const _numVines = 30 + Math.floor(Math.random() * 11);
+        const _numVines = _scaleCount(30 + Math.floor(Math.random() * 11));
         const _minSpacing = 350;
         const _restrictedZones = [
           { start: 0, end: 1500 },
@@ -18514,6 +18422,7 @@ this.ctx.restore();
             const _swaySpeed = 0.3 + Math.random() * 0.3;
             const _breathPhase = Math.random() * Math.PI * 2;
             _existingPositions.push(_vx);
+            _placed = true;
             track.obstacles.push({
               type: 'carnivorous_vine',
               x: _vx, y: _wallY,
@@ -18534,7 +18443,7 @@ this.ctx.restore();
 
       // Generate Collapsing Rock Pillars for Magma Crater
       if (es.has('collapsing_pillar')) {
-        const numPillars = 12 + Math.floor(Math.random() * 5);
+        const numPillars = _scaleCount(12 + Math.floor(Math.random() * 5));
         const pillarPositions = [];
         for (let px = 400; px < finishX - 600; px += 80) {
           if (Math.abs(px - finishX) < 800) continue;
@@ -18677,6 +18586,7 @@ this.ctx.restore();
     // old world's spawner state never leaks into the next world.
     _destroyObstacleSystem() {
       this._endlessTrackGen = null;
+      this._obstaclePlan = null;
       this._obstacleFreqWeights = null;
       this._obstacleDensityPct = (this._loadout && this._loadout.density) || this._obstacleDensityPct || 80;
       if (this.track) {

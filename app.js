@@ -646,8 +646,8 @@ class AppController {
   loadPresetFIFA() {
     this.clearCountriesSelection();
 
-    // World Cup Mode uses the official 2026 48-team set.
-    const preset = (this.engine && (this.engine.gameMode === 'world_cup' || this.engine.gameMode === 'world_cup_2026'))
+    // World Cup Mode (and Knockout Mode) use the official 2026 48-team set.
+    const preset = (this.engine && (this.engine.gameMode === 'world_cup' || this.engine.gameMode === 'world_cup_2026' || this.engine.gameMode === 'knockout'))
       ? (typeof getWorldCup2026Preset === 'function' ? getWorldCup2026Preset(this.countries) : getWorldCup48Preset(this.countries))
       : getWorldCup48Preset(this.countries);
 
@@ -861,7 +861,7 @@ class AppController {
       badgeNotice.classList.remove('hidden');
       customSec.classList.add('hidden');
       knockoutSec.classList.remove('hidden');
-      fifaBtn.classList.add('hidden');
+      fifaBtn.classList.remove('hidden');
     } else {
       // custom mode
       titleNode.innerText = "Custom Mode Setup";
