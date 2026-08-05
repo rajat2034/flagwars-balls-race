@@ -119,6 +119,7 @@ const OBSTACLE_REGISTRY = [
   { type: 'bubble_trap', name: 'Bubble Trap', category: 'signature', map: 'ocean' },
   { type: 'sea_urchin_field', name: 'Sea Urchin Field', category: 'signature', map: 'ocean' },
   { type: 'floating_kelp', name: 'Floating Kelp', category: 'signature', map: 'ocean' },
+  { type: 'hydrothermal_vent', name: 'Hydrothermal Vent', category: 'signature', map: 'ocean' },
 
   // Sahara
   { type: 'quicksand_pit', name: 'Quicksand Pit', category: 'signature', map: 'desert' },
@@ -2193,6 +2194,7 @@ class GameEngine {
     this._rafId = null;
     this.raceTimer = 0; // in seconds
     this.lastTime = 0;
+    this._obstacleSpawnCounts = {};
 
     // Visual Effects
     this.fireworks = [];
@@ -2553,7 +2555,18 @@ class GameEngine {
 
     // Magma Crater: significantly boost Lava Pool spawn rate to match Boost Pad count
     if (themeKey === 'volcano' && freqWeights.lava_pool) {
-      freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15); // High weight ~same as boost
+      freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15);
+    }
+    if (themeKey === 'volcano') {
+      if (freqWeights.lava_geyser) freqWeights.lava_geyser = Math.max(freqWeights.lava_geyser, 12);
+      if (freqWeights.rolling_boulder) freqWeights.rolling_boulder = Math.max(freqWeights.rolling_boulder, 12);
+      if (freqWeights.flame_jet) freqWeights.flame_jet = Math.max(freqWeights.flame_jet, 12);
+      if (freqWeights.collapsing_pillar) freqWeights.collapsing_pillar = Math.max(freqWeights.collapsing_pillar, 12);
+    }
+
+    // Portals are restricted to Nebula Cosmos only
+    if (themeKey !== 'space') {
+      enabledSet.delete('portal');
     }
 
     // Mariana Depths: boost ocean obstacle spawn rates, remove boost pads and spinner
@@ -2564,6 +2577,41 @@ class GameEngine {
       if (freqWeights.sea_mine) freqWeights.sea_mine = 20;
       if (freqWeights.sea_urchin_field) freqWeights.sea_urchin_field = 20;
       if (freqWeights.floating_kelp) freqWeights.floating_kelp = 20;
+      if (freqWeights.whirlpool) freqWeights.whirlpool = 20;
+      if (freqWeights.jellyfish) freqWeights.jellyfish = 20;
+      if (freqWeights.crab_claw) freqWeights.crab_claw = 20;
+      if (freqWeights.hydrothermal_vent) freqWeights.hydrothermal_vent = 20;
+    }
+
+    // Glacier Summit: boost ice obstacle spawn rates
+    if (themeKey === 'snow') {
+      if (freqWeights.ice) freqWeights.ice = Math.max(freqWeights.ice, 15);
+      if (freqWeights.ice_cannon) freqWeights.ice_cannon = Math.max(freqWeights.ice_cannon, 15);
+      if (freqWeights.icicle) freqWeights.icicle = Math.max(freqWeights.icicle, 15);
+      if (freqWeights.icicle_drop) freqWeights.icicle_drop = Math.max(freqWeights.icicle_drop, 15);
+    }
+
+    // Amazon Canopy: boost vine/plant obstacle spawn rates
+    if (themeKey === 'jungle') {
+      if (freqWeights.carnivorous_vine) freqWeights.carnivorous_vine = Math.max(freqWeights.carnivorous_vine, 15);
+      if (freqWeights.swinging_vine) freqWeights.swinging_vine = Math.max(freqWeights.swinging_vine, 15);
+      if (freqWeights.rolling_log) freqWeights.rolling_log = Math.max(freqWeights.rolling_log, 12);
+      if (freqWeights.carnivorous_plant) freqWeights.carnivorous_plant = Math.max(freqWeights.carnivorous_plant, 12);
+    }
+
+    // Sahara Desert: boost tumbleweed/dune obstacle spawn rates
+    if (themeKey === 'desert') {
+      if (freqWeights.rolling_tumbleweed) freqWeights.rolling_tumbleweed = Math.max(freqWeights.rolling_tumbleweed, 15);
+      if (freqWeights.moving_dune) freqWeights.moving_dune = Math.max(freqWeights.moving_dune, 12);
+      if (freqWeights.sand_vortex) freqWeights.sand_vortex = Math.max(freqWeights.sand_vortex, 12);
+      if (freqWeights.quicksand_pit) freqWeights.quicksand_pit = Math.max(freqWeights.quicksand_pit, 12);
+    }
+
+    // Nebula Cosmos: boost space-exclusive obstacle spawn rates
+    if (themeKey === 'space') {
+      if (freqWeights.gravity_well) freqWeights.gravity_well = Math.max(freqWeights.gravity_well, 15);
+      if (freqWeights.energy_ring) freqWeights.energy_ring = Math.max(freqWeights.energy_ring, 15);
+      if (freqWeights.meteor_gate) freqWeights.meteor_gate = Math.max(freqWeights.meteor_gate, 15);
     }
 
     let track;
@@ -3682,17 +3730,187 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
               alpha: 0.15 + Math.random() * 0.15
             }))
           });
-        } else if (type === 'sand_vortex') {
-          const r = 55 + Math.random() * 25;
-          const h = 80 + Math.random() * 40;
-          const sy = clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, h * 0.5 + 10);
-          track.obstacles.push({
-            type: 'sand_vortex', x, y: sy,
-            radius: r,
-            height: h,
-            _affectedBalls: new Set()
-          });
-        }
+} else if (type === 'sand_vortex') {
+           const r = 55 + Math.random() * 25;
+           const h = 80 + Math.random() * 40;
+           const sy = clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, h * 0.5 + 10);
+           track.obstacles.push({
+             type: 'sand_vortex', x, y: sy,
+             radius: r,
+             height: h,
+             _affectedBalls: new Set()
+           });
+         } else if (type === 'gravity_well') {
+           const r = 40 + Math.random() * 15;
+           track.obstacles.push({
+             type: 'gravity_well', x, y: centerY,
+             radius: r,
+             _pullStrength: 0.08 + Math.random() * 0.04,
+             _affectedBalls: new Set()
+           });
+         } else if (type === 'energy_ring') {
+           const r = 35 + Math.random() * 10;
+           track.obstacles.push({
+             type: 'energy_ring', x, y: centerY,
+             radius: r,
+             _rotation: Math.random() * Math.PI * 2,
+             _spinSpeed: 0.02 + Math.random() * 0.02
+           });
+         } else if (type === 'meteor_gate') {
+           const gateW = 20 + Math.random() * 5;
+           const gateH = Math.min(90 + Math.random() * 20, availH * 0.55);
+           track.obstacles.push({
+             type: 'meteor_gate', x, y: centerY,
+             width: gateW, height: gateH,
+             isVertical: true, gapMin: 0, gapMax: availH * 0.55,
+             state: 'opening', stateTimer: 0,
+             openDuration: 25 + Math.floor(Math.random() * 20),
+             closeDuration: 15 + Math.floor(Math.random() * 15),
+             currentGap: 0, slideSpeed: 5.0 + Math.random() * 2.0,
+             topY: bounds.topY, bottomY: bounds.bottomY
+           });
+         } else if (type === 'ice') {
+           const w = 80 + Math.random() * 40;
+           const h = 30 + Math.random() * 15;
+           track.zones.push({
+             type: 'ice', x: x - w / 2,
+             y: clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, h / 2 + 5) - h / 2,
+             width: w, height: h
+           });
+         } else if (type === 'icicle') {
+           const len = 40 + Math.random() * 25;
+           const side = Math.random() < 0.5 ? -1 : 1;
+           const iy = side < 0 ? bounds.topY + 10 : bounds.bottomY - 10;
+           track.obstacles.push({
+             type: 'icicle', x, y: iy,
+             length: len, width: 8 + Math.random() * 4,
+             angle: side * (0.1 + Math.random() * 0.15),
+             _swayPhase: Math.random() * Math.PI * 2,
+             _swaySpeed: 0.01 + Math.random() * 0.01
+           });
+         } else if (type === 'icicle_drop') {
+           const dropY = bounds.topY + 20;
+           track.obstacles.push({
+             type: 'icicle_drop', x, y: dropY,
+             width: 60 + Math.random() * 20, height: 8,
+             _triggerY: bounds.topY + availH * 0.3,
+             _dropping: false, _dropTimer: 0
+           });
+         } else if (type === 'rolling_boulder') {
+           const r = 18 + Math.random() * 8;
+           track.obstacles.push({
+             type: 'rolling_boulder', x, y: centerY,
+             radius: r,
+             speed: 0.5 + Math.random() * 0.5,
+             direction: Math.random() < 0.5 ? 1 : -1,
+             _bounceTimer: 0
+           });
+         } else if (type === 'flame_jet') {
+           const jetH = 50 + Math.random() * 30;
+           track.obstacles.push({
+             type: 'flame_jet', x, y: bounds.bottomY - 10,
+             height: jetH, width: 20 + Math.random() * 10,
+             _fireTimer: Math.floor(Math.random() * 120),
+             _fireInterval: 90 + Math.floor(Math.random() * 90),
+             _fireDuration: 30, _firing: false
+           });
+         } else if (type === 'collapsing_pillar') {
+           const pH = 80 + Math.random() * 40;
+           track.obstacles.push({
+             type: 'collapsing_pillar', x, y: centerY,
+             width: 30 + Math.random() * 10, height: pH,
+             _state: 'standing', _collapseTimer: 0,
+             _collapseDelay: 120 + Math.floor(Math.random() * 180)
+           });
+         } else if (type === 'carnivorous_vine') {
+           const vLen = 60 + Math.random() * 40;
+           track.obstacles.push({
+             type: 'carnivorous_vine', x, y: centerY,
+             length: vLen, width: 8,
+             _state: 'idle', _stateTimer: 0,
+             _attackDuration: 20, _retractDuration: 30,
+             _direction: Math.random() < 0.5 ? 1 : -1
+           });
+         } else if (type === 'swinging_vine') {
+           const vLen = 70 + Math.random() * 50;
+           track.obstacles.push({
+             type: 'swinging_vine', x, y: centerY,
+             length: vLen, width: 6,
+             angle: Math.random() * Math.PI * 2,
+             speed: 0.03 + Math.random() * 0.02
+           });
+         } else if (type === 'rolling_log') {
+           const r = 15 + Math.random() * 8;
+           track.obstacles.push({
+             type: 'rolling_log', x, y: centerY,
+             radius: r,
+             speed: 0.3 + Math.random() * 0.3,
+             direction: Math.random() < 0.5 ? 1 : -1
+           });
+         } else if (type === 'carnivorous_plant') {
+           const pR = 25 + Math.random() * 10;
+           track.obstacles.push({
+             type: 'carnivorous_plant', x, y: centerY,
+             radius: pR,
+             _state: 'idle', _stateTimer: 0,
+             _snapDelay: 60 + Math.floor(Math.random() * 120),
+             _snapDuration: 15
+           });
+         } else if (type === 'whirlpool') {
+           const r = 50 + Math.random() * 20;
+           track.obstacles.push({
+             type: 'whirlpool', x, y: centerY,
+             radius: r,
+             _pullStrength: 0.1 + Math.random() * 0.05,
+             _affectedBalls: new Set()
+           });
+         } else if (type === 'jellyfish') {
+           const jR = 15 + Math.random() * 8;
+           track.obstacles.push({
+             type: 'jellyfish', x, y: centerY,
+             radius: jR,
+             _floatPhase: Math.random() * Math.PI * 2,
+             _floatSpeed: 0.02 + Math.random() * 0.02,
+             _floatAmount: 10 + Math.random() * 10
+           });
+         } else if (type === 'crab_claw') {
+           const clawR = 20 + Math.random() * 8;
+           track.obstacles.push({
+             type: 'crab_claw', x, y: centerY,
+             radius: clawR,
+             _snapTimer: 0,
+             _snapInterval: 120 + Math.floor(Math.random() * 120),
+             _snapDuration: 10,
+             _open: true
+           });
+         } else if (type === 'rolling_tumbleweed') {
+           const tR = 20 + Math.random() * 10;
+           track.obstacles.push({
+             type: 'rolling_tumbleweed', x, y: centerY,
+             radius: tR,
+             speed: 0.4 + Math.random() * 0.4,
+             direction: Math.random() < 0.5 ? 1 : -1,
+             _rollPhase: Math.random() * Math.PI * 2
+           });
+         } else if (type === 'moving_dune') {
+           const dW = 100 + Math.random() * 50;
+           const dH = 30 + Math.random() * 15;
+           track.zones.push({
+             type: 'moving_dune', x: x - dW / 2,
+             y: clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, dH / 2 + 5) - dH / 2,
+             width: dW, height: dH,
+             _moveTimer: 0, _moveInterval: 180
+           });
+         } else if (type === 'quicksand_pit') {
+           const qw = 70 + Math.random() * 30;
+           const qh = 70 + Math.random() * 30;
+           track.zones.push({
+             type: 'quicksand_pit', x: x - qw / 2,
+             y: clampY(centerY + (Math.random() - 0.5) * availH * 0.4, bounds, qh / 2 + 5) - qh / 2,
+             width: qw, height: qh,
+             _radius: qw / 2
+           });
+         }
 
         // Overlap prevention: check new elements against ALL existing obstacle/zone BBs.
         // A planned slot that can't be placed safely is simply skipped.
@@ -3727,6 +3945,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         }
 
         lastPlacedType = type;
+         this._obstacleSpawnCounts[type] = (this._obstacleSpawnCounts[type] || 0) + 1;
       }
     };
 
@@ -3933,17 +4152,16 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
     this.track = track;
   }
 
-  // ── Section-budget obstacle planner ──────────────────────────────────────
-  // Replaces the old "roll a random type, advance by a random timer" walk with a
-  // single plan generated once per map. The playable length is split into equal
-  // sections; every section receives an obstacle budget so no stretch ever feels
-  // empty. Exclusive (signature) obstacles are spread evenly across the whole
-  // length with a minimum spacing so no map type ever clusters near the start or
-  // disappears mid-race. The setup density slider (20-100%) is the single source
-  // of truth: it picks what fraction of the 100%-density planned slots actually
-  // materialize, and it scales every category (basic, exclusive, moving and
-  // stationary) identically. The plan is generated once at race start / world
-  // shift; gameplay simply follows it (see generateSegmentObstacles).
+// ── Guaranteed Spawn Quota System ──────────────────────
+  // Replaces the old per-family budget planner. The track is divided into
+  // equal segments. Every segment receives a guaranteed minimum number of
+  // obstacles AND a guaranteed minimum number of exclusive (signature)
+  // obstacles. Exclusive slots are reserved first; only after those are
+  // filled may the remaining slots be assigned to basic obstacles.
+  // Density is interpreted as track coverage: the fraction of the playable
+  // length that contains at least one obstacle. At 100% coverage the track
+  // is almost continuously interacting with obstacles.
+  // Portals are restricted to Nebula Cosmos only.
 
   // Resolves which placement branches are eligible for the current map/loadout.
   // Branch names match the placement switch inside generateSegmentObstacles; the
@@ -3969,31 +4187,59 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
     add('c_bumper', ['c_bumper'], false);
     add('launch', ['launch'], false);
     add('peg', ['peg'], false);
-    add('portal', ['portal'], false);
+    // Portals are only allowed in Nebula (space) maps
+    const isNebula = enabledSet.has('gravity_well') || enabledSet.has('energy_ring') || enabledSet.has('meteor_gate');
+    if (isNebula) {
+      add('portal', ['portal'], false);
+    }
     // Exclusive signature branches handled by the placement switch (each belongs
     // to exactly one map, so it can only ever be enabled for that map's theme).
     add('ice_cannon', ['ice_cannon'], true);
+    add('icicle', ['icicle'], true);
+    add('icicle_drop', ['icicle_drop'], true);
+    add('ice', ['ice'], true);
     add('lava_pool', ['lava_pool'], true);
     add('lava_geyser', ['lava_geyser'], true);
-    add('bubble_trap', ['bubble_trap'], true);
+    add('rolling_boulder', ['rolling_boulder'], true);
+    add('flame_jet', ['flame_jet'], true);
+    add('collapsing_pillar', ['collapsing_pillar'], true);
+    add('carnivorous_vine', ['carnivorous_vine'], true);
+    add('swinging_vine', ['swinging_vine'], true);
+    add('rolling_log', ['rolling_log'], true);
+    add('carnivorous_plant', ['carnivorous_plant'], true);
+    add('whirlpool', ['whirlpool'], true);
+    add('jellyfish', ['jellyfish'], true);
+    add('crab_claw', ['crab_claw'], true);
     add('hydrothermal_vent', ['hydrothermal_vent'], true);
     add('sea_mine', ['sea_mine'], true);
+    add('bubble_trap', ['bubble_trap'], true);
     add('sea_urchin_field', ['sea_urchin_field'], true);
     add('floating_kelp', ['floating_kelp'], true);
+    add('rolling_tumbleweed', ['rolling_tumbleweed'], true);
+    add('moving_dune', ['moving_dune'], true);
     add('sand_vortex', ['sand_vortex'], true);
+    add('gravity_well', ['gravity_well'], true);
+    add('energy_ring', ['energy_ring'], true);
+    add('meteor_gate', ['meteor_gate'], true);
     return branches;
   }
 
-  // Builds a planned slot list covering [playableStart, playableEnd].
-  // When prevPlan is passed (Knockout track extension), exclusive spacing memory
-  // carries over so min-spacing holds across extensions.
+// ── Guaranteed Spawn Quota System ──────────────────────────────
+  // Replaces the old density-based probability system with a guaranteed
+  // spawn quota. Every obstacle type (basic AND exclusive) receives the
+  // same number of guaranteed spawns per minute based on the density
+  // slider. The quota is: density% * 20 spawns per minute per type.
+  // Spawns are evenly distributed over time — no clustering allowed.
+  // At 100% density each type gets 20 spawns/min; at 50% each gets 10.
+  // This applies identically to Gates, Mines, Hammers, Sea Urchins, etc.
   _buildObstaclePlan(enabledSet, freqWeights, pct, playableStart, playableEnd, prevPlan) {
     const plan = {
       pct,
       playableStart,
       playableEnd,
       slots: [],
-      lastExclusiveX: {}
+      lastExclusiveX: {},
+      quota: {}
     };
     const clampX = (x) => Math.min(Math.max(x, playableStart), playableEnd);
     if (prevPlan) {
@@ -4005,181 +4251,194 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
     const branches = this._planBranches(enabledSet, freqWeights);
     if (branches.length === 0) return plan;
 
-    // Total planned slots at 100% density (one slot every ~280px), then the
-    // density slider picks the actual fraction. 20% => 20% of the plan, 100% =>
-    // every planned slot.
-    const totalSlots100 = Math.max(2, Math.round(L / 280));
-    const targetSlots = Math.max(1, Math.round(totalSlots100 * (pct / 100)));
-
     const exclusiveBranches = branches.filter(b => b.exclusive);
     const generalBranches = branches.filter(b => !b.exclusive);
 
-    // ---- Fair per-family spawn budget ----
-    // Every obstacle family (basic AND exclusive) receives its own equal share of
-    // the 100%-density slot budget. Signature (exclusive) obstacles therefore get
-    // the same presence as basic families instead of being starved to a handful
-    // per race. The density slider scales every family identically: 20% => fewer
-    // of everything, 100% => the maximum budget for everything.
-    const numFamilies = Math.max(1, generalBranches.length + exclusiveBranches.length);
-    const perFamily100 = totalSlots100 / numFamilies;
-    const perFamilyPct = Math.max(1, Math.round(perFamily100 * (pct / 100)));
+    // Portals are only allowed in Nebula (space) maps
+    const isNebula = enabledSet.has('gravity_well') || enabledSet.has('energy_ring') || enabledSet.has('meteor_gate');
+    const portalBranch = generalBranches.find(b => b.branch === 'portal');
+    const hasPortal = portalBranch && isNebula;
+    const effectiveGeneralBranches = hasPortal ? generalBranches : generalBranches.filter(b => b.branch !== 'portal');
 
-    const exclusives = [];
-    for (const eb of exclusiveBranches) {
-      exclusives.push({ type: eb.branch, count: perFamilyPct });
-    }
-    let exclusiveSlotCount = exclusives.reduce((a, e) => a + e.count, 0);
-    let generalSlots = Math.max(0, targetSlots - exclusiveSlotCount);
+    // Quota formula: density% * 20 spawns per minute per obstacle type.
+    // This is the guaranteed minimum number of each type per minute of gameplay.
+    const quotaPerMinute = Math.round((pct / 100) * 20);
 
-    // At very low density the exclusive floor must never exceed the total budget.
-    if (exclusiveSlotCount > targetSlots) {
-      const scale = targetSlots / exclusiveSlotCount;
-      let total = 0;
-      for (const ex of exclusives) {
-        ex.count = Math.max(1, Math.round(ex.count * scale));
-        total += ex.count;
-      }
-      while (total > targetSlots) {
-        const big = exclusives.reduce((a, b) => (a.count >= b.count ? a : b), exclusives[0]);
-        if (big.count <= 1) break;
-        big.count--;
-        total--;
-      }
-      exclusiveSlotCount = total;
-      generalSlots = 0;
+    // Estimate race duration in minutes based on track length and forward force.
+    // Default forward speed is ~0.65 units/frame at 60fps = ~39 units/second.
+    // We use a conservative estimate of 30 units/second for quota calculation.
+    const estimatedRaceSeconds = L / 30;
+    const estimatedRaceMinutes = Math.max(0.5, estimatedRaceSeconds / 60);
+
+    // Total quota per type = quotaPerMinute * estimatedRaceMinutes,
+    // rounded up to ensure we never fall short.
+    const totalQuotaPerType = Math.max(1, Math.ceil(quotaPerMinute * estimatedRaceMinutes));
+
+    // Collect all enabled obstacle types (both basic and exclusive).
+    const allTypes = [];
+    for (const b of branches) {
+      allTypes.push({ type: b.branch, exclusive: b.exclusive, weight: b.weight });
     }
 
-    // ---- Portal slots: capped by the existing portal budget, spread evenly ----
-    const portalPositions = [];
-    if (branches.some(b => b.branch === 'portal')) {
-      const windows = Math.max(1, Math.floor(playableEnd / 128571) + 1);
-      const maxPairs = Math.max(1, 10 * windows);
-      const portals = Math.min(maxPairs, Math.max(1, Math.round(maxPairs * (pct / 100))));
-      const step = L / portals;
-      for (let i = 0; i < portals; i++) {
-        const x = clampX(playableStart + step * (i + 0.5) + (Math.random() - 0.5) * step * 0.25);
-        portalPositions.push(x);
-        plan.slots.push({ x, type: 'portal', exclusive: false, band: Math.max(80, step * 0.5) });
-      }
-    }
-    // A portal entry leads to an exit up to ~1100px ahead; keep other slots out of
-    // that corridor so exits never collide with nearby obstacles.
-    const inPortalCorridor = (x) => {
-      for (const px of portalPositions) {
-        if (x > px && x < px + 1400) return true;
-      }
-      return false;
-    };
+    // Allocate slots evenly across the track for each type.
+    // Each type gets totalQuotaPerType slots spread evenly.
+    const slotSpacing = L / Math.max(1, totalQuotaPerType);
 
-    // ---- Exclusive slot positions (avoid portal corridors) ----
-    // Min gap only guards against same-type clustering; it must stay well below
-    // the per-family step so the (now denser) exclusive budget spreads evenly.
-    const MIN_EXCLUSIVE_GAP = 1200;
-    for (const ex of exclusives) {
-      let last = plan.lastExclusiveX[ex.type];
-      const step = L / ex.count;
-      for (let i = 0; i < ex.count; i++) {
-        let x = playableStart + step * (i + 0.5) + (Math.random() - 0.5) * step * 0.3;
-        if (inPortalCorridor(x)) x = playableStart + step * (i + 0.5);
-        if (inPortalCorridor(x)) x = clampX(x + 1400);
-        x = clampX(x);
-        if (last != null && x - last < MIN_EXCLUSIVE_GAP) {
-          x = last + MIN_EXCLUSIVE_GAP + Math.random() * 400;
-          if (x > playableEnd) x = playableStart + Math.random() * 400;
+    for (const at of allTypes) {
+      const typeQuota = totalQuotaPerType;
+      plan.quota[at.type] = typeQuota;
+
+      for (let i = 0; i < typeQuota; i++) {
+        // Evenly spaced with small random jitter to avoid perfect alignment
+        const baseX = playableStart + slotSpacing * (i + 0.5);
+        const jitter = (Math.random() - 0.5) * slotSpacing * 0.4;
+        let x = clampX(baseX + jitter);
+
+        // For exclusive types, enforce minimum spacing to prevent clustering
+        if (at.exclusive) {
+          const last = plan.lastExclusiveX[at.type];
+          if (last != null && x - last < 400) {
+            x = last + 400 + Math.random() * 200;
+            if (x > playableEnd) x = playableStart + Math.random() * 200;
+            x = clampX(x);
+          }
+          plan.lastExclusiveX[at.type] = x;
         }
-        plan.slots.push({ x, type: ex.type, exclusive: true, band: Math.max(120, step * 0.5) });
-        plan.lastExclusiveX[ex.type] = x;
-        last = x;
+
+        plan.slots.push({ x, type: at.type, exclusive: at.exclusive, band: Math.max(60, slotSpacing * 0.3) });
       }
     }
 
-    // ---- General slots: per-section budget (equal sections, even coverage) ----
-    const numSections = Math.max(6, Math.min(30, Math.round(L / 5000)));
-    const sectionLen = L / numSections;
-    const perSection = Math.floor(generalSlots / numSections);
-    const rem = generalSlots - perSection * numSections;
-
-    const FORBIDDEN_NEXT = {};
-    [
-      ['hammer', ['portal', 'hammer']],
-      ['portal', ['hammer', 'punchfist', 'spinner', 'portal']],
-      ['spinner', ['hammer', 'portal']],
-      ['punchfist', ['hammer', 'portal']],
-      ['sweep_arm', ['hammer', 'portal']],
-      ['barrier', ['portal', 'hammer']],
-      ['boost', ['slow', 'boost']],
-      ['slow', ['boost', 'slow']]
-    ].forEach(([key, vals]) => {
-      const hasKey = enabledSet.has(key) ||
-        (key === 'slow' && (enabledSet.has('quicksand_pit') || enabledSet.has('mud_puddle')));
-      if (!hasKey) return;
-      const filtered = vals.filter(v => v === 'slow'
-        ? (enabledSet.has('slow') || enabledSet.has('quicksand_pit') || enabledSet.has('mud_puddle'))
-        : enabledSet.has(v));
-      if (filtered.length) FORBIDDEN_NEXT[key] = filtered;
-    });
-
-    let last = null;
-    let secondLast = null;
-    for (let s = 0; s < numSections; s++) {
-      const budget = perSection + (s < rem ? 1 : 0);
-      if (budget <= 0) continue;
-      const secStart = playableStart + s * sectionLen;
-      let placed = 0;
-      for (let b = 0; b < budget; b++) {
-        // Section-budget distribution: jittered evenly within the section so the
-        // slot stays inside its own section (never drifts into a neighbour's).
-        let x = secStart + ((placed + 0.5) / budget) * sectionLen + (Math.random() - 0.5) * (sectionLen / budget) * 0.55;
-        x = clampX(x);
-        if (inPortalCorridor(x)) {
-          x = clampX(x + 1400);
-          if (inPortalCorridor(x)) continue;
-        }
-        // Variety: never 3+ identical in a row, honour forbidden pairs, weighted pick.
-        let candidates = generalBranches;
-        let filtered = candidates.filter(t => !(last === t.branch && secondLast === t.branch));
-        if (filtered.length === 0) filtered = candidates;
-        if (last && FORBIDDEN_NEXT[last]) {
-          const f2 = filtered.filter(t => !FORBIDDEN_NEXT[last].includes(t.branch));
-          if (f2.length) filtered = f2;
-        }
-        if (filtered.length === 0) filtered = candidates;
-        let totalW = filtered.reduce((a, t) => a + t.weight, 0);
-        let r = Math.random() * totalW;
-        let chosen = filtered[filtered.length - 1];
-        for (const t of filtered) {
-          if (r <= 0) break;
-          r -= t.weight;
-          chosen = t;
-        }
-        plan.slots.push({ x, type: chosen.branch, exclusive: false, band: Math.max(80, (sectionLen / budget) * 0.5) });
-        secondLast = last;
-        last = chosen.branch;
-        placed++;
-      }
-    }
-
+    // Sort slots by position
     plan.slots.sort((a, b) => a.x - b.x);
+
+    // ---- Automatic validation: print debug statistics ----
+    this._validatePlanStats(plan, enabledSet, exclusiveBranches.map(b => b.branch), generalBranches.map(b => b.branch));
+
     return plan;
+  }
+
+  // Prints debug statistics about the obstacle plan so the developer can
+  // verify that every obstacle type meets its guaranteed spawn quota.
+  _validatePlanStats(plan, enabledSet, exclusiveTypes, basicTypes) {
+    const themeKey = this.currentThemeKey || 'unknown';
+    const slots = plan.slots || [];
+    const quota = plan.quota || {};
+    const counts = {};
+    for (const s of slots) {
+      counts[s.type] = (counts[s.type] || 0) + 1;
+    }
+
+    const lines = [];
+    lines.push(`[Obstacle Quota] Map: ${themeKey}  Density: ${plan.pct}%`);
+    lines.push(`[Obstacle Quota] Total slots: ${slots.length}`);
+    lines.push(`[Obstacle Quota] Quota per type per minute: ${Math.round((plan.pct / 100) * 20)}`);
+
+    const allTypes = [...exclusiveTypes, ...basicTypes];
+    for (const t of allTypes) {
+      const expected = quota[t] || 0;
+      const actual = counts[t] || 0;
+      const status = actual >= expected ? 'OK' : 'UNDER';
+      lines.push(`[Obstacle Quota]   ${t}: expected=${expected} actual=${actual} ${status}`);
+    }
+
+    // Check for underrepresented types
+    const underRep = allTypes.filter(t => (counts[t] || 0) < (quota[t] || 0) * 0.8);
+    if (underRep.length > 0) {
+      lines.push(`[Obstacle Quota] WARNING: Underrepresented types: ${underRep.join(', ')}`);
+    }
+
+    console.log(lines.join('\n'));
   }
 
   // Extends the active plan to cover [planEnd, newEnd] for the endless Knockout
   // track. The extension reuses the same planner so exclusives stay evenly spread
   // (min-spacing carried over) and the density slider stays the single source of
   // truth for the new stretch too.
-  _extendObstaclePlan(newEnd) {
-    const plan = this._obstaclePlan;
-    if (!plan || newEnd <= plan.playableEnd) return;
-    const enabledSet = this._enabledSet || new Set();
-    const extra = this._buildObstaclePlan(
-      enabledSet, this._obstacleFreqWeights || null, plan.pct,
-      plan.playableEnd, newEnd, plan
-    );
-    plan.slots.push(...extra.slots);
-    plan.slots.sort((a, b) => a.x - b.x);
-    plan.playableEnd = newEnd;
-    for (const k in extra.lastExclusiveX) plan.lastExclusiveX[k] = extra.lastExclusiveX[k];
-  }
+_extendObstaclePlan(newEnd) {
+     const plan = this._obstaclePlan;
+     if (!plan || newEnd <= plan.playableEnd) return;
+     const enabledSet = this._enabledSet || new Set();
+     const extra = this._buildObstaclePlan(
+       enabledSet, this._obstacleFreqWeights || null, plan.pct,
+       plan.playableEnd, newEnd, plan
+     );
+     plan.slots.push(...extra.slots);
+     plan.slots.sort((a, b) => a.x - b.x);
+     plan.playableEnd = newEnd;
+     for (const k in extra.lastExclusiveX) plan.lastExclusiveX[k] = extra.lastExclusiveX[k];
+   }
+
+   // Validates obstacle spawn quotas at minute boundaries and
+   // continues spawning if any type is below its required count.
+   // This ensures that every obstacle type meets its guaranteed
+   // spawn quota throughout the race, especially in long Knockout
+   // and World Cup modes where the race lasts multiple minutes.
+   _validateAndContinueSpawning(minute) {
+     if (!this._obstaclePlan || !this.track) return;
+     const plan = this._obstaclePlan;
+     const quota = plan.quota || {};
+     const enabledSet = this._enabledSet || new Set();
+
+     // Count actual spawns per type from the track
+     const actualCounts = {};
+     for (const obs of this.track.obstacles) {
+       actualCounts[obs.type] = (actualCounts[obs.type] || 0) + 1;
+     }
+     for (const z of this.track.zones) {
+       if (z.type !== 'finish') {
+         actualCounts[z.type] = (actualCounts[z.type] || 0) + 1;
+       }
+     }
+
+     const lines = [`[Quota Check] Minute ${minute}:`];
+     let anyUnder = false;
+
+     for (const type of Object.keys(quota)) {
+       const expected = quota[type];
+       const actual = actualCounts[type] || 0;
+       const ratio = expected > 0 ? actual / expected : 1;
+       const status = ratio >= 0.8 ? 'OK' : 'UNDER';
+       if (ratio < 0.8) anyUnder = true;
+       lines.push(`[Quota Check]   ${type}: expected=${expected} actual=${actual} ${status}`);
+     }
+
+     if (anyUnder) {
+       lines.push('[Quota Check] Some types below quota — continuing to spawn...');
+       console.log(lines.join('\n'));
+
+       // Continue spawning: add more slots for underrepresented types
+       const L = plan.playableEnd - plan.playableStart;
+       const slotSpacing = L / Math.max(1, Math.ceil((plan.pct / 100) * 20));
+       let newSlotCount = 0;
+
+       for (const type of Object.keys(quota)) {
+         const expected = quota[type];
+         const actual = actualCounts[type] || 0;
+         if (actual >= expected) continue;
+
+         const needed = expected - actual;
+         const isExclusive = enabledSet.has(type) && OBSTACLE_REGISTRY.find(o => o.type === type && o.category === 'signature');
+         let lastX = plan.lastExclusiveX[type] || plan.playableStart;
+
+         for (let i = 0; i < needed; i++) {
+           let x = lastX + slotSpacing + Math.random() * slotSpacing * 0.5;
+           x = Math.min(Math.max(x, plan.playableStart), plan.playableEnd);
+           plan.slots.push({ x, type, exclusive: !!isExclusive, band: 80 });
+           lastX = x;
+           newSlotCount++;
+         }
+       }
+
+       if (newSlotCount > 0) {
+         plan.slots.sort((a, b) => a.x - b.x);
+         // Materialize the new slots in the next segment
+         this._pendingQuotaSlots = (this._pendingQuotaSlots || 0) + newSlotCount;
+       }
+     } else {
+       console.log(lines.join('\n'));
+     }
+   }
 
   // Update dynamic obstacles (punchfist, hammer, barrier, spinner, sweep_arm, meteor cleanup)
   updateDynamicObstacles(dt) {
@@ -7953,10 +8212,17 @@ obs._trappedBallId = null;
       const dt = delta * effectiveSpeed;
 
       // Update timer if race is active
-      if (this.state === 'racing') {
-        this.raceTimer += (16.666 * dt) / 1000;
+if (this.state === 'racing') {
+         this.raceTimer += (16.666 * dt) / 1000;
 
-        // Event scheduling ??? uses config computed once in startRace()
+         // Quota validation at minute boundaries
+         const currentMinute = Math.floor(this.raceTimer / 60);
+         if (currentMinute > 0 && currentMinute !== (this._lastValidatedMinute || 0)) {
+           this._lastValidatedMinute = currentMinute;
+           this._validateAndContinueSpawning(currentMinute);
+         }
+
+         // Event scheduling ??? uses config computed once in startRace()
         const evtCfg = this._eventIntensityCfg || { base: 20, variation: 3, maxEvents: 18 };
         if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime && !this._worldLockdown) {
           this.triggerRandomEvent();
@@ -18555,7 +18821,9 @@ this.ctx.restore();
       // insta-collisions that a fresh grid launch would never create.
       if (this.track && this.balls) {
         const clear = new Set(['carnivorous_vine', 'carnivorous_plant', 'rolling_log', 'swinging_vine',
-          'icicle', 'collapsing_pillar', 'whirlpool', 'gravity_well', 'meteor_gate', 'flame_jet']);
+          'icicle', 'icicle_drop', 'ice', 'collapsing_pillar', 'whirlpool', 'gravity_well',
+          'meteor_gate', 'flame_jet', 'rolling_boulder', 'energy_ring', 'jellyfish',
+          'crab_claw', 'rolling_tumbleweed', 'moving_dune', 'quicksand_pit']);
         const guards = this.balls.filter(b => !b.finished);
         if (guards.length) {
           const guardedX = guards.map(b => b.x || 0);
@@ -19151,6 +19419,7 @@ this.ctx.restore();
       this._nextEventRaceTime = 20;
       this.raceTimer = 0;
       this.countdownSeconds = 3;
+      this._obstacleSpawnCounts = {};
       this.state = 'countdown';
       this.isRunning = true;
       this.isPaused = false;
