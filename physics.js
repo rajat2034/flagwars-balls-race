@@ -70,9 +70,6 @@ class PhysicsEngine {
       this.updateAntiJamSystem(balls, track, dt);
     }
 
-    // Anti-stuck: rescue balls that have near-zero speed for too long
-    this.updateAntiStuckSystem(balls, track, dt);
-
     // Pre-compute once per frame (avoids per-ball O(n) allocations)
     const _nonFinished = balls.filter(b => !b.finished);
     const _leaderX = _nonFinished.length > 0 ? Math.max(..._nonFinished.map(b => b.x)) : -Infinity;
@@ -189,7 +186,9 @@ class PhysicsEngine {
             }
             inBoost = true;
             if (ball.z === 0 && !ball._wasInBoost && !ball._disableBoost) {
-              const boostMult = 1.7 + Math.random() * 0.3;
+              // Boost pipes carry an explicit multiplier (+50% = 1.5x); standalone
+              // boost pads keep the classic randomized surge.
+              const boostMult = zone.boostMultiplier || (1.7 + Math.random() * 0.3);
               ball.vx *= boostMult;
               ball.vy *= boostMult;
               ball._wasInBoost = true;
@@ -329,6 +328,13 @@ class PhysicsEngine {
           }
         }
       });
+
+      // Reset the boost "already used" flag once the ball exits every boost zone so
+      // the next boost pad / boost pipe re-triggers its surge (previously it only
+      // fired once per ball for the whole race).
+      if (!inBoost && ball._wasInBoost) {
+        ball._wasInBoost = false;
+      }
 
       // Reset zone visit flags (only when outside the respective zones)
       const slowZones = _slowZones;
@@ -1625,60 +1631,6 @@ if (dist > 0.001) {
           obs._reliefMode = false;
           obs._reliefTimer = 0;
         }
-      }
-    });
-  }
-
-  // Anti-stuck recovery: if a ball has near-zero speed for too long,
-  // apply progressive rescue impulses to unstick it without changing rankings.
-  updateAntiStuckSystem(balls, track, dt) {
-    const STUCK_SPEED = 0.3;
-    const STUCK_TIME = 2.0;
-    const FORWARD_IMPULSE = 1.5;
-    const UPWARD_IMPULSE = 2.0;
-    const SAFE_PUSH = 3.0;
-
-    balls.forEach(ball => {
-      if (ball.finished || ball.eliminated || ball._capturedByVine || ball._usedPortalThisFrame) return;
-
-      const speed = Math.hypot(ball.vx, ball.vy);
-      if (speed >= STUCK_SPEED) {
-        ball._stuckTimer = 0;
-        return;
-      }
-
-      ball._stuckTimer = (ball._stuckTimer || 0) + dt / 60;
-      if (ball._stuckTimer < STUCK_TIME) return;
-
-      // Ball has been stuck for too long — attempt recovery
-      const trackY = this.getTrackCenterY(ball.x, track);
-      const dyToTrack = trackY - ball.y;
-
-      // Recovery stage 1: tiny forward impulse
-      if (!ball._stuckStage || ball._stuckStage === 1) {
-        ball.vx += (ball.vx >= 0 ? 1 : -1) * FORWARD_IMPULSE * 0.3;
-        ball.vy += dyToTrack * 0.1;
-        ball._stuckStage = 2;
-        ball._stuckTimer = 0;
-        return;
-      }
-
-      // Recovery stage 2: tiny upward impulse
-      if (ball._stuckStage === 2) {
-        ball.vy -= UPWARD_IMPULSE * 0.3;
-        ball.vx += (ball.vx >= 0 ? 1 : -1) * FORWARD_IMPULSE * 0.2;
-        ball._stuckStage = 3;
-        ball._stuckTimer = 0;
-        return;
-      }
-
-      // Recovery stage 3: small safe push forward along the track
-      if (ball._stuckStage === 3) {
-        ball.x += (ball.vx >= 0 ? 1 : -1) * SAFE_PUSH;
-        ball.y = trackY;
-        ball.vx += (ball.vx >= 0 ? 1 : -1) * FORWARD_IMPULSE * 0.5;
-        ball._stuckStage = 1;
-        ball._stuckTimer = 0;
       }
     });
   }

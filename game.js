@@ -78,10 +78,7 @@ jungle: {
 
 // Data-driven obstacle registry ??? add new obstacles here; UI auto-populates
 const OBSTACLE_REGISTRY = [
-  { type: 'portal', name: 'Portal', category: 'core', map: null },
-  { type: 'boost', name: 'Boost Pad', category: 'core', map: null },
-  { type: 'slow', name: 'Slow Pad', category: 'core', map: null },
-  { type: 'spinner', name: 'Spinner', category: 'core', map: null },
+  // Core (all maps)
   { type: 'punchfist', name: 'Punch', category: 'core', map: null },
   { type: 'barrier', name: 'Moving Gate', category: 'core', map: null },
   { type: 'hammer', name: 'Swinging Hammer', category: 'core', map: null },
@@ -90,43 +87,42 @@ const OBSTACLE_REGISTRY = [
   { type: 'launch', name: 'Launch Pad', category: 'core', map: null },
   { type: 'boost_pipe', name: 'Boost Pipe', category: 'core', map: null },
   { type: 'peg', name: 'Bouncy Pegs', category: 'core', map: null },
-  // Space
-  { type: 'gravity_well', name: 'Gravity Well', category: 'signature', map: 'space' },
-  { type: 'energy_ring', name: 'Energy Ring', category: 'signature', map: 'space' },
-  { type: 'meteor_gate', name: 'Meteor Gate', category: 'signature', map: 'space' },
+  // Space (Nebula Cosmos)
+  { type: 'slow', name: 'Slow Pad', category: 'signature', map: 'space' },
+  { type: 'portal', name: 'Portal', category: 'signature', map: 'space' },
   // Glacier
   { type: 'ice', name: 'Ice Patch', category: 'signature', map: 'snow' },
   { type: 'ice_cannon', name: 'Ice Cannon', category: 'signature', map: 'snow' },
   { type: 'icicle', name: 'Animated Icicle', category: 'signature', map: 'snow' },
-  { type: 'icicle_drop', name: 'Icicle Drop', category: 'signature', map: 'snow' },
   // Magma
   { type: 'lava_pool', name: 'Lava Pool', category: 'signature', map: 'volcano' },
   { type: 'lava_geyser', name: 'Lava Geyser', category: 'signature', map: 'volcano' },
-  { type: 'rolling_boulder', name: 'Rolling Boulder', category: 'signature', map: 'volcano' },
-  { type: 'flame_jet', name: 'Flame Jet', category: 'signature', map: 'volcano' },
   { type: 'collapsing_pillar', name: 'Collapsing Rock Pillar', category: 'signature', map: 'volcano' },
   // Amazon
   { type: 'carnivorous_vine', name: 'Carnivorous Vine', category: 'signature', map: 'jungle' },
-  { type: 'swinging_vine', name: 'Swinging Vine', category: 'signature', map: 'jungle' },
-  { type: 'rolling_log', name: 'Rolling Log', category: 'signature', map: 'jungle' },
-  { type: 'carnivorous_plant', name: 'Carnivorous Plant', category: 'signature', map: 'jungle' },
   { type: 'mud_puddle', name: 'Mud Puddle', category: 'signature', map: 'jungle' },
   // Mariana
-  { type: 'whirlpool', name: 'Whirlpool', category: 'signature', map: 'ocean' },
-  { type: 'jellyfish', name: 'Jellyfish', category: 'signature', map: 'ocean' },
-  { type: 'crab_claw', name: 'Crab Claw', category: 'signature', map: 'ocean' },
   { type: 'sea_mine', name: 'Sea Mine', category: 'signature', map: 'ocean' },
-  { type: 'bubble_trap', name: 'Bubble Trap', category: 'signature', map: 'ocean' },
   { type: 'sea_urchin_field', name: 'Sea Urchin Field', category: 'signature', map: 'ocean' },
+  { type: 'bubble_trap', name: 'Bubble Trap', category: 'signature', map: 'ocean' },
   { type: 'floating_kelp', name: 'Floating Kelp', category: 'signature', map: 'ocean' },
-  { type: 'hydrothermal_vent', name: 'Hydrothermal Vent', category: 'signature', map: 'ocean' },
-
   // Sahara
   { type: 'quicksand_pit', name: 'Quicksand Pit', category: 'signature', map: 'desert' },
   { type: 'rolling_tumbleweed', name: 'Rolling Tumbleweed', category: 'signature', map: 'desert' },
-  { type: 'moving_dune', name: 'Moving Dune', category: 'signature', map: 'desert' },
   { type: 'sand_vortex', name: 'Sand Vortex', category: 'signature', map: 'desert' },
+  // ─── REMOVED (kept in git history; re-add the lines above to bring back) ───
+  // Core: portal (now Space-only), boost, slow (now Space-only), spinner
+  // Space: gravity_well, energy_ring, meteor_gate
+  // Magma: rolling_boulder, flame_jet
+  // Amazon: swinging_vine, rolling_log, carnivorous_plant
+  // Mariana: jellyfish (kept as an event only), crab_claw, whirlpool (kept as the Whirlpool Current event only)
+  // Sahara: moving_dune
+  // Glacier: icicle_drop (no renderer/physics in this build)
 ];
+
+// Cruising speed used to map track distance to race time for the guaranteed
+// spawn quota (units/sec). ~400 u/s = 100000px track in ~4 minutes.
+const QUOTA_SPEED_UNITS_PER_SEC = 400;
 
 const EVENT_REGISTRY = [
   { key: 'football_shower', name: 'Football Shower', implemented: true },
@@ -1818,9 +1814,6 @@ class StoryEngine {
     // Pick a message
     const msg = this._pickMessage(type, racerName);
 
-    // Show on canvas banner
-    this._engine.eventBanner.show(msg, 3200);
-
     // Add to the DOM feed
     this._addToDomFeed(type, msg, racerCode);
 
@@ -2194,7 +2187,6 @@ class GameEngine {
     this._rafId = null;
     this.raceTimer = 0; // in seconds
     this.lastTime = 0;
-    this._obstacleSpawnCounts = {};
 
     // Visual Effects
     this.fireworks = [];
@@ -2251,7 +2243,6 @@ class GameEngine {
     this._shiftSnapshot = null;             // offscreen canvas holding the pre-shift frame
     this._obstacleFreqWeights = null;       // mutable obstacle frequencies for world switching
     this._obstacleDensityPct = 80;          // setup obstacle density (20-100%), re-applied per world
-    this._obstaclePlan = null;              // section-budget obstacle plan built once per map
     this._knockoutTimerOffset = 0;          // resets knockout elimination timer to zero after a shift
 
     // Image pattern cache for country flags
@@ -2525,10 +2516,13 @@ class GameEngine {
     this.physics._isOcean = themeKey === 'ocean';
     this.physics.forwardForce = theme.forwardForce * 0.65;
 
-    // Build enabled set for obstacle filtering
+    // Build enabled set for obstacle filtering. Custom loadouts (incl. saved ones
+    // from localStorage) are intersected with the theme's allowed registry set so
+    // obstacles removed from OBSTACLE_REGISTRY can never be spawned again.
+    const allowedSet = new Set(OBSTACLE_REGISTRY.filter(o => o.category === 'core' || o.map === themeKey).map(o => o.type));
     const enabledSet = enabledObstacles
-      ? new Set(enabledObstacles)
-      : new Set(OBSTACLE_REGISTRY.filter(o => o.category === 'core' || o.map === themeKey).map(o => o.type));
+      ? new Set(enabledObstacles.filter(o => allowedSet.has(o)))
+      : allowedSet;
     this._enabledSet = enabledSet;
 
     // Magma Crater: replace Slow Ramp with Lava Pool entirely
@@ -2555,18 +2549,7 @@ class GameEngine {
 
     // Magma Crater: significantly boost Lava Pool spawn rate to match Boost Pad count
     if (themeKey === 'volcano' && freqWeights.lava_pool) {
-      freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15);
-    }
-    if (themeKey === 'volcano') {
-      if (freqWeights.lava_geyser) freqWeights.lava_geyser = Math.max(freqWeights.lava_geyser, 12);
-      if (freqWeights.rolling_boulder) freqWeights.rolling_boulder = Math.max(freqWeights.rolling_boulder, 12);
-      if (freqWeights.flame_jet) freqWeights.flame_jet = Math.max(freqWeights.flame_jet, 12);
-      if (freqWeights.collapsing_pillar) freqWeights.collapsing_pillar = Math.max(freqWeights.collapsing_pillar, 12);
-    }
-
-    // Portals are restricted to Nebula Cosmos only
-    if (themeKey !== 'space') {
-      enabledSet.delete('portal');
+      freqWeights.lava_pool = Math.max(freqWeights.lava_pool, 15); // High weight ~same as boost
     }
 
     // Mariana Depths: boost ocean obstacle spawn rates, remove boost pads and spinner
@@ -2577,41 +2560,6 @@ class GameEngine {
       if (freqWeights.sea_mine) freqWeights.sea_mine = 20;
       if (freqWeights.sea_urchin_field) freqWeights.sea_urchin_field = 20;
       if (freqWeights.floating_kelp) freqWeights.floating_kelp = 20;
-      if (freqWeights.whirlpool) freqWeights.whirlpool = 20;
-      if (freqWeights.jellyfish) freqWeights.jellyfish = 20;
-      if (freqWeights.crab_claw) freqWeights.crab_claw = 20;
-      if (freqWeights.hydrothermal_vent) freqWeights.hydrothermal_vent = 20;
-    }
-
-    // Glacier Summit: boost ice obstacle spawn rates
-    if (themeKey === 'snow') {
-      if (freqWeights.ice) freqWeights.ice = Math.max(freqWeights.ice, 15);
-      if (freqWeights.ice_cannon) freqWeights.ice_cannon = Math.max(freqWeights.ice_cannon, 15);
-      if (freqWeights.icicle) freqWeights.icicle = Math.max(freqWeights.icicle, 15);
-      if (freqWeights.icicle_drop) freqWeights.icicle_drop = Math.max(freqWeights.icicle_drop, 15);
-    }
-
-    // Amazon Canopy: boost vine/plant obstacle spawn rates
-    if (themeKey === 'jungle') {
-      if (freqWeights.carnivorous_vine) freqWeights.carnivorous_vine = Math.max(freqWeights.carnivorous_vine, 15);
-      if (freqWeights.swinging_vine) freqWeights.swinging_vine = Math.max(freqWeights.swinging_vine, 15);
-      if (freqWeights.rolling_log) freqWeights.rolling_log = Math.max(freqWeights.rolling_log, 12);
-      if (freqWeights.carnivorous_plant) freqWeights.carnivorous_plant = Math.max(freqWeights.carnivorous_plant, 12);
-    }
-
-    // Sahara Desert: boost tumbleweed/dune obstacle spawn rates
-    if (themeKey === 'desert') {
-      if (freqWeights.rolling_tumbleweed) freqWeights.rolling_tumbleweed = Math.max(freqWeights.rolling_tumbleweed, 15);
-      if (freqWeights.moving_dune) freqWeights.moving_dune = Math.max(freqWeights.moving_dune, 12);
-      if (freqWeights.sand_vortex) freqWeights.sand_vortex = Math.max(freqWeights.sand_vortex, 12);
-      if (freqWeights.quicksand_pit) freqWeights.quicksand_pit = Math.max(freqWeights.quicksand_pit, 12);
-    }
-
-    // Nebula Cosmos: boost space-exclusive obstacle spawn rates
-    if (themeKey === 'space') {
-      if (freqWeights.gravity_well) freqWeights.gravity_well = Math.max(freqWeights.gravity_well, 15);
-      if (freqWeights.energy_ring) freqWeights.energy_ring = Math.max(freqWeights.energy_ring, 15);
-      if (freqWeights.meteor_gate) freqWeights.meteor_gate = Math.max(freqWeights.meteor_gate, 15);
     }
 
     let track;
@@ -3353,36 +3301,134 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       return x2 + 150;
     };
 
-    // Helper: materializes the pre-planned obstacle slots that fall inside the
-    // segment range. Positions and types come from this._obstaclePlan (built once
-    // per map / world shift), so gameplay simply follows the plan. Each planned
-    // slot is turned into a concrete obstacle with the exact same placement logic
-    // as before; slots that can't be placed safely are skipped.
+    // Helper: generates standard structured layout inside a segment
     const generateSegmentObstacles = (segStart, segEnd) => {
-      const plan = this._obstaclePlan;
-      if (!plan || !plan.slots || plan.slots.length === 0) return;
-
+      let x = segStart + 50 + Math.random() * 50;
       let lastPlacedType = null;
+      let secondLastPlacedType = null;
+      let thirdLastPlacedType = null;
+      let recoveryRemaining = 0;
+      let clusterRemaining = 0;
+      let gapUntil = x;
+      const segObstaclePositions = [];
+
+      // Density slider (20-100%): higher = more obstacles, tighter spacing
+      // multiplier: 1.8 at 20% ??? 0.5 at 100% (3.6x range)
+      // Read the live setup density so World Shifts never change obstacle density.
+      const pct = this._obstacleDensityPct || densityPct || 80;
+      const densityMult = 1.8 - (pct / 100) * 1.3;
+      // Cap to avoid division by zero / negative
+      let densityFactor = Math.max(0.35, densityMult);
+
+      const MAJOR_OBSTACLES = _filterTypes(['hammer', 'spinner', 'c_bumper', 'portal', 'punchfist', 'sweep_arm', 'barrier']);
+
+      const FORBIDDEN_NEXT = {};
+      [
+        ['hammer', ['portal', 'hammer']],
+        ['portal', ['hammer', 'punchfist', 'spinner', 'portal']],
+        ['spinner', ['hammer', 'portal']],
+        ['punchfist', ['hammer', 'portal']],
+        ['sweep_arm', ['hammer', 'portal']],
+        ['barrier', ['portal', 'hammer']],
+        ['boost', ['slow', 'boost']],
+        ['slow', ['boost', 'slow']]
+      ].forEach(([key, vals]) => {
+        if (this._enabledSet.has(key)) {
+          const filtered = vals.filter(v => this._enabledSet.has(v));
+          if (filtered.length) FORBIDDEN_NEXT[key] = filtered;
+        }
+      });
+
+      let comboNextType = null;
+      let comboNextType2 = null;
+      let consecutiveClusters = 0;
       let _lastPunchHigh = false;
       let _lastHammerTop = false;
+      let _hammerCorridorRemaining = 0;
+      let _hammerCorridorsUsed = 0;
+      const MAX_HAMMER_CORRIDORS = 1 + Math.floor(Math.random() * 3);
 
-      const slots = [];
-      for (let i = 0; i < plan.slots.length; i++) {
-        const s = plan.slots[i];
-        if (s.x >= segStart && s.x < segEnd) slots.push(s);
-        else if (s.x >= segEnd) break;
-      }
+      let _safety = 0;
+      while (x < segEnd - 150) {
+        if (++_safety > 500) { console.log('INFINITE LOOP in generateSegmentObstacles'); break; }
+        let forceSafe = recoveryRemaining > 0;
 
-      for (let si = 0; si < slots.length; si++) {
-        // Plan slots are spaced budget-fairly; jitter each within its band so
-        // segment regeneration attempts can find a wall/obstacle-safe offset.
-        const bx = slots[si].x;
-        const band = slots[si].band || 60;
-        const x = Math.min(segEnd - 150, Math.max(segStart, bx + (Math.random() - 0.5) * band));
-        const type = slots[si].type;
+        // Hammer corridor mode: place alternating hammers directly
+        if (_hammerCorridorRemaining > 0) {
+          const cBounds = getBounds(x);
+          if (!cBounds) { x += 200; continue; }
+          const cAvail = cBounds.bottomY - cBounds.topY;
+          if (cAvail < 160) { _hammerCorridorRemaining = 0; x += 200; continue; }
+          const cArmLen = Math.min(70 + Math.random() * 20, cAvail * 0.45);
+          const cHeadRad = 22 + Math.random() * 6;
+          const cTop = !_lastHammerTop;
+          _lastHammerTop = cTop;
+          const cPY = cTop ? cBounds.topY + 8 : cBounds.bottomY - 8;
+          const cAngle = Math.random() * Math.PI * 2;
+          track.obstacles.push({
+            type: 'hammer', x, y: cPY, armLength: cArmLen, headRadius: cHeadRad,
+            angle: cAngle, speed: 0.160 + Math.random() * 0.040,
+            direction: Math.random() < 0.5 ? 1 : -1, pivotTop: cTop,
+            headX: x + Math.cos(cAngle) * cArmLen,
+            headY: cPY + Math.sin(cAngle) * cArmLen
+          });
+          segObstaclePositions.push(x);
+          _hammerCorridorRemaining--;
+          x += 140 + Math.random() * 30;
+          if (_hammerCorridorRemaining > 0) continue;
+        }
+
+        const t = (x % length) / length;
+
+        // Determine current pacing zone
+        const currentZone = ZONE_CONFIG.find(z => t >= z.start && t < z.end) || ZONE_CONFIG[ZONE_CONFIG.length - 1];
+        let allowedTypes = currentZone.types.filter(tt => this._enabledSet.has(tt));
+        const zoneDensity = currentZone.density;
+
+        // Cluster/gap alternation: if in a gap, skip ahead until gap ends
+        if (gapUntil > x && !comboNextType) {
+          x += Math.min(gapUntil - x, 200);
+          if (x < gapUntil) continue;
+        }
+
+        // Combo sequence: if a combo partner is queued, force it
+        let type;
+        if (comboNextType) {
+          type = comboNextType;
+          comboNextType = comboNextType2;
+          comboNextType2 = null;
+        } else {
+          // No 3 identical obstacles in a row
+          let filtered = allowedTypes.filter(t => t !== lastPlacedType || t !== secondLastPlacedType || t !== thirdLastPlacedType);
+          if (filtered.length === 0) filtered = allowedTypes.filter(t => t !== lastPlacedType);
+
+          // Forbidden sequence prevention
+          if (lastPlacedType && FORBIDDEN_NEXT[lastPlacedType]) {
+            filtered = filtered.filter(t => !FORBIDDEN_NEXT[lastPlacedType].includes(t));
+            if (filtered.length === 0) filtered = allowedTypes.filter(t => t !== lastPlacedType);
+          }
+
+          // Forced safe types during recovery period
+          if (forceSafe) {
+            const safeTypes = filtered.filter(t => !MAJOR_OBSTACLES.includes(t));
+            if (safeTypes.length > 0) filtered = safeTypes;
+            recoveryRemaining -= 1;
+          }
+
+          // Weighted random selection based on obstacle frequency
+          const weights = filtered.map(t => (this._obstacleFreqWeights && this._obstacleFreqWeights[t]) || 5);
+          const totalW = weights.reduce((a, b) => a + b, 0);
+          let rw = Math.random() * totalW;
+          type = filtered[filtered.length - 1];
+          for (let wi = 0; wi < filtered.length; wi++) {
+            if (rw < weights[wi]) { type = filtered[wi]; break; }
+            rw -= weights[wi];
+          }
+        }
 
         const bounds = getBounds(x);
         if (!bounds) {
+          x += 200;
           continue;
         }
 
@@ -3392,6 +3438,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
 
         // Skip hammer & punchfist in narrow track sections
         if ((type === 'hammer' || type === 'punchfist') && availH < 160) {
+          x += 200;
           continue;
         }
 
@@ -3403,13 +3450,20 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         }
         if (nearRestricted) {
           if (type === 'peg' || type === 'barrier' || type === 'spinner' || type === 'hammer' || type === 'punchfist' || type === 'sweep_arm' || type === 'c_bumper') {
+            x += 80;
             continue;
           }
         }
 
+        // Start Alternating Hammer Corridor?
+        if (_hammerCorridorsUsed < MAX_HAMMER_CORRIDORS && type === 'hammer' && !forceSafe && t >= 0.20 && t < 0.85 && segEnd - x > 700 && Math.random() < 0.18) {
+          _hammerCorridorRemaining = 5 + Math.floor(Math.random() * 4);
+          _hammerCorridorsUsed++;
+        }
+
+        const cfg = SPACING_CONFIG[type] || { min: 150, preferred: 200, recovery: 0, safeLanding: 0 };
         const _prevObsLen = track.obstacles.length;
         const _prevZoneLen = track.zones.length;
-        const _prevPegLen = track.pegs ? track.pegs.length : 0;
 
         // 1. Position details & dynamic sizing based on available lane height
         if (type === 'c_bumper') {
@@ -3433,17 +3487,17 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             track.obstacles.push({
               type: 'boost_pipe', x, y: pipeY,
               length: pipeLen, width: pipeH,
-              boostMultiplier: 1.35 + Math.random() * 0.2
+              boostMultiplier: 1.5
             });
 
             track.zones.push({
               type: 'boost', x: x, y: pipeY - pipeH / 2,
-              width: pipeLen, height: pipeH, force: 0.38
+              width: pipeLen, height: pipeH, force: 0.38, boostMultiplier: 1.5
             });
           }
         } else if (type === 'boost') {
           const boostClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle' || z.type === 'lava_pool') && Math.abs(z.x + z.width / 2 - x) < 400);
-          if (boostClose) { continue; }
+          if (boostClose) { x += 200; continue; }
           const w = 75;
           const h = 45;
           track.zones.push({
@@ -3454,10 +3508,10 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         } else if (type === 'lava_pool') {
           // Magma Crater: Lava Pool (replaces Slow Ramp)
           const slowClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - x) < 400);
-          if (slowClose) { continue; }
+          if (slowClose) { x += 200; continue; }
           const w = this.currentThemeKey === 'jungle' ? 135 : 60;
           const h = this.currentThemeKey === 'jungle' ? 101 : 45;
-          const zoneType = this.currentThemeKey === 'jungle' ? 'mud_puddle || lava_pool' : 'slow';
+          const zoneType = this.currentThemeKey === 'jungle' ? 'mud_puddle' : 'lava_pool';
           track.zones.push({
             type: zoneType, x: x - w / 2,
             y: clampY(centerY + (Math.random() - 0.5) * halfH * 0.5, bounds, h / 2 + 5) - h / 2,
@@ -3466,7 +3520,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         } else if (type === 'slow') {
           // Standard Slow Ramp (non-volcano maps only), replaced by Quicksand Pit on Sahara Desert
           const slowClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - x) < 400);
-            if (slowClose) { continue; }
+            if (slowClose) { x += 200; continue; }
             const w = 60;
             const h = 45;
             const isDesert = this.currentThemeKey === 'desert';
@@ -3498,7 +3552,13 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
             punchX: x, punchY: centerY
           });
         } else if (type === 'portal') {
-          tryPlacePortalPair(x, bounds, segEnd);
+          const adv = tryPlacePortalPair(x, bounds, segEnd);
+          if (adv) {
+            x = adv;
+          } else {
+            x += 200;
+            continue;
+          }
         } else if (type === 'launch') {
           const padW = 50;
           track.zones.push({
@@ -3730,190 +3790,27 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
               alpha: 0.15 + Math.random() * 0.15
             }))
           });
-} else if (type === 'sand_vortex') {
-           const r = 55 + Math.random() * 25;
-           const h = 80 + Math.random() * 40;
-           const sy = clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, h * 0.5 + 10);
-           track.obstacles.push({
-             type: 'sand_vortex', x, y: sy,
-             radius: r,
-             height: h,
-             _affectedBalls: new Set()
-           });
-         } else if (type === 'gravity_well') {
-           const r = 40 + Math.random() * 15;
-           track.obstacles.push({
-             type: 'gravity_well', x, y: centerY,
-             radius: r,
-             _pullStrength: 0.08 + Math.random() * 0.04,
-             _affectedBalls: new Set()
-           });
-         } else if (type === 'energy_ring') {
-           const r = 35 + Math.random() * 10;
-           track.obstacles.push({
-             type: 'energy_ring', x, y: centerY,
-             radius: r,
-             _rotation: Math.random() * Math.PI * 2,
-             _spinSpeed: 0.02 + Math.random() * 0.02
-           });
-         } else if (type === 'meteor_gate') {
-           const gateW = 20 + Math.random() * 5;
-           const gateH = Math.min(90 + Math.random() * 20, availH * 0.55);
-           track.obstacles.push({
-             type: 'meteor_gate', x, y: centerY,
-             width: gateW, height: gateH,
-             isVertical: true, gapMin: 0, gapMax: availH * 0.55,
-             state: 'opening', stateTimer: 0,
-             openDuration: 25 + Math.floor(Math.random() * 20),
-             closeDuration: 15 + Math.floor(Math.random() * 15),
-             currentGap: 0, slideSpeed: 5.0 + Math.random() * 2.0,
-             topY: bounds.topY, bottomY: bounds.bottomY
-           });
-         } else if (type === 'ice') {
-           const w = 80 + Math.random() * 40;
-           const h = 30 + Math.random() * 15;
-           track.zones.push({
-             type: 'ice', x: x - w / 2,
-             y: clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, h / 2 + 5) - h / 2,
-             width: w, height: h
-           });
-         } else if (type === 'icicle') {
-           const len = 40 + Math.random() * 25;
-           const side = Math.random() < 0.5 ? -1 : 1;
-           const iy = side < 0 ? bounds.topY + 10 : bounds.bottomY - 10;
-           track.obstacles.push({
-             type: 'icicle', x, y: iy,
-             length: len, width: 8 + Math.random() * 4,
-             angle: side * (0.1 + Math.random() * 0.15),
-             _swayPhase: Math.random() * Math.PI * 2,
-             _swaySpeed: 0.01 + Math.random() * 0.01
-           });
-         } else if (type === 'icicle_drop') {
-           const dropY = bounds.topY + 20;
-           track.obstacles.push({
-             type: 'icicle_drop', x, y: dropY,
-             width: 60 + Math.random() * 20, height: 8,
-             _triggerY: bounds.topY + availH * 0.3,
-             _dropping: false, _dropTimer: 0
-           });
-         } else if (type === 'rolling_boulder') {
-           const r = 18 + Math.random() * 8;
-           track.obstacles.push({
-             type: 'rolling_boulder', x, y: centerY,
-             radius: r,
-             speed: 0.5 + Math.random() * 0.5,
-             direction: Math.random() < 0.5 ? 1 : -1,
-             _bounceTimer: 0
-           });
-         } else if (type === 'flame_jet') {
-           const jetH = 50 + Math.random() * 30;
-           track.obstacles.push({
-             type: 'flame_jet', x, y: bounds.bottomY - 10,
-             height: jetH, width: 20 + Math.random() * 10,
-             _fireTimer: Math.floor(Math.random() * 120),
-             _fireInterval: 90 + Math.floor(Math.random() * 90),
-             _fireDuration: 30, _firing: false
-           });
-         } else if (type === 'collapsing_pillar') {
-           const pH = 80 + Math.random() * 40;
-           track.obstacles.push({
-             type: 'collapsing_pillar', x, y: centerY,
-             width: 30 + Math.random() * 10, height: pH,
-             _state: 'standing', _collapseTimer: 0,
-             _collapseDelay: 120 + Math.floor(Math.random() * 180)
-           });
-         } else if (type === 'carnivorous_vine') {
-           const vLen = 60 + Math.random() * 40;
-           track.obstacles.push({
-             type: 'carnivorous_vine', x, y: centerY,
-             length: vLen, width: 8,
-             _state: 'idle', _stateTimer: 0,
-             _attackDuration: 20, _retractDuration: 30,
-             _direction: Math.random() < 0.5 ? 1 : -1
-           });
-         } else if (type === 'swinging_vine') {
-           const vLen = 70 + Math.random() * 50;
-           track.obstacles.push({
-             type: 'swinging_vine', x, y: centerY,
-             length: vLen, width: 6,
-             angle: Math.random() * Math.PI * 2,
-             speed: 0.03 + Math.random() * 0.02
-           });
-         } else if (type === 'rolling_log') {
-           const r = 15 + Math.random() * 8;
-           track.obstacles.push({
-             type: 'rolling_log', x, y: centerY,
-             radius: r,
-             speed: 0.3 + Math.random() * 0.3,
-             direction: Math.random() < 0.5 ? 1 : -1
-           });
-         } else if (type === 'carnivorous_plant') {
-           const pR = 25 + Math.random() * 10;
-           track.obstacles.push({
-             type: 'carnivorous_plant', x, y: centerY,
-             radius: pR,
-             _state: 'idle', _stateTimer: 0,
-             _snapDelay: 60 + Math.floor(Math.random() * 120),
-             _snapDuration: 15
-           });
-         } else if (type === 'whirlpool') {
-           const r = 50 + Math.random() * 20;
-           track.obstacles.push({
-             type: 'whirlpool', x, y: centerY,
-             radius: r,
-             _pullStrength: 0.1 + Math.random() * 0.05,
-             _affectedBalls: new Set()
-           });
-         } else if (type === 'jellyfish') {
-           const jR = 15 + Math.random() * 8;
-           track.obstacles.push({
-             type: 'jellyfish', x, y: centerY,
-             radius: jR,
-             _floatPhase: Math.random() * Math.PI * 2,
-             _floatSpeed: 0.02 + Math.random() * 0.02,
-             _floatAmount: 10 + Math.random() * 10
-           });
-         } else if (type === 'crab_claw') {
-           const clawR = 20 + Math.random() * 8;
-           track.obstacles.push({
-             type: 'crab_claw', x, y: centerY,
-             radius: clawR,
-             _snapTimer: 0,
-             _snapInterval: 120 + Math.floor(Math.random() * 120),
-             _snapDuration: 10,
-             _open: true
-           });
-         } else if (type === 'rolling_tumbleweed') {
-           const tR = 20 + Math.random() * 10;
-           track.obstacles.push({
-             type: 'rolling_tumbleweed', x, y: centerY,
-             radius: tR,
-             speed: 0.4 + Math.random() * 0.4,
-             direction: Math.random() < 0.5 ? 1 : -1,
-             _rollPhase: Math.random() * Math.PI * 2
-           });
-         } else if (type === 'moving_dune') {
-           const dW = 100 + Math.random() * 50;
-           const dH = 30 + Math.random() * 15;
-           track.zones.push({
-             type: 'moving_dune', x: x - dW / 2,
-             y: clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, dH / 2 + 5) - dH / 2,
-             width: dW, height: dH,
-             _moveTimer: 0, _moveInterval: 180
-           });
-         } else if (type === 'quicksand_pit') {
-           const qw = 70 + Math.random() * 30;
-           const qh = 70 + Math.random() * 30;
-           track.zones.push({
-             type: 'quicksand_pit', x: x - qw / 2,
-             y: clampY(centerY + (Math.random() - 0.5) * availH * 0.4, bounds, qh / 2 + 5) - qh / 2,
-             width: qw, height: qh,
-             _radius: qw / 2
-           });
-         }
+        } else if (type === 'sand_vortex') {
+          const r = 55 + Math.random() * 25;
+          const h = 80 + Math.random() * 40;
+          const sy = clampY(centerY + (Math.random() - 0.5) * availH * 0.3, bounds, h * 0.5 + 10);
+          track.obstacles.push({
+            type: 'sand_vortex', x, y: sy,
+            radius: r,
+            height: h,
+            _affectedBalls: new Set()
+          });
+        }
 
-        // Overlap prevention: check new elements against ALL existing obstacle/zone BBs.
-        // A planned slot that can't be placed safely is simply skipped.
+        // Track last 3 types to prevent triplicates
+        thirdLastPlacedType = secondLastPlacedType;
+        secondLastPlacedType = lastPlacedType;
+        lastPlacedType = type;
+
+        if (clusterRemaining > 0) clusterRemaining--;
+        segObstaclePositions.push(x);
+
+        // Overlap prevention: check new elements against ALL existing obstacle/zone BBs
         let _overlap = false;
         for (let _oi = _prevObsLen; _oi < track.obstacles.length && !_overlap; _oi++) {
           const _newBB = getBB(track.obstacles[_oi]);
@@ -3940,12 +3837,114 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
         if (_overlap) {
           while (track.obstacles.length > _prevObsLen) track.obstacles.pop();
           while (track.zones.length > _prevZoneLen) track.zones.pop();
-          if (track.pegs) while (track.pegs.length > _prevPegLen) track.pegs.pop();
+          lastPlacedType = secondLastPlacedType;
+          secondLastPlacedType = thirdLastPlacedType;
           continue;
         }
 
-        lastPlacedType = type;
-         this._obstacleSpawnCounts[type] = (this._obstacleSpawnCounts[type] || 0) + 1;
+        const isDifficult = MAJOR_OBSTACLES.includes(type);
+        let nextSpacing = cfg.preferred;
+        if (type === 'boost' || isDifficult) nextSpacing += cfg.recovery;
+        if (type === 'boost') nextSpacing += 120;
+        if (type === 'portal') nextSpacing += cfg.safeLanding;
+
+        const xBeforeAdvance = x;
+
+        // Dynamic density: variable spacing creates organic feel
+        const variability = 0.75 + Math.random() * 0.25;
+        const normalAdvance = Math.max(cfg.min, nextSpacing * densityFactor * zoneDensity * variability);
+        x += normalAdvance;
+
+        // Attempt to start a combo or template (clusters of 2-3)
+        const clusterComboChance = consecutiveClusters >= 2 ? 0.40 : 0.75;
+        if (!comboNextType && !forceSafe && comboCount < MAX_COMBOS && lastPlacedType && Math.random() < clusterComboChance) {
+          consecutiveClusters++;
+          if (templateIndex < shuffledTemplates.length && Math.random() < 0.4) {
+            const template = shuffledTemplates[templateIndex];
+            if (template[0] === lastPlacedType && allowedTypes.includes(template[1]) && allowedTypes.includes(template[2])) {
+              comboNextType = template[1];
+              comboNextType2 = template[2];
+              x = Math.max(xBeforeAdvance + 80, xBeforeAdvance + 100);
+              comboCount++;
+              templateIndex++;
+              clusterRemaining = 2;
+            }
+          }
+          if (!comboNextType) {
+            const compatible = COMBINATIONS.filter(c =>
+              c.types[0] === lastPlacedType &&
+              !usedCombos.includes(c) &&
+              allowedTypes.includes(c.types[1])
+            );
+            if (compatible.length > 0) {
+              const totalWeight = compatible.reduce((s, c) => s + c.weight, 0);
+              let roll = Math.random() * totalWeight;
+              for (const combo of compatible) {
+                roll -= combo.weight;
+                if (roll <= 0) {
+                  comboNextType = combo.types[1];
+                  x = Math.max(xBeforeAdvance + 80, xBeforeAdvance + combo.gap * 2);
+                  usedCombos.push(combo);
+                  comboCount++;
+                  clusterRemaining = 1;
+                  break;
+                }
+              }
+            }
+          }
+          // If no compatible combo found, revert the consecutive counter
+          if (!comboNextType) consecutiveClusters--;
+        }
+
+        // If not in a combo and cluster done, schedule next gap
+        if (!comboNextType && clusterRemaining <= 0) {
+          const gapLen = consecutiveClusters > 0
+            ? 120 + Math.random() * 160
+            : 80 + Math.random() * 100;
+          consecutiveClusters = 0;
+          lastPlacedType = null;
+          secondLastPlacedType = null;
+          thirdLastPlacedType = null;
+          gapUntil = x + gapLen;
+        }
+
+        if (isDifficult) {
+          recoveryRemaining = Math.max(recoveryRemaining, 3);
+        } else {
+          recoveryRemaining = Math.max(0, recoveryRemaining - 1);
+        }
+      }
+
+      // Dead-space validation: fill excessive gaps based on density
+      // Higher density = lower threshold (fill even moderate gaps)
+      const maxGap = Math.round(1100 - (pct / 100) * 900); // e.g. 1100px at 20%, 200px at 100%
+      if (segObstaclePositions.length > 1) {
+        for (let i = 1; i < segObstaclePositions.length; i++) {
+          const gap = segObstaclePositions[i] - segObstaclePositions[i - 1];
+          if (gap > maxGap) {
+            const insX = segObstaclePositions[i - 1] + gap / 2;
+            if (insX < segEnd - 150) {
+              const ib = getBounds(insX);
+              if (ib) {
+                const icY = (ib.topY + ib.bottomY) / 2;
+                const iAvail = ib.bottomY - ib.topY;
+                // Only use enabled obstacles for gap filling
+                const fb = ['boost', 'spinner', 'barrier'].filter(t => this._enabledSet.has(t));
+                if (fb.length === 0) continue;
+                const ft = fb[Math.floor(Math.random() * fb.length)];
+                if (ft === 'boost') {
+                  const bClose = track.zones.some(z => (z.type === 'slow' || z.type === 'lava_pool' || z.type === 'quicksand_pit') && Math.abs(z.x + z.width / 2 - insX) < 400);
+                  if (bClose) continue;
+                  track.zones.push({ type: 'boost', x: insX - 37, y: clampY(icY - 22, ib, 27), width: 75, height: 45, force: 0.20 });
+                } else if (ft === 'spinner') {
+                  track.obstacles.push({ type: 'spinner', x: insX, y: clampY(icY, ib, 40), length: Math.min(80, iAvail * 0.4), angle: 0, speed: 0.04, pins: [] });
+                } else if (ft === 'barrier') {
+                  track.obstacles.push({ type: 'barrier', x: insX, y: icY, width: 18, height: Math.min(80, iAvail * 0.5), isVertical: true, gapMin: 0, gapMax: iAvail * 0.5, state: 'opening', stateTimer: 0, openDuration: 100, closeDuration: 100, currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: ib.topY, bottomY: ib.bottomY });
+                }
+              }
+            }
+          }
+        }
       }
     };
 
@@ -3972,29 +3971,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       }
     };
 
-    // ── Build the section-budget obstacle plan for this map ────────────────
-    // The plan is generated once here (and rebuilt on World Shift / Knockout
-    // extension), then every segment simply materializes the planned slots that
-    // fall inside its range. This replaces the old random-walk spawner so the
-    // whole race stays consistently populated from start to finish.
-    // Density resolution: an explicit setup % wins, then the setup-saved %, then
-    // the legacy density string (low/medium/high) so the diagnostics suite and
-    // any caller that only passes a density string still get a meaningful plan.
-    let planPct = (densityPct != null && !isNaN(densityPct))
-      ? Math.max(20, Math.min(100, densityPct))
-      : (this._obstacleDensityPct != null && !isNaN(this._obstacleDensityPct))
-        ? Math.max(20, Math.min(100, this._obstacleDensityPct))
-        : (densityStr === 'low' ? 25 : densityStr === 'medium' ? 50 : densityStr === 'high' ? 75 : 80);
-    this._obstaclePlan = this._buildObstaclePlan(
-      enabledSet, freqWeights, planPct,
-      800, finishX - 1000, null
-    );
-
-    // Segment partition and loop (leave last 1000px before finish obstacle-free).
-    // The plan fixes the type sequence and per-section budget; each segment
-    // materializes its planned slots with a small position jitter and is validated.
-    // A few regeneration attempts (new jitter each time) keep the same layout but
-    // find a wall-safe offset; only a persistent failure falls back to sparse.
+    // Segment partition and loop (leave last 1000px before finish obstacle-free)
     const numSegments = 10;
     const segmentWidth = (finishX - 1800) / numSegments;
 
@@ -4002,44 +3979,33 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       const segStart = 800 + s * segmentWidth;
       const segEnd = segStart + segmentWidth;
 
-      let best = null;
-      let bestErrors = Infinity;
-      for (let attempt = 0; attempt < 6; attempt++) {
+      let retries = 0;
+      let valid = false;
+
+      while (retries < 10 && !valid) {
         // Clear old items inside this segment range
         track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
         track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
         if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
 
-        // Generate segment contents from the plan
+        // Generate segment contents
         generateSegmentObstacles(segStart, segEnd);
 
         // Run validation pass
         const errors = validateSegment(segStart, segEnd);
-        if (errors === 0) { best = null; break; }
-
-        if (errors < bestErrors) {
-          bestErrors = errors;
-          best = {
-            obstacles: track.obstacles.filter(o => o.x >= segStart && o.x < segEnd),
-            zones: track.zones.filter(z => z.x >= segStart && z.x < segEnd),
-            pegs: track.pegs ? track.pegs.filter(p => p.x >= segStart && p.x < segEnd) : []
-          };
+        if (errors === 0) {
+          valid = true;
+        } else {
+          retries++;
         }
       }
 
-      // If no attempt hit zero errors, restore the lowest-error layout; only when
-      // that produced nothing at all fall back to the safe sparse layout.
-      if (best) {
+      // If segment keeps failing, fall back to safe spacing sparse layout
+      if (!valid) {
         track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
         track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
         if (track.pegs) track.pegs = track.pegs.filter(p => p.x < segStart || p.x >= segEnd);
-        if (best.obstacles.length > 0 || best.zones.length > 0) {
-          track.obstacles.push(...best.obstacles);
-          track.zones.push(...best.zones);
-          if (track.pegs) track.pegs.push(...best.pegs);
-        } else {
-          generateSparseSegment(track, segStart, segEnd);
-        }
+        generateSparseSegment(track, segStart, segEnd);
       }
     }
 
@@ -4052,9 +4018,176 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
       generateSparseSegment
     };
     
-    // Minimum-count enforcement removed: the section-budget plan (this._obstaclePlan)
-    // already distributes every enabled type evenly across the playable track, so
-    // random re-cluttering is no longer needed.
+    // Ensure minimum counts: at least 30 of each major type per race (only enabled types)
+    const MIN_COUNT = 30;
+    const TYPE_COUNTS = {};
+    ['hammer', 'spinner', 'barrier', 'sweep_arm', 'punchfist',
+     'c_bumper', 'boost', 'slow', 'portal', 'launch', 'ice_cannon', 'mud_puddle', 'lava_geyser', 'sand_vortex', 'quicksand_pit']
+      .filter(t => enabledSet.has(t))
+      .forEach(t => { TYPE_COUNTS[t] = 0; });
+    track.obstacles.forEach(o => { if (TYPE_COUNTS[o.type] !== undefined) TYPE_COUNTS[o.type]++; });
+    track.zones.forEach(z => { if (z.type !== 'finish' && TYPE_COUNTS[z.type] !== undefined) TYPE_COUNTS[z.type]++; });
+    const underTypes = Object.keys(TYPE_COUNTS).filter(t => TYPE_COUNTS[t] < MIN_COUNT);
+    const _isRestricted = (px) => {
+      if (Math.abs(px - finishX) < 1000) return true;
+      for (const _r of track.obstacles) {
+        if (_r.type === 'barrier' && Math.abs(px - _r.x) < 100) return true;
+        if (_r.type === 'c_bumper' && Math.abs(px - _r.x) < (_r.radius || 55) + 50) return true;
+      }
+      return false;
+    };
+    for (const ut of underTypes) {
+      const needed = MIN_COUNT - TYPE_COUNTS[ut];
+      for (let n = 0; n < needed; n++) {
+        let tryX = 800 + Math.random() * (finishX - 1800);
+        let _attempts = 0;
+        while (_isRestricted(tryX) && _attempts < 20) { tryX = 800 + Math.random() * (finishX - 1800); _attempts++; }
+        if (_attempts >= 20) continue;
+        const b = getBounds(tryX);
+        if (!b) continue;
+        const cY = (b.topY + b.bottomY) / 2;
+        const aH = b.bottomY - b.topY;
+        if (ut === 'hammer') {
+          const topPivot = Math.random() < 0.5;
+          const startAngle = Math.random() * Math.PI * 2;
+          const armLen = 60 + Math.random() * 30;
+          track.obstacles.push({
+            type: 'hammer', x: tryX, y: topPivot ? b.topY + 8 : b.bottomY - 8,
+            armLength: armLen, headRadius: 22 + Math.random() * 6,
+            angle: startAngle, speed: 0.140 + Math.random() * 0.060,
+            direction: Math.random() < 0.5 ? 1 : -1, pivotTop: topPivot,
+            headX: tryX + Math.cos(startAngle) * armLen,
+            headY: (topPivot ? b.topY + 8 : b.bottomY - 8) + Math.sin(startAngle) * armLen
+          });
+        } else if (ut === 'spinner') {
+          track.obstacles.push({
+            type: 'spinner', x: tryX, y: clampY(cY, b, 45),
+            length: Math.min(80, aH * 0.5), angle: 0, speed: 0.04 + Math.random() * 0.03, pins: []
+          });
+        } else if (ut === 'barrier') {
+          track.obstacles.push({
+            type: 'barrier', x: tryX, y: cY, width: 18, height: Math.min(80, aH * 0.5),
+            isVertical: true, gapMin: 0, gapMax: aH * 0.5,
+            state: 'opening', stateTimer: 0,
+            openDuration: 20, closeDuration: 15,
+            currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.25, topY: b.topY, bottomY: b.bottomY
+          });
+        } else if (ut === 'sweep_arm') {
+          track.obstacles.push({
+            type: 'sweep_arm', x: tryX, y: clampY(cY, b, 20),
+            length: 80 + Math.random() * 30, angle: 0,
+            speed: 0.030, physicsSpeed: 0.090 + Math.random() * 0.035,
+            direction: Math.random() < 0.5 ? 1 : -1,
+            _isJungle: themeKey === 'jungle'
+          });
+        } else if (ut === 'punchfist') {
+          const pAngle = Math.random() * Math.PI * 2;
+          track.obstacles.push({
+            type: 'punchfist', x: tryX, y: clampY(cY, b, 35),
+            angle: pAngle, extendDist: 100,
+            punchRadius: 30, state: 'retracted', stateTimer: 0,
+            extendSpeed: 12, retractSpeed: 6,
+            holdDuration: 8, waitDuration: 15,
+            punchX: tryX, punchY: cY
+          });
+        } else if (ut === 'c_bumper') {
+          track.obstacles.push({
+            type: 'c_bumper', x: tryX, y: clampY(cY, b, 35),
+            radius: Math.min(55, aH * 0.35), thickness: 8,
+            rotation: 0, spinSpeed: 0.04
+          });
+
+        } else if (ut === 'boost') {
+          const tooClose = track.zones.some(z => (z.type === 'slow' || z.type === 'mud_puddle' || z.type === 'lava_pool' || z.type === 'quicksand_pit') && Math.abs(z.x + z.width / 2 - tryX) < 400);
+          if (tooClose) continue;
+          track.zones.push({
+            type: 'boost', x: tryX - 37, y: clampY(cY - 22, b, 27),
+            width: 75, height: 45, force: 0.20
+          });
+        } else if (ut === 'lava_pool') {
+          // Magma Crater: Lava Pool (replaces Slow Ramp)
+          const tooClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - tryX) < 400);
+          if (tooClose) continue;
+          track.zones.push({
+            type: 'lava_pool', x: tryX - 35, y: clampY(cY - 25, b, 25),
+            width: 70, height: 50
+          });
+        } else if (ut === 'lava_geyser') {
+          // Magma Crater: Lava Geyser (exclusive to volcano)
+          track.obstacles.push({
+            type: 'lava_geyser', x: tryX, y: clampY(cY, b, 40),
+            crackWidth: 25 + Math.random() * 10,
+            crackHeight: 60 + Math.random() * 20,
+            eruptionHeight: 150 + Math.random() * 80,
+            // Cycle timing
+            _state: 'hidden', // 'hidden' | 'warning' | 'erupting'
+            _stateTimer: 0,
+            _cycleTimer: 0,
+            _cycleDuration: (180 + Math.floor(Math.random() * 180)) * (60 / 60), // 3-6 seconds at 60fps
+            _warningDuration: 30, // 0.5 seconds at 60fps
+            _eruptionDuration: 60, // 1 second at 60fps
+            // Visual
+            _warningGlow: 0,
+            _eruptionParticles: []
+          });
+        } else if (ut === 'quicksand_pit') {
+          // Sahara Desert: Quicksand Pit (replaces Slow Ramp) - 30% larger
+          const qw = 72 + Math.random() * 32;
+          const qh = 72 + Math.random() * 32;
+          track.zones.push({
+            type: 'quicksand_pit', x: tryX - qw / 2, y: clampY(cY - qh / 2, b, qh / 2 + 5),
+            width: qw, height: qh
+          });
+
+        } else if (ut === 'slow') {
+          // Standard Slow Ramp (non-volcano maps only)
+          const tooClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - tryX) < 400);
+          if (tooClose) continue;
+          const zoneType = themeKey === 'jungle' ? 'mud_puddle' : 'slow';
+          const w = themeKey === 'jungle' ? 135 : 60;
+          const h = themeKey === 'jungle' ? 101 : 45;
+          track.zones.push({
+            type: zoneType, x: tryX - w / 2, y: clampY(cY - h / 2, b, h / 2 + 5),
+            width: w, height: h
+          });
+
+        } else if (ut === 'mud_puddle') {
+          // Amazon Canopy: Mud Puddle (kept as the jungle slow-zone variant)
+          const tooClose = track.zones.some(z => z.type === 'boost' && Math.abs(z.x + z.width / 2 - tryX) < 400);
+          if (tooClose) continue;
+          const w = 135;
+          const h = 101;
+          track.zones.push({
+            type: 'mud_puddle', x: tryX - w / 2, y: clampY(cY - h / 2, b, h / 2 + 5),
+            width: w, height: h
+          });
+
+        } else if (ut === 'launch') {
+          track.zones.push({
+            type: 'launch', x: tryX - 25, y: b.bottomY - 20,
+            width: 50, height: 20
+          });
+        } else if (ut === 'portal') {
+          if (tryPlacePortalPair(tryX, b, finishX) == null) continue;
+        } else if (ut === 'ice_cannon') {
+          track.obstacles.push({
+            type: 'ice_cannon', x: tryX, y: clampY(cY, b, 35),
+            cannonHeight: 50, barrelLength: 40,
+            _lastFireTime: Math.floor(Math.random() * 120), _fireInterval: 120,
+            _projectiles: [], _splashEffects: []
+          });
+        } else if (ut === 'sand_vortex') {
+          const r = 55 + Math.random() * 25;
+          const h = 80 + Math.random() * 40;
+          track.obstacles.push({
+            type: 'sand_vortex', x: tryX, y: clampY(cY, b, h * 0.5 + 10),
+            radius: r,
+            height: h,
+            _affectedBalls: new Set()
+          });
+        }
+      }
+    }
 
     // Remove obstacles/pegs in restricted zones (near finish, barrier gaps, rotating circles)
     {
@@ -4146,299 +4279,674 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
     // active world. Reused verbatim both at normal map startup (below) and by the
     // Ultimate Arena World Director on every World Shift (_applyWorld) so the new
     // map's signature obstacles always initialize exactly as a direct setup launch.
-    const densityPctForBake = planPct;
-    this._bakeExclusiveObstacles(track, finishX, enabledSet, themeKey, densityPctForBake);
+    this._bakeExclusiveObstacles(track, finishX, enabledSet, themeKey);
+
+    // Guaranteed spawn quota: every enabled type (basic AND exclusive, equally)
+    // gets quota(pct) spawns per minute, spread evenly. Any shortfall is topped
+    // up here and again at each real-time minute boundary during the race.
+    this._buildObstacleQuota(track, enabledSet, themeKey);
 
     this.track = track;
   }
 
-// ── Guaranteed Spawn Quota System ──────────────────────
-  // Replaces the old per-family budget planner. The track is divided into
-  // equal segments. Every segment receives a guaranteed minimum number of
-  // obstacles AND a guaranteed minimum number of exclusive (signature)
-  // obstacles. Exclusive slots are reserved first; only after those are
-  // filled may the remaining slots be assigned to basic obstacles.
-  // Density is interpreted as track coverage: the fraction of the playable
-  // length that contains at least one obstacle. At 100% coverage the track
-  // is almost continuously interacting with obstacles.
-  // Portals are restricted to Nebula Cosmos only.
-
-  // Resolves which placement branches are eligible for the current map/loadout.
-  // Branch names match the placement switch inside generateSegmentObstacles; the
-  // 'slow' branch covers slow / quicksand-pit / mud-puddle zones (the placement
-  // switch picks the concrete zone type from the active theme).
-  _planBranches(enabledSet, freqWeights) {
-    const w = (k) => (freqWeights && freqWeights[k] != null) ? freqWeights[k] : 5;
-    const branches = [];
-    const add = (branch, keys, exclusive) => {
-      const present = keys.filter(k => enabledSet.has(k));
-      if (present.length === 0) return;
-      let weight = 0;
-      for (const k of present) weight = Math.max(weight, w(k));
-      branches.push({ branch, weight, exclusive });
-    };
-    add('boost', ['boost'], false);
-    add('slow', ['slow', 'quicksand_pit', 'mud_puddle'], false);
-    add('spinner', ['spinner'], false);
-    add('punchfist', ['punchfist'], false);
-    add('barrier', ['barrier'], false);
-    add('hammer', ['hammer'], false);
-    add('sweep_arm', ['sweep_arm'], false);
-    add('c_bumper', ['c_bumper'], false);
-    add('launch', ['launch'], false);
-    add('peg', ['peg'], false);
-    // Portals are only allowed in Nebula (space) maps
-    const isNebula = enabledSet.has('gravity_well') || enabledSet.has('energy_ring') || enabledSet.has('meteor_gate');
-    if (isNebula) {
-      add('portal', ['portal'], false);
-    }
-    // Exclusive signature branches handled by the placement switch (each belongs
-    // to exactly one map, so it can only ever be enabled for that map's theme).
-    add('ice_cannon', ['ice_cannon'], true);
-    add('icicle', ['icicle'], true);
-    add('icicle_drop', ['icicle_drop'], true);
-    add('ice', ['ice'], true);
-    add('lava_pool', ['lava_pool'], true);
-    add('lava_geyser', ['lava_geyser'], true);
-    add('rolling_boulder', ['rolling_boulder'], true);
-    add('flame_jet', ['flame_jet'], true);
-    add('collapsing_pillar', ['collapsing_pillar'], true);
-    add('carnivorous_vine', ['carnivorous_vine'], true);
-    add('swinging_vine', ['swinging_vine'], true);
-    add('rolling_log', ['rolling_log'], true);
-    add('carnivorous_plant', ['carnivorous_plant'], true);
-    add('whirlpool', ['whirlpool'], true);
-    add('jellyfish', ['jellyfish'], true);
-    add('crab_claw', ['crab_claw'], true);
-    add('hydrothermal_vent', ['hydrothermal_vent'], true);
-    add('sea_mine', ['sea_mine'], true);
-    add('bubble_trap', ['bubble_trap'], true);
-    add('sea_urchin_field', ['sea_urchin_field'], true);
-    add('floating_kelp', ['floating_kelp'], true);
-    add('rolling_tumbleweed', ['rolling_tumbleweed'], true);
-    add('moving_dune', ['moving_dune'], true);
-    add('sand_vortex', ['sand_vortex'], true);
-    add('gravity_well', ['gravity_well'], true);
-    add('energy_ring', ['energy_ring'], true);
-    add('meteor_gate', ['meteor_gate'], true);
-    return branches;
+  // Guaranteed spawns per minute for a given type at a given density pct.
+  // Every enabled type (basic AND exclusive) gets this per-minute quota.
+  _quotaPerMinute(pct, type) {
+    const p = pct === undefined || pct === null ? 80 : pct;
+    return Math.max(1, Math.round(p / 5));
   }
 
-// ── Guaranteed Spawn Quota System ──────────────────────────────
-  // Replaces the old density-based probability system with a guaranteed
-  // spawn quota. Every obstacle type (basic AND exclusive) receives the
-  // same number of guaranteed spawns per minute based on the density
-  // slider. The quota is: density% * 20 spawns per minute per type.
-  // Spawns are evenly distributed over time — no clustering allowed.
-  // At 100% density each type gets 20 spawns/min; at 50% each gets 10.
-  // This applies identically to Gates, Mines, Hammers, Sea Urchins, etc.
-  _buildObstaclePlan(enabledSet, freqWeights, pct, playableStart, playableEnd, prevPlan) {
-    const plan = {
-      pct,
-      playableStart,
-      playableEnd,
-      slots: [],
-      lastExclusiveX: {},
-      quota: {}
+  // Counts every enabled type's actual spawns on the track (obstacles + zones +
+  // peg groups). rolling_tumbleweed is ambient and not counted here. Portal zones
+  // are counted as pairs (one quota slot = one entry/exit pair).
+  _countTrackTypes(track) {
+    const c = {};
+    if (!track) return c;
+    const portalPairs = new Set();
+    for (const o of track.obstacles) c[o.type] = (c[o.type] || 0) + 1;
+    for (const z of track.zones) {
+      if (z.type === 'finish') continue;
+      if (z.type === 'portal') { portalPairs.add(z.pairId); continue; }
+      c[z.type] = (c[z.type] || 0) + 1;
+    }
+    if (portalPairs.size) c.portal = portalPairs.size;
+    if (track.pegs && track.pegs.length) c.peg = (c.peg || 0) + Math.ceil(track.pegs.length / 3);
+    return c;
+  }
+
+  // Builds the quota plan for the whole track and fills every shortfall so each
+  // enabled type meets its guaranteed count. Called after track generation.
+  _buildObstacleQuota(track, enabledSet, themeKey) {
+    const pct = this._obstacleDensityPct || 80;
+    const L = track ? track.length : 100000;
+    const stretchMinutes = Math.max(0.5, L / QUOTA_SPEED_UNITS_PER_SEC / 60);
+
+    this._obstaclePlan = {
+      pct, quotaPerMinute: this._quotaPerMinute(pct), stretchMinutes,
+      playableStart: 800, playableEnd: Math.max(1200, L - 400),
+      quota: {}, quotaPerMinuteByType: {}, types: []
     };
-    const clampX = (x) => Math.min(Math.max(x, playableStart), playableEnd);
-    if (prevPlan) {
-      for (const k in prevPlan.lastExclusiveX) plan.lastExclusiveX[k] = prevPlan.lastExclusiveX[k];
+    this._lastQuotaMinute = 0;
+    this._quotaCum = {};
+    this._quotaPortalPairs = new Set();
+    this._lastQuotaLeadX = 0;
+
+    // Every enabled type (basic AND exclusive, helpers included) receives the
+    // same guaranteed spawns per minute based on the density slider.
+    const types = [];
+    for (const t of enabledSet || new Set()) types.push(t);
+    this._obstaclePlan.types = types;
+
+    if (!track) return;
+    const counts = this._countTrackTypes(track);
+    const fromX = 800, toX = L - 400;
+    const span = toX - fromX;
+    const remaining = {};
+    let maxNeed = 0;
+    for (const t of types) {
+      const qpmT = this._quotaPerMinute(pct, t);
+      const totalT = Math.max(1, Math.round(qpmT * stretchMinutes));
+      this._obstaclePlan.quota[t] = totalT;
+      this._obstaclePlan.quotaPerMinuteByType[t] = qpmT;
+      remaining[t] = totalT - (counts[t] || 0);
+      if (remaining[t] > maxNeed) maxNeed = remaining[t];
     }
-    const L = playableEnd - playableStart;
-    if (L <= 50) return plan;
-
-    const branches = this._planBranches(enabledSet, freqWeights);
-    if (branches.length === 0) return plan;
-
-    const exclusiveBranches = branches.filter(b => b.exclusive);
-    const generalBranches = branches.filter(b => !b.exclusive);
-
-    // Portals are only allowed in Nebula (space) maps
-    const isNebula = enabledSet.has('gravity_well') || enabledSet.has('energy_ring') || enabledSet.has('meteor_gate');
-    const portalBranch = generalBranches.find(b => b.branch === 'portal');
-    const hasPortal = portalBranch && isNebula;
-    const effectiveGeneralBranches = hasPortal ? generalBranches : generalBranches.filter(b => b.branch !== 'portal');
-
-    // Quota formula: density% * 20 spawns per minute per obstacle type.
-    // This is the guaranteed minimum number of each type per minute of gameplay.
-    const quotaPerMinute = Math.round((pct / 100) * 20);
-
-    // Estimate race duration in minutes based on track length and forward force.
-    // Default forward speed is ~0.65 units/frame at 60fps = ~39 units/second.
-    // We use a conservative estimate of 30 units/second for quota calculation.
-    const estimatedRaceSeconds = L / 30;
-    const estimatedRaceMinutes = Math.max(0.5, estimatedRaceSeconds / 60);
-
-    // Total quota per type = quotaPerMinute * estimatedRaceMinutes,
-    // rounded up to ensure we never fall short.
-    const totalQuotaPerType = Math.max(1, Math.ceil(quotaPerMinute * estimatedRaceMinutes));
-
-    // Collect all enabled obstacle types (both basic and exclusive).
-    const allTypes = [];
-    for (const b of branches) {
-      allTypes.push({ type: b.branch, exclusive: b.exclusive, weight: b.weight });
-    }
-
-    // Allocate slots evenly across the track for each type.
-    // Each type gets totalQuotaPerType slots spread evenly.
-    const slotSpacing = L / Math.max(1, totalQuotaPerType);
-
-    for (const at of allTypes) {
-      const typeQuota = totalQuotaPerType;
-      plan.quota[at.type] = typeQuota;
-
-      for (let i = 0; i < typeQuota; i++) {
-        // Evenly spaced with small random jitter to avoid perfect alignment
-        const baseX = playableStart + slotSpacing * (i + 0.5);
-        const jitter = (Math.random() - 0.5) * slotSpacing * 0.4;
-        let x = clampX(baseX + jitter);
-
-        // For exclusive types, enforce minimum spacing to prevent clustering
-        if (at.exclusive) {
-          const last = plan.lastExclusiveX[at.type];
-          if (last != null && x - last < 400) {
-            x = last + 400 + Math.random() * 200;
-            if (x > playableEnd) x = playableStart + Math.random() * 200;
-            x = clampX(x);
-          }
-          plan.lastExclusiveX[at.type] = x;
+    const clampX = (x) => Math.min(Math.max(x, fromX + 60), toX - 60);
+    const progress = {};
+    for (const t of types) progress[t] = 0;
+    let toppedUp = 0;
+    // Round-robin so no type (especially theme exclusives, which would otherwise
+    // be filled last) is starved of gaps: each round places one slot of every
+    // type at its own even-spaced ideal (in a shuffled order so no type is
+    // systematically last), then scans outward for a nearby gap if blocked.
+    // Each type stops once it has placed exactly its remaining shortfall.
+    for (let i = 0; i < maxNeed; i++) {
+      const order = types.slice().sort(() => Math.random() - 0.5);
+      for (const t of order) {
+        if (remaining[t] <= 0) continue;
+        const totalT = this._obstaclePlan.quota[t];
+        const stepT = span / totalT;
+        const ideal = fromX + ((progress[t] + 0.5) / totalT) * span;
+        let ok = this._spawnQuotaObstacleAt(t, clampX(ideal), track);
+        for (let d = 50; d <= Math.ceil(stepT / 2) && !ok; d += 50) {
+          ok = this._spawnQuotaObstacleAt(t, clampX(ideal + d), track) ||
+               this._spawnQuotaObstacleAt(t, clampX(ideal - d), track);
         }
-
-        plan.slots.push({ x, type: at.type, exclusive: at.exclusive, band: Math.max(60, slotSpacing * 0.3) });
+        progress[t]++;
+        if (ok) { remaining[t]--; toppedUp++; }
       }
     }
 
-    // Sort slots by position
-    plan.slots.sort((a, b) => a.x - b.x);
-
-    // ---- Automatic validation: print debug statistics ----
-    this._validatePlanStats(plan, enabledSet, exclusiveBranches.map(b => b.branch), generalBranches.map(b => b.branch));
-
-    return plan;
+    const tag = `track-build (topped up ${toppedUp} extra slots)`;
+    this._logQuotaReport(track, tag);
   }
 
-  // Prints debug statistics about the obstacle plan so the developer can
-  // verify that every obstacle type meets its guaranteed spawn quota.
-  _validatePlanStats(plan, enabledSet, exclusiveTypes, basicTypes) {
-    const themeKey = this.currentThemeKey || 'unknown';
-    const slots = plan.slots || [];
-    const quota = plan.quota || {};
-    const counts = {};
-    for (const s of slots) {
-      counts[s.type] = (counts[s.type] || 0) + 1;
+  // Spawns a single obstacle/zone/peg group of `type` at x on the live track.
+  // Mirrors the exact object shapes the renderer/physics expect, so quota spawns
+  // are always visible and functional. Uses precise bounding-box overlap (same as
+  // the main generator) so dense quota slots can still land at different heights;
+  // anything that would truly overlap is rolled back and skipped.
+  _spawnQuotaObstacleAt(type, x, track) {
+    if (!track || !track.length) return false;
+    const prevObs = track.obstacles.length;
+    const prevZones = track.zones.length;
+    const hadPegs = !!track.pegs;
+    const prevPegs = hadPegs ? track.pegs.length : -1;
+    if (!this._quotaSpawnRaw(type, x, track)) return false;
+    if (this._quotaBatchOverlaps(track, prevObs, prevZones, prevPegs, hadPegs)) {
+      track.obstacles.length = prevObs;
+      track.zones.length = prevZones;
+      if (hadPegs) track.pegs.length = prevPegs;
+      else delete track.pegs;
+      return false;
     }
+    return true;
+  }
 
-    const lines = [];
-    lines.push(`[Obstacle Quota] Map: ${themeKey}  Density: ${plan.pct}%`);
-    lines.push(`[Obstacle Quota] Total slots: ${slots.length}`);
-    lines.push(`[Obstacle Quota] Quota per type per minute: ${Math.round((plan.pct / 100) * 20)}`);
+  // Checks every item added since (fromObs/fromZones/fromPegs) against all other
+  // items on the track (and against each other) with the same 40px buffer the main
+  // generator uses. Zones are stored as x=left/y=top rectangles; everything else
+  // is x/y=center.
+  _quotaBatchOverlaps(track, fromObs, fromZones, fromPegs, hadPegs) {
+    const getBB = (obs) => {
+      const w = obs.width || obs.length || (obs.radius * 2) || 40;
+      const h = obs.height || (obs.radius * 2) || 40;
+      if (obs.type === 'c_bumper' || obs.type === 'rock' || obs.type === 'peg') {
+        const r = obs.radius || 20;
+        return { minX: obs.x - r, maxX: obs.x + r, minY: obs.y - r, maxY: obs.y + r };
+      }
+      if (obs.type === 'spinner' || obs.type === 'sweep_arm') {
+        const halfLen = (obs.length || 80) / 2;
+        return { minX: obs.x - halfLen, maxX: obs.x + halfLen, minY: obs.y - halfLen, maxY: obs.y + halfLen };
+      }
+      if (obs.type === 'hammer') {
+        const armLen = obs.armLength || 100;
+        const r = obs.headRadius || 25;
+        return { minX: obs.x - armLen - r, maxX: obs.x + armLen + r, minY: obs.y - armLen - r, maxY: obs.y + armLen + r };
+      }
+      if (obs.type === 'punchfist') {
+        const ext = obs.extendDist || 120;
+        const r = obs.punchRadius || 30;
+        const angle = obs.angle || 0;
+        const tipX = obs.x + Math.cos(angle) * ext;
+        const tipY = obs.y + Math.sin(angle) * ext;
+        return {
+          minX: Math.min(obs.x, tipX) - r, maxX: Math.max(obs.x, tipX) + r,
+          minY: Math.min(obs.y, tipY) - r, maxY: Math.max(obs.y, tipY) + r
+        };
+      }
+      if (obs.type === 'barrier') {
+        const hw = (obs.width || 18) / 2;
+        const hh = (obs.height || 80) / 2;
+        const maxGap = obs.gapMax || 200;
+        return {
+          minX: obs.x - hw, maxX: obs.x + hw,
+          minY: (obs.y || 300) - maxGap / 2 - hh, maxY: (obs.y || 300) + maxGap / 2 + hh
+        };
+      }
+      if (obs.type === 'portal') {
+        const r = obs.radius || 25;
+        return { minX: obs.x - r, maxX: obs.x + r, minY: obs.y - r, maxY: obs.y + r };
+      }
+      if (obs.type === 'sea_urchin_field') {
+        const s = obs._boxSize || 60;
+        const off = obs._moveOffset || 0;
+        let cx = obs.x, cy = obs.y;
+        if (obs._isHorizontal) cx += off; else cy += off;
+        return { minX: cx - s / 2, maxX: cx + s / 2, minY: cy - s / 2, maxY: cy + s / 2 };
+      }
+      const halfW = w / 2, halfH = h / 2;
+      return { minX: obs.x - halfW, maxX: obs.x + halfW, minY: obs.y - halfH, maxY: obs.y + halfH };
+    };
+    const zoneBB = (z) => ({ minX: z.x, maxX: z.x + (z.width || 40), minY: z.y, maxY: z.y + (z.height || 40) });
+    const overlap = (b1, b2, buf = 30) =>
+      !(b1.maxX + buf < b2.minX || b1.minX - buf > b2.maxX ||
+        b1.maxY + buf < b2.minY || b1.minY - buf > b2.maxY);
 
-    const allTypes = [...exclusiveTypes, ...basicTypes];
-    for (const t of allTypes) {
-      const expected = quota[t] || 0;
+    const added = [];
+    for (let i = fromObs; i < track.obstacles.length; i++) added.push(getBB(track.obstacles[i]));
+    for (let i = fromZones; i < track.zones.length; i++) added.push(zoneBB(track.zones[i]));
+    if (hadPegs) for (let i = fromPegs; i < track.pegs.length; i++) added.push(getBB(track.pegs[i]));
+    for (let i = 0; i < fromObs; i++) {
+      const b = getBB(track.obstacles[i]);
+      for (const a of added) if (overlap(b, a)) return true;
+    }
+    for (let i = 0; i < fromZones; i++) {
+      if (track.zones[i].type === 'finish') continue;
+      const b = zoneBB(track.zones[i]);
+      for (const a of added) if (overlap(b, a)) return true;
+    }
+    if (hadPegs) for (let i = 0; i < fromPegs; i++) {
+      const b = getBB(track.pegs[i]);
+      for (const a of added) if (overlap(b, a)) return true;
+    }
+    return false;
+  }
+
+  // Raw spawner (no overlap check). Builds and pushes the exact object shapes.
+  _quotaSpawnRaw(type, x, track) {
+    if (!track || !track.length) return false;
+    const themeKey = this.currentThemeKey;
+    const b = this.physics.getWallBoundaries(x, track);
+    if (!b) return false;
+    const topY = b.topY, bottomY = b.bottomY;
+    const availH = bottomY - topY;
+    if (availH < 100) return false;
+    const cY = (topY + bottomY) / 2;
+    const clamp = (y, m = 30) => Math.min(Math.max(y, topY + m), bottomY - m);
+
+    switch (type) {
+      case 'peg': {
+        if (!track.pegs) track.pegs = [];
+        const spacing = 44;
+        const startY = clamp(cY - spacing, spacing / 2 + 5);
+        for (let pi = 0; pi < 3; pi++) {
+          track.pegs.push({
+            x: x + (Math.random() - 0.5) * 4,
+            y: startY + pi * spacing,
+            radius: 4 + Math.random() * 2, bouncy: true
+          });
+        }
+        return true;
+      }
+      case 'punchfist': {
+        const angle = Math.random() * Math.PI * 2;
+        const punchRadius = 28 + Math.random() * 6;
+        const y = clamp(cY + (Math.random() - 0.5) * availH * 0.5, punchRadius + 10);
+        track.obstacles.push({
+          type: 'punchfist', x, y, angle, extendDist: 90 + Math.random() * 30,
+          punchRadius, state: 'retracted', stateTimer: 0,
+          extendSpeed: 12 + Math.random() * 6, retractSpeed: 6 + Math.random() * 3,
+          holdDuration: 5 + Math.floor(Math.random() * 10),
+          waitDuration: 10 + Math.floor(Math.random() * 15),
+          punchX: x, punchY: cY
+        });
+        return true;
+      }
+      case 'barrier': {
+        const gateH = Math.min(80 + Math.random() * 20, availH * 0.55);
+        track.obstacles.push({
+          type: 'barrier', x, y: cY, width: 18 + Math.random() * 4, height: gateH,
+          isVertical: true, gapMin: 0, gapMax: availH * 0.55,
+          state: 'opening', stateTimer: 0,
+          openDuration: 20 + Math.floor(Math.random() * 20),
+          closeDuration: 15 + Math.floor(Math.random() * 15),
+          currentGap: 0, slideSpeed: 6.0 + Math.random() * 2.0,
+          topY, bottomY
+        });
+        return true;
+      }
+      case 'hammer': {
+        const topPivot = Math.random() < 0.5;
+        const pivotY = topPivot ? topY + 8 : bottomY - 8;
+        const armLen = Math.min(75 + Math.random() * 25, availH * 0.50);
+        const headRadius = 22 + Math.random() * 6;
+        const startAngle = Math.random() * Math.PI * 2;
+        track.obstacles.push({
+          type: 'hammer', x, y: pivotY, armLength: armLen, headRadius,
+          angle: startAngle, speed: 0.140 + Math.random() * 0.060,
+          direction: Math.random() < 0.5 ? 1 : -1, pivotTop: topPivot,
+          headX: x + Math.cos(startAngle) * armLen,
+          headY: pivotY + Math.sin(startAngle) * armLen
+        });
+        return true;
+      }
+      case 'sweep_arm': {
+        const armLen = Math.min(90 + Math.random() * 40, availH * 0.60);
+        const slowSpeed = 0.090 + Math.random() * 0.035;
+        track.obstacles.push({
+          type: 'sweep_arm', x, y: clamp(cY, 20),
+          length: armLen, angle: Math.random() * Math.PI * 2,
+          speed: slowSpeed * 0.3, physicsSpeed: slowSpeed,
+          direction: Math.random() < 0.5 ? 1 : -1,
+          _isJungle: themeKey === 'jungle'
+        });
+        return true;
+      }
+      case 'c_bumper': {
+        const radius = Math.min(65 + Math.random() * 15, availH * 0.40);
+        track.obstacles.push({
+          type: 'c_bumper', x, y: clamp(cY + (Math.random() - 0.5) * 20, radius + 8),
+          radius, thickness: 8,
+          rotation: Math.random() * Math.PI * 2,
+          spinSpeed: (0.04 + Math.random() * 0.04) * (Math.random() < 0.5 ? -1 : 1)
+        });
+        return true;
+      }
+      case 'boost_pipe': {
+        const pipeLen = 150 + Math.random() * 70;
+        const pipeH = 46 + Math.random() * 8;
+        const onTop = Math.random() < 0.5;
+        const pipeY = onTop
+          ? clamp(topY + 50 + pipeH / 2, pipeH / 2 + 5)
+          : clamp(bottomY - 50 - pipeH / 2, pipeH / 2 + 5);
+        track.obstacles.push({
+          type: 'boost_pipe', x, y: pipeY,
+          length: pipeLen, width: pipeH,
+          boostMultiplier: 1.5
+        });
+        track.zones.push({
+          type: 'boost', x, y: pipeY - pipeH / 2,
+          width: pipeLen, height: pipeH, force: 0.38, boostMultiplier: 1.5
+        });
+        return true;
+      }
+      case 'ice_cannon': {
+        const cannonH = 50;
+        track.obstacles.push({
+          type: 'ice_cannon', x, y: clamp(cY + (Math.random() - 0.5) * availH * 0.15, cannonH * 0.5 + 10),
+          cannonHeight: cannonH, barrelLength: 40,
+          _lastFireTime: Math.floor(Math.random() * 120), _fireInterval: 120,
+          _projectiles: [], _splashEffects: []
+        });
+        return true;
+      }
+      case 'lava_geyser': {
+        track.obstacles.push({
+          type: 'lava_geyser', x, y: clamp(cY + (Math.random() - 0.5) * availH * 0.4, 20),
+          _hiddenDuration: 180 + Math.floor(Math.random() * 180),
+          _warningDuration: 30, _eruptionDuration: 60,
+          _cycleTimer: Math.floor(Math.random() * 420), _state: 'hidden',
+          _crackWidth: 8 + Math.random() * 6, crackHeight: 60 + Math.random() * 20,
+          _eruptionHeight: 180 + Math.random() * 60,
+          _eruptionWidth: 24 + Math.random() * 12,
+          _seed: Math.random() * 1000
+        });
+        return true;
+      }
+      case 'collapsing_pillar': {
+        const pillarHeight = 65 + Math.random() * 25;
+        const pillarWidth = 18 + Math.random() * 7;
+        const wallSide = Math.random() < 0.5 ? 'top' : 'bottom';
+        const wallY = wallSide === 'top' ? topY - 5 : bottomY + 5;
+        track.obstacles.push({
+          type: 'collapsing_pillar', x, y: wallY,
+          _wallSide: wallSide, _state: 'standing', _stateTimer: 0,
+          _standingDuration: 480 + Math.floor(Math.random() * 420),
+          _warningDuration: 60,
+          _fallenDuration: 240 + Math.floor(Math.random() * 60),
+          _disappearDuration: 30,
+          _pillarHeight: pillarHeight, _pillarWidth: pillarWidth,
+          _fallenWidth: 55 + Math.random() * 20, _fallenHeight: 28 + Math.random() * 8,
+          _seed: Math.random() * 1000, _shakePhase: Math.random() * Math.PI * 2,
+          _fallDirection: wallSide === 'top' ? 1 : -1,
+          _fallProgress: 0, _crumbleProgress: 0, _dustOverlay: null
+        });
+        return true;
+      }
+      case 'carnivorous_vine': {
+        const _onTop = Math.random() < 0.5;
+        const _wallY = _onTop ? topY : bottomY;
+        const _leafCount = 6 + Math.floor(Math.random() * 8);
+        const _thornCount = 3 + Math.floor(Math.random() * 5);
+        track.obstacles.push({
+          type: 'carnivorous_vine',
+          x, y: _wallY, wallSide: _onTop ? 'top' : 'bottom',
+          length: 75, baseWidth: 8 + Math.random() * 6,
+          curvature: (Math.random() - 0.5) * 1.5,
+          leafCount: _leafCount, thornCount: _thornCount,
+          swayPhase: Math.random() * Math.PI * 2, swaySpeed: 0.3 + Math.random() * 0.3,
+          breathPhase: Math.random() * Math.PI * 2,
+          captureState: 'idle', captureTimer: 0, captureBallId: null,
+          captureProgress: 0, wrapSegments: [],
+          leafOffsets: Array(_leafCount).fill(0).map(() => Math.random() * Math.PI * 2),
+          thornOffsets: Array(_thornCount).fill(0).map(() => Math.random() * Math.PI * 2),
+          particles: [], capturedBallIds: new Set()
+        });
+        return true;
+      }
+      case 'icicle': {
+        const _baseLen = 45;
+        const _baseW = 18;
+        const _onTop = Math.random() < 0.5;
+        const _wallY = _onTop ? topY : bottomY;
+        const _totalFrames = 240;
+        track.obstacles.push({
+          type: 'icicle', x, y: _wallY,
+          length: _baseLen * (0.85 + Math.random() * 0.3),
+          baseWidth: _baseW * (0.85 + Math.random() * 0.3),
+          wallSide: _onTop ? 'top' : 'bottom',
+          _outDur: 120, _inDur: 120, _snapFrames: 6,
+          _totalFrames: _totalFrames,
+          _phaseOffset: Math.floor(Math.random() * _totalFrames),
+          _timer: Math.floor(Math.random() * _totalFrames),
+          _irregularity: (Math.random() - 0.5) * 3
+        });
+        return true;
+      }
+      case 'sea_mine': {
+        const mineRadius = 15 + Math.random() * 4;
+        track.obstacles.push({
+          type: 'sea_mine', x, y: clamp(cY + (Math.random() - 0.5) * availH * 0.5, mineRadius + 20),
+          radius: mineRadius, chainLength: 40 + Math.random() * 20,
+          _state: 'idle', _stateTimer: 0,
+          _swayPhase: Math.random() * Math.PI * 2,
+          _swayAmount: 0.03 + Math.random() * 0.02,
+          _rotatePhase: Math.random() * Math.PI * 2,
+          _rotateAmount: 0.02 + Math.random() * 0.01,
+          _idleBubbles: Array(8).fill(0).map(() => ({
+            x: (Math.random() - 0.5) * mineRadius * 0.8,
+            y: Math.random() * mineRadius * 1.2,
+            speed: 0.5 + Math.random() * 1.0,
+            size: 2 + Math.random() * 3,
+            alpha: 0.3 + Math.random() * 0.3
+          }))
+        });
+        return true;
+      }
+      case 'sea_urchin_field': {
+        const ur = 25 + Math.random() * 15;
+        const isHorizontal = Math.random() < 0.5;
+        const moveRange = 60 + Math.random() * 20;
+        track.obstacles.push({
+          type: 'sea_urchin_field', x, y: clamp(cY + (Math.random() - 0.5) * availH * 0.6, ur + 15),
+          radius: ur, _boxSize: ur * 2.0,
+          _isHorizontal: isHorizontal, _moveRange: moveRange,
+          _moveSpeed: 1.5 + Math.random() * 1.5,
+          _moveOffset: (Math.random() - 0.5) * moveRange * 2,
+          _moveState: Math.random() < 0.5 ? 'extending' : 'retracting',
+          _stateTimer: Math.random() * 60,
+          _swayPhase: Math.random() * Math.PI * 2,
+          _bubblePhase: Math.random() * Math.PI * 2,
+          _bubbles: Array(5).fill(0).map(() => ({
+            x: (Math.random() - 0.5) * ur * 1.2,
+            y: Math.random() * ur * 0.5,
+            speed: 0.3 + Math.random() * 0.6,
+            size: 2 + Math.random() * 3,
+            alpha: 0.2 + Math.random() * 0.2
+          }))
+        });
+        return true;
+      }
+      case 'floating_kelp': {
+        const kr = 28 + Math.random() * 10;
+        const onTop = Math.random() < 0.5;
+        const halfImg = kr * 1.4;
+        const gapFix = 6;
+        track.obstacles.push({
+          type: 'floating_kelp', x,
+          y: onTop ? topY + halfImg - gapFix : bottomY - halfImg + gapFix,
+          radius: kr, _kelpVariant: 1 + Math.floor(Math.random() * 3),
+          _bubblePhase: Math.random() * Math.PI * 2,
+          _inverted: onTop,
+          _bubbles: Array(3).fill(0).map(() => ({
+            x: (Math.random() - 0.5) * kr * 0.5,
+            y: Math.random() * kr * 0.25,
+            speed: 0.3 + Math.random() * 0.5,
+            size: 2 + Math.random() * 2,
+            alpha: 0.15 + Math.random() * 0.15
+          }))
+        });
+        return true;
+      }
+      case 'bubble_trap': {
+        const bubbleRadius = 20 + Math.random() * 6;
+        track.obstacles.push({
+          type: 'bubble_trap', x, y: clamp(cY + (Math.random() - 0.5) * availH * 0.6, bubbleRadius + 10),
+          radius: bubbleRadius,
+          _state: 'idle', _stateTimer: 0, _trappedBallId: null,
+          _wobblePhase: Math.random() * Math.PI * 2,
+          _wobbleAmount: 0.05 + Math.random() * 0.03,
+          _floatPhase: Math.random() * Math.PI * 2,
+          _floatAmount: 2 + Math.random() * 3,
+          _risingBubbles: Array(8).fill(0).map(() => ({
+            x: (Math.random() - 0.5) * bubbleRadius * 0.6,
+            y: Math.random() * bubbleRadius * 1.5,
+            speed: 0.5 + Math.random() * 1.5,
+            size: 2 + Math.random() * 3,
+            alpha: 0.4 + Math.random() * 0.4
+          }))
+        });
+        return true;
+      }
+      case 'sand_vortex': {
+        const r = 55 + Math.random() * 25;
+        const h = 80 + Math.random() * 40;
+        track.obstacles.push({
+          type: 'sand_vortex', x, y: clamp(cY + (Math.random() - 0.5) * availH * 0.3, h * 0.5 + 10),
+          radius: r, height: h, _affectedBalls: new Set()
+        });
+        return true;
+      }
+      case 'launch': {
+        track.zones.push({
+          type: 'launch', x: x - 25, y: bottomY - 20,
+          width: 50, height: 20
+        });
+        return true;
+      }
+      case 'slow': {
+        const w = 60, h = 45;
+        track.zones.push({
+          type: 'slow', x: x - w / 2,
+          y: clamp(cY - h / 2, h / 2 + 5),
+          width: w, height: h
+        });
+        return true;
+      }
+      case 'ice': {
+        const w = 60, h = 45;
+        track.zones.push({
+          type: 'ice', x: x - w / 2,
+          y: clamp(cY - h / 2, h / 2 + 5),
+          width: w, height: h
+        });
+        return true;
+      }
+      case 'mud_puddle': {
+        const w = 70, h = 50;
+        track.zones.push({
+          type: 'mud_puddle', x: x - w / 2,
+          y: clamp(cY - h / 2, h / 2 + 5),
+          width: w, height: h
+        });
+        return true;
+      }
+      case 'lava_pool': {
+        const w = 70, h = 50;
+        track.zones.push({
+          type: 'lava_pool', x: x - w / 2,
+          y: clamp(cY - h / 2, h / 2 + 5),
+          width: w, height: h
+        });
+        return true;
+      }
+      case 'quicksand_pit': {
+        const qw = 72 + Math.random() * 32;
+        const qh = 72 + Math.random() * 32;
+        track.zones.push({
+          type: 'quicksand_pit', x: x - qw / 2,
+          y: clamp(cY - qh / 2, qh / 2 + 5),
+          width: qw, height: qh, _radius: qw / 2
+        });
+        return true;
+      }
+      case 'portal': {
+        // Quota portal: a single entry/exit pair, exit ~700-1100px ahead in the
+        // opposite lane, with a basic overlap guard.
+        const portalSize = 50;
+        const laneRoll = Math.random();
+        const entryY = laneRoll < 0.40
+          ? topY + portalSize / 2 + 10
+          : laneRoll < 0.80
+            ? bottomY - portalSize / 2 - 10
+            : cY;
+        const distAhead = Math.max(300, 700 + Math.random() * 400);
+        const x2 = Math.min(x + distAhead, track.length - 100);
+        const b2 = this.physics.getWallBoundaries(x2, track);
+        if (!b2 || x2 < x + 250) return false;
+        const top2 = b2.topY + portalSize / 2 + 10;
+        const bottom2 = b2.bottomY - portalSize / 2 - 10;
+        const entryIsTop = laneRoll < 0.40;
+        const entryIsBottom = laneRoll >= 0.40 && laneRoll < 0.80;
+        const exitY = Math.min(Math.max(
+          entryIsTop ? bottom2 : entryIsBottom ? top2 : (Math.random() < 0.5 ? top2 : bottom2),
+          b2.topY + portalSize / 2 + 10), b2.bottomY - portalSize / 2 - 10);
+        const pairId = Math.random().toString(36).slice(2);
+        track.zones.push({
+          type: 'portal', x: x - portalSize / 2, y: entryY - portalSize / 2,
+          width: portalSize, height: portalSize, radius: portalSize / 2, pairId
+        });
+        track.zones.push({
+          type: 'portal', x: x2 - portalSize / 2, y: exitY - portalSize / 2,
+          width: portalSize, height: portalSize, radius: portalSize / 2, pairId
+        });
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
+  // Prints the quota plan vs actual counts so the dev can verify every enabled
+  // type meets its guaranteed per-minute quota.
+  _logQuotaReport(track, tag) {
+    const plan = this._obstaclePlan;
+    if (!plan || !track) return;
+    const counts = this._countTrackTypes(track);
+    const qpm = plan.quotaPerMinute;
+    const lines = [
+      `[Quota ${tag}] Map: ${this.currentThemeKey || '?'}  Density: ${plan.pct}%  Quota/min per type: ${qpm}`,
+      `[Quota ${tag}] Track: ${track.length}px (~${plan.stretchMinutes.toFixed(1)} min)  Target per type: ${Math.round(qpm * plan.stretchMinutes)}`
+    ];
+    for (const t of plan.types) {
+      const expected = plan.quota[t] || 0;
       const actual = counts[t] || 0;
-      const status = actual >= expected ? 'OK' : 'UNDER';
-      lines.push(`[Obstacle Quota]   ${t}: expected=${expected} actual=${actual} ${status}`);
+      const ok = actual >= expected ? 'OK' : 'UNDER';
+      lines.push(`[Quota ${tag}]   ${t}: ${actual}/${expected} ${ok}`);
     }
-
-    // Check for underrepresented types
-    const underRep = allTypes.filter(t => (counts[t] || 0) < (quota[t] || 0) * 0.8);
-    if (underRep.length > 0) {
-      lines.push(`[Obstacle Quota] WARNING: Underrepresented types: ${underRep.join(', ')}`);
-    }
-
     console.log(lines.join('\n'));
   }
 
-  // Extends the active plan to cover [planEnd, newEnd] for the endless Knockout
-  // track. The extension reuses the same planner so exclusives stay evenly spread
-  // (min-spacing carried over) and the density slider stays the single source of
-  // truth for the new stretch too.
-_extendObstaclePlan(newEnd) {
-     const plan = this._obstaclePlan;
-     if (!plan || newEnd <= plan.playableEnd) return;
-     const enabledSet = this._enabledSet || new Set();
-     const extra = this._buildObstaclePlan(
-       enabledSet, this._obstacleFreqWeights || null, plan.pct,
-       plan.playableEnd, newEnd, plan
-     );
-     plan.slots.push(...extra.slots);
-     plan.slots.sort((a, b) => a.x - b.x);
-     plan.playableEnd = newEnd;
-     for (const k in extra.lastExclusiveX) plan.lastExclusiveX[k] = extra.lastExclusiveX[k];
-   }
+  // Minute-boundary validation (Knockout endless + World Cup). At every elapsed
+  // minute the player should have encountered ~quotaPerMinute of each type. If a
+  // type is behind, spawn the shortfall ahead of the leading ball so the per-minute
+  // cadence holds even when a ball is slower than the calibration speed.
+  // Encountered counts are cumulative (only newly-passed slots are added each
+  // minute), so Knockout's behind-the-ball recycling never distorts the count.
+  _validateQuotaMinute() {
+    const plan = this._obstaclePlan;
+    if (!plan || !this.track || !this.balls) return;
+    const minute = Math.floor(this.raceTimer / 60);
+    if (minute <= 0) return;
+    const qpmBase = plan.quotaPerMinute;
 
-   // Validates obstacle spawn quotas at minute boundaries and
-   // continues spawning if any type is below its required count.
-   // This ensures that every obstacle type meets its guaranteed
-   // spawn quota throughout the race, especially in long Knockout
-   // and World Cup modes where the race lasts multiple minutes.
-   _validateAndContinueSpawning(minute) {
-     if (!this._obstaclePlan || !this.track) return;
-     const plan = this._obstaclePlan;
-     const quota = plan.quota || {};
-     const enabledSet = this._enabledSet || new Set();
+    let leadX = 0;
+    for (const b of this.balls) {
+      if (!b.finished && !b.eliminated && b.x > leadX) leadX = b.x;
+    }
+    if (leadX < 400) return;
 
-     // Count actual spawns per type from the track
-     const actualCounts = {};
-     for (const obs of this.track.obstacles) {
-       actualCounts[obs.type] = (actualCounts[obs.type] || 0) + 1;
-     }
-     for (const z of this.track.zones) {
-       if (z.type !== 'finish') {
-         actualCounts[z.type] = (actualCounts[z.type] || 0) + 1;
-       }
-     }
+    const track = this.track;
+    const fromX = this._lastQuotaLeadX || 0;
+    const toX = leadX;
+    if (!this._quotaCum) this._quotaCum = {};
+    if (!this._quotaPortalPairs) this._quotaPortalPairs = new Set();
 
-     const lines = [`[Quota Check] Minute ${minute}:`];
-     let anyUnder = false;
+    for (const o of track.obstacles) {
+      if (o.x > fromX && o.x <= toX) this._quotaCum[o.type] = (this._quotaCum[o.type] || 0) + 1;
+    }
+    for (const z of track.zones) {
+      if (z.type === 'finish') continue;
+      const zEnd = z.x + (z.width || 0);
+      if (zEnd > fromX && zEnd <= toX) {
+        if (z.type === 'portal') this._quotaPortalPairs.add(z.pairId);
+        else this._quotaCum[z.type] = (this._quotaCum[z.type] || 0) + 1;
+      }
+    }
+    this._quotaCum.portal = this._quotaPortalPairs.size;
+    if (track.pegs) {
+      let pg = 0;
+      for (const p of track.pegs) if (p.x > fromX && p.x <= toX) pg++;
+      this._quotaCum.peg = (this._quotaCum.peg || 0) + Math.ceil(pg / 3);
+    }
+    this._lastQuotaLeadX = leadX;
 
-     for (const type of Object.keys(quota)) {
-       const expected = quota[type];
-       const actual = actualCounts[type] || 0;
-       const ratio = expected > 0 ? actual / expected : 1;
-       const status = ratio >= 0.8 ? 'OK' : 'UNDER';
-       if (ratio < 0.8) anyUnder = true;
-       lines.push(`[Quota Check]   ${type}: expected=${expected} actual=${actual} ${status}`);
-     }
-
-     if (anyUnder) {
-       lines.push('[Quota Check] Some types below quota — continuing to spawn...');
-       console.log(lines.join('\n'));
-
-       // Continue spawning: add more slots for underrepresented types
-       const L = plan.playableEnd - plan.playableStart;
-       const slotSpacing = L / Math.max(1, Math.ceil((plan.pct / 100) * 20));
-       let newSlotCount = 0;
-
-       for (const type of Object.keys(quota)) {
-         const expected = quota[type];
-         const actual = actualCounts[type] || 0;
-         if (actual >= expected) continue;
-
-         const needed = expected - actual;
-         const isExclusive = enabledSet.has(type) && OBSTACLE_REGISTRY.find(o => o.type === type && o.category === 'signature');
-         let lastX = plan.lastExclusiveX[type] || plan.playableStart;
-
-         for (let i = 0; i < needed; i++) {
-           let x = lastX + slotSpacing + Math.random() * slotSpacing * 0.5;
-           x = Math.min(Math.max(x, plan.playableStart), plan.playableEnd);
-           plan.slots.push({ x, type, exclusive: !!isExclusive, band: 80 });
-           lastX = x;
-           newSlotCount++;
-         }
-       }
-
-       if (newSlotCount > 0) {
-         plan.slots.sort((a, b) => a.x - b.x);
-         // Materialize the new slots in the next segment
-         this._pendingQuotaSlots = (this._pendingQuotaSlots || 0) + newSlotCount;
-       }
-     } else {
-       console.log(lines.join('\n'));
-     }
-   }
+    let spawned = 0;
+    const lines = [
+      `[Quota Minute ${minute}] expected so far per type: ${Math.round(qpmBase * minute)}`
+    ];
+    for (const t of plan.types) {
+      const qpmT = (plan.quotaPerMinuteByType && plan.quotaPerMinuteByType[t]) || qpmBase;
+      const expectedT = Math.round(qpmT * minute);
+      const have = this._quotaCum[t] || 0;
+      let need = Math.min(expectedT - have, qpmT); // never more than one minute's worth at once
+      if (need <= 0) {
+        lines.push(`  ${t}: ${have}/${expectedT} OK`);
+        continue;
+      }
+      const stepT = Math.max(500, QUOTA_SPEED_UNITS_PER_SEC * (60 / Math.max(1, qpmT)));
+      let placed = 0;
+      for (let i = 0; i < need; i++) {
+        const x = Math.min(leadX + 400 + i * stepT, track.length - 300);
+        if (this._spawnQuotaObstacleAt(t, x, track)) placed++;
+      }
+      spawned += placed;
+      lines.push(`  ${t}: ${have}/${expectedT} -> +${placed} ahead`);
+    }
+    if (spawned > 0) lines.unshift(`[Quota Minute ${minute}] topped up ${spawned} slot(s) ahead of leader`);
+    console.log(lines.join('\n'));
+  }
 
   // Update dynamic obstacles (punchfist, hammer, barrier, spinner, sweep_arm, meteor cleanup)
   updateDynamicObstacles(dt) {
@@ -8212,17 +8720,18 @@ obs._trappedBallId = null;
       const dt = delta * effectiveSpeed;
 
       // Update timer if race is active
-if (this.state === 'racing') {
-         this.raceTimer += (16.666 * dt) / 1000;
+      if (this.state === 'racing') {
+        this.raceTimer += (16.666 * dt) / 1000;
 
-         // Quota validation at minute boundaries
-         const currentMinute = Math.floor(this.raceTimer / 60);
-         if (currentMinute > 0 && currentMinute !== (this._lastValidatedMinute || 0)) {
-           this._lastValidatedMinute = currentMinute;
-           this._validateAndContinueSpawning(currentMinute);
-         }
+        // Quota validation at minute boundaries: keep every enabled type meeting
+        // its guaranteed spawns per minute (Knockout endless + World Cup).
+        const currentMinute = Math.floor(this.raceTimer / 60);
+        if (currentMinute > 0 && currentMinute !== (this._lastQuotaMinute || 0)) {
+          this._lastQuotaMinute = currentMinute;
+          this._validateQuotaMinute();
+        }
 
-         // Event scheduling ??? uses config computed once in startRace()
+        // Event scheduling ??? uses config computed once in startRace()
         const evtCfg = this._eventIntensityCfg || { base: 20, variation: 3, maxEvents: 18 };
         if (this.maxEvents > 0 && this.activeEvent === null && this.raceTimer > 10 && this.raceTimer >= this._nextEventRaceTime && !this._worldLockdown) {
           this.triggerRandomEvent();
@@ -9491,29 +10000,6 @@ if (this.state === 'racing') {
         }
       }
 
-      // Sustained leader tracking for event banner (avoids queue buildup from rapid changes)
-      {
-        const now = performance.now();
-        const leadLeader = this.leaderboard.length > 0 ? this.leaderboard[0] : null;
-        if (leadLeader && !leadLeader.finished) {
-          if (this._sustainedLeaderCode !== leadLeader.code) {
-            this._sustainedLeaderCode = leadLeader.code;
-            this._sustainedLeaderStartTime = now;
-            this._sustainedLeaderBannerShown = false;
-          } else if (!this._sustainedLeaderBannerShown) {
-            if ((now - this._sustainedLeaderStartTime) >= 5000) {
-              this.eventBanner.clear();
-              this.eventBanner.show('\u{1F3C6} ' + leadLeader.name.toUpperCase() + ' LEADING!', 3500);
-              this._sustainedLeaderBannerShown = true;
-              this._sustainedLeaderLastBannerTime = now;
-            }
-          } else if ((now - this._sustainedLeaderLastBannerTime) >= 10000) {
-            this.eventBanner.show('\u{1F3C6} ' + leadLeader.name.toUpperCase() + ' STILL LEADS!', 3500);
-            this._sustainedLeaderLastBannerTime = now;
-          }
-        }
-      }
-
       // Commentary: detect collisions and events
       this.balls.forEach(b => {
         if (b.finished || b.eliminated) return;
@@ -9606,11 +10092,8 @@ if (this.state === 'racing') {
     }
 
     // Broadcast Director ??? observe and decide camera state
-    this.broadcastDirector.observe(this.balls, this.leaderboard, this.raceTimer, this.track, this.gameMode, this.activeEvent);
+    this.broadcastDirector.observe(this.balls, this.leaderboard, this.raceTimer, this.track, this.gameMode);
     this.broadcastDirector.update(dt);
-
-    // Story Engine ??? observe race data, produce narratives for the event feed
-    this.storyEngine.observe(this.balls, this.leaderboard, this.raceTimer, this.track, this.gameMode);
 
     // Camera executes the Broadcast Director's shot with smooth movement
     this.updateCameraController(dt);
@@ -9707,7 +10190,6 @@ if (this.state === 'racing') {
     // (oversized sweep_arm/hammer bounding boxes, minor wall overhangs, boost pads
     // firing into obstacles), so keep the lowest-error generated layout instead of
     // falling back to a sparse pad-only segment.
-    if (this._obstaclePlan) this._extendObstaclePlan(segEnd);
     const clearRange = () => {
       track.obstacles = track.obstacles.filter(o => o.x < segStart || o.x >= segEnd);
       track.zones = track.zones.filter(z => z.x < segStart || z.x >= segEnd || z.type === 'finish');
@@ -9756,6 +10238,10 @@ if (this.state === 'racing') {
     this._knockoutExtCount = (this._knockoutExtCount || 0) + 1;
 
     track.length = segEnd;
+
+    // Keep the quota plan's end in sync with the growing endless track so the
+    // minute-boundary top-up has the full live range to place into.
+    if (this._obstaclePlan) this._obstaclePlan.playableEnd = segEnd;
   }
 
   // Drop walls/obstacles/zones/pegs far behind the trailing ball to keep memory bounded.
@@ -11052,148 +11538,103 @@ this.ctx.restore();
           if (this.currentThemeKey === 'jungle') this.ctx.strokeText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.fillText('BOOST', zX + zone.width / 2, zone.y + zone.height / 2);
           this.ctx.restore();
-        } else if (zone.type === 'mud_puddle || lava_pool') {
-          // ===== MUD PUDDLE (Amazon Canopy only) =====
-          if (this.currentThemeKey !== 'jungle') return;
+        } else if (zone.type === 'lava_pool') {
+          // ===== LAVA POOL (Magma Crater only) =====
+          if (this.currentThemeKey !== 'volcano') return;
           this.ctx.save();
-          
+
           const time = Date.now() * 0.001;
-          const baseAlpha = 0.7 + Math.sin(time * 2) * 0.1;
-          
-          // Generate organic blob shape for the puddle
+          const pulse = 0.9 + Math.sin(time * 2.4) * 0.1;
+
           const centerX = zX + zone.width / 2;
           const centerY = zone.y + zone.height / 2;
           const baseRadiusX = zone.width / 2;
           const baseRadiusY = zone.height / 2;
-          const numPoints = 12;
-          const blobPoints = [];
-          
-          // Use deterministic noise based on zone position for consistent shape
+
+          // Organic blob shape, deterministic per zone
           const seed = ((zone.x * 73856093) ^ (zone.y * 19349663)) & 0x7fffffff;
           let noiseState = seed;
           const noise = () => {
             noiseState = (noiseState * 1664525 + 1013904223) & 0xffffffff;
             return noiseState / 0xffffffff;
           };
-          
+          const numPoints = 14;
+          const blobPoints = [];
           for (let i = 0; i < numPoints; i++) {
             const angle = (i / numPoints) * Math.PI * 2;
-            // Add organic variation to radius - more dramatic for rough mud pit look
-            const variation = 0.45 + noise() * 0.55;
-            // Add pronounced asymmetry - real mud puddles are very irregular
-            const asymX = 1.0 + (noise() - 0.5) * 0.35;
-            const asymY = 1.0 + (noise() - 0.5) * 0.35;
-            // Add random sharp indentations (erosion/cracks)
-            const crack = noise() < 0.12 ? 0.3 + noise() * 0.25 : 1.0;
-            const rx = baseRadiusX * variation * asymX * crack;
-            const ry = baseRadiusY * variation * asymY * crack;
+            const variation = 0.5 + noise() * 0.5;
+            const asymX = 1.0 + (noise() - 0.5) * 0.3;
+            const asymY = 1.0 + (noise() - 0.5) * 0.3;
             blobPoints.push({
-              x: centerX + Math.cos(angle) * rx,
-              y: centerY + Math.sin(angle) * ry
+              x: centerX + Math.cos(angle) * baseRadiusX * variation * asymX,
+              y: centerY + Math.sin(angle) * baseRadiusY * variation * asymY
             });
           }
-          
-          // Smooth the blob with curve interpolation
-          this.ctx.beginPath();
-          for (let i = 0; i < numPoints; i++) {
-            const p1 = blobPoints[i];
-            const p2 = blobPoints[(i + 1) % numPoints];
-            const ctrlX = (p1.x + p2.x) / 2;
-            const ctrlY = (p1.y + p2.y) / 2;
-            if (i === 0) {
-              this.ctx.moveTo(p1.x, p1.y);
+          const traceBlob = () => {
+            this.ctx.beginPath();
+            for (let i = 0; i < numPoints; i++) {
+              const p1 = blobPoints[i];
+              const p2 = blobPoints[(i + 1) % numPoints];
+              const ctrlX = (p1.x + p2.x) / 2;
+              const ctrlY = (p1.y + p2.y) / 2;
+              if (i === 0) this.ctx.moveTo(p1.x, p1.y);
+              this.ctx.quadraticCurveTo(p1.x, p1.y, ctrlX, ctrlY);
             }
-            this.ctx.quadraticCurveTo(p1.x, p1.y, ctrlX, ctrlY);
-          }
-          this.ctx.closePath();
-          
-          // Base mud puddle - dark brown water
-          const mudGrad = this.ctx.createLinearGradient(
+            this.ctx.closePath();
+          };
+
+          // Glow halo
+          this.ctx.shadowColor = 'rgba(255, 90, 20, 0.8)';
+          this.ctx.shadowBlur = 35;
+          traceBlob();
+          const lavaGrad = this.ctx.createLinearGradient(
             centerX - baseRadiusX, centerY - baseRadiusY,
             centerX + baseRadiusX, centerY + baseRadiusY
           );
-          mudGrad.addColorStop(0, `rgba(60, 40, 25, ${baseAlpha * 0.9})`);
-          mudGrad.addColorStop(0.3, `rgba(45, 30, 18, ${baseAlpha})`);
-          mudGrad.addColorStop(0.7, `rgba(55, 35, 22, ${baseAlpha * 0.95})`);
-          mudGrad.addColorStop(1, `rgba(40, 28, 20, ${baseAlpha * 0.85})`);
-          this.ctx.fillStyle = mudGrad;
+          lavaGrad.addColorStop(0, `rgba(255, 220, 120, ${pulse})`);
+          lavaGrad.addColorStop(0.35, `rgba(255, 140, 30, ${pulse})`);
+          lavaGrad.addColorStop(0.7, `rgba(230, 70, 10, ${pulse})`);
+          lavaGrad.addColorStop(1, `rgba(160, 30, 5, ${pulse})`);
+          this.ctx.fillStyle = lavaGrad;
           this.ctx.fill();
-          
-          // Glossy surface highlights (organic shapes)
-          this.ctx.fillStyle = `rgba(90, 65, 45, ${0.2 + Math.sin(time * 3) * 0.1})`;
-          for (let s = 0; s < 4; s++) {
-            const angle = time * 0.8 + s * 1.5;
-            const dist = (baseRadiusX * 0.3) * (0.5 + Math.sin(time * 1.2 + s) * 0.3);
-            const sx = centerX + Math.cos(angle) * dist;
-            const sy = centerY + Math.sin(angle) * dist * 0.7;
-            const sw = baseRadiusX * 0.15 * (0.7 + Math.sin(time * 2 + s) * 0.3);
-            const sh = baseRadiusY * 0.08 * (0.7 + Math.cos(time * 1.5 + s) * 0.3);
-            const rot = angle + Math.sin(time + s) * 0.3;
-            this.ctx.save();
-            this.ctx.translate(sx, sy);
-            this.ctx.rotate(rot);
-            this.ctx.beginPath();
-            this.ctx.ellipse(0, 0, sw, sh, 0, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.restore();
-          }
-          
-          // Wet muddy edges - organic stroke
-          this.ctx.strokeStyle = `rgba(80, 55, 35, ${baseAlpha})`;
-          this.ctx.lineWidth = 3;
-          this.ctx.shadowColor = 'rgba(40, 25, 15, 0.5)';
-          this.ctx.shadowBlur = 6;
-          this.ctx.shadowOffsetY = 2;
-          
-          // Re-draw blob for stroke
-          this.ctx.beginPath();
-          for (let i = 0; i < numPoints; i++) {
-            const p1 = blobPoints[i];
-            const p2 = blobPoints[(i + 1) % numPoints];
-            const ctrlX = (p1.x + p2.x) / 2;
-            const ctrlY = (p1.y + p2.y) / 2;
-            if (i === 0) {
-              this.ctx.moveTo(p1.x, p1.y);
-            }
-            this.ctx.quadraticCurveTo(p1.x, p1.y, ctrlX, ctrlY);
-          }
-          this.ctx.closePath();
-          this.ctx.stroke();
-          
           this.ctx.shadowBlur = 0;
-          this.ctx.shadowOffsetY = 0;
-          
-          // Small grass patches around edges
-          this.ctx.fillStyle = '#1A3A1A';
-          for (let g = 0; g < 6; g++) {
-            const edgeAngle = (g / 6) * Math.PI * 2;
-            const edgeDist = (baseRadiusX * 0.95) * (0.85 + noise() * 0.15);
-            const gx = centerX + Math.cos(edgeAngle) * edgeDist + Math.sin(time + g) * 3;
-            const gy = centerY + Math.sin(edgeAngle) * edgeDist * 0.8 + Math.cos(time * 0.7 + g) * 2;
+
+          // Molten surface swirls
+          this.ctx.strokeStyle = `rgba(255, 210, 120, ${0.25 + Math.sin(time * 3) * 0.15})`;
+          this.ctx.lineWidth = 2;
+          for (let s = 0; s < 4; s++) {
+            const ang = time * 0.9 + s * 1.57;
+            const dist = baseRadiusX * 0.25 * (0.6 + Math.sin(time * 1.4 + s) * 0.3);
+            const sx = centerX + Math.cos(ang) * dist;
+            const sy = centerY + Math.sin(ang) * dist * 0.7;
+            const sw = baseRadiusX * 0.22 * (0.7 + Math.sin(time * 2 + s) * 0.3);
             this.ctx.beginPath();
-            this.ctx.arc(gx, gy, 3 + noise() * 2, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.fillStyle = '#245024';
-            this.ctx.beginPath();
-            this.ctx.arc(gx - 1, gy - 1, 1.5, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.fillStyle = '#1A3A1A';
-          }
-          
-          // Small ripples/bubbles
-          this.ctx.strokeStyle = `rgba(100, 70, 50, ${0.15 + Math.sin(time * 4) * 0.08})`;
-          this.ctx.lineWidth = 1;
-          for (let r = 0; r < 3; r++) {
-            const rippleAngle = time * 1.5 + r * 2.1;
-            const rippleDist = baseRadiusX * 0.25 * (0.5 + Math.sin(time * 1.3 + r) * 0.4);
-            const rx = centerX + Math.cos(rippleAngle) * rippleDist;
-            const ry = centerY + Math.sin(rippleAngle) * rippleDist * 0.7;
-            const rr = 4 + Math.sin(time * 3 + r) * 2;
-            this.ctx.beginPath();
-            this.ctx.arc(rx, ry, rr, 0, Math.PI * 2);
+            this.ctx.ellipse(sx, sy, sw, sw * 0.4, ang, 0, Math.PI * 2);
             this.ctx.stroke();
           }
-          
+
+          // Bubbling embers popping on the surface
+          this.ctx.fillStyle = `rgba(255, 240, 170, ${0.5 + Math.sin(time * 5) * 0.3})`;
+          for (let b = 0; b < 5; b++) {
+            const bang = time * 1.7 + b * 1.3;
+            const bdist = baseRadiusX * 0.5 * (0.4 + Math.sin(time * 2.2 + b * 2) * 0.35);
+            const bx = centerX + Math.cos(bang) * bdist;
+            const by = centerY + Math.sin(bang) * bdist * 0.6;
+            const br = 2 + Math.abs(Math.sin(time * 3 + b)) * 3;
+            this.ctx.beginPath();
+            this.ctx.arc(bx, by, br, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+
+          // Cracked black rocky rim
+          this.ctx.strokeStyle = 'rgba(40, 15, 10, 0.9)';
+          this.ctx.lineWidth = 4;
+          this.ctx.shadowColor = 'rgba(255, 60, 0, 0.6)';
+          this.ctx.shadowBlur = 8;
+          traceBlob();
+          this.ctx.stroke();
+          this.ctx.shadowBlur = 0;
+
           this.ctx.restore();
         } else if (zone.type === 'slow' || zone.type === 'sand') {
           if (zone.type === 'slow' && this.currentThemeKey === 'snow') {
@@ -18326,7 +18767,7 @@ this.ctx.restore();
           const numScale = 1 + Math.max(0, 1 - scaleT) * 0.06;
 
           const cx = screenW / 2;
-          const cy = screenH * 0.32;
+          const cy = screenH * 0.72;
           const pillW = 230;
           const pillH = 130;
 
@@ -18426,7 +18867,7 @@ this.ctx.restore();
       }
 
       // D. Global Event Banner (animated near lower-center) ??? hide after race ends or when champion overlay shown
-      if (this.state === 'racing' && !this._championOverlayShown) {
+      if (this.state === 'racing' && !this._championOverlayShown && !this._eliminationCountdown) {
         this.eventBanner.render(this.ctx, screenW, screenH);
       }
 
@@ -18580,16 +19021,14 @@ this.ctx.restore();
     // track generation AND from the Ultimate Arena World Director on every World
     // Shift so the newly activated map always gets its complete obstacle set.
     // (Space objects are handled separately via _initSpaceObjects.)
-    _bakeExclusiveObstacles(track, finishX, enabledSet, themeKey, densityPct) {
+    _bakeExclusiveObstacles(track, finishX, enabledSet, themeKey) {
       if (!track) return;
       const es = enabledSet || this._enabledSet || new Set();
       const tk = themeKey || this.currentThemeKey;
-      const bakeDensity = (densityPct == null || isNaN(densityPct)) ? 80 : Math.max(20, Math.min(100, densityPct));
-      const _scaleCount = (base) => Math.max(1, Math.round(base * (bakeDensity / 100)));
 
       // Generate Retractable Wall Icicles for Glacier Summit
       if (es.has('icicle')) {
-        const _numIcicles = _scaleCount(120 + Math.floor(Math.random() * 41));
+        const _numIcicles = 120 + Math.floor(Math.random() * 41);
         const _ballR = 15;
         const _baseLen = _ballR * 3;
         const _baseW = _ballR * 1.2;
@@ -18639,7 +19078,7 @@ this.ctx.restore();
 
       // Generate Carnivorous Vines for Amazon Canopy
       if (es.has('carnivorous_vine') && tk === 'jungle') {
-        const _numVines = _scaleCount(30 + Math.floor(Math.random() * 11));
+        const _numVines = 30 + Math.floor(Math.random() * 11);
         const _minSpacing = 350;
         const _restrictedZones = [
           { start: 0, end: 1500 },
@@ -18688,7 +19127,6 @@ this.ctx.restore();
             const _swaySpeed = 0.3 + Math.random() * 0.3;
             const _breathPhase = Math.random() * Math.PI * 2;
             _existingPositions.push(_vx);
-            _placed = true;
             track.obstacles.push({
               type: 'carnivorous_vine',
               x: _vx, y: _wallY,
@@ -18709,7 +19147,7 @@ this.ctx.restore();
 
       // Generate Collapsing Rock Pillars for Magma Crater
       if (es.has('collapsing_pillar')) {
-        const numPillars = _scaleCount(12 + Math.floor(Math.random() * 5));
+        const numPillars = 12 + Math.floor(Math.random() * 5);
         const pillarPositions = [];
         for (let px = 400; px < finishX - 600; px += 80) {
           if (Math.abs(px - finishX) < 800) continue;
@@ -18821,9 +19259,7 @@ this.ctx.restore();
       // insta-collisions that a fresh grid launch would never create.
       if (this.track && this.balls) {
         const clear = new Set(['carnivorous_vine', 'carnivorous_plant', 'rolling_log', 'swinging_vine',
-          'icicle', 'icicle_drop', 'ice', 'collapsing_pillar', 'whirlpool', 'gravity_well',
-          'meteor_gate', 'flame_jet', 'rolling_boulder', 'energy_ring', 'jellyfish',
-          'crab_claw', 'rolling_tumbleweed', 'moving_dune', 'quicksand_pit']);
+          'icicle', 'collapsing_pillar', 'whirlpool', 'gravity_well', 'meteor_gate', 'flame_jet']);
         const guards = this.balls.filter(b => !b.finished);
         if (guards.length) {
           const guardedX = guards.map(b => b.x || 0);
@@ -18854,7 +19290,6 @@ this.ctx.restore();
     // old world's spawner state never leaks into the next world.
     _destroyObstacleSystem() {
       this._endlessTrackGen = null;
-      this._obstaclePlan = null;
       this._obstacleFreqWeights = null;
       this._obstacleDensityPct = (this._loadout && this._loadout.density) || this._obstacleDensityPct || 80;
       if (this.track) {
@@ -19395,10 +19830,6 @@ this.ctx.restore();
       this.commentary.clear();
       this.commentary.lastLeaderCode = null;
       this.eventBanner.clear();
-      this._sustainedLeaderCode = null;
-      this._sustainedLeaderStartTime = 0;
-      this._sustainedLeaderBannerShown = false;
-      this._sustainedLeaderLastBannerTime = 0;
       this.raceDirector.startRace(this.raceLength);
       this.broadcastDirector.reset();
       this.storyEngine.reset();
@@ -19419,7 +19850,6 @@ this.ctx.restore();
       this._nextEventRaceTime = 20;
       this.raceTimer = 0;
       this.countdownSeconds = 3;
-      this._obstacleSpawnCounts = {};
       this.state = 'countdown';
       this.isRunning = true;
       this.isPaused = false;
@@ -19875,10 +20305,6 @@ this.ctx.restore();
       this._jungleRiver = [];
       this._jungleCrossVines = [];
       this._slowMoTriggered = false;
-      this._sustainedLeaderCode = null;
-      this._sustainedLeaderStartTime = 0;
-      this._sustainedLeaderBannerShown = false;
-      this._sustainedLeaderLastBannerTime = 0;
       this._eventToggle = false;
       this.physics.obstacleZoneTracker = {};
       this.physics.reliefActive = false;

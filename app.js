@@ -646,7 +646,7 @@ class AppController {
   loadPresetFIFA() {
     this.clearCountriesSelection();
 
-    // World Cup Mode (and Knockout Mode) use the official 2026 48-team set.
+    // World Cup 2026 official 48-team set applies to both World Cup and Knockout modes.
     const preset = (this.engine && (this.engine.gameMode === 'world_cup' || this.engine.gameMode === 'world_cup_2026' || this.engine.gameMode === 'knockout'))
       ? (typeof getWorldCup2026Preset === 'function' ? getWorldCup2026Preset(this.countries) : getWorldCup48Preset(this.countries))
       : getWorldCup48Preset(this.countries);
