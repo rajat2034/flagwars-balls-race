@@ -36,6 +36,99 @@ class PhysicsEngine {
     _s.cLine = { p1: _s.pt1, p2: _s.pt2 };
     _s.cLineA = { p1: _s.pt1, p2: _s.pt2 };
     _s.cLineB = { p1: _s.pt3, p2: _s.pt4 };
+
+    // Spatial bucket index: walls / pegs / obstacles / zones are grouped into
+    // fixed-width X buckets so each ball only inspects neighbours inside its
+    // collision range instead of scanning every element of the track.
+    this._sp = null;
+    this._spFrame = 0;
+  }
+
+  // Rebuild the bucket index when the track object, any of its element counts
+  // change (track extension, quota spawns), or a safety timeout elapses.
+  _ensureSpatial(track) {
+    this._spFrame++;
+    const s = this._sp;
+    if (track && s && s.track === track &&
+        s.wallsLen === (track.walls ? track.walls.length : 0) &&
+        s.pegsLen === (track.pegs ? track.pegs.length : 0) &&
+        s.obsLen === (track.obstacles ? track.obstacles.length : 0) &&
+        s.zonesLen === (track.zones ? track.zones.length : 0) &&
+        (this._spFrame - s.frame) < 60) {
+      return s;
+    }
+    return this._buildSpatial(track);
+  }
+
+  _buildSpatial(track) {
+    const B = 512;
+    const s = {
+      track, bucket: B, frame: this._spFrame,
+      wallsLen: 0, pegsLen: 0, obsLen: 0, zonesLen: 0,
+      wallB: {}, pegB: {}, obsB: {}, obsIdxB: {}, zoneB: {},
+      wallAlways: [], pegAlways: [], obsAlways: [], obsAlwaysIdx: [],
+      maxZoneW: 0, maxObsZoneR: 80
+    };
+    if (track) {
+      s.wallsLen = track.walls ? track.walls.length : 0;
+      s.pegsLen = track.pegs ? track.pegs.length : 0;
+      s.obsLen = track.obstacles ? track.obstacles.length : 0;
+      s.zonesLen = track.zones ? track.zones.length : 0;
+
+      const walls = track.walls || [];
+      for (let i = 0; i < walls.length; i++) {
+        const w = walls[i];
+        const x = (w && w.p1) ? w.p1.x : NaN;
+        if (isFinite(x)) {
+          const k = Math.floor(x / B);
+          (s.wallB[k] || (s.wallB[k] = [])).push(w);
+        } else {
+          s.wallAlways.push(w);
+        }
+      }
+
+      const pegs = track.pegs || [];
+      for (let i = 0; i < pegs.length; i++) {
+        const p = pegs[i];
+        const x = p ? p.x : NaN;
+        if (isFinite(x)) {
+          const k = Math.floor(x / B);
+          (s.pegB[k] || (s.pegB[k] = [])).push(p);
+        } else {
+          s.pegAlways.push(p);
+        }
+      }
+
+      const obs = track.obstacles || [];
+      for (let i = 0; i < obs.length; i++) {
+        const o = obs[i];
+        const zoneR = Math.max(80, o.width || 60);
+        if (zoneR > s.maxObsZoneR) s.maxObsZoneR = zoneR;
+        const x = o ? o.x : NaN;
+        if (isFinite(x)) {
+          const k = Math.floor(x / B);
+          (s.obsB[k] || (s.obsB[k] = [])).push(o);
+          (s.obsIdxB[k] || (s.obsIdxB[k] = [])).push(i);
+        } else {
+          s.obsAlways.push(o);
+          s.obsAlwaysIdx.push(i);
+        }
+      }
+
+      const zones = track.zones || [];
+      for (let i = 0; i < zones.length; i++) {
+        const z = zones[i];
+        const w = z.width || 0;
+        if (w > s.maxZoneW) s.maxZoneW = w;
+        const x = z.x;
+        if (isFinite(x)) {
+          const k = Math.floor(x / B);
+          (s.zoneB[k] || (s.zoneB[k] = [])).push(z);
+        }
+      }
+    }
+    this._sp = s;
+    return s;
   }
 
   update(balls, track, dt = 1) {
@@ -67,14 +160,33 @@ class PhysicsEngine {
 
     // Anti-jam: track balls in obstacle zones and detect jams
     if (track && track.obstacles) {
+      this._ensureSpatial(track);
       this.updateAntiJamSystem(balls, track, dt);
     }
 
-    // Pre-compute once per frame (avoids per-ball O(n) allocations)
-    const _nonFinished = balls.filter(b => !b.finished);
-    const _leaderX = _nonFinished.length > 0 ? Math.max(..._nonFinished.map(b => b.x)) : -Infinity;
-    const _slowZones = track ? track.zones.filter(z => z.type === 'slow' || z.type === 'lava_pool' || z.type === 'mud_puddle') : [];
-    const _quicksandPits = track ? track.zones.filter(z => z.type === 'quicksand_pit') : [];
+    // Pre-compute once per frame. Single pass for the leader + cached zone
+    // filters (the old code allocated 4 arrays and spread 199 args per frame).
+    let _leaderX = -Infinity;
+    for (let zi = 0; zi < balls.length; zi++) {
+      const b = balls[zi];
+      if (!b.finished && b.x > _leaderX) _leaderX = b.x;
+    }
+    let _slowZones, _quicksandPits;
+    if (track) {
+      const zones = track.zones;
+      const zc = this._zoneFilterCache;
+      if (zc && zc.src === zones && zc.len === zones.length) {
+        _slowZones = zc.slow;
+        _quicksandPits = zc.sand;
+      } else {
+        _slowZones = zones.filter(z => z.type === 'slow' || z.type === 'lava_pool' || z.type === 'mud_puddle');
+        _quicksandPits = zones.filter(z => z.type === 'quicksand_pit');
+        this._zoneFilterCache = { src: zones, len: zones.length, slow: _slowZones, sand: _quicksandPits };
+      }
+    } else {
+      _slowZones = [];
+      _quicksandPits = [];
+    }
 
     // 1. Apply forward force, damping, and AI assistance
     balls.forEach(ball => {
@@ -563,31 +675,77 @@ class PhysicsEngine {
     // Reset obstacle hit flag for boost multiplier cancellation
     balls.forEach(b => { b._hitLargeObstacle = false; });
 
+    // Pre-compute spatial buckets once per frame (avoids O(balls × allWalls) scans)
+    const _sp = track ? this._ensureSpatial(track) : null;
+    const _B = _sp ? _sp.bucket : 512;
+    const _checkWall = (ball, wall) => {
+      if (Math.abs(wall.p1.x - ball.x) > 300) return;
+      const prevVx = ball.vx, prevVy = ball.vy;
+      this.resolveBallLineCollision(ball, wall);
+      if (Math.hypot(ball.vx - prevVx, ball.vy - prevVy) > 0.5) {
+        ball._hitWallThisFrame = true;
+      }
+    };
+
     // 2. Ball vs Wall collisions (culled by distance)
     balls.forEach(ball => {
       if (ball.finished || ball._capturedByVine) return;
-      track.walls.forEach(wall => {
-        if (Math.abs(wall.p1.x - ball.x) > 300) return;
-        const prevVx = ball.vx, prevVy = ball.vy;
-        this.resolveBallLineCollision(ball, wall);
-        if (Math.hypot(ball.vx - prevVx, ball.vy - prevVy) > 0.5) {
-          ball._hitWallThisFrame = true;
+      if (_sp) {
+        const b0 = Math.floor((ball.x - 300) / _B);
+        const b1 = Math.floor((ball.x + 300) / _B);
+        for (let bi = b0; bi <= b1; bi++) {
+          const arr = _sp.wallB[bi];
+          if (!arr) continue;
+          for (let k = 0; k < arr.length; k++) _checkWall(ball, arr[k]);
         }
-      });
+        for (let k = 0; k < _sp.wallAlways.length; k++) _checkWall(ball, _sp.wallAlways[k]);
+      } else {
+        track.walls.forEach(wall => _checkWall(ball, wall));
+      }
     });
 
     // 3. Ball vs Peg collisions (culled by distance)
     balls.forEach(ball => {
       if (ball.finished || ball.z > 0 || ball._capturedByVine) return;
-      track.pegs.forEach(peg => {
-        if (Math.abs(peg.x - ball.x) > 250) return;
-        if (Math.abs(peg.y - ball.y) > 150) return;
-        const prevVx = ball.vx, prevVy = ball.vy;
-        this.resolveBallPegCollision(ball, peg);
-        if (Math.hypot(ball.vx - prevVx, ball.vy - prevVy) > 0.3) {
-          ball._hitPegThisFrame = true;
+      if (_sp) {
+        const b0 = Math.floor((ball.x - 250) / _B);
+        const b1 = Math.floor((ball.x + 250) / _B);
+        for (let bi = b0; bi <= b1; bi++) {
+          const arr = _sp.pegB[bi];
+          if (!arr) continue;
+          for (let k = 0; k < arr.length; k++) {
+            const peg = arr[k];
+            if (Math.abs(peg.x - ball.x) > 250) continue;
+            if (Math.abs(peg.y - ball.y) > 150) continue;
+            const prevVx = ball.vx, prevVy = ball.vy;
+            this.resolveBallPegCollision(ball, peg);
+            if (Math.hypot(ball.vx - prevVx, ball.vy - prevVy) > 0.3) {
+              ball._hitPegThisFrame = true;
+            }
+          }
         }
-      });
+        const pegsAlways = _sp.pegAlways;
+        for (let k = 0; k < pegsAlways.length; k++) {
+          const peg = pegsAlways[k];
+          if (Math.abs(peg.x - ball.x) > 250) continue;
+          if (Math.abs(peg.y - ball.y) > 150) continue;
+          const prevVx = ball.vx, prevVy = ball.vy;
+          this.resolveBallPegCollision(ball, peg);
+          if (Math.hypot(ball.vx - prevVx, ball.vy - prevVy) > 0.3) {
+            ball._hitPegThisFrame = true;
+          }
+        }
+      } else {
+        track.pegs.forEach(peg => {
+          if (Math.abs(peg.x - ball.x) > 250) return;
+          if (Math.abs(peg.y - ball.y) > 150) return;
+          const prevVx = ball.vx, prevVy = ball.vy;
+          this.resolveBallPegCollision(ball, peg);
+          if (Math.hypot(ball.vx - prevVx, ball.vy - prevVy) > 0.3) {
+            ball._hitPegThisFrame = true;
+          }
+        });
+      }
     });
 
     // Pre-compute kelp patches once per frame
@@ -595,10 +753,7 @@ class PhysicsEngine {
 
     // 4. Ball vs Moving Obstacles (culled by distance)
     const _s = this._s;
-    balls.forEach(ball => {
-      ball._hitLargeObstacle = false;
-      if (ball.finished || ball.z > 0 || ball._capturedByVine) return;
-      track.obstacles.forEach(obs => {
+    const _obsVisit = (ball, obs) => {
         // Quick X-distance culling: skip obstacles far from the ball
         if (Math.abs(obs.x - ball.x) > 400) return;
         // Skip obstacles temporarily disabled by anti-stuck system (Layer 2: 0.5s)
@@ -1227,38 +1382,59 @@ if (dist > 0.001) {
             }
           }
         }
-        // Reset kelp flag if ball is outside all kelp patches
-        if (ball._wasInKelp) {
-          const inAnyKelp = _kelpPatches.some(k => {
-            const kR = k.radius || 24;
-            return Math.hypot(ball.x - k.x, ball.y - k.y) < ball.radius + kR;
-          });
-          if (!inAnyKelp) ball._wasInKelp = false;
+    };
+
+    // 4b. Ball loop: visit only obstacles within range (spatial buckets), then
+    // run the per-ball follow-up checks exactly once per ball per frame.
+    balls.forEach(ball => {
+      ball._hitLargeObstacle = false;
+      if (ball.finished || ball.z > 0 || ball._capturedByVine) return;
+
+      if (_sp) {
+        const b0 = Math.floor((ball.x - 400) / _B);
+        const b1 = Math.floor((ball.x + 400) / _B);
+        for (let bi = b0; bi <= b1; bi++) {
+          const arr = _sp.obsB[bi];
+          if (!arr) continue;
+          for (let k = 0; k < arr.length; k++) _obsVisit(ball, arr[k]);
         }
-        // Rolling Tumbleweed collision (simple AABB + deflection)
-        if (this._tumbleweeds) {
-          const tumbleR = 24;
-          for (const tw of this._tumbleweeds) {
-            if (!tw.active) continue;
-            const dx = Math.abs(ball.x - tw.x);
-            const dy = Math.abs(ball.y - tw.y);
-            if (dx < tumbleR + ball.radius && dy < tumbleR + ball.radius) {
-              const pushDir = ball.x > tw.x ? -1 : 1;
-              ball.vx += pushDir * 6;
-              ball.vy *= 0.85;
-              // Separate positions to prevent re-collision next frame
-              const sepX = tumbleR + ball.radius - dx;
-              const sepY = tumbleR + ball.radius - dy;
-              if (sepX < sepY) {
-                ball.x += (ball.x > tw.x ? 1 : -1) * sepX;
-              } else {
-                ball.y += (ball.y > tw.y ? 1 : -1) * sepY;
-              }
+        const obsAlways = _sp.obsAlways;
+        for (let k = 0; k < obsAlways.length; k++) _obsVisit(ball, obsAlways[k]);
+      } else {
+        track.obstacles.forEach(o => _obsVisit(ball, o));
+      }
+
+      // Reset kelp flag if ball is outside all kelp patches
+      if (ball._wasInKelp) {
+        const inAnyKelp = _kelpPatches.some(k => {
+          const kR = k.radius || 24;
+          return Math.hypot(ball.x - k.x, ball.y - k.y) < ball.radius + kR;
+        });
+        if (!inAnyKelp) ball._wasInKelp = false;
+      }
+      // Rolling Tumbleweed collision (simple AABB + deflection)
+      if (this._tumbleweeds) {
+        const tumbleR = 24;
+        for (const tw of this._tumbleweeds) {
+          if (!tw.active) continue;
+          const dx = Math.abs(ball.x - tw.x);
+          const dy = Math.abs(ball.y - tw.y);
+          if (dx < tumbleR + ball.radius && dy < tumbleR + ball.radius) {
+            const pushDir = ball.x > tw.x ? -1 : 1;
+            ball.vx += pushDir * 6;
+            ball.vy *= 0.85;
+            // Separate positions to prevent re-collision next frame
+            const sepX = tumbleR + ball.radius - dx;
+            const sepY = tumbleR + ball.radius - dy;
+            if (sepX < sepY) {
+              ball.x += (ball.x > tw.x ? 1 : -1) * sepX;
+            } else {
+              ball.y += (ball.y > tw.y ? 1 : -1) * sepY;
             }
           }
         }
+      }
     });
-  });
 
     // 5. Ball vs Ball collisions (spatially filtered - skip distant pairs)
     const activeBallCount = balls.filter(b => !b.finished && b.z <= 0 && !b._capturedByVine).length;
@@ -1544,26 +1720,48 @@ if (dist > 0.001) {
     const RELIEF_DURATION = 1.0;
 
     // Reset tracker for this frame
-    this.obstacleZoneTracker = {};
+    const _sp = (this._sp && this._sp.track === track) ? this._sp : null;
+    const _B = _sp ? _sp.bucket : 512;
+    const _tracker = {};
 
-    // Group balls by obstacle zone
+    // Group balls by obstacle zone (spatial buckets + squared distance)
+    const _jamVisit = (ball, obs, idx) => {
+      if (obs._remove || obs.broken) return;
+      const dx = ball.x - obs.x;
+      const dy = ball.y - obs.y;
+      const zoneRadius = Math.max(80, obs.width || 60);
+      if (dx * dx + dy * dy < zoneRadius * zoneRadius) {
+        const key = idx + '_' + obs.type;
+        if (!_tracker[key]) {
+          _tracker[key] = { count: 0, stuckTime: 0, obsIdx: idx };
+        }
+        _tracker[key].count++;
+      }
+    };
+
     balls.forEach(ball => {
       if (ball.finished || ball.eliminated || ball._capturedByVine) return;
-      track.obstacles.forEach((obs, idx) => {
-        if (obs._remove || obs.broken) return;
-        const dx = ball.x - obs.x;
-        const dy = ball.y - obs.y;
-        const dist = Math.hypot(dx, dy);
-        const zoneRadius = Math.max(80, obs.width || 60);
-        if (dist < zoneRadius) {
-          const key = idx + '_' + obs.type;
-          if (!this.obstacleZoneTracker[key]) {
-            this.obstacleZoneTracker[key] = { count: 0, stuckTime: 0, obsIdx: idx };
+      if (_sp) {
+        const R = _sp.maxObsZoneR;
+        const b0 = Math.floor((ball.x - R) / _B);
+        const b1 = Math.floor((ball.x + R) / _B);
+        for (let bi = b0; bi <= b1; bi++) {
+          const idxArr = _sp.obsIdxB[bi];
+          if (!idxArr) continue;
+          for (let k = 0; k < idxArr.length; k++) {
+            const idx = idxArr[k];
+            _jamVisit(ball, track.obstacles[idx], idx);
           }
-          this.obstacleZoneTracker[key].count++;
         }
-      });
+        for (let k = 0; k < _sp.obsAlwaysIdx.length; k++) {
+          const idx = _sp.obsAlwaysIdx[k];
+          _jamVisit(ball, track.obstacles[idx], idx);
+        }
+      } else {
+        track.obstacles.forEach((obs, idx) => _jamVisit(ball, obs, idx));
+      }
     });
+    this.obstacleZoneTracker = _tracker;
 
     let jamDetected = false;
     let jamObsIdx = -1;

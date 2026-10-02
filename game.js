@@ -668,7 +668,7 @@ class GlobalEventBanner {
 
     // Background pill
     ctx.shadowColor = 'rgba(255, 200, 0, 0.4)';
-    ctx.shadowBlur = 20;
+    ctx.shadowBlur = 10;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
     ctx.beginPath();
     ctx.roundRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 28);
@@ -686,7 +686,7 @@ class GlobalEventBanner {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(255, 200, 0, 0.3)';
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 6;
     ctx.fillStyle = '#ffffff';
     ctx.font = titleFont;
     ctx.fillText(this.current.eventName, 0, 0);
@@ -2247,6 +2247,10 @@ class GameEngine {
 
     // Image pattern cache for country flags
     this.flagCache = {};
+
+    // Offscreen ball sprites (flag + baked lighting) & shared ground-shadow sprite
+    this._ballSprites = {};
+    this._ballShadowSprite = null;
 
     // Football image for meteor obstacles
     this.footballImg = null;
@@ -4950,6 +4954,22 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
 
   // Update dynamic obstacles (punchfist, hammer, barrier, spinner, sweep_arm, meteor cleanup)
   updateDynamicObstacles(dt) {
+    // Ball IDs currently held by a carnivorous-vine void — built once per frame
+    // (O(vines)) instead of rescanning every obstacle for every ball of every vine.
+    // Mirrors exactly the old `obstacles.some(o => o.type === 'carnivorous_vine' &&
+    // o.voids && void.state !== 'idle' && void.ballId === ball.id)` test.
+    const _vineHeld = this._vineHeldScratch || (this._vineHeldScratch = new Set());
+    _vineHeld.clear();
+    {
+      const _obs = this.track.obstacles;
+      for (let i = 0; i < _obs.length; i++) {
+        const o = _obs[i];
+        if (o.type !== 'carnivorous_vine' || !o.voids) continue;
+        const v1 = o.voids[1], v2 = o.voids[2];
+        if (v1 && v1.state !== 'idle' && v1.ballId != null) _vineHeld.add(v1.ballId);
+        if (v2 && v2.state !== 'idle' && v2.ballId != null) _vineHeld.add(v2.ballId);
+      }
+    }
     this.track.obstacles.forEach(obs => {
       if (obs.type === 'punchfist') {
         obs.stateTimer = (obs.stateTimer || 0) + dt;
@@ -5087,21 +5107,6 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
           } else {
             obs._stoppedTimer = 0;
           }
-        }
-      } else if (obs.type === 'rain_drop') {
-        // Rain drop movement: fall from sky
-        obs.x += (obs.vx || 0) * dt;
-        obs.vy = (obs.vy || 0) + 0.15 * dt; // gravity acceleration
-        obs.y += obs.vy * dt;
-        // Rain drops pass through walls
-        if (obs._lifetime > 0) {
-          obs._lifetime -= dt;
-          if (obs._lifetime <= 0) obs._remove = true;
-        }
-        // Remove rain drops that fall far below the screen
-        const rdBounds = this.physics.getWallBoundaries(obs.x, this.track);
-        if (rdBounds && obs.y > rdBounds.bottomY + 800) {
-          obs._remove = true;
         }
       } else if (obs.type === 'hammer') {
         const armLen = obs.armLength || 80;
@@ -5306,11 +5311,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
               for (const ball of this.balls) {
                 if (ball.finished || ball.eliminated) continue;
                 // Check if ball already captured by any vine
-                const alreadyCaptured = this.track.obstacles.some(o => 
-                  o.type === 'carnivorous_vine' && o.voids && 
-                  ((o.voids[1] && o.voids[1].state !== 'idle' && o.voids[1].ballId === ball.id) ||
-                   (o.voids[2] && o.voids[2].state !== 'idle' && o.voids[2].ballId === ball.id))
-                );
+                const alreadyCaptured = _vineHeld.has(ball.id);
                 if (alreadyCaptured) continue;
                 // Check if THIS vine has already captured this ball before (permanent memory)
                 if (obs.capturedBallIds && obs.capturedBallIds.has(ball.id)) continue;
@@ -5323,6 +5324,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
                   // Capture this ball in this void
                   v.state = 'capturing';
                   v.ballId = ball.id;
+                  _vineHeld.add(ball.id);
                   v.timer = 0;
                   v.progress = 0;
                   v.holdTimer = 0;
@@ -5488,6 +5490,7 @@ launch: { min: 120, preferred: 180, recovery: 80, safeLanding: 120 },
                   }
                   
                   v.state = 'idle';
+                  _vineHeld.delete(v.ballId);
                   v.ballId = null;
                   v.timer = 0;
                   v.progress = 0;
@@ -6449,25 +6452,33 @@ obs._trappedBallId = null;
   }
 
   // Spawn a rain drop for tropical rainstorm event (Amazon Canopy only)
-  spawnRainDrop() {
+  // Rain drops live in their own array: they are ephemeral (20-30 spawn per
+  // frame) and putting them in track.obstacles forced a physics spatial-index
+  // rebuild every frame plus thousands of wasted obstacle-visitor iterations.
+  spawnRainDrop(leadBall) {
     if (!this.track || !this.balls.length) return;
-    const leadBall = [...this.balls].filter(b => !b.finished).sort((a, b) => b.x - a.x)[0];
-    if (!leadBall) return;
+    if (!leadBall) {
+      // Single pass (O(n)) instead of [...balls].filter().sort() (O(n log n))
+      for (let i = 0; i < this.balls.length; i++) {
+        const b = this.balls[i];
+        if (b.finished) continue;
+        if (!leadBall || b.x > leadBall.x) leadBall = b;
+      }
+      if (!leadBall) return;
+    }
     const range = 2400;
     const spawnX = leadBall.x + (Math.random() - 0.5) * range;
     const bounds = this.physics.getWallBoundaries(spawnX, this.track);
     if (!bounds) return;
     const spawnY = -100 - Math.random() * 60;
-    this.track.obstacles.push({
-      type: 'rain_drop',
+    if (!this._rainDrops) this._rainDrops = [];
+    this._rainDrops.push({
       x: spawnX, y: spawnY,
       radius: 4 + Math.random() * 2,
       vx: 4 + Math.random() * 4,
       vy: 18 + Math.random() * 6,
-      mass: 0.5,
-      bounce: 0,
       _lifetime: 360 + Math.random() * 120,
-      _isRainDrop: true
+      _yLimit: bounds.bottomY + 800
     });
   }
 
@@ -8894,29 +8905,69 @@ obs._trappedBallId = null;
         this.physics.forwardForce = this.currentTheme.forwardForce * 0.65;
       }
 
-      // Raindrop-ball collision (handled in game.js, not physics.js)
-      // Must run before meteor collision particles to set _hitMeteorThisFrame
-      if (this._rainstormActive && this.track) {
-        for (const obs of this.track.obstacles) {
-          if (obs.type !== 'rain_drop' || obs._remove) continue;
-          for (const ball of this.balls) {
+      // Tropical rainstorm: drops fall + collide. They live in this._rainDrops
+      // (not track.obstacles) so they never churn the physics spatial index.
+      const rainDrops = this._rainDrops;
+      if (rainDrops && rainDrops.length > 0) {
+        for (let di = rainDrops.length - 1; di >= 0; di--) {
+          const drop = rainDrops[di];
+          drop.x += (drop.vx || 0) * dt;
+          drop.vy = (drop.vy || 0) + 0.15 * dt;
+          drop.y += drop.vy * dt;
+          if (drop._lifetime > 0) {
+            drop._lifetime -= dt;
+            if (drop._lifetime <= 0 || drop.y > drop._yLimit) {
+              rainDrops.splice(di, 1);
+            }
+          } else if (drop.y > drop._yLimit) {
+            rainDrops.splice(di, 1);
+          }
+        }
+
+        // Raindrop-ball collision (handled in game.js, not physics.js)
+        // Must run before meteor collision particles to set _hitMeteorThisFrame
+        if (this._rainstormActive && this.balls) {
+          const balls = this.balls;
+          // Spatial hash over the drops (256px cells): each ball only tests the
+          // drops in its own 3x3 neighbourhood instead of all ~1200 of them.
+          const _RC = 256;
+          const grid = this._rainGrid || (this._rainGrid = new Map());
+          grid.clear();
+          for (let ri = 0; ri < rainDrops.length; ri++) {
+            const drop = rainDrops[ri];
+            const key = (Math.floor(drop.x / _RC) + 4096) * 8192 + (Math.floor(drop.y / _RC) + 4096);
+            const bucket = grid.get(key);
+            if (bucket) bucket.push(drop); else grid.set(key, [drop]);
+          }
+          for (let bi = 0; bi < balls.length; bi++) {
+            const ball = balls[bi];
             if (ball.finished || ball.eliminated) continue;
-            const dx = ball.x - obs.x;
-            const dy = ball.y - obs.y;
-            const dist = Math.hypot(dx, dy);
-            const minDist = ball.radius + obs.radius;
-            if (dist < minDist) {
-              const overlap = minDist - dist;
-              const nx = dist > 0.001 ? dx / dist : (Math.random() - 0.5);
-              const ny = dist > 0.001 ? dy / dist : (Math.random() - 0.5);
-              const pushFrac = 0.5;
-              ball.x += nx * overlap * pushFrac;
-              ball.y += ny * overlap * pushFrac;
-              obs.x -= nx * overlap * (1 - pushFrac);
-              obs.y -= ny * overlap * (1 - pushFrac);
-              ball.vx += obs.vx * 0.04;
-              ball.vy += obs.vy * 0.04;
-              ball._hitMeteorThisFrame = true;
+            const gx = Math.floor(ball.x / _RC) + 4096;
+            const gy = Math.floor(ball.y / _RC) + 4096;
+            for (let ox = -1; ox <= 1; ox++) {
+              const cx = (gx + ox) * 8192;
+              for (let oy = -1; oy <= 1; oy++) {
+                const bucket = grid.get(cx + gy + oy);
+                if (!bucket) continue;
+                for (let k = 0; k < bucket.length; k++) {
+                  const drop = bucket[k];
+                  const dx = ball.x - drop.x;
+                  const dy = ball.y - drop.y;
+                  const minDist = ball.radius + drop.radius;
+                  if (dx * dx + dy * dy >= minDist * minDist) continue;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  const overlap = minDist - dist;
+                  const nx = dist > 0.001 ? dx / dist : (Math.random() - 0.5);
+                  const ny = dist > 0.001 ? dy / dist : (Math.random() - 0.5);
+                  ball.x += nx * overlap * 0.5;
+                  ball.y += ny * overlap * 0.5;
+                  drop.x -= nx * overlap * 0.5;
+                  drop.y -= ny * overlap * 0.5;
+                  ball.vx += drop.vx * 0.04;
+                  ball.vy += drop.vy * 0.04;
+                  ball._hitMeteorThisFrame = true;
+                }
+              }
             }
           }
         }
@@ -9477,8 +9528,16 @@ obs._trappedBallId = null;
       // Sand Vortex gameplay (Sahara Desert exclusive) - zigzag sine-wave carry
       if (this.currentThemeKey === 'desert' && this.track && this.track.obstacles && this.balls) {
         const vortices = this.track.obstacles.filter(o => o.type === 'sand_vortex');
+        // Fast reject: only vortices near the ball field can capture balls
+        let _vMinBX = Infinity, _vMaxBX = -Infinity;
+        for (const b of this.balls) {
+          if (b.finished || b.eliminated) continue;
+          if (b.x < _vMinBX) _vMinBX = b.x;
+          if (b.x > _vMaxBX) _vMaxBX = b.x;
+        }
         for (const vortex of vortices) {
-          for (const ball of this.balls) {
+            if (vortex.x + vortex.radius < _vMinBX - 400 || vortex.x - vortex.radius > _vMaxBX + 400) continue;
+            for (const ball of this.balls) {
             if (ball.finished || ball.eliminated || ball.z > 0) continue;
             if (ball._vortexCaptured) {
               if (ball._vortexRef !== vortex) continue;
@@ -9834,17 +9893,33 @@ obs._trappedBallId = null;
       // Tropical rainstorm spawning — dense rainfall
       if (this._rainstormActive && this.state === 'racing') {
         const count = 20 + Math.floor(Math.random() * 10);
-        for (let i = 0; i < count; i++) {
-          this.spawnRainDrop();
+        let leadBall = null;
+        for (let bi = 0; bi < this.balls.length; bi++) {
+          const b = this.balls[bi];
+          if (b.finished) continue;
+          if (!leadBall || b.x > leadBall.x) leadBall = b;
+        }
+        if (leadBall) {
+          for (let i = 0; i < count; i++) {
+            this.spawnRainDrop(leadBall);
+          }
         }
       }
 
-      // Check for jumps zones trigger
+      // Check for jumps zones trigger (jump zones pre-filtered — avoids O(balls × zones) scan)
+      let jumpZones = this._jumpZoneCache;
+      if (!jumpZones || jumpZones._src !== this.track.zones || jumpZones._srcLen !== this.track.zones.length) {
+        jumpZones = this.track.zones.filter(z => z.type === 'jump');
+        jumpZones._src = this.track.zones;
+        jumpZones._srcLen = this.track.zones.length;
+        this._jumpZoneCache = jumpZones;
+      }
       this.balls.forEach(ball => {
-        if (ball.finished) return;
-        this.track.zones.forEach(zone => {
+        if (ball.finished || ball.z !== 0) return;
+        for (let zi = 0; zi < jumpZones.length; zi++) {
+          const zone = jumpZones[zi];
           if (
-            zone.type === 'jump' && ball.z === 0 &&
+            zone.type === 'jump' &&
             ball.x >= zone.x && ball.x <= zone.x + zone.width &&
             ball.y >= zone.y && ball.y <= zone.y + zone.height
           ) {
@@ -9863,7 +9938,7 @@ obs._trappedBallId = null;
               });
             }
           }
-        });
+        }
         // Boost sparkles
         if (ball._inBoost && Math.random() < 0.3) {
           this.particles.push({
@@ -11355,6 +11430,119 @@ obs._trappedBallId = null;
     drawBg();
   }
 
+  // Shared soft ground-shadow sprite (replaces a shadowBlur ellipse fill per ball)
+  _getShadowSprite() {
+    if (this._ballShadowSprite) return this._ballShadowSprite;
+    const s = 64;
+    const cv = document.createElement('canvas');
+    cv.width = s;
+    cv.height = s;
+    const g = cv.getContext('2d');
+    const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    grad.addColorStop(0, 'rgba(0,0,0,0.20)');
+    grad.addColorStop(0.5, 'rgba(0,0,0,0.11)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, s, s);
+    this._ballShadowSprite = cv;
+    return cv;
+  }
+
+  // Baked per-country ball sprite: flag texture + ambient occlusion + rim light
+  // + gloss + specular. Building this once removes three radial gradients, a
+  // clip() and a multi-stop fill pass from EVERY ball on EVERY frame.
+  _getBallSprite(ball) {
+    const R0 = ball.radius || 15;
+    const Rs = R0 * 2; // supersampled sprite radius (always >= on-screen radius)
+    const code = ball.code || ball.name || '';
+    const raw = this.flagCache ? this.flagCache[code] : null;
+    const flagImg = (raw && raw !== 'failed' && raw.complete && raw.naturalWidth > 0) ? raw : null;
+    const color = ball.color || '#3498db';
+    const cache = this._ballSprites || (this._ballSprites = {});
+    const hit = cache[code];
+    if (hit && hit.flag === flagImg && hit.rs === Rs && hit.color === color) return hit.canvas;
+
+    const size = Rs * 2;
+    const cv = (hit && hit.canvas) || document.createElement('canvas');
+    cv.width = size;
+    cv.height = size;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, size, size);
+
+    const lx = -0.3;
+    const ly = -0.35;
+
+    g.save();
+    g.beginPath();
+    g.arc(Rs, Rs, Rs, 0, Math.PI * 2);
+    g.clip();
+
+    if (flagImg) {
+      g.drawImage(flagImg, 0, 0, size, size);
+    } else {
+      g.fillStyle = color;
+      g.fillRect(0, 0, size, size);
+      g.fillStyle = '#ffffff';
+      g.font = 'bold ' + Math.round(Rs * 0.8) + 'px Montserrat, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(String(code).toUpperCase().substring(0, 3), Rs, Rs);
+    }
+
+    // Subtle ambient occlusion — darker near edges opposite the light
+    const aoGrad = g.createRadialGradient(
+      Rs + Rs * 0.25, Rs + Rs * 0.25, 0,
+      Rs, Rs, Rs * 1.1
+    );
+    aoGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    aoGrad.addColorStop(0.6, 'rgba(0,0,0,0)');
+    aoGrad.addColorStop(0.85, 'rgba(0,0,0,0.12)');
+    aoGrad.addColorStop(1, 'rgba(0,0,0,0.25)');
+    g.fillStyle = aoGrad;
+    g.fillRect(0, 0, size, size);
+
+    // Rim light — thin bright edge on the light-facing side
+    const rimGrad = g.createRadialGradient(
+      Rs + Rs * lx * 0.5, Rs + Rs * ly * 0.5, Rs * 0.55,
+      Rs, Rs, Rs
+    );
+    rimGrad.addColorStop(0, 'rgba(255,255,255,0)');
+    rimGrad.addColorStop(0.75, 'rgba(255,255,255,0.03)');
+    rimGrad.addColorStop(0.92, 'rgba(255,255,255,0.15)');
+    rimGrad.addColorStop(1, 'rgba(255,255,255,0.25)');
+    g.fillStyle = rimGrad;
+    g.fillRect(0, 0, size, size);
+
+    // Glossy reflection
+    const glossyGrad = g.createRadialGradient(
+      Rs - Rs * 0.3, Rs - Rs * 0.3, Rs * 0.05,
+      Rs, Rs, Rs
+    );
+    glossyGrad.addColorStop(0, 'rgba(255,255,255,0.25)');
+    glossyGrad.addColorStop(0.25, 'rgba(255,255,255,0.08)');
+    glossyGrad.addColorStop(0.6, 'rgba(255,255,255,0.02)');
+    glossyGrad.addColorStop(0.85, 'rgba(0,0,0,0.05)');
+    glossyGrad.addColorStop(1, 'rgba(0,0,0,0.2)');
+    g.fillStyle = glossyGrad;
+    g.fillRect(0, 0, size, size);
+
+    // Specular dot
+    g.fillStyle = 'rgba(255,255,255,0.18)';
+    g.beginPath();
+    g.ellipse(
+      Rs + Rs * lx * 0.4,
+      Rs + Rs * ly * 0.4,
+      Rs * 0.2, Rs * 0.1,
+      -0.5, 0, Math.PI * 2
+    );
+    g.fill();
+
+    g.restore();
+
+    cache[code] = { canvas: cv, flag: flagImg, rs: Rs, color };
+    return cv;
+  }
+
   // Primary rendering cycle (scales and draws track, particles, UI overlays)
   render() {
     try {
@@ -11365,11 +11553,15 @@ obs._trappedBallId = null;
     const screenW = this.canvas.width;
     const screenH = this.canvas.height;
 
-    // Map theme backgrounds
-    const grad = this.ctx.createLinearGradient(0, 0, 0, screenH);
-    grad.addColorStop(0, this.currentTheme.bgGrad[0]);
-    grad.addColorStop(1, this.currentTheme.bgGrad[1]);
-    this.ctx.fillStyle = grad;
+    // Map theme backgrounds (cached: only rebuilt when theme or canvas size actually changes,
+    // instead of recreating an identical full-screen gradient on every single frame)
+    if (!this._bgGradCache || this._bgGradCache.theme !== this.currentTheme || this._bgGradCache.w !== screenW || this._bgGradCache.h !== screenH) {
+      const bgGrad = this.ctx.createLinearGradient(0, 0, 0, screenH);
+      bgGrad.addColorStop(0, this.currentTheme.bgGrad[0]);
+      bgGrad.addColorStop(1, this.currentTheme.bgGrad[1]);
+      this._bgGradCache = { theme: this.currentTheme, w: screenW, h: screenH, grad: bgGrad };
+    }
+    this.ctx.fillStyle = this._bgGradCache.grad;
     this.ctx.fillRect(0, 0, screenW, screenH);
 
     // Draw dynamic background elements (map-specific atmospheric effects)
@@ -11516,18 +11708,18 @@ this.ctx.restore();
           this.ctx.strokeStyle = `rgba(46,204,113,${boostBorderAlpha})`;
           this.ctx.lineWidth = 2.5;
           this.ctx.strokeRect(zX, zone.y, zone.width, zone.height);
-          // Forward arrows (right)
+          // Forward arrows (right) — single batched path instead of one stroke per arrow
           const animOffset = (Date.now() / 6) % 30;
           this.ctx.strokeStyle = 'rgba(46,204,113,0.50)';
           this.ctx.lineWidth = 2.5;
+          this.ctx.beginPath();
           for (let ax = zX + animOffset; ax < zX + zone.width; ax += 30) {
             const acy = zone.y + zone.height / 2;
-            this.ctx.beginPath();
             this.ctx.moveTo(ax - 10, acy - 8);
             this.ctx.lineTo(ax, acy);
             this.ctx.lineTo(ax - 10, acy + 8);
-            this.ctx.stroke();
           }
+          this.ctx.stroke();
           // label
           this.ctx.fillStyle = this.currentThemeKey === 'jungle' ? '#102A16' : '#2ecc71';
           this.ctx.strokeStyle = this.currentThemeKey === 'jungle' ? '#E5EBD9' : 'transparent';
@@ -11585,7 +11777,7 @@ this.ctx.restore();
 
           // Glow halo
           this.ctx.shadowColor = 'rgba(255, 90, 20, 0.8)';
-          this.ctx.shadowBlur = 35;
+          this.ctx.shadowBlur = 18;
           traceBlob();
           const lavaGrad = this.ctx.createLinearGradient(
             centerX - baseRadiusX, centerY - baseRadiusY,
@@ -11630,7 +11822,7 @@ this.ctx.restore();
           this.ctx.strokeStyle = 'rgba(40, 15, 10, 0.9)';
           this.ctx.lineWidth = 4;
           this.ctx.shadowColor = 'rgba(255, 60, 0, 0.6)';
-          this.ctx.shadowBlur = 8;
+          this.ctx.shadowBlur = 4;
           traceBlob();
           this.ctx.stroke();
           this.ctx.shadowBlur = 0;
@@ -11647,7 +11839,7 @@ this.ctx.restore();
             this.ctx.fillStyle = iceGrad;
             this.ctx.fillRect(zX, zone.y, zone.width, zone.height);
             this.ctx.shadowColor = 'rgba(180, 230, 255, 0.6)';
-            this.ctx.shadowBlur = 10;
+            this.ctx.shadowBlur = 5;
             this.ctx.strokeStyle = 'rgba(200, 240, 255, 0.6)';
             this.ctx.lineWidth = 2;
             this.ctx.strokeRect(zX, zone.y, zone.width, zone.height);
@@ -11764,14 +11956,14 @@ this.ctx.restore();
             const animOff2 = (Date.now() / 6) % 30;
             this.ctx.strokeStyle = 'rgba(231,76,60,0.45)';
             this.ctx.lineWidth = 2.5;
+            this.ctx.beginPath();
             for (let ax = zX + animOff2; ax < zX + zone.width; ax += 30) {
               const acy = zone.y + zone.height / 2;
-              this.ctx.beginPath();
               this.ctx.moveTo(ax + 10, acy - 8);
               this.ctx.lineTo(ax, acy);
               this.ctx.lineTo(ax + 10, acy + 8);
-              this.ctx.stroke();
             }
+            this.ctx.stroke();
             this.ctx.fillStyle = this.currentThemeKey === 'jungle' ? '#102A16' : '#c0392b';
             this.ctx.strokeStyle = this.currentThemeKey === 'jungle' ? '#E5EBD9' : 'transparent';
             this.ctx.lineWidth = this.currentThemeKey === 'jungle' ? 3 : 0;
@@ -12073,7 +12265,7 @@ this.ctx.restore();
           this.ctx.font = 'bold 72px Outfit, Montserrat, sans-serif';
           if (isSnow) {
             this.ctx.shadowColor = 'rgba(180, 220, 250, 0.3)';
-            this.ctx.shadowBlur = 16;
+            this.ctx.shadowBlur = 8;
           }
           this.ctx.fillText('FINISH', finishX - 60, fTop + fH / 2);
           this.ctx.shadowBlur = 0;
@@ -12086,20 +12278,33 @@ this.ctx.restore();
           this.ctx.strokeRect(finishX - 1, fTop - 1, zone.width + 2, fH + 2);
           this.ctx.restore();
 
-          // Checkered strip (full track height, full zone width)
+          // Checkered strip (full track height, full zone width) — two batched paths
           const cs = 12;
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.beginPath();
           for (let by = fTop; by < fBot; by += cs) {
             for (let bx = 0; bx < zone.width; bx += cs) {
-              const isWhite = ((bx / cs) + (Math.floor((by - fTop) / cs))) % 2 === 0;
-              this.ctx.fillStyle = isWhite ? '#ffffff' : '#1a1a1a';
-              this.ctx.fillRect(finishX + bx, by, cs, cs);
+              if (((bx / cs) + (Math.floor((by - fTop) / cs))) % 2 === 0) {
+                this.ctx.rect(finishX + bx, by, cs, cs);
+              }
             }
           }
+          this.ctx.fill();
+          this.ctx.fillStyle = '#1a1a1a';
+          this.ctx.beginPath();
+          for (let by = fTop; by < fBot; by += cs) {
+            for (let bx = 0; bx < zone.width; bx += cs) {
+              if (((bx / cs) + (Math.floor((by - fTop) / cs))) % 2 !== 0) {
+                this.ctx.rect(finishX + bx, by, cs, cs);
+              }
+            }
+          }
+          this.ctx.fill();
 
           // Glowing outline behind checkered strip
           this.ctx.save();
           this.ctx.shadowColor = isSnow ? '#8fcaf5' : '#ffd700';
-          this.ctx.shadowBlur = 30;
+          this.ctx.shadowBlur = 15;
           this.ctx.strokeStyle = isSnow ? 'rgba(180,220,250,0.35)' : 'rgba(255,215,0,0.3)';
           this.ctx.lineWidth = 3;
           this.ctx.strokeRect(finishX - 2, fTop - 2, zone.width + 4, fH + 4);
@@ -12109,7 +12314,7 @@ this.ctx.restore();
           // Ice shimmer overlay for snow, gold for others
           this.ctx.save();
           this.ctx.shadowColor = isSnow ? '#8fcaf5' : '#ffd700';
-          this.ctx.shadowBlur = 40;
+          this.ctx.shadowBlur = 20;
           const shimmerColor = isSnow
             ? `rgba(200,230,255,${0.15 + Math.sin(time) * 0.05})`
             : `rgba(255,215,0,${0.15 + Math.sin(time) * 0.05})`;
@@ -12122,7 +12327,7 @@ this.ctx.restore();
           this.ctx.save();
           const poleX = finishX - 6;
           this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
-          this.ctx.shadowBlur = 8;
+          this.ctx.shadowBlur = 4;
           const poleGrad = this.ctx.createLinearGradient(poleX, 0, poleX + 6, 0);
           if (isSnow) {
             poleGrad.addColorStop(0, '#6a8aaa');
@@ -12153,7 +12358,7 @@ this.ctx.restore();
           this.ctx.save();
           const poleX2 = finishX + zone.width;
           this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
-          this.ctx.shadowBlur = 8;
+          this.ctx.shadowBlur = 4;
           const poleGrad2 = this.ctx.createLinearGradient(poleX2, 0, poleX2 + 6, 0);
           if (isSnow) {
             poleGrad2.addColorStop(0, '#6a8aaa');
@@ -12212,7 +12417,7 @@ this.ctx.restore();
           const bannerH = 40;
           const bannerY = fTop + (fH - bannerH) / 2;
           this.ctx.shadowColor = 'rgba(0,0,0,0.6)';
-          this.ctx.shadowBlur = 12;
+          this.ctx.shadowBlur = 6;
           const bGrad = this.ctx.createLinearGradient(0, bannerY, 0, bannerY + bannerH);
           if (isSnow) {
             bGrad.addColorStop(0, '#2c6b9e');
@@ -12229,7 +12434,7 @@ this.ctx.restore();
           this.ctx.strokeStyle = isSnow ? '#8fcaf5' : '#ffd700';
           this.ctx.lineWidth = 3;
           this.ctx.shadowColor = isSnow ? '#8fcaf5' : '#ffd700';
-          this.ctx.shadowBlur = 8;
+          this.ctx.shadowBlur = 4;
           this.ctx.strokeRect(finishX + 4, bannerY, zone.width - 8, bannerH);
           this.ctx.shadowBlur = 0;
           this.ctx.fillStyle = '#ffffff';
@@ -12237,7 +12442,7 @@ this.ctx.restore();
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           this.ctx.shadowColor = 'rgba(0,0,0,0.8)';
-          this.ctx.shadowBlur = 6;
+          this.ctx.shadowBlur = 3;
           this.ctx.fillText('FINISH', finishX + zone.width / 2, bannerY + bannerH / 2);
           this.ctx.shadowBlur = 0;
           this.ctx.restore();
@@ -12403,12 +12608,12 @@ this.ctx.restore();
         if (peg.bouncy) {
           if (this.currentThemeKey === 'snow') {
             this.ctx.shadowColor = '#2a5a7a';
-            this.ctx.shadowBlur = 10;
+            this.ctx.shadowBlur = 5;
             this.ctx.strokeStyle = 'rgba(60, 140, 180, 0.35)';
             this.ctx.lineWidth = 2;
           } else {
             this.ctx.shadowColor = '#ffffff';
-            this.ctx.shadowBlur = 14;
+            this.ctx.shadowBlur = 7;
             this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
             this.ctx.lineWidth = 2;
           }
@@ -12444,12 +12649,12 @@ this.ctx.restore();
           this.ctx.strokeStyle = '#f39c12';
           this.ctx.lineWidth = 8;
           this.ctx.shadowColor = 'rgba(243,156,18,0.5)';
-          this.ctx.shadowBlur = 14;
+          this.ctx.shadowBlur = 7;
           this.ctx.beginPath();
           this.ctx.arc(pegX + 20, peg.y, 50, Math.PI * 0.75, Math.PI * 0.25, true);
           this.ctx.stroke();
           // Glow arc behind
-          this.ctx.shadowBlur = 24;
+          this.ctx.shadowBlur = 12;
           this.ctx.strokeStyle = 'rgba(243,156,18,0.2)';
           this.ctx.lineWidth = 12;
           this.ctx.beginPath();
@@ -12729,7 +12934,7 @@ this.ctx.restore();
             const pulse = 0.12 + Math.sin(Date.now() * 0.003) * 0.06;
             this.ctx.strokeStyle = `rgba(102,252,241,${pulse})`;
             this.ctx.shadowColor = '#66fcf1';
-            this.ctx.shadowBlur = 8;
+            this.ctx.shadowBlur = 4;
             this.ctx.lineWidth = 2;
             this.ctx.beginPath();
             for (let i = 0; i < visibleTop.length; i++) {
@@ -12768,7 +12973,7 @@ this.ctx.restore();
             const icePulse = 0.06 + Math.sin(Date.now() * 0.0025) * 0.03;
             this.ctx.strokeStyle = `rgba(100, 190, 240, ${icePulse})`;
             this.ctx.shadowColor = '#60b8e0';
-            this.ctx.shadowBlur = 5;
+            this.ctx.shadowBlur = 2;
             this.ctx.lineWidth = 2;
             this.ctx.beginPath();
             for (let i = 0; i < visibleTop.length; i++) {
@@ -12914,7 +13119,7 @@ this.ctx.restore();
 
           // Outer glow
           this.ctx.shadowColor = `rgba(0, 180, 255, ${0.3 * fadeAlpha})`;
-          this.ctx.shadowBlur = 20;
+          this.ctx.shadowBlur = 10;
 
           // Deep blue vortex base
           const grad = this.ctx.createRadialGradient(wX, wY, 0, wX, wY, r);
@@ -12986,6 +13191,8 @@ this.ctx.restore();
         for (const v of vortices) {
           const vx = v.x - camX;
           const r = v.radius;
+          // Offscreen cull — the vortex body is large and expensive to draw
+          if (vx + r * 3 < -500 || vx - r * 3 > screenW / zoom + 500) continue;
           const h = v.height;
           const baseY = v.y;
           const topY = baseY - h * 0.5;
@@ -13093,6 +13300,34 @@ this.ctx.restore();
         }
       }
 
+      // Rain drops live in their own array — render them here (same look as
+      // the old branch inside the obstacle loop).
+      if (this._rainDrops && this._rainDrops.length > 0) {
+        const _rdCull = Math.max(600, 800 / Math.max(this.userZoomMultiplier, 0.1));
+        for (let ri = 0; ri < this._rainDrops.length; ri++) {
+          const drop = this._rainDrops[ri];
+          const rx = drop.x - camX;
+          if (rx + 60 < -_rdCull || rx - 60 > screenW / zoom + _rdCull) continue;
+          const ry = drop.y;
+          const rSize = drop.radius || 3;
+          const streakLen = 8 + rSize * 1.5;
+          const streakDir = Math.atan2(drop.vy || 4, drop.vx || 0);
+          const cdx = Math.cos(streakDir) * streakLen;
+          const cdy = Math.sin(streakDir) * streakLen;
+          this.ctx.strokeStyle = 'rgba(180, 210, 255, 0.6)';
+          this.ctx.lineWidth = rSize * 0.5;
+          this.ctx.lineCap = 'round';
+          this.ctx.beginPath();
+          this.ctx.moveTo(rx, ry);
+          this.ctx.lineTo(rx - cdx, ry - cdy);
+          this.ctx.stroke();
+          this.ctx.fillStyle = 'rgba(200, 220, 255, 0.8)';
+          this.ctx.beginPath();
+          this.ctx.arc(rx, ry, rSize * 0.4, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+      }
+
       this.track.obstacles.forEach(obs => {
         const obsX = obs.x - camX;
         const obsCullBuffer = Math.max(600, 800 / Math.max(this.userZoomMultiplier, 0.1));
@@ -13126,7 +13361,7 @@ this.ctx.restore();
           this.ctx.save();
           // Neon glow behind spinner
           this.ctx.shadowColor = '#6c5ce7';
-          this.ctx.shadowBlur = 30;
+          this.ctx.shadowBlur = 15;
           this.ctx.fillStyle = 'rgba(108,92,231,0.04)';
           this.ctx.fillRect(obsX - 4, obs.y - obs.length / 2, 8, obs.length);
           this.ctx.shadowBlur = 0;
@@ -13134,7 +13369,7 @@ this.ctx.restore();
           this.ctx.translate(obsX, obs.y);
           this.ctx.rotate(obs.angle);
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 6;
+          this.ctx.shadowBlur = 3;
           const barWidth = 12;
           const halfLen = obs.length / 2;
           // Neon stripes (no red)
@@ -13148,7 +13383,7 @@ this.ctx.restore();
           // Center anchor
           this.ctx.save();
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 4;
+          this.ctx.shadowBlur = 2;
           this.ctx.beginPath();
           this.ctx.arc(obsX, obs.y, barWidth / 2 + 2, 0, Math.PI * 2);
           this.ctx.fillStyle = '#2c3e50';
@@ -13170,7 +13405,7 @@ this.ctx.restore();
           topGrad.addColorStop(0.4, '#5d6d7e');
           topGrad.addColorStop(1, '#2c3e50');
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 6;
+          this.ctx.shadowBlur = 3;
           this.ctx.shadowOffsetY = 2;
           this.ctx.fillStyle = topGrad;
           this.ctx.fillRect(obsX - gw / 2, topCenterY - gh / 2, gw, gh);
@@ -13244,7 +13479,7 @@ this.ctx.restore();
             
             // Main vine stem - dark green/brown
             this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
-            this.ctx.shadowBlur = 8;
+            this.ctx.shadowBlur = 4;
             this.ctx.shadowOffsetY = 3;
             
             const vineGrad = this.ctx.createLinearGradient(0, -4, 0, 4);
@@ -13348,7 +13583,7 @@ this.ctx.restore();
             this.ctx.rotate(armAngle);
             // Pivot hub
             this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
-            this.ctx.shadowBlur = 8;
+            this.ctx.shadowBlur = 4;
             this.ctx.fillStyle = '#34495e';
             this.ctx.beginPath();
             this.ctx.arc(0, 0, 8, 0, Math.PI * 2);
@@ -13356,7 +13591,7 @@ this.ctx.restore();
             this.ctx.shadowBlur = 0;
             // Arm bar
             this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-            this.ctx.shadowBlur = 6;
+            this.ctx.shadowBlur = 3;
             const armGrad = this.ctx.createLinearGradient(0, -4, 0, 4);
             armGrad.addColorStop(0, '#e67e22');
             armGrad.addColorStop(0.5, '#f39c12');
@@ -13376,7 +13611,7 @@ this.ctx.restore();
             this.ctx.fill();
             // Glow at tip
             this.ctx.shadowColor = 'rgba(231,76,60,0.5)';
-            this.ctx.shadowBlur = 15;
+            this.ctx.shadowBlur = 8;
             this.ctx.fillStyle = 'rgba(231,76,60,0.2)';
             this.ctx.beginPath();
             this.ctx.arc(armLen, 0, 12, 0, Math.PI * 2);
@@ -13393,7 +13628,7 @@ this.ctx.restore();
           this.ctx.rotate(rot);
           // Outer glow ring
           this.ctx.shadowColor = 'rgba(46,204,113,0.4)';
-          this.ctx.shadowBlur = 20;
+          this.ctx.shadowBlur = 10;
           this.ctx.strokeStyle = 'rgba(46,204,113,0.15)';
           this.ctx.lineWidth = lw + 6;
           this.ctx.beginPath();
@@ -13402,7 +13637,7 @@ this.ctx.restore();
           this.ctx.shadowBlur = 0;
           // Main bumper arc (green/amber like pinball)
           this.ctx.shadowColor = 'rgba(46,204,113,0.3)';
-          this.ctx.shadowBlur = 10;
+          this.ctx.shadowBlur = 5;
           const grad = this.ctx.createLinearGradient(-R, 0, R, 0);
           grad.addColorStop(0, '#2ecc71');
           grad.addColorStop(0.5, '#f1c40f');
@@ -13422,7 +13657,7 @@ this.ctx.restore();
           // Center axle dot
           this.ctx.fillStyle = '#ecf0f1';
           this.ctx.shadowColor = 'rgba(46,204,113,0.5)';
-          this.ctx.shadowBlur = 12;
+          this.ctx.shadowBlur = 6;
           this.ctx.beginPath();
           this.ctx.arc(0, 0, 5, 0, Math.PI * 2);
           this.ctx.fill();
@@ -13454,7 +13689,7 @@ this.ctx.restore();
           this.ctx.strokeStyle = '#f39c12';
           this.ctx.lineWidth = 6;
           this.ctx.shadowColor = 'rgba(243,156,18,0.4)';
-          this.ctx.shadowBlur = 10;
+          this.ctx.shadowBlur = 5;
           this.ctx.beginPath();
           this.ctx.moveTo(obsX, topY);
           this.ctx.lineTo(obsX + obs.length, topY);
@@ -13489,7 +13724,7 @@ this.ctx.restore();
           const pulse = 0.5 + Math.sin(Date.now() * 0.005) * 0.2;
           this.ctx.fillStyle = `rgba(243,156,18,${0.12 * pulse})`;
           this.ctx.shadowColor = 'rgba(243,156,18,0.3)';
-          this.ctx.shadowBlur = 25;
+          this.ctx.shadowBlur = 12;
           this.ctx.fillRect(obsX + obs.length - 55, topY + 2, 50, obs.width - 4);
           this.ctx.shadowBlur = 0;
           // Direction arrows (amber)
@@ -13537,7 +13772,7 @@ this.ctx.restore();
           }
           if (obs.isMeteor) {
             this.ctx.shadowColor = 'rgba(255,255,255,0.4)';
-            this.ctx.shadowBlur = 30;
+            this.ctx.shadowBlur = 15;
             this.ctx.beginPath();
             this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
             this.ctx.fillStyle = 'rgba(255,255,255,0.03)';
@@ -13545,33 +13780,13 @@ this.ctx.restore();
             this.ctx.shadowBlur = 0;
           }
           this.ctx.restore();
-        } else if (obs.type === 'rain_drop') {
-          this.ctx.save();
-          const rx = obsX, ry = obs.y;
-          const rSize = obs.radius || 3;
-          // Blue streak shape
-          this.ctx.strokeStyle = 'rgba(180, 210, 255, 0.6)';
-          this.ctx.lineWidth = rSize * 0.5;
-          this.ctx.lineCap = 'round';
-          const streakLen = 8 + rSize * 1.5;
-          this.ctx.beginPath();
-          this.ctx.moveTo(rx, ry);
-          const streakDir = Math.atan2(obs.vy || 4, obs.vx || 0);
-          this.ctx.lineTo(rx - Math.cos(streakDir) * streakLen, ry - Math.sin(streakDir) * streakLen);
-          this.ctx.stroke();
-          // Bright tip
-          this.ctx.fillStyle = 'rgba(200, 220, 255, 0.8)';
-          this.ctx.beginPath();
-          this.ctx.arc(rx, ry, rSize * 0.4, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.restore();
         } else if (obs.type === 'flap') {
           // Door-style: opens to block (horizontal), closes to allow (vertical)
           // angle=0: vertical along track (OPEN/passable)
           // angle=PI/2: horizontal across track (CLOSED/blocking)
           this.ctx.save();
           this.ctx.shadowColor = 'rgba(0,0,0,0.35)';
-          this.ctx.shadowBlur = 10;
+          this.ctx.shadowBlur = 5;
 
           const plateW = obs.plateWidth || 60;
           const plateH = obs.plateHeight || 70;
@@ -13617,7 +13832,7 @@ this.ctx.restore();
           this.ctx.translate(obsX, obs.y);
           this.ctx.rotate(armAngle);
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 6;
+          this.ctx.shadowBlur = 3;
           const armGrad = this.ctx.createLinearGradient(0, -6, 0, 6);
           armGrad.addColorStop(0, '#2c3e50');
           armGrad.addColorStop(0.5, '#7f8c8d');
@@ -13631,7 +13846,7 @@ this.ctx.restore();
           const hw = hSize * 1.0;
           const hh = hSize * 0.65;
           this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
-          this.ctx.shadowBlur = 10;
+          this.ctx.shadowBlur = 5;
           this.ctx.shadowOffsetY = 3;
           const metalGrad = this.ctx.createLinearGradient(hx - hw, obs.headY - hh, hx + hw, obs.headY + hh);
           metalGrad.addColorStop(0, '#34495e');
@@ -13665,7 +13880,7 @@ this.ctx.restore();
           const boxW = 40;
           const boxH = 46;
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 8;
+          this.ctx.shadowBlur = 4;
           this.ctx.shadowOffsetY = 2;
           const boxGrad = this.ctx.createLinearGradient(obsX - boxW / 2, obs.y - boxH / 2, obsX + boxW / 2, obs.y + boxH / 2);
           boxGrad.addColorStop(0, '#566573');
@@ -13700,7 +13915,7 @@ this.ctx.restore();
           }
           // Round punch head
           this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          this.ctx.shadowBlur = 10;
+          this.ctx.shadowBlur = 5;
           this.ctx.shadowOffsetY = 2;
           const punchGrad = this.ctx.createRadialGradient(pX - pR * 0.2, obs.punchY - pR * 0.2, 2, pX, obs.punchY, pR);
           punchGrad.addColorStop(0, '#e74c3c');
@@ -13719,7 +13934,7 @@ this.ctx.restore();
           this.ctx.fill();
           if ((obs.state === 'extending' || obs.state === 'hold') && rodLen > 20) {
             this.ctx.shadowColor = 'rgba(231,76,60,0.4)';
-            this.ctx.shadowBlur = 20;
+            this.ctx.shadowBlur = 10;
             this.ctx.fillStyle = 'rgba(255,255,255,0.15)';
             this.ctx.beginPath();
             this.ctx.arc(pX + cosA * 8, obs.punchY + sinA * 8, pR * 0.6, 0, Math.PI * 2);
@@ -13739,7 +13954,7 @@ this.ctx.restore();
           const halfW = obs.width / 2;
           // Glowing edges
           this.ctx.shadowColor = 'rgba(231,76,60,0.3)';
-          this.ctx.shadowBlur = 8;
+          this.ctx.shadowBlur = 4;
           this.ctx.fillStyle = '#2d3436';
           this.ctx.fillRect(obsX - halfW, panelTop, obs.width, panelH);
           this.ctx.shadowBlur = 0;
@@ -13760,7 +13975,7 @@ this.ctx.restore();
           if (obs._warningFlash) {
             this.ctx.fillStyle = 'rgba(255,50,50,0.4)';
             this.ctx.shadowColor = '#ff0000';
-            this.ctx.shadowBlur = 25;
+            this.ctx.shadowBlur = 12;
             this.ctx.fillRect(obsX - halfW, panelTop, obs.width, panelH);
             this.ctx.shadowBlur = 0;
 }
@@ -13800,7 +14015,7 @@ this.ctx.restore();
           baseGrad.addColorStop(0.6, '#7a9bb8');
           baseGrad.addColorStop(1, '#5a7a95');
           this.ctx.shadowColor = 'rgba(0,0,0,0.25)';
-          this.ctx.shadowBlur = 6;
+          this.ctx.shadowBlur = 3;
           this.ctx.shadowOffsetY = 2;
           this.ctx.fillStyle = baseGrad;
           this.ctx.beginPath();
@@ -13821,7 +14036,7 @@ this.ctx.restore();
           barrelGrad.addColorStop(0.7, '#a0c8e0');
           barrelGrad.addColorStop(1, '#7090b0');
           this.ctx.shadowColor = 'rgba(0,0,0,0.2)';
-          this.ctx.shadowBlur = 4;
+          this.ctx.shadowBlur = 2;
           this.ctx.shadowOffsetY = 1;
           this.ctx.fillStyle = barrelGrad;
           this.ctx.beginPath();
@@ -13845,7 +14060,7 @@ this.ctx.restore();
           this.ctx.fill();
           const muzzlePulse = 0.3 + Math.sin(time * 3) * 0.15;
           this.ctx.shadowColor = 'rgba(100, 200, 255, 0.4)';
-          this.ctx.shadowBlur = 15;
+          this.ctx.shadowBlur = 8;
           this.ctx.fillStyle = `rgba(120, 210, 255, ${muzzlePulse})`;
           this.ctx.beginPath();
           this.ctx.ellipse(muzzleX, barrelY, 3, 8, 0, 0, Math.PI * 2);
@@ -13880,7 +14095,7 @@ this.ctx.restore();
               const projX = proj.x - camX;
               this.ctx.save();
               this.ctx.shadowColor = 'rgba(100, 200, 255, 0.6)';
-              this.ctx.shadowBlur = 20;
+              this.ctx.shadowBlur = 10;
               const shellGrad = this.ctx.createRadialGradient(projX - 3, proj.y - 3, 1, projX, proj.y, proj.radius);
               shellGrad.addColorStop(0, '#ffffff');
               shellGrad.addColorStop(0.3, '#d0ecff');
@@ -13951,7 +14166,7 @@ this.ctx.restore();
             rockGrad.addColorStop(1, '#1a1a1a');
             this.ctx.fillStyle = rockGrad;
             this.ctx.shadowColor = 'rgba(0,0,0,0.4)';
-            this.ctx.shadowBlur = 6;
+            this.ctx.shadowBlur = 3;
             this.ctx.shadowOffsetY = pDir * 2;
 
             const segments = 6;
@@ -14013,7 +14228,7 @@ this.ctx.restore();
               const pulseAlpha = 0.15 + 0.2 * Math.sin(performance.now() * 0.008 + pSeed);
               this.ctx.fillStyle = `rgba(255, 100, 0, ${pulseAlpha})`;
               this.ctx.shadowColor = '#ff4400';
-              this.ctx.shadowBlur = 15;
+              this.ctx.shadowBlur = 8;
               this.ctx.beginPath();
               this.ctx.arc(0, 0, pw * 0.8 + pulseAlpha * 10, 0, Math.PI * 2);
               this.ctx.fill();
@@ -14043,7 +14258,7 @@ this.ctx.restore();
             rockGrad2.addColorStop(1, '#1a1510');
             this.ctx.fillStyle = rockGrad2;
             this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
-            this.ctx.shadowBlur = 6;
+            this.ctx.shadowBlur = 3;
 
             this.ctx.beginPath();
             const rSegs = 8;
@@ -14068,7 +14283,7 @@ this.ctx.restore();
             this.ctx.shadowBlur = 0;
 
             this.ctx.shadowColor = '#ff4400';
-            this.ctx.shadowBlur = 8;
+            this.ctx.shadowBlur = 4;
             for (let g = 0; g < 3; g++) {
               const gx = px - visualWidth * 0.3 + g * visualWidth * 0.3;
               const gy = py + visualHeight * 0.2 + (Math.sin(pSeed * 3 + g * 2.1) + 0.3) * visualHeight * 0.3;
@@ -14143,7 +14358,7 @@ this.ctx.restore();
           
           // Draw thin green vine wire
           this.ctx.shadowColor = 'rgba(30, 80, 30, 0.4)';
-          this.ctx.shadowBlur = 6;
+          this.ctx.shadowBlur = 3;
           this.ctx.shadowOffsetY = 2;
           
           // Vine gradient - green colors
@@ -14265,7 +14480,7 @@ this.ctx.restore();
 
           // Outer glow
           this.ctx.shadowColor = '#ff4400';
-          this.ctx.shadowBlur = 20;
+          this.ctx.shadowBlur = 10;
 
           // Main lava chunk body
           const chunkGrad = this.ctx.createRadialGradient(cX - r * 0.2, chunk.y - r * 0.2, 1, cX, chunk.y, r);
@@ -14309,7 +14524,7 @@ this.ctx.restore();
 
           // Molten glow cracks on surface
           this.ctx.shadowColor = '#ff6600';
-          this.ctx.shadowBlur = 4;
+          this.ctx.shadowBlur = 2;
           for (let c = 0; c < 3; c++) {
             const ca = (Math.sin(chunk._seed * 3 + c * 2.1) + 1) * Math.PI;
             const cd = r * 0.3 + Math.sin(chunk._seed * 7 + c * 1.3) * r * 0.2;
@@ -14491,7 +14706,7 @@ this.ctx.restore();
           // Bright icy glow when extended
           if (_iProgress > 0.5) {
             this.ctx.shadowColor = 'rgba(180, 240, 255, 0.50)';
-            this.ctx.shadowBlur = 16;
+            this.ctx.shadowBlur = 8;
           }
           // Organic icicle shape with bezier curves
           const _halfW = _iCurW * 0.5;
@@ -14588,7 +14803,7 @@ this.ctx.restore();
             this.ctx.strokeStyle = `rgba(255, 140, 0, ${0.5 + warningGlow * 0.5})`;
             this.ctx.lineWidth = 2;
             this.ctx.shadowColor = '#ff8800';
-            this.ctx.shadowBlur = 8;
+            this.ctx.shadowBlur = 4;
             this.ctx.stroke();
             this.ctx.shadowBlur = 0;
           }
@@ -14612,7 +14827,7 @@ this.ctx.restore();
             
             this.ctx.fillStyle = eruptionGrad;
             this.ctx.shadowColor = '#ff8800';
-            this.ctx.shadowBlur = 30;
+            this.ctx.shadowBlur = 15;
             
             // Main column
             this.ctx.beginPath();
@@ -14674,7 +14889,7 @@ this.ctx.restore();
             this.ctx.globalAlpha = pulse * 0.6;
 this.ctx.fillStyle = 'rgba(255, 140, 0, 0.4)';
             this.ctx.shadowColor = '#ff8800';
-            this.ctx.shadowBlur = 20;
+            this.ctx.shadowBlur = 10;
             this.ctx.beginPath();
             this.ctx.arc(gCamX, obs.y, crackWidth + 10, 0, Math.PI * 2);
             this.ctx.fill();
@@ -14734,7 +14949,7 @@ this.ctx.restore();
             this.ctx.strokeStyle = `rgba(77, 248, 255, ${popAlpha * 0.8})`;
             this.ctx.lineWidth = 4 * popAlpha;
             this.ctx.shadowColor = '#4df8ff';
-            this.ctx.shadowBlur = 25 * popAlpha;
+            this.ctx.shadowBlur = 12 * popAlpha;
             this.ctx.beginPath();
             this.ctx.arc(cx, cy, popR, 0, Math.PI * 2);
             this.ctx.stroke();
@@ -14749,7 +14964,7 @@ this.ctx.restore();
             // Outer cyan glow ring
             const glowAlpha = 0.4 + Math.sin(time * 1.5) * 0.15;
             this.ctx.shadowColor = '#00ffff';
-            this.ctx.shadowBlur = 30;
+            this.ctx.shadowBlur = 15;
             this.ctx.strokeStyle = `rgba(0, 255, 255, ${glowAlpha})`;
             this.ctx.lineWidth = 3;
             this.ctx.beginPath();
@@ -14841,7 +15056,7 @@ this.ctx.restore();
           this.ctx.strokeStyle = `rgba(255, 100, 20, ${crackGlow})`;
           this.ctx.lineWidth = 1.5;
           this.ctx.shadowColor = '#ff6600';
-          this.ctx.shadowBlur = 6;
+          this.ctx.shadowBlur = 3;
           for (let c = 0; c < 4; c++) {
             const cx = obsX - r * 0.6 + c * r * 0.4;
             const cy = obs.y - h * 0.1 + Math.sin(glowPhase + c) * 3;
@@ -15084,7 +15299,7 @@ this.ctx.restore();
 
           // Water reflection glow
           this.ctx.shadowColor = '#4da6e0';
-          this.ctx.shadowBlur = 15;
+          this.ctx.shadowBlur = 8;
           this.ctx.strokeStyle = 'rgba(77, 166, 224, 0.25)';
           this.ctx.lineWidth = 2;
           this.ctx.beginPath();
@@ -15127,7 +15342,7 @@ this.ctx.restore();
             // Bright pressure flash at center
             this.ctx.fillStyle = `rgba(255, 255, 255, ${explodeAlpha * 0.5})`;
             this.ctx.shadowColor = '#ffffff';
-            this.ctx.shadowBlur = 50 * explodeAlpha;
+            this.ctx.shadowBlur = 25 * explodeAlpha;
             this.ctx.beginPath();
             this.ctx.arc(0, 0, r * (0.6 - easeOut * 0.2), 0, Math.PI * 2);
             this.ctx.fill();
@@ -15143,7 +15358,7 @@ this.ctx.restore();
                 this.ctx.strokeStyle = `rgba(${ri === 0 ? '255, 255, 255' : ri === 1 ? '200, 230, 255' : '80, 170, 220'}, ${ringAlpha * 0.6})`;
                 this.ctx.lineWidth = (6 - ri * 1.5) * ringAlpha;
                 this.ctx.shadowColor = '#a8e6ff';
-                this.ctx.shadowBlur = 25 * ringAlpha;
+                this.ctx.shadowBlur = 12 * ringAlpha;
                 this.ctx.beginPath();
                 this.ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
                 this.ctx.stroke();
@@ -15229,7 +15444,7 @@ this.ctx.restore();
 
           // Bell glow
           this.ctx.shadowColor = '#00ccff';
-          this.ctx.shadowBlur = 25 * pulse;
+          this.ctx.shadowBlur = 12 * pulse;
 
           // Bell body - semi-transparent dome
           const bellGrad = this.ctx.createRadialGradient(-j.radius * 0.2, -j.radius * 0.2, 0, 0, 0, j.radius);
@@ -15262,7 +15477,7 @@ this.ctx.restore();
 
           // Tentacles
           this.ctx.shadowColor = 'rgba(0, 200, 255, 0.2)';
-          this.ctx.shadowBlur = 8;
+          this.ctx.shadowBlur = 4;
           const numTentacles = 6 + Math.floor(j.phase * 2) % 3;
           for (let t = 0; t < numTentacles; t++) {
             const ta = (t / numTentacles) * Math.PI * 2 + Math.sin(now * 0.3 + j.tentaclePhase) * 0.2;
@@ -15505,34 +15720,23 @@ this.ctx.restore();
           const collectedX = finishLineX - camX + (collectorIdx % 2 === 0 ? 20 : -20);
           collectorIdx++;
 
-          this.ctx.save();
-          this.ctx.globalAlpha = 0.7;
-          this.ctx.beginPath();
-          this.ctx.arc(collectedX, collectedY, ball.radius * 0.7, 0, Math.PI * 2);
-          this.ctx.clip();
+          const collectorVisible = collectedX > -200 && collectedX < screenW / zoom + 200;
+          if (collectorVisible) {
+            const sprite = this._getBallSprite(ball);
+            const sprR = sprite.width / 2;
+            const cs = (ball.radius * 0.7) / sprR;
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.7;
+            this.ctx.drawImage(sprite, collectedX - sprR * cs, collectedY - sprR * cs, sprR * 2 * cs, sprR * 2 * cs);
+            this.ctx.restore();
 
-          const img = this.flagCache[ball.code];
-          if (img && img !== 'failed' && img.complete) {
-            this.ctx.drawImage(
-              img,
-              collectedX - ball.radius * 0.7,
-              collectedY - ball.radius * 0.7,
-              ball.radius * 1.4,
-              ball.radius * 1.4
-            );
-          } else {
-            this.ctx.fillStyle = ball.color;
-            this.ctx.fillRect(collectedX - ball.radius * 0.7, collectedY - ball.radius * 0.7, ball.radius * 1.4, ball.radius * 1.4);
+            // Finish time label
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = 'bold 10px Montserrat, sans-serif';
+            this.ctx.textAlign = 'left';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(`${ball.name}: ${(ball.finishTime || 0).toFixed(2)}s`, collectedX + ball.radius * 0.7 + 4, collectedY);
           }
-
-          this.ctx.restore();
-
-          // Finish time label
-          this.ctx.fillStyle = '#ffffff';
-          this.ctx.font = 'bold 10px Montserrat, sans-serif';
-          this.ctx.textAlign = 'left';
-          this.ctx.textBaseline = 'middle';
-          this.ctx.fillText(`${ball.name}: ${(ball.finishTime || 0).toFixed(2)}s`, collectedX + ball.radius * 0.7 + 4, collectedY);
 
           return;
         }
@@ -15696,97 +15900,24 @@ this.ctx.restore();
         const aaX = Math.round(bX) + 0.5 - bX;
         const aaY = Math.round(ball.y) + 0.5 - ball.y;
 
-        // Light direction: top-left (global consistent source)
-        const lx = -0.3;
-        const ly = -0.35;
-
         // Ball body with sub-pixel offset for smoother edges
         this.ctx.translate(aaX, aaY);
 
-        // Shadow on ground (consistent with global light)
-        this.ctx.save();
+        // Shadow on ground (consistent with global light) — one cached sprite
         const shadowScale = 1 + ball.z * 0.08;
-        this.ctx.globalAlpha = 0.25 - ball.z * 0.025;
-        this.ctx.fillStyle = 'rgba(0,0,0,0.15)';
-        this.ctx.shadowColor = 'rgba(0,0,0,0.25)';
-        this.ctx.shadowBlur = 10 + ball.z * 2;
-        this.ctx.beginPath();
-        this.ctx.ellipse(bX, ball.y + renderRadius * 0.85 + ball.z * 1.5, renderRadius * shadowScale * 1.05, renderRadius * 0.3, 0, 0, Math.PI * 2);
-        this.ctx.fill();
+        const shRx = renderRadius * shadowScale * 1.05;
+        const shRy = renderRadius * 0.3;
+        const shCy = ball.y + renderRadius * 0.85 + ball.z * 1.5;
+        this.ctx.save();
+        this.ctx.globalAlpha = Math.max(0, 0.25 - ball.z * 0.025);
+        this.ctx.drawImage(this._getShadowSprite(), bX - shRx * 1.5, shCy - shRy * 1.7, shRx * 3, shRy * 3.4);
         this.ctx.restore();
 
-        // Draw ball
-        this.ctx.beginPath();
-        this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
-        this.ctx.clip();
-
-        // Flag body
-        const img = this.flagCache[ball.code];
-        if (img && img !== 'failed' && img.complete) {
-          this.ctx.drawImage(img, bX - renderRadius, ball.y - renderRadius, renderRadius * 2, renderRadius * 2);
-        } else {
-          this.ctx.fillStyle = ball.color;
-          this.ctx.fillRect(bX - renderRadius, ball.y - renderRadius, renderRadius * 2, renderRadius * 2);
-          this.ctx.fillStyle = '#ffffff';
-          this.ctx.font = 'bold 12px Montserrat, sans-serif';
-          this.ctx.textAlign = 'center';
-          this.ctx.textBaseline = 'middle';
-          this.ctx.fillText(ball.code.toUpperCase().substring(0, 3), bX, ball.y);
-        }
-
-        // Subtle ambient occlusion ??? darker near edges opposite light
-        const aoGrad = this.ctx.createRadialGradient(
-          bX + renderRadius * 0.25, ball.y + renderRadius * 0.25, 0,
-          bX, ball.y, renderRadius * 1.1
-        );
-        aoGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        aoGrad.addColorStop(0.6, 'rgba(0,0,0,0)');
-        aoGrad.addColorStop(0.85, 'rgba(0,0,0,0.12)');
-        aoGrad.addColorStop(1, 'rgba(0,0,0,0.25)');
-        this.ctx.fillStyle = aoGrad;
-        this.ctx.beginPath();
-        this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Rim light ??? thin bright edge on light-facing side
-        const rimGrad = this.ctx.createRadialGradient(
-          bX + renderRadius * lx * 0.5, ball.y + renderRadius * ly * 0.5, renderRadius * 0.55,
-          bX, ball.y, renderRadius
-        );
-        rimGrad.addColorStop(0, 'rgba(255,255,255,0)');
-        rimGrad.addColorStop(0.75, 'rgba(255,255,255,0.03)');
-        rimGrad.addColorStop(0.92, 'rgba(255,255,255,0.15)');
-        rimGrad.addColorStop(1, 'rgba(255,255,255,0.25)');
-        this.ctx.fillStyle = rimGrad;
-        this.ctx.beginPath();
-        this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Very subtle glossy reflection (tone down from previous)
-        const glossyGrad = this.ctx.createRadialGradient(
-          bX - renderRadius * 0.3, ball.y - renderRadius * 0.3, renderRadius * 0.05,
-          bX, ball.y, renderRadius
-        );
-        glossyGrad.addColorStop(0, 'rgba(255,255,255,0.25)');
-        glossyGrad.addColorStop(0.25, 'rgba(255,255,255,0.08)');
-        glossyGrad.addColorStop(0.6, 'rgba(255,255,255,0.02)');
-        glossyGrad.addColorStop(0.85, 'rgba(0,0,0,0.05)');
-        glossyGrad.addColorStop(1, 'rgba(0,0,0,0.2)');
-        this.ctx.fillStyle = glossyGrad;
-        this.ctx.beginPath();
-        this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Subtle specular dot (tone down, move with light direction)
-        this.ctx.fillStyle = 'rgba(255,255,255,0.18)';
-        this.ctx.beginPath();
-        this.ctx.ellipse(
-          bX + renderRadius * lx * 0.4,
-          ball.y + renderRadius * ly * 0.4,
-          renderRadius * 0.2, renderRadius * 0.1,
-          -0.5, 0, Math.PI * 2
-        );
-        this.ctx.fill();
+        // Flag ball body — flag texture + lighting baked into one sprite
+        const sprite = this._getBallSprite(ball);
+        const sprR = sprite.width / 2;
+        const sprS = renderRadius / sprR;
+        this.ctx.drawImage(sprite, bX - sprR * sprS, ball.y - sprR * sprS, sprR * 2 * sprS, sprR * 2 * sprS);
 
         this.ctx.restore();
 
@@ -15971,7 +16102,7 @@ this.ctx.restore();
             const emberColors = ['#ff3300', '#ff5500', '#ff7700', '#ff9900', '#ffaa00', '#ffcc00'];
             this.ctx.fillStyle = emberColors[Math.floor(Math.random() * emberColors.length)];
             this.ctx.shadowColor = '#ff3300';
-            this.ctx.shadowBlur = 8;
+            this.ctx.shadowBlur = 4;
             this.ctx.beginPath();
             this.ctx.arc(px, py, pSize, 0, Math.PI * 2);
             this.ctx.fill();
@@ -15987,7 +16118,7 @@ this.ctx.restore();
               this.ctx.globalAlpha = 1;
               this.ctx.fillStyle = '#fff8cc';
               this.ctx.shadowColor = '#ff6600';
-              this.ctx.shadowBlur = 6;
+              this.ctx.shadowBlur = 3;
               this.ctx.beginPath();
               this.ctx.arc(sx, sy, 1.5 + Math.random() * 1.5, 0, Math.PI * 2);
               this.ctx.fill();
@@ -16005,7 +16136,7 @@ this.ctx.restore();
               this.ctx.globalAlpha = 0.7;
               this.ctx.fillStyle = '#ffaa00';
               this.ctx.shadowColor = '#ff4400';
-              this.ctx.shadowBlur = 10;
+              this.ctx.shadowBlur = 5;
               this.ctx.beginPath();
               this.ctx.arc(fx, fy, 3 + Math.random() * 2, 0, Math.PI * 2);
               this.ctx.fill();
@@ -16082,7 +16213,7 @@ this.ctx.restore();
             const emberColors = ['#ff3300', '#ff5500', '#ff7700', '#ff9900', '#ffaa00', '#ffcc00'];
             this.ctx.fillStyle = emberColors[Math.floor(Math.random() * emberColors.length)];
             this.ctx.shadowColor = '#ff3300';
-            this.ctx.shadowBlur = 8;
+            this.ctx.shadowBlur = 4;
             this.ctx.beginPath();
             this.ctx.arc(px, py, pSize, 0, Math.PI * 2);
             this.ctx.fill();
@@ -16098,7 +16229,7 @@ this.ctx.restore();
               this.ctx.globalAlpha = 1;
               this.ctx.fillStyle = '#fff8cc';
               this.ctx.shadowColor = '#ff6600';
-              this.ctx.shadowBlur = 6;
+              this.ctx.shadowBlur = 3;
               this.ctx.beginPath();
               this.ctx.arc(sx, sy, 1.5 + Math.random() * 1.5, 0, Math.PI * 2);
               this.ctx.fill();
@@ -16116,7 +16247,7 @@ this.ctx.restore();
               this.ctx.globalAlpha = 0.7;
               this.ctx.fillStyle = '#ffaa00';
               this.ctx.shadowColor = '#ff4400';
-              this.ctx.shadowBlur = 10;
+              this.ctx.shadowBlur = 5;
               this.ctx.beginPath();
               this.ctx.arc(fx, fy, 3 + Math.random() * 2, 0, Math.PI * 2);
               this.ctx.fill();
@@ -16175,7 +16306,7 @@ this.ctx.restore();
             this.ctx.globalAlpha = pAlpha;
             this.ctx.fillStyle = ['#ff4400', '#ff6600', '#ff8800'][ti % 3];
             this.ctx.shadowColor = '#ff4400';
-            this.ctx.shadowBlur = 6;
+            this.ctx.shadowBlur = 3;
             this.ctx.beginPath();
             this.ctx.arc(px, py, pSize, 0, Math.PI * 2);
             this.ctx.fill();
@@ -16189,7 +16320,7 @@ this.ctx.restore();
             this.ctx.globalAlpha = 1;
             this.ctx.fillStyle = '#ffcc44';
             this.ctx.shadowColor = '#ff6600';
-            this.ctx.shadowBlur = 5;
+            this.ctx.shadowBlur = 2;
             this.ctx.beginPath();
             this.ctx.arc(sx, sy, 1 + Math.random() * 1.5, 0, Math.PI * 2);
             this.ctx.fill();
@@ -16208,7 +16339,7 @@ this.ctx.restore();
           this.ctx.globalAlpha = 0.15 * fade;
           this.ctx.fillStyle = `rgba(${dc.r|0},${dc.g|0},${dc.b|0},0.15)`;
           this.ctx.shadowColor = `rgba(${dc.r|0},${dc.g|0},${dc.b|0},${0.25 * fade})`;
-          this.ctx.shadowBlur = 18;
+          this.ctx.shadowBlur = 9;
           this.ctx.beginPath();
           this.ctx.arc(bX, ball.y, renderRadius, 0, Math.PI * 2);
           this.ctx.fill();
@@ -16220,7 +16351,7 @@ this.ctx.restore();
           this.ctx.save();
           const pulseAlpha = 0.2 + 0.15 * Math.sin(performance.now() * 0.008);
           this.ctx.shadowColor = '#ffd700';
-          this.ctx.shadowBlur = 50;
+          this.ctx.shadowBlur = 25;
           this.ctx.fillStyle = `rgba(255,215,0,${pulseAlpha})`;
           this.ctx.beginPath();
           this.ctx.arc(bX, ball.y, renderRadius + 12, 0, Math.PI * 2);
@@ -16235,13 +16366,13 @@ this.ctx.restore();
           this.ctx.textAlign = 'center';
           this.ctx.fillStyle = '#e74c3c';
           this.ctx.shadowColor = '#000000';
-          this.ctx.shadowBlur = 4;
+          this.ctx.shadowBlur = 2;
           this.ctx.lineWidth = 2.5;
           this.ctx.strokeStyle = '#000000';
           this.ctx.strokeText('ELIMINATED', bX, ball.y + renderRadius + 11);
           this.ctx.fillText('ELIMINATED', bX, ball.y + renderRadius + 11);
           this.ctx.restore();
-        } else if (nameHighlightAlpha > 0) {
+        } else if (nameHighlightAlpha > 0 && (ball.rank > 0 ? ball.rank <= 25 : this.balls.length <= 48)) {
           let labelName = ball.name;
           if (labelName.length > 12) labelName = labelName.substring(0, 10) + '..';
           const displayLabel = `${ball.rank}. ${labelName}`;
@@ -16253,11 +16384,11 @@ this.ctx.restore();
           if (ball.isCustom) {
             this.ctx.fillStyle = '#FFD700';
             this.ctx.shadowColor = '#FFD700';
-            this.ctx.shadowBlur = 4;
+            this.ctx.shadowBlur = 2;
           } else {
             this.ctx.fillStyle = nameColor;
             this.ctx.shadowColor = MAP_THEMES[this.currentThemeKey]?.isDark ? '#000000' : 'rgba(255,255,255,0.6)';
-            this.ctx.shadowBlur = 3;
+            this.ctx.shadowBlur = 2;
           }
           this.ctx.lineWidth = 1.5;
           this.ctx.strokeStyle = MAP_THEMES[this.currentThemeKey]?.isDark ? '#000000' : 'transparent';
@@ -16287,7 +16418,7 @@ this.ctx.restore();
           this.ctx.translate(bX, crownY);
           this.ctx.scale(pulse, pulse);
           this.ctx.shadowColor = '#ffd700';
-          this.ctx.shadowBlur = 20;
+          this.ctx.shadowBlur = 10;
           // Gold star shape
           this.ctx.fillStyle = '#ffd700';
           this.ctx.beginPath();
@@ -16376,7 +16507,7 @@ this.ctx.restore();
                 this.ctx.strokeStyle = vineColors[Math.min(layer, vineColors.length - 1)];
                 this.ctx.lineWidth = Math.max(3, baseWidth * (0.7 - layer * 0.1) * holdProgress);
                 this.ctx.shadowColor = 'rgba(0,0,0,0.6)';
-                this.ctx.shadowBlur = 8;
+                this.ctx.shadowBlur = 4;
                 
                 this.ctx.beginPath();
                 this.ctx.arc(ballX, ballY, radius, startAngle, endAngle);
@@ -16489,7 +16620,7 @@ this.ctx.restore();
           const sparkColor = p.color || '#ffd700';
           this.ctx.fillStyle = sparkColor;
           this.ctx.shadowColor = sparkColor;
-          this.ctx.shadowBlur = 8;
+          this.ctx.shadowBlur = 4;
           this.ctx.beginPath();
           this.ctx.arc(p.x - camX, p.y, p.size, 0, Math.PI * 2);
           this.ctx.fill();
@@ -16517,7 +16648,7 @@ this.ctx.restore();
         this.ctx.globalAlpha = p.alpha;
         this.ctx.fillStyle = p.color;
         this.ctx.shadowColor = p.color;
-        this.ctx.shadowBlur = 12;
+        this.ctx.shadowBlur = 6;
         this.ctx.beginPath();
         this.ctx.arc(p.x - camX, p.y, p.size, 0, Math.PI * 2);
         this.ctx.fill();
@@ -16541,7 +16672,7 @@ this.ctx.restore();
           this.ctx.fill();
           this.ctx.globalAlpha = alpha * 0.3;
           this.ctx.shadowColor = '#60a5fa';
-          this.ctx.shadowBlur = 20;
+          this.ctx.shadowBlur = 10;
           this.ctx.beginPath();
           this.ctx.arc(bx, by, ball.radius * 0.8, 0, Math.PI * 2);
           this.ctx.fill();
@@ -16561,7 +16692,7 @@ this.ctx.restore();
             const glowAlpha = 0.3 + 0.3 * Math.sin(performance.now() * 0.008);
             this.ctx.save();
             this.ctx.shadowColor = '#88ccff';
-            this.ctx.shadowBlur = 25;
+            this.ctx.shadowBlur = 12;
             this.ctx.strokeStyle = `rgba(136, 204, 255, ${glowAlpha})`;
             this.ctx.lineWidth = 3;
             this.ctx.beginPath();
@@ -16857,7 +16988,7 @@ ctx.restore();
           ctx.strokeStyle = m.color;
           ctx.lineWidth = 0.8 + mf * 0.5;
           ctx.shadowColor = m.color;
-          ctx.shadowBlur = 4;
+          ctx.shadowBlur = 2;
           ctx.beginPath();
           ctx.moveTo(m.x, m.y);
           ctx.lineTo(m.x - m.vx * 4, m.y - m.vy * 4);
@@ -16953,7 +17084,7 @@ ctx.restore();
           // --- Orange glow around asteroid ---
           ctx.globalAlpha = 0.15;
           ctx.shadowColor = '#f97316';
-          ctx.shadowBlur = 25;
+          ctx.shadowBlur = 12;
           ctx.fillStyle = '#f97316';
           ctx.beginPath();
           ctx.arc(a.x, a.y, a.size * 1.8, 0, Math.PI * 2);
@@ -16979,7 +17110,7 @@ ctx.restore();
           ctx.globalAlpha = 0.85;
           ctx.fillStyle = '#57534e';
           ctx.shadowColor = '#000';
-          ctx.shadowBlur = 3;
+          ctx.shadowBlur = 2;
           ctx.beginPath();
           for (let v = 0; v < a.verts.length; v++) {
             const px = Math.cos(a.verts[v].a) * a.size * a.verts[v].r;
@@ -17372,7 +17503,7 @@ ctx.restore();
           if (verts) {
             ctx.fillStyle = obj.color;
             ctx.shadowColor = '#000000';
-            ctx.shadowBlur = 3;
+            ctx.shadowBlur = 2;
             ctx.beginPath();
             for (let v = 0; v < verts.length; v++) {
               const x = Math.cos(verts[v].a) * obj.size * verts[v].r;
@@ -17431,7 +17562,7 @@ ctx.restore();
           ctx.fillStyle = obj.color;
           ctx.globalAlpha = 0.2 + bp * 0.3;
           ctx.shadowColor = obj.color;
-          ctx.shadowBlur = 10 + bp * 8;
+          ctx.shadowBlur = 5 + bp * 8;
           ctx.beginPath();
           ctx.moveTo(0, -obj.size);
           ctx.lineTo(obj.size, 0);
@@ -17752,15 +17883,19 @@ ctx.restore();
       // A0. Vignette overlay around screen edges (skipped for jungle ??? no fullscreen overlays)
       if ((this.state === 'racing' || this.state === 'finished' || this.state === 'champion_screen') && this.currentThemeKey !== 'jungle') {
         this.ctx.save();
-        const vigGrad = this.ctx.createRadialGradient(
-          screenW / 2, screenH / 2, screenH * 0.3,
-          screenW / 2, screenH / 2, screenH * 0.9
-        );
-        vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        vigGrad.addColorStop(0.6, 'rgba(0,0,0,0)');
-        vigGrad.addColorStop(0.85, 'rgba(0,0,0,0.15)');
-        vigGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
-        this.ctx.fillStyle = vigGrad;
+        const vigKey = screenW + 'x' + screenH;
+        if (!this._vigGradCache || this._vigGradCache.key !== vigKey) {
+          const g = this.ctx.createRadialGradient(
+            screenW / 2, screenH / 2, screenH * 0.3,
+            screenW / 2, screenH / 2, screenH * 0.9
+          );
+          g.addColorStop(0, 'rgba(0,0,0,0)');
+          g.addColorStop(0.6, 'rgba(0,0,0,0)');
+          g.addColorStop(0.85, 'rgba(0,0,0,0.15)');
+          g.addColorStop(1, 'rgba(0,0,0,0.45)');
+          this._vigGradCache = { key: vigKey, grad: g };
+        }
+        this.ctx.fillStyle = this._vigGradCache.grad;
         this.ctx.fillRect(0, 0, screenW, screenH);
         this.ctx.restore();
       }
@@ -18326,7 +18461,7 @@ this.ctx.restore();
           this.ctx.font = 'bold 10px Montserrat, sans-serif';
           this.ctx.textAlign = 'center';
           this.ctx.shadowColor = '#88ccff';
-          this.ctx.shadowBlur = 10;
+          this.ctx.shadowBlur = 5;
           this.ctx.fillText('SWAPPED WITH', bx, by - 25);
           this.ctx.fillStyle = '#ffffff';
           this.ctx.font = 'bold 13px Montserrat, sans-serif';
@@ -18396,7 +18531,7 @@ this.ctx.restore();
 
         // Shadow under trophy
         this.ctx.shadowColor = 'rgba(0,0,0,0.5)';
-        this.ctx.shadowBlur = 30;
+        this.ctx.shadowBlur = 15;
         this.ctx.shadowOffsetY = 10;
 
         // Green malachite base (5 layered rectangles like real trophy)
@@ -18415,7 +18550,7 @@ this.ctx.restore();
         }
 
         // Gold ring above base
-        this.ctx.shadowBlur = 15;
+        this.ctx.shadowBlur = 8;
         this.ctx.fillStyle = goldGrad;
         this.ctx.beginPath();
         this.ctx.ellipse(0, 65, 38, 7, 0, 0, Math.PI * 2);
@@ -18426,7 +18561,7 @@ this.ctx.restore();
         this.ctx.fill();
 
         // Left figure - curved athlete holding globe (FIFA-inspired)
-        this.ctx.shadowBlur = 8;
+        this.ctx.shadowBlur = 4;
         this.ctx.fillStyle = goldGrad;
         this.ctx.strokeStyle = 'rgba(139,105,20,0.4)';
         this.ctx.lineWidth = 0.5;
@@ -18468,14 +18603,14 @@ this.ctx.restore();
         this.ctx.lineWidth = 5;
         this.ctx.lineCap = 'round';
         this.ctx.shadowColor = 'rgba(255,215,0,0.3)';
-        this.ctx.shadowBlur = 12;
+        this.ctx.shadowBlur = 6;
         this.ctx.beginPath();
         this.ctx.moveTo(-14, -8);
         this.ctx.quadraticCurveTo(0, -22, 14, -8);
         this.ctx.stroke();
 
         // Globe at top - larger, with continents feel
-        this.ctx.shadowBlur = 15;
+        this.ctx.shadowBlur = 8;
         const globeGrad = this.ctx.createRadialGradient(-12, -70, 5, 0, -55, 38);
         globeGrad.addColorStop(0, '#7ec8f0');
         globeGrad.addColorStop(0.3, '#4a90d9');
@@ -18533,7 +18668,7 @@ this.ctx.restore();
         this.ctx.lineWidth = 3;
         this.ctx.lineCap = 'round';
         this.ctx.strokeStyle = goldGrad;
-        this.ctx.shadowBlur = 6;
+        this.ctx.shadowBlur = 3;
         this.ctx.beginPath();
         this.ctx.moveTo(-48, -35);
         this.ctx.quadraticCurveTo(-58, -48, -52, -62);
@@ -18555,12 +18690,12 @@ this.ctx.restore();
         if (flagImg && flagImg.complete && flagImg.naturalWidth > 0) {
           // Gold glow behind flag
           this.ctx.shadowColor = '#ffd700';
-          this.ctx.shadowBlur = 40;
+          this.ctx.shadowBlur = 20;
           this.ctx.fillStyle = 'rgba(255,215,0,0.15)';
           this.ctx.fillRect(cx - flagW / 2 - 8, flagY - 8, flagW + 16, flagH + 16);
           this.ctx.shadowBlur = 0;
           this.ctx.shadowColor = 'rgba(0,0,0,0.6)';
-          this.ctx.shadowBlur = 15;
+          this.ctx.shadowBlur = 8;
           this.ctx.drawImage(flagImg, cx - flagW / 2, flagY, flagW, flagH);
           this.ctx.shadowBlur = 0;
           // Gold border
@@ -18570,7 +18705,7 @@ this.ctx.restore();
         } else {
           this.ctx.fillStyle = '#2d3436';
           this.ctx.shadowColor = 'rgba(0,0,0,0.6)';
-          this.ctx.shadowBlur = 15;
+          this.ctx.shadowBlur = 8;
           this.ctx.fillRect(cx - flagW / 2, flagY, flagW, flagH);
           this.ctx.shadowBlur = 0;
           this.ctx.strokeStyle = '#ffd700';
@@ -18583,7 +18718,7 @@ this.ctx.restore();
         this.ctx.fillStyle = '#ffd700';
         this.ctx.font = `bold ${Math.round(42 * ts)}px Montserrat, sans-serif`;
         this.ctx.shadowColor = 'rgba(0,0,0,0.9)';
-        this.ctx.shadowBlur = 20;
+        this.ctx.shadowBlur = 10;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText(champion.name.toUpperCase(), cx, nameY);
@@ -18592,7 +18727,7 @@ this.ctx.restore();
         this.ctx.fillStyle = '#ffffff';
         this.ctx.font = `bold ${Math.round(22 * ts)}px Montserrat, sans-serif`;
         this.ctx.shadowColor = 'rgba(0,0,0,0.6)';
-        this.ctx.shadowBlur = 10;
+        this.ctx.shadowBlur = 5;
         this.ctx.fillText('ARE THE CHAMPIONS!', cx, nameY + 36 * ts);
         this.ctx.shadowBlur = 0;
 
@@ -18621,7 +18756,7 @@ this.ctx.restore();
             this.ctx.fillStyle = medalColors[idx];
             this.ctx.font = `bold ${Math.round(16 * ts)}px Montserrat, sans-serif`;
             this.ctx.shadowColor = 'rgba(0,0,0,0.5)';
-            this.ctx.shadowBlur = 6;
+            this.ctx.shadowBlur = 3;
             this.ctx.fillText(b.name.toUpperCase(), px, podiumY + 34 * ts);
             // Finish time
             this.ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -18666,7 +18801,7 @@ this.ctx.restore();
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.shadowColor = '#000000';
-        this.ctx.shadowBlur = 15;
+        this.ctx.shadowBlur = 8;
 
         // Color: gold for "GO!", cyan for numbers
         this.ctx.fillStyle = isGo ? '#ffd700' : '#66fcf1';
@@ -18735,7 +18870,7 @@ this.ctx.restore();
           this.ctx.textBaseline = 'middle';
           this.ctx.font = 'bold 42px Montserrat, sans-serif';
           this.ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
-          this.ctx.shadowBlur = 14;
+          this.ctx.shadowBlur = 7;
           this.ctx.fillStyle = '#ffd700';
           this.ctx.strokeStyle = 'rgba(20, 12, 0, 0.85)';
           this.ctx.lineWidth = 2;
@@ -18777,7 +18912,7 @@ this.ctx.restore();
 
           // Background pill
           this.ctx.shadowColor = 'rgba(255, 200, 0, 0.4)';
-          this.ctx.shadowBlur = 22;
+          this.ctx.shadowBlur = 11;
           this.ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
           this.ctx.beginPath();
           this.ctx.roundRect(-pillW / 2, -pillH / 2, pillW, pillH, 24);
@@ -18797,13 +18932,13 @@ this.ctx.restore();
           this.ctx.font = 'bold 15px Montserrat, sans-serif';
           this.ctx.fillStyle = 'rgba(255, 215, 150, 0.95)';
           this.ctx.shadowColor = 'rgba(255, 200, 0, 0.3)';
-          this.ctx.shadowBlur = 8;
+          this.ctx.shadowBlur = 4;
           this.ctx.fillText('ELIMINATION IN', 0, -34);
 
           // Number (wrapped so its scale-pop does not distort the label below)
           this.ctx.save();
           this.ctx.shadowColor = 'rgba(255, 100, 60, 0.8)';
-          this.ctx.shadowBlur = 20;
+          this.ctx.shadowBlur = 10;
           this.ctx.fillStyle = '#ff6b35';
           this.ctx.font = 'bold 52px Outfit, Montserrat, sans-serif';
           this.ctx.scale(numScale, numScale);
@@ -18813,7 +18948,7 @@ this.ctx.restore();
           // Balls Left (current remaining count, gold, smaller, centered)
           const liveCount = this.balls.filter(b => !b.finished && !b.eliminated).length;
           this.ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
-          this.ctx.shadowBlur = 10;
+          this.ctx.shadowBlur = 5;
           this.ctx.fillStyle = '#ffd700';
           this.ctx.font = 'bold 16px Montserrat, sans-serif';
           this.ctx.fillText(`${liveCount} BALLS LEFT`, 0, 48);
@@ -18838,7 +18973,7 @@ this.ctx.restore();
         const stripY = screenH / 2 - stripH / 2;
         this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
         this.ctx.shadowColor = 'rgba(255,215,0,0.4)';
-        this.ctx.shadowBlur = 30;
+        this.ctx.shadowBlur = 15;
         this.ctx.fillRect(0, stripY, screenW, stripH);
         this.ctx.shadowBlur = 0;
 
@@ -18852,14 +18987,14 @@ this.ctx.restore();
         this.ctx.font = 'bold 64px Outfit, Montserrat, sans-serif';
         this.ctx.fillStyle = '#ffd700';
         this.ctx.shadowColor = 'rgba(255,215,0,0.8)';
-        this.ctx.shadowBlur = 20;
+        this.ctx.shadowBlur = 10;
         this.ctx.fillText('WINNER', screenW / 2, stripY + stripH / 2);
 
         // Country name below
         this.ctx.font = 'bold 28px Montserrat, sans-serif';
         this.ctx.fillStyle = '#ffffff';
         this.ctx.shadowColor = 'rgba(0,0,0,0.8)';
-        this.ctx.shadowBlur = 8;
+        this.ctx.shadowBlur = 4;
         this.ctx.fillText(this._winnerFlashBall.name.toUpperCase(), screenW / 2, stripY + stripH - 20);
 
         this.ctx.shadowBlur = 0;
@@ -18890,7 +19025,7 @@ this.ctx.restore();
 
           // Outer glow
           this.ctx.shadowColor = 'rgba(255, 200, 0, 0.5)';
-          this.ctx.shadowBlur = 25 * pulse;
+          this.ctx.shadowBlur = 12 * pulse;
 
           // Background pill
           this.ctx.fillStyle = 'rgba(20, 10, 0, 0.85)';
@@ -18919,11 +19054,11 @@ this.ctx.restore();
           this.ctx.fillStyle = '#ffd700';
           this.ctx.font = 'bold 22px Montserrat, sans-serif';
           this.ctx.shadowColor = 'rgba(255, 200, 0, 0.6)';
-          this.ctx.shadowBlur = 12;
+          this.ctx.shadowBlur = 6;
           this.ctx.fillText(eventText, cx, cy - 14);
 
           // Description text below
-          this.ctx.shadowBlur = 6;
+          this.ctx.shadowBlur = 3;
           this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
           this.ctx.font = '13px Montserrat, sans-serif';
           this.ctx.fillText(eventDesc, cx, cy + 18);

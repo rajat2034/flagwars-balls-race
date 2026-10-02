@@ -108,8 +108,6 @@ canvas.force-vertical {
 
 .glass-panel {
   background: var(--bg-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-glow);
 }
 
@@ -679,7 +677,6 @@ canvas.force-vertical {
   background: rgba(0,0,0,0.55);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
-  backdrop-filter: blur(4px);
   white-space: nowrap;
   min-width: 90px;
 }
@@ -707,7 +704,6 @@ canvas.force-vertical {
   background: rgba(0,0,0,0.55);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
-  backdrop-filter: blur(4px);
   white-space: nowrap;
   min-width: 100px;
 }
@@ -1205,7 +1201,6 @@ canvas.force-vertical {
   font-weight: 600;
   min-width: 200px;
   cursor: pointer;
-  backdrop-filter: blur(8px);
 }
 .country-dropdown-select:focus {
   outline: none;
@@ -1597,8 +1592,6 @@ canvas.force-vertical {
   transform: translateX(-50%);
   z-index: 90;
   background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 5px 12px;
@@ -1788,7 +1781,6 @@ canvas.force-vertical {
   box-shadow: 0 10px 30px rgba(0,0,0,0.6);
   background: rgba(10, 15, 25, 0.92);
   border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(4px);
   animation: panel-slide-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
